@@ -312,7 +312,10 @@ class Gateway:
             guard = await h.input_guardrails.run(ctx, req.message)
             if guard.action == "block":
                 why = guard.reason or "it was blocked"
-                reply = f"I can't take this message: {why}. Please shorten or rephrase it."
+                hint = (
+                    "shorten or rephrase it" if guard.results[-1].check == "size" else "rephrase it"
+                )
+                reply = f"I can't take this message: {why}. Please {hint}."
                 await self._reply_and_close(state, reply, "blocked", 0, None)
                 return
             user_text = guard.text
