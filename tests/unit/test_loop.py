@@ -33,7 +33,8 @@ async def test_answer_and_checkpoints(tmp_path: Path) -> None:
     assert check_stream(events) == []
     assert loop_exit(events) == {"steps": 2, "exit_reason": "answer", "tool_calls": 1}
     cp = h.session.last_checkpoint("t1", events[0]["turn_id"])
-    assert cp["step"] == 1 and cp["messages"][-1]["role"] == "tool"
+    assert cp["step"] == 2 and cp["messages"][-1]["role"] == "assistant"
+    assert [m["role"] for m in cp["messages"]][-3:] == ["assistant", "tool", "assistant"]
 
 
 @pytest.mark.anyio
