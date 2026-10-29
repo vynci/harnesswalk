@@ -103,6 +103,6 @@ record ChannelReply { text: string, citations: [Citation], turn_id: string }
 | `gateway.session_ttl_s` | `7200` | Public mode TTL |
 | `gateway.dev_tenant` | `dev` | Tenant used in dev mode when none is given |
 | `gateway.allow_tenant_header` | `true` in dev | Accept `X-Harnesswalk-Tenant` (dev only, ignored elsewhere) |
-| `gateway.stream_reply_chars` | `0` | Above 0, the reply is also sent as `message_delta` events of this many characters inside the `phase: reply` span |
+| `gateway.stream_reply_chars` | `24` | Above 0, the reply is also sent as `message_delta` events of this many characters inside the `phase: reply` span; `0` turns streaming off |
 | `gateway.turn_state_max` | `500` | Finished turns whose in-process state is kept; the oldest beyond this are evicted |
 | `gateway.turn_state_ttl_seconds` | `3600` | A finished turn's in-process state is evicted this long after it ended |

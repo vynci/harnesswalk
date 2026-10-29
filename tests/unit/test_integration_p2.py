@@ -131,3 +131,22 @@ async def test_finished_turns_past_the_ttl_are_evicted(tmp_path: Path) -> None:
 def test_turn_state_defaults_come_from_harness_yaml(tmp_path: Path) -> None:
     h = Harness(settings(tmp_path, "plain_answer"))
     assert h.gateway.turn_state_max == 500 and h.gateway.turn_state_ttl_s == 3600
+
+
+# -- streamed replies -------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_the_shipped_config_streams_the_reply_as_message_delta(tmp_path: Path) -> None:
+    h = Harness(settings(tmp_path, "plain_answer"))
+    assert h.capabilities()["features"]["message_delta"] is True
+    async with client(h) as c:
+        r = await c.post("/v1/turns", json={"message": "What are your support hours?"})
+        await h.gateway.wait(r.json()["turn_id"], 5)
+        events = parse_sse((await c.get(r.json()["events_url"])).text)
+    deltas = [e for e in events if e["type"] == "message_delta"]
+    end = events[-1]
+    assert len(deltas) > 1 and all(e["node_id"] == "gateway" for e in deltas)
+    assert [e["summary"]["index"] for e in deltas] == list(range(len(deltas)))
+    assert "".join(e["summary"]["delta"] for e in deltas) == end["summary"]["reply"]
+    assert all(len(e["summary"]["delta"]) <= 24 for e in deltas)

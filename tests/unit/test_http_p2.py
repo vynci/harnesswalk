@@ -353,7 +353,15 @@ async def test_capabilities_per_mode(tmp_path: Path) -> None:
     assert caps["limits"]["max_message_chars"] == 32000
     assert caps["limits"]["session_ttl_seconds"] is None
 
-    pub = Harness(settings(tmp_path / "pub", "plain_answer", profile=None, mode="public"))
+    pub = Harness(
+        settings(
+            tmp_path / "pub",
+            "plain_answer",
+            profile=None,
+            mode="public",
+            overrides={"gateway.stream_reply_chars": 0},
+        )
+    )
     transport = httpx.ASGITransport(app=create_app(pub))
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         caps = (await c.get("/v1/capabilities")).json()
@@ -445,7 +453,15 @@ async def test_per_turn_option_errors_and_mode_checks(tmp_path: Path) -> None:
         assert r.status_code == 422 and r.json()["error"]["code"] == "provider_not_configured"
         assert (await post(disable=["loop"])).status_code == 422
 
-    pub = Harness(settings(tmp_path / "pub", "plain_answer", profile=None, mode="public"))
+    pub = Harness(
+        settings(
+            tmp_path / "pub",
+            "plain_answer",
+            profile=None,
+            mode="public",
+            overrides={"gateway.stream_reply_chars": 0},
+        )
+    )
     transport = httpx.ASGITransport(app=create_app(pub))
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         r = await c.post("/v1/turns", json={"message": "hi", "provider": "fake"})
@@ -530,7 +546,15 @@ async def test_cors_in_dev_mode_only(tmp_path: Path) -> None:
         r = await c.get("/v1/capabilities", headers={"Origin": "http://evil.example"})
         assert "access-control-allow-origin" not in r.headers
 
-    pub = Harness(settings(tmp_path / "pub", "plain_answer", profile=None, mode="public"))
+    pub = Harness(
+        settings(
+            tmp_path / "pub",
+            "plain_answer",
+            profile=None,
+            mode="public",
+            overrides={"gateway.stream_reply_chars": 0},
+        )
+    )
     transport = httpx.ASGITransport(app=create_app(pub))
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         r = await c.get("/v1/capabilities", headers={"Origin": "http://localhost:5173"})

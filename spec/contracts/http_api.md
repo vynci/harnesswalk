@@ -392,7 +392,7 @@ Response `200`:
   ],
   "fixtures": ["approval_approve", "plain_answer"],
   "features": {
-    "step_mode": true, "approvals": true, "message_delta": false, "cancel": true,
+    "step_mode": true, "approvals": true, "message_delta": true, "cancel": true,
     "byo_key": false, "disable_nodes": true
   },
   "limits": { "max_message_chars": 32000, "max_steps": 8, "session_ttl_seconds": null }
