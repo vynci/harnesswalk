@@ -1,0 +1,41 @@
+import type { ComponentProps, Ref } from 'react'
+import { CodeBlock, CodeBlockContent, CodeBlockLine } from '@/components/ui/code-block'
+import { useHighlightedCode } from '@/hooks/use-highlighted-code'
+
+/**
+ * Highlighted, read-only code on the shadcn Code Block: one CodeBlockLine per line, coloured by
+ * shiki through `useHighlightedCode` (languages load on first use, see src/lib/highlighter.tsx).
+ */
+export function Code({
+  code,
+  language,
+  lineNumbers = false,
+  wrap = false,
+  size = 'default',
+  label,
+  className,
+  contentClassName,
+  contentRef,
+  ...props
+}: {
+  code: string
+  language: string
+  lineNumbers?: boolean
+  wrap?: boolean
+  size?: 'default' | 'sm'
+  /** The accessible name of the scrollable code (it takes focus for keyboard scrolling). */
+  label?: string
+  contentClassName?: string
+  contentRef?: Ref<HTMLPreElement>
+} & Omit<ComponentProps<typeof CodeBlock>, 'children' | 'size'>) {
+  const lines = useHighlightedCode(code, language)
+  return (
+    <CodeBlock size={size} className={className} data-language={language} {...props}>
+      <CodeBlockContent ref={contentRef} lineNumbers={lineNumbers} wrap={wrap} aria-label={label} className={contentClassName}>
+        {lines.map((line, i) => (
+          <CodeBlockLine key={i}>{line}</CodeBlockLine>
+        ))}
+      </CodeBlockContent>
+    </CodeBlock>
+  )
+}
