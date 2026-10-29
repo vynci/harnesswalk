@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Background,
   BackgroundVariant,
@@ -19,6 +19,8 @@ import { TurnStatusBar } from './TurnStatusBar'
 import { Legend } from './Legend'
 
 const nodeTypes = { harness: HarnessNode, plane: PlaneNode }
+// Room for the turn status bar above the diagram and the legend below it.
+const FIT_PADDING = { top: '48px', right: '14px', bottom: '132px', left: '14px' } as const
 const edgeTypes = { flow: FlowEdge }
 
 function Flow() {
@@ -29,6 +31,9 @@ function Flow() {
   const theme = useApp((s) => s.theme)
   const selectNode = useApp((s) => s.selectNode)
   const toggleCollapsed = useApp((s) => s.toggleCollapsed)
+  const showTelemetry = useApp((s) => s.showTelemetry)
+  const setShowTelemetry = useApp((s) => s.setShowTelemetry)
+  const [hovered, setHovered] = useState<string | null>(null)
   const turn = useDisplayTurn()
   const { fitView } = useReactFlow()
 
@@ -38,12 +43,12 @@ function Flow() {
   )
   const disabled = useMemo(() => new Set(disabledList), [disabledList])
   const { nodes, edges } = useMemo(
-    () => toFlow(diagram, layout, turn, { disabled, onToggle: toggleCollapsed }),
-    [diagram, layout, turn, disabled, toggleCollapsed],
+    () => toFlow(diagram, layout, turn, { disabled, onToggle: toggleCollapsed, showOps: showTelemetry, hovered }),
+    [diagram, layout, turn, disabled, toggleCollapsed, showTelemetry, hovered],
   )
 
   useEffect(() => {
-    const id = requestAnimationFrame(() => void fitView({ padding: 0.06, duration: 250 }))
+    const id = requestAnimationFrame(() => void fitView({ padding: FIT_PADDING, duration: 250 }))
     return () => cancelAnimationFrame(id)
   }, [layout, fitView])
 
@@ -55,7 +60,7 @@ function Flow() {
     let frame = 0
     const ro = new ResizeObserver(() => {
       cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(() => void fitView({ padding: 0.06 }))
+      frame = requestAnimationFrame(() => void fitView({ padding: FIT_PADDING }))
     })
     ro.observe(el)
     return () => {
@@ -63,6 +68,9 @@ function Flow() {
       ro.disconnect()
     }
   }, [fitView])
+
+  const onNodeEnter: NodeMouseHandler = useCallback((_e, node) => setHovered(node.type === 'harness' ? node.id : null), [])
+  const onNodeLeave: NodeMouseHandler = useCallback(() => setHovered(null), [])
 
   const onNodeClick: NodeMouseHandler = useCallback(
     (_e, node) => {
@@ -92,11 +100,13 @@ function Flow() {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodeClick={onNodeClick}
+        onNodeMouseEnter={onNodeEnter}
+        onNodeMouseLeave={onNodeLeave}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable
         fitView
-        fitViewOptions={{ padding: 0.06 }}
+        fitViewOptions={{ padding: FIT_PADDING }}
         minZoom={0.2}
         maxZoom={2}
         colorMode={colorMode}
@@ -107,7 +117,7 @@ function Flow() {
         <Controls showInteractive={false} position="bottom-left" />
       </ReactFlow>
       <TurnStatusBar turn={turn} />
-      <Legend />
+      <Legend key={view} view={view} showTelemetry={showTelemetry} onShowTelemetry={setShowTelemetry} />
     </div>
   )
 }

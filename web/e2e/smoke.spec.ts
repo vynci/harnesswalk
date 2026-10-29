@@ -124,3 +124,29 @@ test('a focused node opens its inspector with Enter', async ({ page }) => {
   await expect(page.getByTestId('inspector-title')).toHaveText('Loop')
   await expect(page.getByRole('button', { name: 'Close inspector' })).toBeFocused()
 })
+
+test('the legend explains the colours and the telemetry toggle swaps the bus for the ops edges', async ({ page }) => {
+  const legend = page.getByTestId('legend')
+  await expect(legend).toHaveAttribute('data-open', 'true')
+  await expect(legend).toContainText('waiting')
+  await expect(legend).toContainText('queue')
+  await expect(legend).toContainText('telemetry')
+  await expect(node(page, 'policy').getByTestId('kind-chip')).toHaveAttribute('data-kind', 'config')
+
+  // Default: one bus from the execution plane to Trace, no ops edges.
+  await expect(page.getByTestId('edge-bus__execution__trace')).toBeAttached()
+  await expect(page.getByTestId('edge-eval_to_release')).toHaveCount(0)
+  // Hovering Trace shows its own edges.
+  await node(page, 'trace').hover()
+  await expect(page.getByTestId('edge-loop_to_trace')).toBeAttached()
+  await page.mouse.move(0, 0)
+  await expect(page.getByTestId('edge-loop_to_trace')).toHaveCount(0)
+
+  await page.getByTestId('telemetry-toggle').click()
+  await expect(page.getByTestId('edge-eval_to_release')).toBeAttached()
+  await expect(page.getByTestId('edge-loop_to_trace')).toBeAttached()
+  await expect(page.getByTestId('edge-bus__execution__trace')).toHaveCount(0)
+
+  await page.getByTestId('legend-toggle').click()
+  await expect(legend).toHaveAttribute('data-open', 'false')
+})
