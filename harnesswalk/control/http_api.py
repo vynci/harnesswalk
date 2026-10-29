@@ -209,6 +209,13 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
         return error(400, "invalid_request", f"invalid parameters: {where}")
 
     async def read_json(request: Request) -> dict[str, Any]:
+        # Only `application/json`: a `text/plain` or form body is a "simple" cross-site request
+        # that a browser sends without a CORS preflight, so it could start turns from any page.
+        media_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
+        if media_type != "application/json":
+            raise GatewayError(
+                415, "unsupported_media_type", "the request body must be application/json"
+            )
         length = request.headers.get("content-length")
         if length and length.isdigit() and int(length) > max_body:
             raise GatewayError(400, "invalid_request", f"request body is over {max_body} bytes")

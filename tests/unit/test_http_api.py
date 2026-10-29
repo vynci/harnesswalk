@@ -61,7 +61,10 @@ async def test_turn_round_trip_and_tenancy(tmp_path: Path) -> None:
 async def test_request_errors(tmp_path: Path) -> None:
     h = Harness(settings(tmp_path, "plain_answer"))
     async with client(h) as c:
-        assert (await c.post("/v1/turns", content=b"{not json")).status_code == 400
+        bad = await c.post(
+            "/v1/turns", content=b"{not json", headers={"Content-Type": "application/json"}
+        )
+        assert bad.status_code == 400
         assert (await c.post("/v1/turns", json={"message": ""})).status_code == 400
         assert (await c.post("/v1/turns", json={"message": "x" * 70000})).status_code == 400
         r = await c.post(

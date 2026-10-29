@@ -39,6 +39,11 @@ dev-mode CORS.
 ```
 
 - A resource of another tenant is `404`, never `403`, so ids cannot be probed.
+- A `POST` that takes a body (`/v1/turns`, `resume`, `approvals`) MUST send
+  `Content-Type: application/json` (parameters such as `charset` are allowed); anything else,
+  or none, is `415 unsupported_media_type` before the body is read. A `text/plain` or form body
+  is a request a browser sends cross-site without a CORS preflight, so this keeps a foreign page
+  from starting turns. `cancel` takes no body and needs no content type.
 
 | Status | When |
 |---|---|
@@ -46,6 +51,7 @@ dev-mode CORS.
 | `401` | `unauthenticated` |
 | `404` | Unknown id, or another tenant's |
 | `409` | Conflict: turn already running in the session, approval already decided, turn not paused, turn already finished |
+| `415` | `unsupported_media_type`: a body that is not declared `application/json` |
 | `422` | Valid JSON that breaks a rule (for example disabling a node in public mode) |
 | `429` | `rate_limited`, with `Retry-After` |
 | `503` | Not ready (`/healthz` only reports it) |
@@ -107,7 +113,7 @@ Response `202 Accepted`:
 }
 ```
 
-Errors: `400`, `401`, `409 turn_in_progress`, `422`, `429`.
+Errors: `400`, `401`, `409 turn_in_progress`, `415`, `422`, `429`.
 
 ## `GET /v1/turns/{turn_id}/events`
 
@@ -238,7 +244,7 @@ Response `200`:
 }
 ```
 
-Errors: `400`, `401`, `404`, `409 approval_already_decided`.
+Errors: `400`, `401`, `404`, `409 approval_already_decided`, `415`.
 
 The turn resumes on its own; the client keeps reading the same event stream.
 
@@ -260,7 +266,7 @@ Request:
 Response `200`: `{ "turn_id": "...", "resumed_node_id": "context_builder", "mode": "step" }`.
 
 Errors: `401`, `404`, `409 turn_not_paused` (not at a breakpoint; an approval pause is not
-resumed here).
+resumed here), `415`.
 
 ## `GET /v1/diagram`
 

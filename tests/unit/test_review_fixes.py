@@ -181,3 +181,32 @@ async def test_a_failure_after_the_reply_does_not_overwrite_the_stored_turn(tmp_
         row = stored_turn(h, turn_id)
         assert row["user_text"] == "What are your support hours?"
         assert row["reply_text"] and row["exit"] == "answered"
+
+
+# -- request checks ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_a_post_body_must_be_declared_json(tmp_path: Path) -> None:
+    h = Harness(settings(tmp_path, "plain_answer"))
+    body = json.dumps({"message": "What are your support hours?"})
+    async with client(h) as c:
+        # A cross-site form or fetch may send text/plain without a preflight: refuse it.
+        for content_type in ("text/plain", "application/x-www-form-urlencoded", None):
+            headers = {"Content-Type": content_type} if content_type else {}
+            r = await c.post("/v1/turns", content=body, headers=headers)
+            assert r.status_code == 415, content_type
+            assert r.json()["error"]["code"] == "unsupported_media_type"
+        assert h.gateway.turns == {}  # no turn was started
+        for path in ("/v1/turns/turn_x/resume", "/v1/approvals/apr_x"):
+            r = await c.post(path, content="{}", headers={"Content-Type": "text/plain"})
+            assert r.status_code == 415, path
+        r = await c.post(
+            "/v1/turns", content=body, headers={"Content-Type": "application/json; charset=utf-8"}
+        )
+        assert r.status_code == 202
+        await h.gateway.wait(r.json()["turn_id"], 5)
+        # Cancel takes no body, so it needs no content type.
+        r = await c.post("/v1/turns", json={"message": "hi", "step": True})
+        assert (await c.post(f"/v1/turns/{r.json()['turn_id']}/cancel")).status_code == 202
+        await h.gateway.wait(r.json()["turn_id"], 5)
