@@ -198,7 +198,14 @@ answers with a real local model instead.
 - **Replay.** Every finished turn has a Replay button: a slider walks the stored events back
   and forth on the diagram without calling the model again. History survives a reload.
 - **Simple and Expert.** Expert view opens memory, the model layer, tools and trace into their
-  parts.
+  parts, and draws every edge, telemetry included. The simple view folds the LLM Ops edges into
+  one telemetry bus; the legend's Show telemetry switch (or hovering a node) brings them back.
+- **Reading the colours.** A plane is a coloured box; a chip by each title says what kind of
+  thing the node is (code, config, prompt, store, queue, model); a bar on its left says its
+  state; an edge's colour and dash say what kind of traffic it carries. The legend in the
+  corner of the diagram lists them all, and [web/README.md](web/README.md) has the table.
+
+![The same turn in the expert view: every node opened into its parts](docs/screenshots/turn-done-expert.png)
 
 To work on the UI with hot reload, run `make run PROVIDER=fake` in one terminal and
 `make web-dev` in another, then open http://127.0.0.1:5173 (Vite proxies `/v1` to the API). To

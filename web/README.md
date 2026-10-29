@@ -6,7 +6,7 @@ prompt, its code and its events. Turn on step mode to stop at every node, or rep
 with a slider.
 
 Stack: React 19, Vite, TypeScript (strict), Tailwind 4, shadcn/ui, React Flow (`@xyflow/react`,
-attribution kept), Zustand, dagre, Vitest and Playwright. Node 24 and pnpm 10.
+attribution kept), Zustand, dagre (fallback layout), Vitest and Playwright. Node 24 and pnpm 10.
 
 ## Run it
 
@@ -27,7 +27,7 @@ pnpm build
 ## Test it
 
 ```sh
-pnpm test          # Vitest: reducer, layout, memory badges, stream client against the mock
+pnpm test          # Vitest: reducer, layout, edge routes, colour contrast, memory badges, stream client
 pnpm test:e2e      # Playwright smoke tests against a mock build (Chromium only)
 pnpm lint          # ESLint, then tsc -b
 pnpm test:e2e:live # Playwright against the real API with the fake provider, see below
@@ -45,7 +45,9 @@ straight from uvicorn. It drives the conformance fixtures (`tool_call`, `approva
 `approval_deny`, `step_mode`, `cancel_running`, `guardrail_block`) through the header menu, plus
 reconnect, reload, history, replay, New session and the inspector, and fails a test when any
 event breaks `spec/events.schema.json`. Playwright stops the server when the run ends.
-`HARNESSWALK_SCREENSHOTS=1` (`make screenshots`) also writes `docs/screenshots/*.png`.
+`HARNESSWALK_SCREENSHOTS=1` (`make screenshots`) also writes `docs/screenshots/*.png`; the
+side-by-side `edges-before-after.png` puts the kept `edges-before.png` (the old routing, from the
+owner's feedback) beside a fresh capture.
 
 ## Environment
 
@@ -58,8 +60,8 @@ event breaks `spec/events.schema.json`. Playwright stops the server when the run
 | `VITE_HARNESSWALK_API_URL` | build time | API origin when the UI is not served by the API or the proxy. Default same origin |
 | `VITE_HARNESSWALK_VALIDATE` | build time | `1` validates every event against the schema in a production build too (dev and mock builds always do) |
 
-Per-viewer conveniences (theme, view, collapsed groups, the session id and the messages this
-browser sent) live in `localStorage` under `harnesswalk.*`. The app works without storage.
+Per-viewer conveniences (theme, view, collapsed groups, the telemetry switch, the session id and
+the messages this browser sent) live in `localStorage` under `harnesswalk.*`. The app works without storage.
 
 ## Mock mode
 
@@ -78,14 +80,47 @@ run as against the real API. It:
 The mock and the schema validator are dynamic imports behind build-time constants, so a
 production build contains neither.
 
+## Reading the diagram: the colour system
+
+Colour carries four separate meanings, each on its own channel, so they never compete. The
+tokens live in `src/index.css` (light and dark), and `src/diagram/colors.test.ts` checks their
+contrast in both themes: 4.5:1 for text, 3:1 for accents, icons and edge strokes.
+
+| Channel | Drawn as | Values |
+|---|---|---|
+| Plane | group box background, dashed border and header | control amber, context blue, execution green, LLM Ops purple |
+| Node kind (purpose) | icon chip after the title; the kind word stays for screen readers | code slate, config amber, prompt violet, store teal, queue orange, model indigo |
+| Node state | left accent bar plus the status icon | idle neutral grey, active blue with a pulse, waiting amber (dashed border), done green (bar and icon only, border stays the plane's), error red, skipped grey dashed bar, not yet built muted and dashed |
+| Edge kind | stroke colour and dash | request solid in the source plane's colour, reply (a request back against walk order) a lighter tint of it, data solid teal, control dashed amber, telemetry dotted thin grey, release dashed purple |
+| Edge state | opacity and motion | idle 40 percent, flowing full opacity with moving dashes and a dot, used this turn 70 percent |
+
+Only an active, waiting or failed node changes its border, so while a turn runs the one active
+node stands out against the quiet done ones. An active edge shows its label beside the line,
+never on it, so the moving dot does not pass under it. With reduced motion there is no pulse,
+moving dash or dot; states still show by colour and weight.
+
+The legend (bottom right of the diagram) has one row per channel: states, node kinds, edge kinds.
+It collapses, and opens by default in the simple view. Its Show telemetry switch matters in the
+simple view only: by default the edges to and from LLM Ops are hidden and one dotted bus runs
+from the execution plane to Trace; the switch draws them all, and hovering a node draws its own.
+The expert view always draws every edge.
+
 ## How the diagram stays in step with the spec
 
 - The UI never hard-codes nodes or edges. It draws whatever `GET /v1/diagram` returns, and the
   API generates that from its node registry merged with `spec/diagram/diagram.json`.
-- Layout is computed from the diagram: `layout` hints when a node has them, otherwise the runtime
-  planes are columns in `groups[].order`, the ops plane is a row beneath, and dagre orders each
-  plane along `walk_order`. Expert nodes sit inside their `parent`; an expert edge that `refines`
-  a simple edge replaces it in the expert view and lights it in the simple view.
+- Layout is computed from the diagram: `layout` hints when a node has them (`layout.expert` in
+  the expert view), otherwise the runtime planes are columns in `groups[].order`, the ops plane
+  is a row beneath, and dagre orders each plane along `walk_order`. Expert nodes sit inside their
+  `parent`; an expert edge that `refines` a simple edge replaces it in the expert view and lights
+  it in the simple view.
+- Edges are routed from the spec too. An edge's `layout` hint names the side each end uses
+  (`handles`), its bend points (`waypoints`) and which side of the line its label sits on; a port
+  sits where the nearest bend point projects onto its side, so a lane is written once. An edge
+  without hints, or whose nodes moved (most of the expert view), goes through a deterministic
+  orthogonal router (`src/diagram/route.ts`: A* over a sparse grid around the node boxes, with
+  costs for bends, crossings and, steeply, running along another edge). `routes.test.ts` checks
+  that no two edges overlap on one line and no edge runs through a node.
 - Events are validated at runtime against `spec/events.schema.json` in dev and mock builds; a
   badge in the header counts failures.
 - Mock mode, the tests and the validator read `spec/` directly (`?raw` imports), never a copy.
