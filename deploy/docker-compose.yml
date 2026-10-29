@@ -6,8 +6,8 @@
 # Image tags are pinned. No secrets live in this file; values come from the environment.
 # The api image also builds web/ (a multi-stage deploy/api.Dockerfile) and serves it at
 # http://127.0.0.1:8000/ once web/ has a package.json.
-# The api does not need Postgres in P1 (it keeps SQLite under /data); Postgres is started now
-# so the pgvector stores of P3 have somewhere to land.
+# The api keeps its records in SQLite under /data and, since P3, the vectors of the semantic,
+# episodic and knowledge stores in Postgres with pgvector (HARNESSWALK_VECTORS=sqlite opts out).
 name: harnesswalk
 
 services:
@@ -23,6 +23,8 @@ services:
       HARNESSWALK_OLLAMA_URL: ${HARNESSWALK_OLLAMA_URL:-http://ollama:11434}
       HARNESSWALK_DATA_DIR: /data
       HARNESSWALK_DATABASE_URL: postgresql://harnesswalk:${POSTGRES_PASSWORD:-harnesswalk-local}@postgres:5432/harnesswalk
+      # Vectors for semantic, episodic and knowledge: pgvector in compose (sqlite to opt out).
+      HARNESSWALK_VECTORS: ${HARNESSWALK_VECTORS:-pgvector}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}

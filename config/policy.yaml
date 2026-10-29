@@ -4,7 +4,7 @@ version: 1
 enabled: true
 
 agent:
-  allow_tools: [calculator, read_skill, lookup_order, cancel_order]
+  allow_tools: [calculator, read_skill, read_doc, remember, lookup_order, cancel_order]
 
 roles:
   user: { allow_action_classes: [read, write, destructive, external, memory.write] }
@@ -14,7 +14,9 @@ rules:
   - { id: dev.write.allow,         modes: [dev, private], action_classes: [write], decision: allow }
   - { id: dev.destructive.approve, modes: [dev, private], action_classes: [destructive], decision: needs_approval }
   - { id: external.approve,        modes: [dev, private], action_classes: [external], decision: needs_approval }
-  - { id: memory.write.allow,      modes: [dev, private], action_classes: [memory.write], decision: allow }
+  # A memory proposal is allowed in every mode; the memory writer then gates the write by mode
+  # (public never persists beyond the session).
+  - { id: memory.write.propose,    modes: [dev, private, public], action_classes: [memory.write], decision: allow }
   - { id: public.deny_rest,        modes: [public], decision: deny }
 
 # Per-tenant budgets (P3). A missing key is no limit; tenants.<id> merges over default.

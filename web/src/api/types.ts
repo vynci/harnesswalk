@@ -90,7 +90,8 @@ export interface DiagramNode {
   source_hint: string
   artifact_hint?: string
   can_disable?: boolean
-  layout?: { x: number; y: number }
+  /** Fixed top-left in the simple view, with an optional expert-view position. */
+  layout?: { x: number; y: number; expert?: { x: number; y: number } }
   /** Added by GET /v1/diagram. */
   implemented?: boolean
   stub?: boolean
@@ -105,6 +106,16 @@ export interface DiagramEdge {
   kind: EdgeKind
   view: View
   refines?: string
+  layout?: EdgeLayoutHint
+}
+
+export type Side = 'top' | 'right' | 'bottom' | 'left'
+
+/** Simple-view routing hints from diagram.json: ports by side, bend points, label side. */
+export interface EdgeLayoutHint {
+  handles?: { source?: Side; target?: Side }
+  waypoints?: [number, number][]
+  label?: 'above' | 'below' | 'left' | 'right'
 }
 
 export interface Diagram {

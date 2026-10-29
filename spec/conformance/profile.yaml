@@ -23,7 +23,14 @@ procedural:
 context:
   total_tokens: 16000
   reserve_output_tokens: 1024
-  stores: [procedural, session]      # P1 scope; other stores are empty in this profile
+  stores: [procedural, session]      # cases that need semantic, episodic or knowledge add them
+
+# The knowledge cases ingest these documents (and no seed facts or events). Hash embeddings,
+# so retrieval is the same on every machine.
+stores:
+  knowledge: { docs_dir: spec/conformance/docs }
+  seeds_dir: spec/conformance
+  embeddings: { provider: fake }
 
 loop:
   max_steps: 8
@@ -35,10 +42,11 @@ loop:
 
 policy:
   agent:
-    allow_tools: [lookup_order, track_shipment, cancel_order]
+    allow_tools: [lookup_order, track_shipment, cancel_order, remember, read_doc]
   rules:
     - { id: dev.read.allow, modes: [dev], action_classes: [read], decision: allow }
     - { id: dev.destructive.approve, modes: [dev], action_classes: [destructive], decision: needs_approval }
+    - { id: memory.write.propose, modes: [dev, private, public], action_classes: [memory.write], decision: allow }
 
 approval:
   timeout_s: 300
@@ -49,6 +57,7 @@ output_guardrails: { enabled: true, checks: [schema, content, citations] }
 tools: spec/conformance/tools.yaml
 
 overridable:
+  - context.stores
   - loop.max_steps
   - loop.stuck_repeats
   - loop.final_call_on_exit

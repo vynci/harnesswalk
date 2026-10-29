@@ -57,7 +57,7 @@ loop:
     error: Something went wrong while answering. The trace has the details.
 
 tools:
-  builtins: [calculator, read_skill]
+  builtins: [calculator, read_skill, remember, read_doc]
   max_observation_chars: 4000
 
 sandbox:
@@ -68,6 +68,9 @@ sandbox:
     output_cap_bytes: 65536
     workdir: data/sandbox       # one directory per turn under here, removed when the turn ends
     os_jail: auto               # auto (sandbox-exec on macOS, unshare on Linux) or off
+
+storage:
+  vectors: sqlite               # sqlite (brute-force cosine) | pgvector (POSTGRES_* or HARNESSWALK_DATABASE_URL)
 
 trace:
   backend: sqlite

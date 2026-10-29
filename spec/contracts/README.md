@@ -76,7 +76,7 @@ record Observation { call_id: string, outcome: "ok" | "denied" | "error" | "time
 record Usage       { input_tokens: int, output_tokens: int, cached_tokens?: int, usd: number }
 record Cost        { input_tokens: int, output_tokens: int, usd: number }
 
-ActionClass = "read" | "write" | "destructive" | "external" | "memory.write"   // memory.write since P3
+ActionClass = "read" | "write" | "destructive" | "external" | "memory.write"   // memory.write: a memory proposal (the remember tool, the memory writer)
 ```
 
 ## Conventions for every contract

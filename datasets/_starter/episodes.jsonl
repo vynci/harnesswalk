@@ -1,0 +1,4 @@
+{"id": "ep-a1001-shipped", "ts": "2026-10-24T15:02:00Z", "kind": "support", "text": "Order A-1001 shipped from Toronto; the customer asked support to make sure it goes to the concierge.", "outcome": "resolved", "entities": ["A-1001"]}
+{"id": "ep-a1002-address", "ts": "2026-10-22T10:40:00Z", "kind": "support", "text": "The customer changed the delivery address of order A-1002 while it was still processing.", "outcome": "resolved", "entities": ["A-1002"]}
+{"id": "ep-a1003-return", "ts": "2026-10-21T09:15:00Z", "kind": "support", "text": "The customer asked how to return order A-1003, a Trailhead 28 backpack in moss; support explained the 30 day return window.", "outcome": "answered", "entities": ["A-1003"]}
+{"id": "ep-late-parcel", "ts": "2026-09-30T16:20:00Z", "kind": "support", "text": "A parcel arrived 4 business days late; support opened a carrier trace and the customer kept the order.", "outcome": "resolved"}

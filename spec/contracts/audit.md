@@ -85,7 +85,8 @@ record VerifyResult { ok: bool, records: int, first_bad_record?: string }
 
 ## P3 additions
 
-- **One record per consequence.** Every tool call of a class other than `read` produces, in
+- **One record per consequence.** Every tool call of a class other than `read` (and
+  `memory.write`, whose call only proposes: the memory writer records the write) produces, in
   order: `policy_decision` (before anything runs), `approval_decision` when it needed approval
   (before it runs), and `tool_executed` after the sandbox ran it (`executed`, `outcome`,
   `before`, `after`). A denied or unapproved call has `executed: false` on its last record.

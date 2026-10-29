@@ -11,6 +11,8 @@ first, `phase: reply` last.
         (model_layer, tools ...) -> output_guardrails -> gateway (reply)
         -> [memory_writer] -> trace -> turn_end
 
+`turn_end.summary.citations` lists the knowledge chunks the reply cites with `[n]`.
+
 When input guardrails block, the walk is gateway, input_guardrails, gateway, trace.
 """
 
@@ -18,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import re
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
@@ -26,7 +29,6 @@ from typing import TYPE_CHECKING, Any
 import jsonschema
 
 from harnesswalk import diagram
-from harnesswalk.context.memory_writer import run_memory_writer
 from harnesswalk.context.stores.session import SessionForbidden
 from harnesswalk.events import Breakpoints, TurnEmitter, new_trace_id, uuid7
 from harnesswalk.execution.loop import Limits
@@ -90,8 +92,25 @@ class TurnState:
     exit: str = ""
     replied: bool = False  # the reply phase closed: a cancel has nothing left to stop
     cost: dict[str, Any] | None = None  # the receipt total, for the budget ledger
+    proposals: list[Any] = field(default_factory=list)  # memory proposals from the loop
     recorded: bool = False  # the session holds this turn: a later failure must not rewrite it
     finished_at: float | None = None  # monotonic time the turn ended, for eviction
+
+
+CITATION_MARK = re.compile(r"\[(\d{1,2})\]")
+
+
+def cited_sources(reply: str, citations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The knowledge chunks the reply cites with `[n]`, in first-cited order."""
+    by_n = {c["n"]: c for c in citations}
+    out, seen = [], set()
+    for m in CITATION_MARK.finditer(reply):
+        n = int(m.group(1))
+        if n in by_n and n not in seen:
+            seen.add(n)
+            c = by_n[n]
+            out.append({"n": n, "doc": c["doc"], "chunk": c["chunk"], "citation": c["citation"]})
+    return out
 
 
 def cap_reply(text: str) -> str:
@@ -302,8 +321,7 @@ class Gateway:
             try:
                 emit.edge("input_guardrails_to_context_builder")
                 assembled = await h.context_builder.build(ctx, user_text)
-                # The context builder lists the knowledge chunks it put in context (P3 seam).
-                chunks = list(getattr(assembled, "knowledge_chunks", None) or [])
+                chunks = list(ctx.citations)  # the knowledge chunks numbered for this turn
                 emit.edge("context_builder_to_loop")
                 result = await h.loop.run(
                     ctx,
@@ -313,6 +331,7 @@ class Gateway:
                     api_key=req.api_key,
                 )
                 answer, steps = result.answer.text, result.steps
+                state.proposals = list(result.proposals)
                 exit_ = EXIT_FOR_REASON[result.exit_reason]
             except Exception:
                 # A downstream node failed and closed its own span: answer with a notice.
@@ -384,12 +403,19 @@ class Gateway:
             stored = self._reredact(reply, vault)
         h.session.append_turn(ctx, "gateway", user_text, stored, exit_)
         state.recorded = True
-        await run_memory_writer(ctx, [])
+        # Memory sees the redacted text too: a restored email never becomes a memory.
+        proposals = list(state.proposals)
+        proposals += h.memory_writer.turn_episode(ctx, user_text, stored, exit_)
+        await h.memory_writer.run(ctx, proposals)
         receipt = await run_trace_node(ctx, h.tracer)
         state.cost = receipt["total"]
+        end: dict[str, Any] = {"exit": exit_, "steps": steps, "reply": reply}
+        cited = cited_sources(reply, ctx.citations)
+        if cited:
+            end["citations"] = cited
         emit.turn_end(
             "done",
-            {"exit": exit_, "steps": steps, "reply": reply},
+            end,
             cost=receipt["total"],
             # A truncated reply points at the full text in the trace (events.md rule 12).
             detail={"reply": full_reply} if full_reply != reply else None,
@@ -574,6 +600,7 @@ class Gateway:
                     ctx, loop_span, checkpoint, observation, h.tools.schemas(ctx.mode), limits
                 )
                 answer, steps = result.answer.text, result.steps
+                state.proposals = list(result.proposals)
                 exit_ = EXIT_FOR_REASON[result.exit_reason]
             except Exception:
                 if ctx.emit.stack:

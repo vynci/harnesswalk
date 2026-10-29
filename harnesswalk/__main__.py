@@ -7,6 +7,7 @@ harnesswalk turn "<prompt>" --cancel-after loop
                                           cancel the turn as soon as that node is entered
 harnesswalk events <turn_id>              dump a stored turn as JSON Lines
 harnesswalk turns <session_id>            list a session's turns, newest first
+harnesswalk ingest [<pack>] [--force]     index a pack's docs and load its seed facts and events
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ SUMMARY_KEYS = (
     "steps", "step", "provider", "model", "finish_reason", "tool_calls", "fallback",
     "tools_enabled", "outcome", "executed", "reply_chars", "events", "persisted", "approval_id",
     "record_id", "prompt_version", "skills_indexed", "turns", "hits", "tokens", "input_tokens",
-    "output_tokens",
+    "output_tokens", "citations", "proposed", "written", "rejected", "pending", "gate",
 )  # fmt: skip
 
 
@@ -227,6 +228,33 @@ def _turns(args: argparse.Namespace) -> int:
     return 0
 
 
+def _ingest(args: argparse.Namespace) -> int:
+    """Index `datasets/<pack>/docs/` and load the pack's seeds into the memory stores."""
+    from harnesswalk.runtime import Harness
+
+    settings = _settings(args)
+    if args.pack:
+        settings.data["dataset"] = args.pack
+    settings.data.setdefault("stores", {})["ingest_on_start"] = False
+    pack = settings.get("dataset", "_starter")
+    if not (settings.root / "datasets" / pack).is_dir():
+        print(f"no dataset pack {pack!r} under {settings.root / 'datasets'}", file=sys.stderr)
+        return 1
+    harness = Harness(settings)
+    try:
+        out = harness.ingest(force=args.force)
+    finally:
+        asyncio.run(harness.aclose())
+    seeded = out["seeded"]
+    state = "indexed" if out["changed"] else "unchanged"
+    print(
+        f"pack {pack}: {out['docs']} documents, {out['chunks']} chunks ({state}); "
+        f"seeded {seeded['facts']} facts and {seeded['episodes']} events; "
+        f"embedder {out['embedder']}, vectors {out['vectors']}"
+    )
+    return 0
+
+
 def _serve(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -284,6 +312,11 @@ def build_parser() -> argparse.ArgumentParser:
     events.add_argument("turn_id")
     events.add_argument("--tenant", default="dev")
 
+    ingest = sub.add_parser("ingest", help="index a pack's docs and load its seeds")
+    common(ingest)
+    ingest.add_argument("pack", nargs="?", help="dataset pack (default: the configured one)")
+    ingest.add_argument("--force", action="store_true", help="index again even if unchanged")
+
     turns = sub.add_parser("turns", help="list a session's turns, newest first")
     turns.add_argument("session_id")
     turns.add_argument("--tenant", default="dev")
@@ -302,6 +335,8 @@ def main(argv: list[str] | None = None) -> int:
         return _events(args)
     if args.command == "turns":
         return _turns(args)
+    if args.command == "ingest":
+        return _ingest(args)
     build_parser().print_help()
     return 0
 

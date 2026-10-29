@@ -1,0 +1,31 @@
+# Harness tools. Unlike tools.yaml (pure lookups of the suite), these belong to the harness
+# itself, and every implementation registers them with exactly these names, classes and
+# argument schemas (spec/contracts/memory_writer.md and context_builder.md).
+#
+# - remember: the loop's way to propose a memory. Running it writes nothing; a successful call
+#   becomes a MemoryProposal that the memory writer gates after the reply.
+# - read_doc: the on-demand tier of knowledge, a pack document in full by id.
+- name: remember
+  description: Propose a durable memory. kind=fact needs key and value; kind=event needs text.
+  action_class: memory.write
+  timeout_ms: 1000
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [kind]
+    properties:
+      kind: { type: string, enum: [fact, event] }
+      key: { type: string, minLength: 1, maxLength: 120 }
+      value: { type: string, minLength: 1, maxLength: 500 }
+      text: { type: string, minLength: 1, maxLength: 500 }
+
+- name: read_doc
+  description: Read a document listed in the documents index in full, by its id.
+  action_class: read
+  timeout_ms: 2000
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [doc]
+    properties:
+      doc: { type: string, maxLength: 80 }

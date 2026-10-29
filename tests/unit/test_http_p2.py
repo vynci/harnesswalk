@@ -347,7 +347,7 @@ async def test_capabilities_per_mode(tmp_path: Path) -> None:
     assert {"plain_answer", "cancel_running", "two_turns"} <= set(caps["fixtures"])
     assert caps["features"] == {
         "step_mode": True, "approvals": True, "message_delta": True, "cancel": True,
-        "byo_key": False, "disable_nodes": True,
+        "byo_key": False, "disable_nodes": True, "knowledge": False, "memory_review": True,
     }  # fmt: skip
     assert caps["limits"]["max_steps"] == h.settings.get("loop.max_steps")
     assert caps["limits"]["max_message_chars"] == 32000

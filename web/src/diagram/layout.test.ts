@@ -79,10 +79,20 @@ describe('computeLayout', () => {
     expect([g.x, g.y]).toEqual([7, 11])
   })
 
-  it('routes a same-column edge that skips a node around the column', () => {
+  it('routes an edge by the sides and bend points its diagram.json hint names', () => {
     const l = computeLayout(diagram, simple)
     const e = l.edges.find((x) => x.id === 'gateway_to_policy')!
-    expect([e.sourceSide, e.targetSide]).toEqual(['right', 'right'])
+    expect([e.sourceSide, e.targetSide]).toEqual(['bottom', 'top'])
+    // The skip edge runs straight down beside the staggered input guardrails.
+    expect(e.points).toHaveLength(2)
+    expect(e.points[0]![0]).toBe(e.points[1]![0])
+  })
+
+  it('shares one top and bottom across the runtime columns', () => {
+    const l = computeLayout(diagram, simple)
+    const cols = l.planes.filter((p) => p.id !== 'ops')
+    expect(new Set(cols.map((p) => p.y)).size).toBe(1)
+    expect(new Set(cols.map((p) => p.y + p.height)).size).toBe(1)
   })
 })
 

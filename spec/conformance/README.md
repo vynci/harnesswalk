@@ -18,6 +18,8 @@ the same API.
 |---|---|
 | `profile.yaml` | The configuration every implementation runs the suite with |
 | `tools.yaml` | Three deterministic tools every implementation registers for the suite |
+| `harness_tools.yaml` | The harness's own tools (`remember`, `read_doc`): names, action classes and argument schemas every implementation registers |
+| `docs/*.md` | The documents the knowledge cases ingest (`stores.knowledge.docs_dir` in the profile) |
 | `fixtures/*.yaml` | Scripted responses for the `fake` provider (`spec/contracts/model_provider.md`) |
 | `fixture.schema.json` | Shape of a fixture |
 | `cases/*.yaml` | One case per file: what to send and what the stream must look like |
@@ -28,15 +30,17 @@ the same API.
 The runner talks to the harness only through the HTTP API (`spec/contracts/http_api.md`). It
 never imports the implementation.
 
-1. **Start.** For each case, start the harness in the case's `mode` (default `dev`; P3) with `profile.yaml`, the `fake`
-   provider and the case's fixture, and the case's `config` overrides applied. The reference
+1. **Start.** For each case, start the harness in the case's `mode` (`dev` when the case does
+   not say) with `profile.yaml`, the `fake` provider and the case's fixture, and the case's
+   `config` overrides applied. The reference
    variables are `HARNESSWALK_MODE=dev`, `HARNESSWALK_PROVIDER=fake`,
    `HARNESSWALK_FIXTURE=<fixture>` and `HARNESSWALK_PROFILE=spec/conformance/profile.yaml`. An
    implementation MAY instead accept the dev-only header `X-Harnesswalk-Fixture` on the first
    turn of a session, so one process can serve every case. Wait until `GET /healthz` returns
    `200` with `provider: fake` and the expected `fixture`.
 2. **Isolate.** Use the tenant `conformance-<case id>` (header `X-Harnesswalk-Tenant`) and a new
-   session per case. All turns of a case share that session.
+   session per case. All turns of a case share that session. In `public` mode the header is
+   not honoured: the client keeps the anonymous tenant cookie the first response sets.
 3. **Send.** For each turn, `POST /v1/turns` with `send.message` and `send.options`. Then read
    `GET /v1/turns/{turn_id}/events` until `turn_end`, with a 30 second limit per turn.
 4. **Act.** While reading, when an event matches an `actions[].when` matcher, perform its `do`:
@@ -100,6 +104,12 @@ model would say. The fake provider fixes what the model says.
 | `budget_limit` | `budget_limit` | A tool-call budget of 2 per turn: the third call is denied by policy (rule `budget.tool_calls_per_turn`), audited, and the turn ends `exit: limit` |
 | `approval_resume_after_restart` | `approval_resume_after_restart` | Two-process: the harness is killed while the turn waits on an approval, restarted, the approval is decided, and the same turn resumes and answers |
 | `audit_chain` | `audit_chain` | An approved destructive call then a denied one: five audit records with an unbroken hash chain (`GET /v1/audit`) |
+| `knowledge_cited` | `knowledge_cited` | With `knowledge` among the stores, the `knowledge` child retrieves the returns policy, the context numbers it `[1]`, and `turn_end.summary.citations` names the chunk the reply cites |
+| `memory_written` | `memory_written` | A `remember` call (class `memory.write`) is allowed and audited, the memory writer runs after the reply and writes the fact (`memory_proposed`, `memory_written`), and the next turn retrieves it from `semantic` |
+| `memory_denied_public` | `memory_denied_public` | In `public` mode the same call is proposed with gate `session` and rejected: no `memory_written` |
+
+The knowledge and memory cases need the expert children `knowledge` and `semantic`: an
+implementation that implements those stores emits their spans, so these cases assert them.
 
 ## Adding a case
 

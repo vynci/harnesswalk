@@ -11,7 +11,7 @@ registered, appears in the stream with status `skipped` when it runs, and is ser
 `GET /v1/diagram` with `implemented: false, stub: true`; **not registered** means the module
 does not exist yet and the node is served with `implemented: false`.
 
-| Package | Module | Node id | Contract | P1 status |
+| Package | Module | Node id | Contract | Status |
 |---|---|---|---|---|
 | `control` | `gateway.py` | `gateway` | `gateway.md`, `http_api.md` | implemented |
 | `control` | `input_guardrails.py` | `input_guardrails` | `guardrail.md` | implemented (control, size; pii and injection P3) |
@@ -22,10 +22,10 @@ does not exist yet and the node is served with `implemented: false`.
 | `context` | `stores/__init__.py` | `memory` | `store.md` | implemented |
 | `context` | `stores/procedural.py` | `procedural` | `store.md` | implemented |
 | `context` | `stores/session.py` | `session` | `store.md` | implemented |
-| `context` | `stores/semantic.py` | `semantic` | `store.md` | stub (P3) |
-| `context` | `stores/episodic.py` | `episodic` | `store.md` | stub (P3) |
-| `context` | `stores/knowledge.py` | `knowledge` | `store.md` | stub (P3) |
-| `context` | `memory_writer.py` | `memory_writer` | `memory_writer.md` | stub (P3) |
+| `context` | `stores/semantic.py` | `semantic` | `store.md` | implemented (P3) |
+| `context` | `stores/episodic.py` | `episodic` | `store.md` | implemented (P3) |
+| `context` | `stores/knowledge.py` | `knowledge` | `store.md` | implemented (P3) |
+| `context` | `memory_writer.py` | `memory_writer` | `memory_writer.md` | implemented (P3) |
 | `execution` | `loop.py` | `loop` | `loop.md` | implemented |
 | `execution` | `model_layer.py` | `model_layer` | `model_provider.md` | implemented |
 | `execution` | `router.py` | `router` | `router.md` | implemented |
@@ -55,13 +55,19 @@ Modules that are not nodes:
 | (root) | `inspectors.py` | What `GET /v1/nodes/{id}` shows per node kind, and the code peek of `GET /v1/nodes/{id}/source` |
 | (root) | `turns.py` | Turn summaries read off the stored events: `GET /v1/turns/{id}` and `GET /v1/sessions/{id}/turns` |
 | (root) | `paths.py` | Where `config/`, `spec/` and `datasets/` live (`HARNESSWALK_ROOT`) |
-| (root) | `__main__.py` | The `harnesswalk` command: `serve`, `turn`, `events`, `turns` |
+| (root) | `__main__.py` | The `harnesswalk` command: `serve`, `turn`, `events`, `turns`, `ingest` |
 | `config` | `loader.py` | Loads `config/*.yaml` and profiles through release, applies env and overrides |
 | `control` | `http_api.py` | The FastAPI app for `spec/contracts/http_api.md`, plus the built web app (`web/dist`) and dev-mode CORS |
 | `context` | `tokens.py` | The `chars_div_4` token estimator |
+| `context` | `records.py` | Store records (`Query`, `Hit`, `SourceRef`), the shared pack scope, tokens, entities, cosine and reciprocal rank fusion |
+| `context` | `embeddings.py` | Local embeddings: hash (`fake`) and Ollama, chosen by `stores.embeddings.provider` |
+| `context` | `chunking.py` | Markdown and PDF documents into chunks: by heading, then by size with overlap |
+| `context` | `stores/memory_db.py` | Opens the SQLite file behind semantic, episodic, knowledge and the writer |
+| `control` | `http_memory.py` | The context plane routes: memory proposals and knowledge documents |
 | `execution` | `builtin_tools.py` | `calculator` and `read_skill` |
 | `execution` | `providers/_http.py` | One POST with errors mapped to codes, shared by the HTTP adapters |
 | `adapters` | `storage/sqlite.py` | The SQLite helper behind the trace, session, audit and approval stores |
+| `adapters` | `storage/vectors.py` | Vector indexes: `sqlite` (brute-force cosine) and `pgvector`, chosen by `storage.vectors` |
 | `adapters` | `mcp/` | MCP client that registers server tools (later phase) |
 | `adapters` | `examples/` | How LangGraph, Strands or the Claude Agent SDK would plug in (P7, never imported by the core) |
 

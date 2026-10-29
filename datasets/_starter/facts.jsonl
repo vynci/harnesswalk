@@ -1,0 +1,6 @@
+{"key": "order A-1001 delivery note", "value": "Leave the parcel with the building concierge, not at the door.", "entities": ["A-1001"]}
+{"key": "order A-1002 gift", "value": "Order A-1002 is a gift: no prices on the packing slip.", "entities": ["A-1002"]}
+{"key": "rewards programme", "value": "Example Store Rewards gives 1 point per dollar spent; 100 points take 5 dollars off an order."}
+{"key": "support email", "value": "Support answers at support@example.invalid within one business day."}
+{"key": "warehouse", "value": "Every order ships from the Example Store warehouse in Toronto."}
+{"key": "order A-1003 item", "value": "Order A-1003 is one Trailhead 28 backpack in moss, delivered on 20 October.", "entities": ["A-1003"]}

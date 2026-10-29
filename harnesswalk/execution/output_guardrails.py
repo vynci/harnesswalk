@@ -9,10 +9,12 @@ Checks, in configured order:
   re-entered).
 - `content`: literal blocklist patterns block the answer.
 - `length`: an answer over `output_guardrails.max_chars` is repaired by truncation.
-- `citations`: when knowledge chunks were in context, count `[n]` markers, markers that name
-  no chunk, and uncited claims (sentences of six or more words without a marker). No citation
-  at all is repaired once with a notice, or blocked (`on_missing: block`, or `block_public` in
-  public mode). Without knowledge chunks the check reports `required: false`.
+- `citations`: when knowledge chunks were in context (`ctx.citations`, numbered by the context
+  builder) and the answer makes a claim from them (a sentence that shares enough content
+  words with a chunk), count `[n]` markers, markers that name no chunk, and drawn claims
+  without a marker. No citation at all is repaired once with a notice, or blocked
+  (`on_missing: block`, or `block_public` in public mode). An answer that draws nothing from
+  the chunks, or no chunks at all, reports `required: false`.
 - `pii`: personal data in the answer that is not one of this turn's input placeholders is a
   leak (from a tool result, say). It is redacted with a typed placeholder, or blocked.
 
@@ -46,20 +48,118 @@ SENTENCE = re.compile(r"[^.!?\n]+[.!?]?")
 CLAIM_WORDS = 6
 
 
+STOPWORDS = frozenset(
+    [
+        "about",
+        "above",
+        "after",
+        "again",
+        "also",
+        "because",
+        "been",
+        "before",
+        "being",
+        "below",
+        "between",
+        "both",
+        "could",
+        "does",
+        "doing",
+        "down",
+        "during",
+        "each",
+        "from",
+        "further",
+        "have",
+        "having",
+        "here",
+        "into",
+        "itself",
+        "just",
+        "more",
+        "most",
+        "must",
+        "only",
+        "other",
+        "over",
+        "same",
+        "should",
+        "some",
+        "such",
+        "than",
+        "that",
+        "their",
+        "them",
+        "then",
+        "there",
+        "these",
+        "they",
+        "this",
+        "those",
+        "through",
+        "under",
+        "until",
+        "very",
+        "what",
+        "when",
+        "where",
+        "which",
+        "while",
+        "will",
+        "with",
+        "would",
+        "your",
+        "yours",
+        "please",
+        "thanks",
+        "thank",
+    ]
+)
+DRAWN_MIN_WORDS = 3
+DRAWN_MIN_SHARE = 0.4
+
+
+def _words(text: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) >= 4} - STOPWORDS
+
+
+def draws_from(sentence: str, chunks: list[dict[str, Any]]) -> bool:
+    """Whether a sentence makes a claim from a chunk: it shares at least three content words
+    with one, or two in five of its own content words. Deterministic, crude on purpose."""
+    words = _words(sentence)
+    if not words:
+        return False
+    for chunk in chunks:
+        shared = words & _words(str(chunk.get("text", "")))
+        if len(shared) >= DRAWN_MIN_WORDS or len(shared) / len(words) >= DRAWN_MIN_SHARE:
+            return True
+    return False
+
+
 def citation_report(text: str, chunks: list[dict[str, Any]]) -> dict[str, int]:
-    """Markers present, markers naming no chunk, and claim sentences with no marker."""
+    """Markers present, markers naming no chunk, claims drawn from the chunks, and the drawn
+    claims (sentences of six or more words) without a marker.
+
+    A chunk without its text (a caller that only numbers sources) counts every claim sentence
+    as drawn from it, the strict reading.
+    """
     known = {int(c.get("n", i + 1)) for i, c in enumerate(chunks)}
     markers = [int(m) for m in MARKER.findall(text)]
-    uncited = 0
+    has_text = any(c.get("text") for c in chunks)
+    drawn = uncited = 0
     for sentence in SENTENCE.findall(text):
         s = sentence.strip()
         if s.endswith("?") or len(s.split()) < CLAIM_WORDS:
             continue
-        if not MARKER.search(s):
-            uncited += 1
+        cited = bool(MARKER.search(s))
+        if cited or not has_text or draws_from(s, chunks):
+            drawn += 1
+            if not cited:
+                uncited += 1
     return {
         "present": len(markers),
         "invalid": sum(1 for n in markers if n not in known),
+        "drawn_claims": drawn,
         "uncited_claims": uncited,
     }
 
@@ -124,10 +224,16 @@ class OutputGuardrails:
                 text = text[: self.max_chars] + " [reply truncated]"
                 action, reasons = "repair", [*reasons, "length"]
             elif check_id == "citations":
-                required = bool(chunks) and bool(self.citations_cfg.get("required", True))
                 report = citation_report(text, chunks)
                 if citations is not None:
                     report["present"] = max(report["present"], citations)
+                # Required only when the answer makes a claim from the chunks (guardrail.md):
+                # knowledge in context that the answer does not use is not penalised.
+                required = (
+                    bool(chunks)
+                    and bool(self.citations_cfg.get("required", True))
+                    and (report["drawn_claims"] > 0 or report["present"] > 0)
+                )
                 result_citations = {"required": required, **report}
                 if not required:
                     continue

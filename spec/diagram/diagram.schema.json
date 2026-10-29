@@ -45,6 +45,7 @@
   },
   "$defs": {
     "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+    "side": { "enum": ["top", "right", "bottom", "left"] },
     "group": {
       "type": "object",
       "additionalProperties": false,
@@ -88,11 +89,21 @@
           "type": "boolean"
         },
         "layout": {
-          "description": "Optional fixed position. Absent means auto-layout (P2).",
+          "description": "Optional fixed position (top-left, diagram units) in the simple view. Absent means auto-layout (P2). A renderer may ignore it; node and edge existence never depends on it.",
           "type": "object",
           "additionalProperties": false,
           "required": ["x", "y"],
-          "properties": { "x": { "type": "number" }, "y": { "type": "number" } }
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "expert": {
+              "description": "Optional fixed position in the expert view, where parents grow to hold their children. Absent means the simple-view position.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["x", "y"],
+              "properties": { "x": { "type": "number" }, "y": { "type": "number" } }
+            }
+          }
         }
       },
       "if": { "properties": { "view": { "const": "expert" } } },
@@ -113,6 +124,35 @@
         "refines": {
           "description": "Expert edges only: the simple edge this one details. In expert view the renderer hides a simple edge once any edge refines it.",
           "type": "string"
+        },
+        "layout": {
+          "description": "Optional routing hints for the simple view, in the same units as node layout. The renderer draws the edge orthogonally from the source port through the waypoints to the target port. A port sits on the named side where the nearest waypoint projects onto it (the side centre when it does not). Hints are hints: an edge without them is routed automatically.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "handles": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "source": { "$ref": "#/$defs/side" },
+                "target": { "$ref": "#/$defs/side" }
+              }
+            },
+            "waypoints": {
+              "description": "Bend points [x, y] between the two ports, in order.",
+              "type": "array",
+              "items": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": { "type": "number" }
+              }
+            },
+            "label": {
+              "description": "Which side of the edge's longest segment its label sits on, so a label never covers the line or the dot moving along it.",
+              "enum": ["above", "below", "left", "right"]
+            }
+          }
         }
       },
       "if": { "properties": { "view": { "const": "simple" } } },

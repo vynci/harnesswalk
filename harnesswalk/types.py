@@ -150,6 +150,9 @@ class TurnContext:
     model_hint: str | None = None  # a router alias hint (dev mode, http_api.md P3)
     budget: Any = None  # control/budgets.py TurnBudget: the tenant's limits and usage
     detached: bool = False  # the process is shutting down and leaves this turn to recovery
+    # The knowledge chunks the context builder numbered for this turn ([n] -> doc and chunk),
+    # so the reply's citation markers can be checked against them.
+    citations: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if not self.tenant_id:

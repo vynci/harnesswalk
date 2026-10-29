@@ -198,7 +198,14 @@ answers with a real local model instead.
 - **Replay.** Every finished turn has a Replay button: a slider walks the stored events back
   and forth on the diagram without calling the model again. History survives a reload.
 - **Simple and Expert.** Expert view opens memory, the model layer, tools and trace into their
-  parts.
+  parts, and draws every edge, telemetry included. The simple view folds the LLM Ops edges into
+  one telemetry bus; the legend's Show telemetry switch (or hovering a node) brings them back.
+- **Reading the colours.** A plane is a coloured box; a chip by each title says what kind of
+  thing the node is (code, config, prompt, store, queue, model); a bar on its left says its
+  state; an edge's colour and dash say what kind of traffic it carries. The legend in the
+  corner of the diagram lists them all, and [web/README.md](web/README.md) has the table.
+
+![The same turn in the expert view: every node opened into its parts](docs/screenshots/turn-done-expert.png)
 
 To work on the UI with hot reload, run `make run PROVIDER=fake` in one terminal and
 `make web-dev` in another, then open http://127.0.0.1:5173 (Vite proxies `/v1` to the API). To
@@ -213,6 +220,9 @@ make turn FIXTURE=tool_call PROMPT="Where is order A-1001?"
 uv run harnesswalk turn "Cancel A-1002" --provider fake --fixture cancel_order   # asks you to approve
 uv run harnesswalk turn "What are your support hours?" --provider fake --fixture plain_answer --step
 uv run harnesswalk events <turn_id>          # the stored events as JSON Lines
+uv run harnesswalk turn "How long do I have to return an item?" --provider fake --fixture cited_answer
+uv run harnesswalk turn "Call me Sam" --provider fake --fixture remember_fact      # the memory writer
+uv run harnesswalk ingest _starter           # index the pack's documents and load its seeds
 uv run harnesswalk turn "Where is order A-1001?" --provider ollama
 ```
 

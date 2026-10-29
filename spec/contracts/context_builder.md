@@ -42,8 +42,13 @@ record AssembledContext {
 ## Order (stable first)
 
 1. `procedural` always tier: system prompt (skill zero), then the skills index (names and one
-   line each, not bodies).
-2. `semantic` facts, then `episodic` events, then `knowledge` chunks (retrieved tier).
+   line each, not bodies), then the documents index (ids and titles of the pack's documents)
+   when `knowledge` is enabled.
+2. `semantic` facts, then `episodic` events, then `knowledge` chunks (retrieved tier). Each
+   retrieved slice is one system message. Knowledge chunks are numbered `[1]`, `[2]` ... in
+   rank order, each with its citation string, under an instruction to cite a passage it uses
+   with its number. The numbering is kept on the turn (`citations: [{n, doc, chunk,
+   citation}]`), and `turn_end.summary.citations` lists the chunks the reply actually cites.
 3. `session`: running summary, then recent turns verbatim.
 4. `user`: the new, guardrail-cleaned input.
 
@@ -60,11 +65,24 @@ record AssembledContext {
   dropping the lowest-ranked items; `procedural` overflow is a configuration error at load time.
 - Truncation and compaction MUST be visible in the exit summary (`compacted`, per-slice tokens).
 - Every store call MUST pass `ctx.tenant_id`.
+- Only the stores listed in `context.stores` are retrieved from; the others still appear in
+  the `memory` span as `skipped` with `enabled: false`.
+- Overflow of the total budget drops the oldest session turns first, then the lowest-ranked
+  retrieved items (knowledge, then episodic, then semantic); the exit summary reports
+  `trimmed` per slice.
+- Compaction calls the `summarize` route of the router when it lands on a non-fake provider,
+  and truncates otherwise.
 - MUST count tokens with the tokenizer of the routed model when known, otherwise with the
   configured estimator (`context.token_estimator`), and say which in the detail record.
 - The full `AssembledContext` MUST be written to the trace (via `detail_ref`), never inline in
   the event summary.
 - Deterministic for the same stores, input and config.
+
+## On-demand tools
+
+`fetch_on_demand` is exposed to the model as two harness tools (read-only, pure, offered in
+every mode): `read_skill` for a skill body by name and `read_doc` for a pack document in full
+by id (`spec/conformance/harness_tools.yaml`).
 
 ## Failure behaviour
 
@@ -93,4 +111,5 @@ record AssembledContext {
 | `context.compaction.threshold` | `0.8` | Fraction of the session slice that triggers compaction |
 | `context.compaction.keep_recent_turns` | `4` | Verbatim turns kept |
 | `context.retrieval.top_k` | `{semantic: 5, episodic: 5, knowledge: 6}` | |
+| `context.stores` | all five | The stores retrieval reads (the conformance profile lists `procedural` and `session`) |
 | `context.token_estimator` | `chars_div_4` | Fallback token counter |

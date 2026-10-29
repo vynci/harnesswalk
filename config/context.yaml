@@ -2,7 +2,7 @@
 context:
   total_tokens: 16000
   reserve_output_tokens: 1024
-  stores: [procedural, session]     # P1 scope; semantic, episodic, knowledge are stubs
+  stores: [procedural, session, semantic, episodic, knowledge]   # the stores retrieval reads
   slices:
     procedural: 3000
     semantic: 800
@@ -20,8 +20,30 @@ context:
 stores:
   backend: sqlite
   session: { sqlite_path: data/session.db }
-  embeddings: { provider: ollama, model: nomic-embed-text }
+  memory: { sqlite_path: data/memory.db }     # semantic, episodic, knowledge, proposals
+  ingest_on_start: true             # index datasets/<pack>/docs and load the seeds when they change
+  # Embeddings are always local. auto: hash embeddings (fake) on the fake provider, else Ollama
+  # when it answers, else hash embeddings with a warning. Anthropic has no embeddings API.
+  embeddings: { provider: auto, model: nomic-embed-text, dim: 256 }
+  semantic:
+    min_score: 0.35                 # facts under this similarity are left out
+  episodic:
+    half_life_days: 30
+    weights: { relevance: 0.7, recency: 0.3 }
+    min_relevance: 0.2              # an irrelevant event is left out however recent it is
+  knowledge:
+    chunk_tokens: 400
+    chunk_overlap: 40
+    rrf_k: 60                       # reciprocal rank fusion constant
+    rerank_k: 20                    # candidates per list, and passed to the reranker
+    reranker: none                  # none, or a name registered with register_reranker()
+    min_vector_score: 0.45          # a chunk found only by vector search needs this cosine
+    min_keyword_coverage: 0.25      # a keyword hit needs this share of the query's words (and two)
 
 memory_writer:
   enabled: true
-  gate: review
+  gate: auto                        # auto applies in dev, and in private for auto_approve_tenants;
+                                    # elsewhere it falls back to review. Public never writes.
+  auto_approve_tenants: ["*"]       # private-mode opt-in list; "*" opts every tenant in
+  max_proposals_per_turn: 3         # model proposals past this are rejected
+  auto_episodes: true               # one short `turn` event per finished turn (needs episodic)

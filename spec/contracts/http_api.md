@@ -23,6 +23,10 @@ dev-mode CORS.
 | `GET /v1/capabilities` | What this build can do | P2 |
 | `GET /v1/audit` | Audit export for the caller's tenant | P3 |
 | `GET /healthz` | Readiness | P1 |
+| `GET /v1/memory/proposals` | Memory proposals of the caller (`?status=pending` waiting at the review gate, default; `all` the last ones with their outcome and diff) | P3 |
+| `POST /v1/memory/proposals/{id}` | Decide a proposal at the review gate: `{"decision": "accept" \| "reject", "reason"?}` | P3 |
+| `GET /v1/knowledge/docs` | The documents the caller can retrieve from (pack and own) | P3 |
+| `GET /v1/knowledge/docs/{doc_id}` | One document with its chunks and their citation strings | P3 |
 
 ## Conventions
 
@@ -395,7 +399,7 @@ Response `200`:
   "fixtures": ["approval_approve", "plain_answer"],
   "features": {
     "step_mode": true, "approvals": true, "message_delta": true, "cancel": true,
-    "byo_key": false, "disable_nodes": true
+    "byo_key": false, "disable_nodes": true, "knowledge": true, "memory_review": true
   },
   "limits": { "max_message_chars": 32000, "max_steps": 8, "session_ttl_seconds": null }
 }
@@ -408,6 +412,8 @@ Response `200`:
 | `features.message_delta` | True when `gateway.stream_reply_chars` is above 0 |
 | `features.byo_key` | True in `public` and `private` mode (the `X-Harnesswalk-Provider-Key` header) |
 | `features.disable_nodes` | True outside `public` mode |
+| `features.knowledge` | True when `knowledge` is among `context.stores`, so replies may carry citations |
+| `features.memory_review` | True outside `public` mode: proposals at the review gate can be decided (`POST /v1/memory/proposals/{id}`) |
 | `limits.max_message_chars` | `gateway.max_message_chars`, the transport cap; input guardrails may block shorter messages |
 | `limits.max_steps` | `loop.max_steps` |
 | `limits.session_ttl_seconds` | `gateway.session_ttl_s` in `public` mode, else `null` |
@@ -516,3 +522,27 @@ Accepted for P2 and scheduled, so a UI author does not mistake them for the cont
 
 Uploads, sign-in endpoints, eval and release endpoints, feedback (`POST /v1/turns/{id}/feedback`
 arrives with online eval in P4), WebSocket transport.
+
+## Context plane routes (P3)
+
+All four are tenant-scoped like every other route.
+
+- `GET /v1/memory/proposals?status=pending|all&limit=<n>` returns `{"proposals": [...]}`. Each
+  item has `proposal_id`, `store`, `content` (redacted), `source`, `evidence`, `gate`,
+  `status`, `reason`, `record_id`, `version`, `created_at`, `decided_at`, `decided_by`; with
+  `all`, accepted items add `diff: {op, before, after}`.
+- `POST /v1/memory/proposals/{id}` with `{"decision": "accept" | "reject", "reason"?}`: `200`
+  with the decided record; `400` for another decision value; `403` in public mode (public
+  memory is never written); `404` for a proposal of another tenant or none; `409`
+  `proposal_not_pending` when it is not waiting at the review gate (decided at most once).
+- `GET /v1/knowledge/docs` returns `{"pack", "docs": [{doc_id, title, path, kind, version,
+  chunks, scope}]}` (`scope` is `pack` or `tenant`).
+- `GET /v1/knowledge/docs/{doc_id}` returns `{doc_id, title, path, kind, version, scope, text,
+  chunks: [{position, heading, text, tokens, citation}]}`, or `404` `doc_not_found`. A
+  citation chip (`turn_end.summary.citations`) opens here at `chunks[chunk]`.
+
+The store inspectors (`GET /v1/nodes/semantic`, `episodic`, `knowledge`, `memory`) return
+`counts`, `last_records` (tenant-scoped; pack seeds and documents marked `scope: pack`) and
+`settings` (embedder, vector backend, ranking settings). `GET /v1/nodes/memory_writer` adds
+`last_writes` (the last proposals with their outcome and, for writes, a diff), `pending` and
+`settings` (including `gate_in_this_mode`).

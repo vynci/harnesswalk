@@ -1,0 +1,12 @@
+fixture: memory_denied_public
+description: In public mode the model proposes a fact; the memory writer never persists it.
+model: fake-small
+turns:
+  - responses:
+      - tool_calls:
+          - { call_id: call_1, name: remember, arguments: { kind: fact, key: preferred name, value: Sam } }
+        usage: { input_tokens: 210, output_tokens: 28 }
+        expect: { last_message_role: user }
+      - text: Thanks, Sam.
+        usage: { input_tokens: 260, output_tokens: 5 }
+        expect: { last_message_role: tool }

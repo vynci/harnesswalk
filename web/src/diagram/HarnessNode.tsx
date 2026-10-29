@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleDashed, Circ
 import type { DiagramNode } from '@/api/types'
 import { cn } from '@/lib/utils'
 import type { NodeState } from '@/state/reducer'
-import { planeStyle } from './planes'
+import { KIND_HINT, KIND_ICON, planeStyle } from './planes'
 import type { StoreBadge } from './stats'
 
 export interface HarnessNodeData extends Record<string, unknown> {
@@ -44,8 +44,18 @@ function StateIcon({ state }: { state: NodeState }) {
     case 'skipped':
       return <MinusCircle className={cn(cls, 'text-state-skipped')} aria-hidden />
     default:
-      return <CircleDashed className={cn(cls, 'text-muted-foreground/60')} aria-hidden />
+      return <CircleDashed className={cn(cls, 'text-state-idle')} aria-hidden />
   }
+}
+
+function KindChip({ kind, small }: { kind: DiagramNode['kind']; small: boolean }) {
+  const Icon = KIND_ICON[kind]
+  return (
+    <span className={cn('hw-kind inline-flex shrink-0 items-center justify-center rounded-[4px]', small ? 'size-4' : 'size-[18px]')} data-kind={kind} title={KIND_HINT[kind]} data-testid="kind-chip">
+      <Icon className={small ? 'size-2.5' : 'size-3'} aria-hidden strokeWidth={2.25} />
+      <span className="sr-only">{kind}</span>
+    </span>
+  )
 }
 
 function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
@@ -54,15 +64,17 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
   return (
     <div
       className={cn(
-        'hw-node relative flex h-full w-full flex-col rounded-[10px] px-3 py-2 text-left',
-        isChild && 'px-2 py-1.5',
+        'hw-node relative flex h-full w-full flex-col rounded-[10px] py-2 pr-2 pl-3.5 text-left',
+        isChild && 'py-1.5 pr-1.5 pl-3',
       )}
       style={planeStyle(node.group)}
       data-testid={`node-${node.id}`}
       data-state={state}
       data-implemented={notYet ? 'false' : 'true'}
       data-current={current ? 'true' : 'false'}
+      data-node-kind={node.kind}
     >
+      <span className="hw-accent" aria-hidden />
       {SIDES.map(([pos, side]) => (
         <Handle key={`t-${side}`} id={`t-${side}`} type="target" position={pos} className="!h-1 !w-1 !min-w-0 !border-0 !bg-transparent" isConnectable={false} />
       ))}
@@ -71,8 +83,9 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
       ))}
       <div className="flex items-center gap-1.5">
         <StateIcon state={state} />
-        <span className={cn('truncate font-medium', isChild ? 'text-xs' : 'text-sm')}>{node.label}</span>
-        <span className="ml-auto flex items-center gap-1">
+        <span className={cn('min-w-0 truncate font-medium tracking-[-0.005em]', isChild ? 'text-xs' : 'text-[13.5px]')}>{node.label}</span>
+        <span className="ml-auto flex shrink-0 items-center gap-1">
+          <KindChip kind={node.kind} small={isChild} />
           {off && (
             <span
               className="shrink-0 rounded border border-current px-1 text-[10px] leading-4 whitespace-nowrap text-state-error"

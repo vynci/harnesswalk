@@ -244,7 +244,8 @@ class Tools:
         span.set(executed=True)
         if ctx.budget is not None:
             ctx.budget.tool_calls += 1
-        if spec.action_class != "read":
+        # A memory.write call only proposes; the memory writer records the write itself.
+        if spec.action_class not in ("read", "memory.write"):
             await record(
                 ctx,
                 self.audit,

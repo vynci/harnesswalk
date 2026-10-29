@@ -17,6 +17,7 @@ Contract: spec/contracts/loop.md. Node: `loop` (execution plane, kind code).
         exit "stuck" if this exact (name, arguments) already ran stuck_repeats times
         run it through `tools` (policy, approval and sandbox happen in there)
         exit "budget_tool_calls" if policy denied it on the tenant's tool-call budget
+        a successful `remember` call becomes a memory proposal (written after the reply)
       checkpoint the step to the session store
 
 After `max_steps` or `stuck` the loop makes one final model call with tools disabled (when
@@ -41,6 +42,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from harnesswalk.context.memory_writer import proposal_from_call
 from harnesswalk.context.stores.session import SessionStore
 from harnesswalk.events import Span
 from harnesswalk.execution.model_layer import ModelLayer, ModelRequest
@@ -100,7 +102,7 @@ class LoopResult:
     tool_calls: int
     exit_reason: str
     usage: Usage
-    proposals: list[dict[str, Any]] = field(default_factory=list)
+    proposals: list[Any] = field(default_factory=list)  # context.memory_writer.MemoryProposal
 
 
 @dataclass
@@ -113,6 +115,7 @@ class LoopState:
     tool_calls: int = 0
     seen: Counter[str] = field(default_factory=Counter)
     risk: str = "low"
+    proposals: list[Any] = field(default_factory=list)  # successful `remember` calls
 
 
 def call_key(name: str, arguments: dict[str, Any]) -> str:
@@ -216,6 +219,7 @@ class Loop:
             Message("tool", observation.content, name=pending.name, tool_call_id=pending.call_id)
         )
         state.tool_calls += 1
+        self._propose(ctx, state, pending, observation)
         assistant = next(m for m in reversed(messages) if m.role == "assistant")
         ids = [c.call_id for c in assistant.tool_calls]
         rest = (
@@ -235,6 +239,14 @@ class Loop:
         if not span.closed:
             ctx.emit.exit(span)
         return result
+
+    @staticmethod
+    def _propose(ctx: TurnContext, state: LoopState, call: ToolCall, observation: Any) -> None:
+        """A successful `remember` call becomes a memory proposal for the memory writer."""
+        if observation.outcome == "ok":
+            proposal = proposal_from_call(ctx, call)
+            if proposal is not None:
+                state.proposals.append(proposal)
 
     def _not_run(self, state: LoopState, calls: list[ToolCall], reason: str) -> None:
         for skipped in calls:  # every call needs a result
@@ -266,6 +278,7 @@ class Loop:
             observation = await self.tools.invoke(ctx, call, before_pause)
             ctx.emit.edge("tools_to_loop")
             state.tool_calls += 1
+            self._propose(ctx, state, call, observation)
             state.messages.append(
                 Message("tool", observation.content, name=call.name, tool_call_id=call.call_id)
             )
@@ -330,6 +343,7 @@ class Loop:
             tool_calls=state.tool_calls,
             exit_reason=exit_reason,
             usage=state.usage,
+            proposals=state.proposals,
         )
 
     def _checkpoint(self, ctx: TurnContext, state: LoopState, pending: ToolCall | None = None):

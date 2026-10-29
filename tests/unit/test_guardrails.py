@@ -40,7 +40,7 @@ def test_output_checks() -> None:
     bad = g.check("not json", output_schema=schema)
     assert (bad.action, bad.text) == ("block", SAFE_SCHEMA_MESSAGE)
     cites = OutputGuardrails({"citations": {"required": True, "on_missing": "repair"}}, "dev")
-    missing = cites.check("an answer", knowledge_chunks=[{"n": 1}, {"n": 2}])
+    missing = cites.check("The return window is thirty days long.", knowledge_chunks=[{"n": 1}])
     assert missing.action == "repair" and missing.citations["required"] is True
     assert missing.citations["present"] == 0
 

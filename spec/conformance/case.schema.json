@@ -4,55 +4,30 @@
   "title": "harnesswalk conformance case",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "id",
-    "title",
-    "spec_version",
-    "fixture",
-    "turns"
-  ],
+  "required": ["id", "title", "spec_version", "fixture", "turns"],
   "properties": {
-    "id": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9_]{0,63}$"
-    },
-    "title": {
-      "type": "string",
-      "minLength": 1
-    },
-    "spec_version": {
-      "type": "string",
-      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
-    },
-    "fixture": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9_]{0,63}$"
-    },
-    "config": {
-      "description": "Overrides of profile keys. Only keys listed in profile.yaml `overridable` are allowed.",
-      "type": "object",
-      "propertyNames": {
-        "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
-      }
-    },
-    "turns": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/turn"
-      }
-    },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+    "title": { "type": "string", "minLength": 1 },
+    "spec_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "fixture": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
     "mode": {
-      "description": "Mode to start the harness in (P3). Default dev.",
-      "enum": [
-        "dev",
-        "public",
-        "private"
-      ]
+      "description": "The mode the harness starts in for this case. In public mode the tenant is the anonymous cookie tenant, not the tenant header.",
+      "enum": ["dev", "public", "private"],
+      "default": "dev"
     },
     "two_process": {
       "description": "P3: the runner runs the harness as an OS process so a `restart` action can kill it and start a new one on the same data directory.",
       "type": "boolean"
+    },
+    "config": {
+      "description": "Overrides of profile keys. Only keys listed in profile.yaml `overridable` are allowed.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$" }
+    },
+    "turns": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/turn" }
     }
   },
   "$defs": {
@@ -62,200 +37,105 @@
       "additionalProperties": false,
       "minProperties": 1,
       "properties": {
-        "type": {
-          "type": "string"
-        },
-        "node_id": {
-          "type": "string"
-        },
-        "edge_id": {
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "active",
-            "waiting",
-            "done",
-            "error",
-            "skipped"
-          ]
-        },
-        "summary": {
-          "type": "object"
-        },
-        "error": {
-          "type": "object"
-        }
+        "type": { "type": "string" },
+        "node_id": { "type": "string" },
+        "edge_id": { "type": "string" },
+        "status": { "enum": ["active", "waiting", "done", "error", "skipped"] },
+        "summary": { "type": "object" },
+        "error": { "type": "object" }
       }
     },
     "action": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "when",
-        "do"
-      ],
+      "required": ["when", "do"],
       "properties": {
-        "when": {
-          "$ref": "#/$defs/matcher"
-        },
+        "when": { "$ref": "#/$defs/matcher" },
         "do": {
           "type": "object",
           "additionalProperties": false,
           "minProperties": 1,
           "maxProperties": 1,
           "properties": {
-            "approval": {
-              "enum": [
-                "approve",
-                "deny"
-              ]
-            },
-            "resume": {
-              "enum": [
-                "step",
-                "continue"
-              ]
-            },
-            "cancel": {
-              "const": true
-            },
-            "restart": {
-              "const": true
-            }
+            "approval": { "enum": ["approve", "deny"] },
+            "resume": { "enum": ["step", "continue"] },
+            "cancel": { "const": true },
+            "restart": { "const": true }
           }
         },
-        "repeat": {
-          "type": "boolean",
-          "default": false
-        }
+        "repeat": { "type": "boolean", "default": false }
       }
     },
     "turn": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "send",
-        "expect"
-      ],
+      "required": ["send", "expect"],
       "properties": {
         "send": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "message"
-          ],
+          "required": ["message"],
           "properties": {
-            "message": {
-              "type": "string",
-              "minLength": 1
-            },
-            "options": {
-              "type": "object"
-            }
+            "message": { "type": "string", "minLength": 1 },
+            "options": { "type": "object" }
           }
         },
-        "actions": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/action"
-          }
-        },
-        "expect": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "path"
-          ],
-          "properties": {
-            "path": {
-              "description": "Exact simple-view node path: node_id of each node_enter whose node is a simple node, in seq order.",
-              "type": "array",
-              "minItems": 1,
-              "items": {
-                "type": "string"
-              }
-            },
-            "statuses": {
-              "description": "Status of the event that closed each path entry. A single value applies to every entry.",
-              "oneOf": [
-                {
-                  "enum": [
-                    "done",
-                    "skipped",
-                    "error"
-                  ]
-                },
-                {
-                  "type": "array",
-                  "items": {
-                    "enum": [
-                      "done",
-                      "skipped",
-                      "error"
-                    ]
-                  }
-                }
-              ]
-            },
-            "events": {
-              "description": "Ordered subsequence: matchers must match distinct events in this order, greedily.",
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/matcher"
-              }
-            },
-            "absent": {
-              "description": "No event in the turn may match any of these.",
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/matcher"
-              }
-            },
-            "cost": {
-              "description": "Exact token totals on turn_end.cost.",
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "input_tokens": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "output_tokens": {
-                  "type": "integer",
-                  "minimum": 0
-                }
-              }
-            },
-            "reply_contains": {
-              "description": "Substrings of turn_end.summary.reply, case-sensitive.",
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          }
-        },
+        "actions": { "type": "array", "items": { "$ref": "#/$defs/action" } },
         "http": {
           "description": "P3: GET requests made after the turn ends; each response must have `status` (default 200) and its JSON must match `match` as a recursive subset.",
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "get"
-            ],
+            "required": ["get"],
             "properties": {
-              "get": {
-                "type": "string",
-                "pattern": "^/"
-              },
-              "status": {
-                "type": "integer"
-              },
-              "match": {
-                "type": "object"
+              "get": { "type": "string", "pattern": "^/" },
+              "status": { "type": "integer" },
+              "match": { "type": "object" }
+            }
+          }
+        },
+        "expect": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path"],
+          "properties": {
+            "path": {
+              "description": "Exact simple-view node path: node_id of each node_enter whose node is a simple node, in seq order.",
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string" }
+            },
+            "statuses": {
+              "description": "Status of the event that closed each path entry. A single value applies to every entry.",
+              "oneOf": [
+                { "enum": ["done", "skipped", "error"] },
+                { "type": "array", "items": { "enum": ["done", "skipped", "error"] } }
+              ]
+            },
+            "events": {
+              "description": "Ordered subsequence: matchers must match distinct events in this order, greedily.",
+              "type": "array",
+              "items": { "$ref": "#/$defs/matcher" }
+            },
+            "absent": {
+              "description": "No event in the turn may match any of these.",
+              "type": "array",
+              "items": { "$ref": "#/$defs/matcher" }
+            },
+            "cost": {
+              "description": "Exact token totals on turn_end.cost.",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "input_tokens": { "type": "integer", "minimum": 0 },
+                "output_tokens": { "type": "integer", "minimum": 0 }
               }
+            },
+            "reply_contains": {
+              "description": "Substrings of turn_end.summary.reply, case-sensitive.",
+              "type": "array",
+              "items": { "type": "string" }
             }
           }
         }

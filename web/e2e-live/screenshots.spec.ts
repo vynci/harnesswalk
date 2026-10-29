@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
 
@@ -31,11 +32,43 @@ async function settle(page: Page) {
   await page.waitForTimeout(400) // let the refit and edge animation come to rest
 }
 
-test('a finished turn', async ({ page }) => {
+test('a finished turn', async ({ page, browser }) => {
   await turn(page, 'tool_call', 'Where is order A-1001?')
   await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
   await settle(page)
   await page.screenshot({ path: out('turn-done') })
+
+  // edges-before-after.png: the owner's screenshot of the old routing (edges-before.png, kept in
+  // the repo) beside the same diagram now, at twice the pixel density for a fair comparison.
+  const hi = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: 'light' })
+  await hi.addInitScript(() => localStorage.setItem('harnesswalk.theme', JSON.stringify('light')))
+  await hi.goto('/')
+  await expect(hi.getByTestId('node-gateway')).toBeVisible()
+  await turn(hi, 'tool_call', 'Where is order A-1001?')
+  await expect(hi.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  await settle(hi)
+  const after = await hi.locator('.react-flow').screenshot()
+  await hi.close()
+  const before = readFileSync(out('edges-before'))
+  const img = (b: Buffer) => `data:image/png;base64,${b.toString('base64')}`
+  const sheet = await browser.newPage({ viewport: { width: 1800, height: 800 } })
+  await sheet.setContent(`<!doctype html><html><body style="margin:0;background:#fff;font:600 18px system-ui,sans-serif;color:#222">
+    <div style="display:flex;gap:24px;padding:20px;align-items:flex-start">
+      <figure style="margin:0;flex:1"><figcaption style="margin-bottom:10px">Before: owner feedback, 2026-10-29</figcaption>
+        <img src="${img(before)}" style="width:100%;border:1px solid #ddd;border-radius:8px"></figure>
+      <figure style="margin:0;flex:1"><figcaption style="margin-bottom:10px">After: hinted routes, kind and state colours, telemetry bus</figcaption>
+        <img src="${img(after)}" style="width:100%;border:1px solid #ddd;border-radius:8px"></figure>
+    </div></body></html>`)
+  await sheet.screenshot({ path: out('edges-before-after'), fullPage: true })
+  await sheet.close()
+})
+
+test('a finished turn in the expert view', async ({ page }) => {
+  await page.getByTestId('view-expert').click()
+  await turn(page, 'tool_call', 'Where is order A-1001?')
+  await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  await settle(page)
+  await page.screenshot({ path: out('turn-done-expert') })
 })
 
 test('the approval card', async ({ page }) => {

@@ -13,7 +13,10 @@ from harnesswalk.execution.output_guardrails import (
 )
 from tests.unit.support import exits, harness, make_ctx, run_turn
 
-CHUNKS = [{"n": 1, "doc": "returns.md"}, {"n": 2, "doc": "shipping.md"}]
+CHUNKS = [
+    {"n": 1, "doc": "returns", "text": "Items can be returned within thirty days of delivery."},
+    {"n": 2, "doc": "shipping", "text": "Shipping takes three to five business days in Canada."},
+]
 
 
 def test_citation_report_counts_markers_invalid_and_uncited_claims() -> None:
@@ -21,7 +24,27 @@ def test_citation_report_counts_markers_invalid_and_uncited_claims() -> None:
         "Returns are accepted within thirty days of delivery [1]. Shipping takes three to five"
         " business days in Canada. See also [7]. Anything else?"
     )
-    assert citation_report(text, CHUNKS) == {"present": 2, "invalid": 1, "uncited_claims": 1}
+    assert citation_report(text, CHUNKS) == {
+        "present": 2,
+        "invalid": 1,
+        "drawn_claims": 2,
+        "uncited_claims": 1,
+    }
+    # Without chunk text every claim sentence counts as drawn (the strict reading).
+    bare = [{"n": 1}]
+    assert (
+        citation_report("Our store opens at nine every single morning.", bare)["drawn_claims"] == 1
+    )
+
+
+def test_knowledge_in_context_but_not_used_is_not_penalised() -> None:
+    g = OutputGuardrails({"citations": {"required": True, "on_missing": "block"}}, "dev")
+    unrelated = g.check(
+        "Our support team answers chat messages every weekday morning.", None, CHUNKS
+    )
+    assert unrelated.action == "pass" and unrelated.citations["required"] is False
+    drawn = g.check("Items can be returned within thirty days of delivery.", None, CHUNKS)
+    assert drawn.action == "block" and drawn.citations["required"] is True
 
 
 def test_missing_citations_repair_in_dev_and_block_when_configured() -> None:

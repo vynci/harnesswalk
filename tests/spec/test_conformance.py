@@ -32,6 +32,9 @@ REQUIRED_CASES = {
     "budget_limit",
     "approval_resume_after_restart",
     "audit_chain",
+    "knowledge_cited",
+    "memory_written",
+    "memory_denied_public",
 }
 
 # Recorded example stream -> the case it must satisfy.
@@ -43,7 +46,9 @@ EXAMPLE_FOR_CASE = {
 
 
 def _tools() -> dict[str, dict]:
-    return {t["name"]: t for t in load_yaml(CONF / "tools.yaml")}
+    """The suite's lookup tools plus the harness tools every implementation registers."""
+    tools = load_yaml(CONF / "tools.yaml") + load_yaml(CONF / "harness_tools.yaml")
+    return {t["name"]: t for t in tools}
 
 
 def test_required_cases_present() -> None:
@@ -88,6 +93,8 @@ def test_fixture_tools_answer_every_scripted_call() -> None:
         for turn in load_yaml(path)["turns"]:
             for response in turn["responses"]:
                 for call in response.get("tool_calls", []):
+                    if "table" not in tools[call["name"]]:
+                        continue  # a harness tool (remember, read_doc), not a lookup
                     key = next(iter(call["arguments"].values()))
                     assert key in tools[call["name"]]["table"], (path.stem, call)
 
@@ -104,3 +111,14 @@ def test_recorded_example_satisfies_case(case_id: str) -> None:
     events = load_jsonl(SPEC / "examples" / f"{EXAMPLE_FOR_CASE[case_id]}.jsonl")
     assert check_stream(events) == []
     assert check_expectations(case["turns"][0]["expect"], events) == []
+
+
+def test_reference_harness_tools_match_the_spec() -> None:
+    from harnesswalk.context.memory_writer import remember_tool
+    from harnesswalk.context.stores.knowledge import read_doc_tool
+
+    spec = {t["name"]: t for t in load_yaml(CONF / "harness_tools.yaml")}
+    for tool in (remember_tool(), read_doc_tool(None)):  # type: ignore[arg-type]
+        assert tool.parameters == spec[tool.name]["parameters"], tool.name
+        assert tool.action_class == spec[tool.name]["action_class"], tool.name
+        assert tool.timeout_ms == spec[tool.name]["timeout_ms"], tool.name
