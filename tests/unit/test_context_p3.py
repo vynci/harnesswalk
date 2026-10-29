@@ -281,3 +281,22 @@ async def test_public_mode_refuses_review_decisions(tmp_path: Path) -> None:
         assert r.status_code == 403
     offered = [t.name for t in h.tools.schemas("public")]
     assert "read_doc" in offered and "remember" not in offered  # public: pure reads only
+
+
+@pytest.mark.anyio
+async def test_the_trailhead_walk_lights_every_store_and_cites_the_returns_policy(
+    tmp_path: Path,
+) -> None:
+    """The README walk and the turn-done screenshot: five store badges and two citations."""
+    h = starter(tmp_path, "trailhead_return")
+    events = await run_turn(h, "Can I return order A-1003, the Trailhead backpack?")
+    for store in ("procedural", "session", "semantic", "episodic", "knowledge"):
+        assert exits(events, store)[0]["status"] == "done", store
+    assert all(exits(events, s)[0]["summary"]["hits"] >= 1 for s in ("semantic", "episodic"))
+    end = events[-1]["summary"]
+    assert [(c["n"], c["doc"], c["chunk"]) for c in end["citations"]] == [
+        (6, "returns_policy", 1),
+        (5, "returns_policy", 2),
+    ]
+    guard = exits(events, "output_guardrails")[0]["summary"]
+    assert guard["action"] == "pass" and guard["citations"]["uncited_claims"] == 0

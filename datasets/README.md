@@ -49,6 +49,8 @@ pack has no fixture of that name.
 | `cited_answer` | An answer from knowledge that cites the retrieved chunks as `[1]` and `[2]` |
 | `read_doc` | The on-demand tier of knowledge: the model reads a whole document with `read_doc` |
 | `remember_fact` | The model asks to remember a fact with `remember`; the memory writer writes it after the reply, and the next turn retrieves it |
+| `trailhead_return` | The Trailhead question ("Can I return order A-1003, the Trailhead backpack?"): all five stores answer and the reply cites the returns policy as `[6]` and `[5]` |
+| `three_lookups` | Three `lookup_order` calls in one step, for trying a tool-call budget (`policy.budgets`): under a budget of two the third is denied and the turn ends on a limit |
 
 ## Pack layout
 
