@@ -1,13 +1,16 @@
+import { lazy, Suspense } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ChatPanel } from '@/chat/ChatPanel'
 import { DiagramPanel } from '@/diagram/DiagramPanel'
-import { InspectorDrawer } from '@/inspector/InspectorDrawer'
 import { ReplayBar } from '@/replay/ReplayBar'
 import { useApp } from '@/state/store'
 import { Header } from './Header'
 import { Notices } from './Notices'
 import { useThemeClass } from './useTheme'
+
+// The inspector carries markdown and syntax highlighting; load it on first use.
+const InspectorDrawer = lazy(() => import('@/inspector/InspectorDrawer').then((m) => ({ default: m.InspectorDrawer })))
 
 export function App() {
   useThemeClass()
@@ -44,7 +47,7 @@ export function App() {
               <Panel minSize="35" className="relative min-w-0">
                 <DiagramPanel />
                 <ReplayBar />
-                <InspectorDrawer />
+                <InspectorSlot />
               </Panel>
             </Group>
           </main>
@@ -52,5 +55,15 @@ export function App() {
         <Notices />
       </div>
     </TooltipProvider>
+  )
+}
+
+function InspectorSlot() {
+  const selected = useApp((s) => s.selectedNode)
+  if (!selected) return null
+  return (
+    <Suspense fallback={<div className="absolute inset-y-0 right-0 z-30 w-full max-w-[460px] border-l bg-background p-4 text-sm text-muted-foreground">Loading…</div>}>
+      <InspectorDrawer />
+    </Suspense>
   )
 }
