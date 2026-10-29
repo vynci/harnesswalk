@@ -83,6 +83,8 @@ class TurnState:
     done: asyncio.Event = field(default_factory=asyncio.Event)
     reply: str = ""
     exit: str = ""
+    replied: bool = False  # the reply phase closed: a cancel has nothing left to stop
+    recorded: bool = False  # the session holds this turn: a later failure must not rewrite it
 
 
 def cap_reply(text: str) -> str:
@@ -302,7 +304,9 @@ class Gateway:
                             "active",
                             {"delta": reply[start : start + size], "index": index},
                         )
+            state.replied = True
             h.session.append_turn(ctx, "gateway", user_text, reply, exit_)
+            state.recorded = True
             await run_memory_writer(ctx, [])
             receipt = await run_trace_node(ctx, h.tracer)
             emit.turn_end(
@@ -314,17 +318,18 @@ class Gateway:
             )
         except asyncio.CancelledError:
             exit_ = "cancelled"
-            self._close_after_failure(ctx, "cancelled", "The turn was cancelled.")
+            self._close_after_failure(state, "cancelled", "The turn was cancelled.")
         except Exception as exc:  # anything unexpected still ends the turn properly
             exit_ = "error"
-            self._close_after_failure(ctx, "internal", f"{type(exc).__name__}: {exc}")
+            self._close_after_failure(state, "internal", f"{type(exc).__name__}: {exc}")
         finally:
             state.reply, state.exit = reply, exit_
             req.api_key = None  # a BYO key lives for this turn only
             self._open_sessions.pop(ctx.session_id, None)
             state.done.set()
 
-    def _close_after_failure(self, ctx: TurnContext, code: str, message: str) -> None:
+    def _close_after_failure(self, state: TurnState, code: str, message: str) -> None:
+        ctx = state.ctx
         emit = ctx.emit
         if emit.ended:
             return
@@ -333,8 +338,9 @@ class Gateway:
         emit.turn_error(code, message)
         receipt = self.h.tracer.receipt(ctx.tenant_id, ctx.turn_id)
         exit_ = "cancelled" if code == "cancelled" else "error"
-        with contextlib.suppress(Exception):  # keep turn numbering gapless after a failure
-            self.h.session.append_turn(ctx, "gateway", None, "", exit_)
+        if not state.recorded:  # a turn already in the session keeps its stored answer
+            with contextlib.suppress(Exception):  # keep turn numbering gapless after a failure
+                self.h.session.append_turn(ctx, "gateway", None, "", exit_)
         emit.turn_end("error", {"exit": exit_, "reply": ""}, cost=receipt["total"])
 
     # -- controlling a turn -------------------------------------------------------------------
@@ -362,12 +368,17 @@ class Gateway:
         Running: the flag stops the loop at its next step boundary (exit `interrupted`, a
         notice reply). Paused, or at the next breakpoint or approval: TurnCancelled closes
         every open span with `error` `cancelled`. Either way the turn ends on its own task.
+        After the reply phase (memory writer, trace) there is nothing left to stop: the
+        cancel releases any breakpoint and the turn finishes as it would have.
         """
         state = self.get(tenant_id, turn_id)
         if state is None:
             raise GatewayError(404, "turn_not_found", f"No turn {turn_id} for this tenant.")
         if state.done.is_set():
             raise GatewayError(409, "turn_finished", f"Turn {turn_id} has already ended.")
+        if state.replied:
+            state.ctx.emit.breakpoints.finish()
+            return state
         state.ctx.interrupted = True
         state.ctx.emit.breakpoints.cancel()
         self.h.approvals.cancel_turn(turn_id)

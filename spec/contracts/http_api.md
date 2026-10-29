@@ -193,9 +193,10 @@ turn summary's `status` becomes `done`.
 | The turn is | Effect |
 |---|---|
 | Running, between steps | The loop stops at the next step boundary (before a model call, before each tool call) with `exit_reason: interrupted`, answers with its fixed notice, and the turn ends normally: `turn_end.status` `done`, `summary.exit` `cancelled` |
-| Paused on a breakpoint or an approval, or reaching one after the cancel | Stops at once. The paused node and every open node close with `error` code `cancelled` (rule 8 of `events.md`), a pending approval becomes `expired`, then `turn_end` with status `error` and `summary.exit` `cancelled` (`gateway.md`) |
+| Paused on a breakpoint or an approval, or reaching one after the cancel, up to and including the `phase: reply` gateway span | Stops at once. The paused node and every open node close with `error` code `cancelled` (rule 8 of `events.md`), a pending approval becomes `expired`, then `turn_end` with status `error` and `summary.exit` `cancelled` (`gateway.md`) |
 | Inside a model or tool call | The call finishes, then one of the rows above applies |
 | Past the loop (output guardrails, reply, trace) without a breakpoint | Nothing is left to stop; the turn ends as it would have |
+| After the `phase: reply` gateway span closed (memory writer, trace), paused on a breakpoint or not | The reply is already in the session, so nothing is left to stop: the cancel is not honoured. It is still `202`, any breakpoint is released (as `continue`), and the turn ends as it would have, with its own `summary.exit` |
 
 The session records a cancelled turn like any other, so turn numbers stay gapless. Cancelling
 twice before the turn ends is `202` again.

@@ -146,6 +146,12 @@ class Breakpoints:
         self._release.set()
         return was_paused
 
+    def finish(self) -> None:
+        """Clear every breakpoint and release the current one: the turn runs to its end."""
+        self.enabled = False
+        self.paused_node = None
+        self._release.set()
+
     def resume(self, mode: str) -> str:
         """Release the current breakpoint. `continue` clears all breakpoints for the turn."""
         if self.paused_node is None:

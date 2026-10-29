@@ -118,3 +118,66 @@ async def test_cancel_during_the_last_tool_call_makes_no_final_model_call(tmp_pa
     end = events[-1]
     assert end["status"] == "done" and end["summary"]["exit"] == "cancelled"
     assert end["summary"]["reply"] == "I stopped because the turn was interrupted."
+
+
+async def step_to(h: Harness, turn_id: str, node_id: str) -> None:
+    """Step a step-mode turn until it is paused on `node_id`."""
+    breakpoints = h.gateway.turns[turn_id].ctx.emit.breakpoints
+    for _ in range(1000):
+        if breakpoints.paused_node == node_id:
+            return
+        if breakpoints.paused_node:
+            h.gateway.resume("t1", turn_id, "step")
+        await asyncio.sleep(0.002)
+    raise AssertionError(f"never paused on {node_id}")
+
+
+def stored_turn(h: Harness, turn_id: str) -> dict:
+    row = h.session.db.one("SELECT * FROM turns WHERE turn_id = ?", (turn_id,))
+    return dict(row)
+
+
+@pytest.mark.anyio
+async def test_cancel_at_the_trace_breakpoint_keeps_the_stored_answer(tmp_path: Path) -> None:
+    h = Harness(settings(tmp_path, "plain_answer"))
+    async with client(h) as c:
+        r = await c.post(
+            "/v1/turns", json={"message": "What are your support hours?", "step": True}
+        )
+        turn_id = r.json()["turn_id"]
+        await step_to(h, turn_id, "trace")
+        r = await c.post(f"/v1/turns/{turn_id}/cancel")
+        assert r.status_code == 202
+        await h.gateway.wait(turn_id, 5)
+        events = h.tracer.get_turn("t1", turn_id)
+        assert check_stream(events) == []
+        # Past the reply nothing is left to stop: the turn finishes as it would have.
+        assert not any(e["type"] == "error" for e in events)
+        end = events[-1]
+        assert end["status"] == "done" and end["summary"]["exit"] == "answered"
+        row = stored_turn(h, turn_id)
+        assert row["user_text"] == "What are your support hours?"
+        assert row["reply_text"] == end["summary"]["reply"] and row["exit"] == "answered"
+        summary = (await c.get(f"/v1/turns/{turn_id}")).json()
+        assert summary["message"] == "What are your support hours?"
+
+
+@pytest.mark.anyio
+async def test_a_failure_after_the_reply_does_not_overwrite_the_stored_turn(tmp_path: Path) -> None:
+    h = Harness(settings(tmp_path, "plain_answer"))
+    async with client(h) as c:
+        r = await c.post(
+            "/v1/turns", json={"message": "What are your support hours?", "step": True}
+        )
+        turn_id = r.json()["turn_id"]
+        await step_to(h, turn_id, "trace")
+        task = h.gateway.turns[turn_id].task
+        assert task is not None
+        task.cancel()  # a shutdown while paused after the reply was recorded
+        await h.gateway.wait(turn_id, 5)
+        events = h.tracer.get_turn("t1", turn_id)
+        assert check_stream(events) == []
+        assert events[-1]["summary"]["exit"] == "cancelled"
+        row = stored_turn(h, turn_id)
+        assert row["user_text"] == "What are your support hours?"
+        assert row["reply_text"] and row["exit"] == "answered"

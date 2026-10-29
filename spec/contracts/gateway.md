@@ -74,8 +74,10 @@ record ChannelReply { text: string, citations: [Citation], turn_id: string }
 | Over rate limit | `rate_limited`, no turn |
 | A downstream node fails | The turn continues to the reply with an error notice; `turn_end.status` is `error` only when no reply could be produced |
 | Client disconnects from the stream | The turn continues; events stay available for resumption |
-| `cancel` while paused, or at a later breakpoint | Open spans close with `error` code `cancelled`, then `turn_end` with status `error` and `summary.exit: cancelled` |
+| `cancel` while paused, or at a later breakpoint, before the `phase: reply` span closes | Open spans close with `error` code `cancelled`, then `turn_end` with status `error` and `summary.exit: cancelled` |
 | `cancel` while running | The loop stops at its next step boundary with `exit_reason: interrupted` and its notice; `turn_end.status` `done`, `summary.exit: cancelled` |
+| `cancel` after the `phase: reply` span closed | Not honoured: the reply is recorded, any breakpoint is released, and the turn ends as it would have |
+| A failure after the reply was recorded | `turn_end.status` `error`, but the session keeps the recorded turn; it is never rewritten |
 
 ## Events
 
