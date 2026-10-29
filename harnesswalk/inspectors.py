@@ -6,6 +6,7 @@ from its `source_hint`, and `recent` holds the caller's last exit summaries for 
 
 from __future__ import annotations
 
+import ast
 from typing import TYPE_CHECKING, Any
 
 from harnesswalk import diagram
@@ -28,6 +29,57 @@ def _source(h: Harness, node: dict[str, Any]) -> dict[str, Any]:
     path = h.settings.root / node["source_hint"]
     content = path.read_text(encoding="utf-8") if path.exists() else ""
     return {"path": node["source_hint"], "language": "python", "content": content}
+
+
+SOURCE_CAP_BYTES = 200 * 1024
+LANGUAGES = {".py": "python", ".yaml": "yaml", ".yml": "yaml", ".md": "markdown", ".json": "json"}
+
+
+def _symbols(text: str) -> list[dict[str, Any]]:
+    """Top-level classes and functions of a Python file, with their 1-based line."""
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return []
+    out = []
+    for item in tree.body:
+        if isinstance(item, ast.ClassDef):
+            out.append({"name": item.name, "line": item.lineno, "kind": "class"})
+        elif isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            out.append({"name": item.name, "line": item.lineno, "kind": "function"})
+    return out
+
+
+def node_source(h: Harness, node_id: str) -> dict[str, Any] | None:
+    """GET /v1/nodes/{id}/source: the node's file, only from inside the `harnesswalk/` package.
+
+    None (a 404) for a node without a file yet, or a hint that resolves (through `..` or a
+    link) anywhere outside the package.
+    """
+    hint = diagram.nodes_by_id()[node_id].get("source_hint")
+    if not hint:
+        return None
+    root = h.settings.root.resolve()
+    package = root / "harnesswalk"
+    path = (root / hint).resolve()
+    if not path.is_relative_to(package) or not path.is_file():
+        return None
+    raw = path.read_bytes()
+    text = raw.decode("utf-8", "replace")
+    shown, truncated = text, len(raw) > SOURCE_CAP_BYTES
+    if truncated:
+        head = raw[:SOURCE_CAP_BYTES].decode("utf-8", "ignore")
+        shown = head[: head.rfind("\n") + 1] or head
+    language = LANGUAGES.get(path.suffix, "text")
+    return {
+        "node_id": node_id,
+        "path": path.relative_to(root).as_posix(),
+        "language": language,
+        "line_count": len(text.splitlines()),
+        "source": shown,
+        "truncated": truncated,
+        "symbols": _symbols(text) if language == "python" else [],
+    }
 
 
 def _config(h: Harness, node_id: str) -> dict[str, Any]:
