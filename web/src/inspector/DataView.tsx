@@ -1,3 +1,5 @@
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+
 // Renders whatever JSON an inspector returns: arrays of records as tables, objects as
 // key-value lists, everything else as text. Store and queue inspectors use it.
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -15,30 +17,30 @@ export function RecordTable({ rows, caption }: { rows: Record<string, unknown>[]
   const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))].slice(0, 8)
   if (rows.length === 0) return <p className="text-xs text-muted-foreground">No records.</p>
   return (
-    <div className="overflow-x-auto rounded-md border">
-      <table className="w-full text-left text-[11px]">
-        {caption && <caption className="sr-only">{caption}</caption>}
-        <thead className="bg-muted/60">
-          <tr>
+    <div className="rounded-md border">
+      <Table className="text-[11px]">
+        {caption && <TableCaption className="sr-only">{caption}</TableCaption>}
+        <TableHeader className="bg-muted/60">
+          <TableRow>
             {cols.map((c) => (
-              <th key={c} scope="col" className="px-2 py-1 font-medium whitespace-nowrap">
+              <TableHead key={c} scope="col" className="h-7 px-2">
                 {c}
-              </th>
+              </TableHead>
             ))}
-          </tr>
-        </thead>
-        <tbody>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((r, i) => (
-            <tr key={i} className="border-t align-top">
+            <TableRow key={i} className="align-top">
               {cols.map((c) => (
-                <td key={c} className="max-w-48 truncate px-2 py-1 font-mono" title={scalar(r[c])}>
+                <TableCell key={c} className="max-w-48 truncate px-2 py-1 font-mono" title={scalar(r[c])}>
                   {scalar(r[c])}
-                </td>
+                </TableCell>
               ))}
-            </tr>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   )
 }

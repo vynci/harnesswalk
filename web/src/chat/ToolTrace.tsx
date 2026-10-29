@@ -53,8 +53,8 @@ function ToolLine({ call, turnOver }: { call: ToolCallView; turnOver: boolean })
       <TraceIcon>
         <Icon />
       </TraceIcon>
-      <TraceTitle>{turnOver && call.status === 'running' ? `Stopped before ${call.tool} finished` : title(call)}</TraceTitle>
-      <TraceDescription>{description(call, turnOver)}</TraceDescription>
+      <TraceTitle className="shrink-0">{turnOver && call.status === 'running' ? `Stopped before ${call.tool} finished` : title(call)}</TraceTitle>
+      <TraceDescription className="min-w-0 shrink truncate">{description(call, turnOver)}</TraceDescription>
     </TraceLine>
   )
   const detail = {

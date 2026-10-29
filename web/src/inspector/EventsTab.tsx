@@ -1,24 +1,62 @@
-import type { HarnessEvent } from '@/api/types'
+import { useMemo } from 'react'
+import type { HarnessEvent, NodeKind } from '@/api/types'
+import { Code } from '@/components/code'
+import {
+  Trace,
+  TraceCollapsible,
+  TraceCollapsibleContent,
+  TraceCollapsibleTrigger,
+  TraceDescription,
+  TraceIcon,
+  TraceLine,
+  TraceTitle,
+} from '@/components/ui/trace'
+import { KIND_ICON } from '@/diagram/planes'
+import { useApp } from '@/state/store'
+import { traceItems, type TraceItem } from './trace'
 
-export function EventsTab({ events }: { events: HarnessEvent[] }) {
+function Line({ item, kind }: { item: TraceItem; kind: NodeKind }) {
+  const Icon = KIND_ICON[kind]
+  return (
+    <TraceLine status={item.status} className="text-xs" data-type={item.event.type} data-status={item.status}>
+      <TraceIcon className="text-(--kind)" data-kind={kind}>
+        <Icon className="size-3.5" />
+      </TraceIcon>
+      <TraceTitle>{item.title}</TraceTitle>
+      <TraceDescription>{item.description}</TraceDescription>
+    </TraceLine>
+  )
+}
+
+/** A node's events in this turn as a shadcn Trace, each line opening to its summary JSON. */
+export function EventsTab({ events, nodeId, turnOver }: { events: HarnessEvent[]; nodeId: string; turnOver: boolean }) {
+  const diagram = useApp((s) => s.diagram)
+  const items = useMemo(() => {
+    const byId = new Map(diagram?.nodes.map((n) => [n.id, n]) ?? [])
+    return traceItems(events, { self: nodeId, label: (id) => byId.get(id)?.label ?? id, turnOver }).map((item) => ({
+      item,
+      kind: byId.get(item.event.node_id ?? nodeId)?.kind ?? 'code',
+    }))
+  }, [events, nodeId, turnOver, diagram])
   if (events.length === 0) return <p className="text-xs text-muted-foreground">No events for this node in this turn.</p>
   return (
-    <ol className="flex flex-col gap-1.5" aria-label="Node events" data-testid="node-events">
-      {events.map((e) => (
-        <li key={e.seq} className="rounded border px-2 py-1 text-[11px]">
-          <div className="flex gap-2">
-            <span className="font-mono text-muted-foreground">#{e.seq}</span>
-            <span className="font-medium">{e.type}</span>
-            <span className="text-muted-foreground">{e.status}</span>
-            {e.duration_ms !== undefined && <span className="ml-auto text-muted-foreground">{e.duration_ms} ms</span>}
+    <Trace aria-label="Node events" role="list" data-testid="node-events">
+      {items.map(({ item, kind }) =>
+        item.detail ? (
+          <TraceCollapsible key={item.event.seq} role="listitem">
+            <TraceCollapsibleTrigger>
+              <Line item={item} kind={kind} />
+            </TraceCollapsibleTrigger>
+            <TraceCollapsibleContent>
+              <Code code={JSON.stringify(item.detail, null, 2)} language="json" size="sm" wrap label={`Event ${item.event.seq}`} contentClassName="max-h-64 text-[11px]" />
+            </TraceCollapsibleContent>
+          </TraceCollapsible>
+        ) : (
+          <div key={item.event.seq} role="listitem">
+            <Line item={item} kind={kind} />
           </div>
-          {(e.summary || e.error || e.cost) && (
-            <pre className="mt-1 overflow-x-auto font-mono text-[10px] leading-4 whitespace-pre-wrap text-muted-foreground">
-              {JSON.stringify({ ...(e.summary ? { summary: e.summary } : {}), ...(e.error ? { error: e.error } : {}), ...(e.cost ? { cost: e.cost } : {}) })}
-            </pre>
-          )}
-        </li>
-      ))}
-    </ol>
+        ),
+      )}
+    </Trace>
   )
 }

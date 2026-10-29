@@ -1,9 +1,11 @@
-import { useMemo, useRef } from 'react'
+import { useRef } from 'react'
+import { Code } from '@/components/code'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { highlight } from './highlight'
 
-const LINE_PX = 18
+const reduceMotion = () => !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
+/** Source on the shadcn Code Block with line numbers, plus a row of symbols that jump to their line. */
 export function CodeView({
   code,
   language,
@@ -17,13 +19,14 @@ export function CodeView({
   className?: string
   label: string
 }) {
-  const html = useMemo(() => highlight(code, language), [code, language])
-  const lines = useMemo(() => code.split('\n').length, [code])
-  const scroller = useRef<HTMLDivElement>(null)
+  const scroller = useRef<HTMLPreElement>(null)
 
   const jump = (line: number) => {
-    const el = scroller.current
-    if (el) el.scrollTo({ top: Math.max(0, (line - 3) * LINE_PX), behavior: 'smooth' })
+    const pre = scroller.current
+    const el = pre?.querySelectorAll<HTMLElement>('[data-slot=code-block-line]')[line - 1]
+    if (!pre || !el) return
+    const top = el.offsetTop - pre.offsetTop - 2 * el.offsetHeight
+    pre.scrollTo({ top: Math.max(0, top), behavior: reduceMotion() ? 'auto' : 'smooth' })
   }
 
   return (
@@ -31,29 +34,32 @@ export function CodeView({
       {symbols && symbols.length > 0 && (
         <nav aria-label="Symbols" className="flex flex-wrap gap-1">
           {symbols.map((s) => (
-            <button
+            <Button
               key={`${s.name}:${s.line}`}
               type="button"
-              className="rounded border px-1.5 py-0.5 font-mono text-[11px] hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              variant="outline"
+              size="xs"
+              className="h-5 px-1.5 font-mono text-[11px] font-normal"
               onClick={() => jump(s.line)}
               title={`Jump to line ${s.line}`}
             >
               {s.name}
-              <span className="ml-1 text-muted-foreground">:{s.line}</span>
-            </button>
+              <span className="-ml-1 text-muted-foreground">:{s.line}</span>
+            </Button>
           ))}
         </nav>
       )}
-      <div ref={scroller} className="min-h-0 flex-1 overflow-auto rounded-md border bg-muted/40" tabIndex={0} aria-label={label} data-testid="code-view">
-        <div className="flex text-[12px]" style={{ lineHeight: `${LINE_PX}px` }}>
-          <pre aria-hidden className="sticky left-0 shrink-0 bg-muted/80 px-2 py-2 text-right text-muted-foreground select-none">
-            {Array.from({ length: lines }, (_, i) => i + 1).join('\n')}
-          </pre>
-          <pre className="flex-1 px-3 py-2">
-            <code className="hljs" dangerouslySetInnerHTML={{ __html: html }} />
-          </pre>
-        </div>
-      </div>
+      <Code
+        code={code}
+        language={language}
+        lineNumbers
+        size="sm"
+        label={label}
+        contentRef={scroller}
+        className="min-h-0 flex-1"
+        contentClassName="h-full text-[12px] leading-[18px]"
+        data-testid="code-view"
+      />
     </div>
   )
 }
