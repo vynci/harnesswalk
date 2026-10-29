@@ -35,6 +35,7 @@ from harnesswalk.types import Message, TurnContext
 
 register("context_builder", __name__)
 
+SUMMARY_HEADER = "Summary of the conversation so far:\n"
 SLICES = ("procedural", "semantic", "episodic", "knowledge", "session", "user")
 Summarizer = Callable[[TurnContext, str, list[Turn]], Awaitable[str | None]]
 
@@ -99,7 +100,7 @@ class ContextBuilder:
                     ctx, summary, through, turns, keep, session_budget
                 )
 
-            summary_text = f"Summary of the conversation so far:\n{summary}" if summary else ""
+            summary_text = SUMMARY_HEADER + summary if summary else ""
             limit = total - reserve
             slices = dict.fromkeys(SLICES, 0)
             slices["procedural"] = self._tok(retrieved.procedural)
@@ -152,20 +153,26 @@ class ContextBuilder:
         return assembled
 
     async def _compact(self, ctx, summary, through, turns, keep, session_budget):
-        old, recent = turns[: max(0, len(turns) - keep)], turns[max(0, len(turns) - keep) :]
-        # A few very long recent turns can still overflow: fold them too, oldest first.
-        while recent and self._turn_tokens(recent) > 0.6 * session_budget:
+        """Fold old turns into the running summary so the session slice fits its budget."""
+        header = self._tok(SUMMARY_HEADER)
+        max_summary = min(
+            int(self.cfg.get("compaction", {}).get("summary_tokens", 600)), session_budget // 2
+        )
+        cut = max(0, len(turns) - keep)
+        old, recent = turns[:cut], turns[cut:]
+        # Very long recent turns can still overflow: fold them too, oldest first.
+        while recent and self._turn_tokens(recent) > session_budget - max_summary - header:
             old.append(recent.pop(0))
         if not old:
             return summary, through, turns, None
-        max_tokens = int(self.cfg.get("compaction", {}).get("summary_tokens", 600))
         text, method = None, "truncation"
         if self.summarizer is not None:
             text = await self.summarizer(ctx, summary, old)
             method = "model" if text else method
+        max_chars = max(0, (max_summary - header) * 4)
         if not text:
-            text = truncation_summary(summary, old, max_tokens * 4)
-        text = text[: max_tokens * 4]
+            text = truncation_summary(summary, old, max_chars)
+        text = text[:max_chars]
         through = old[-1].index
         self.session.write_summary(ctx, "loop", text, through)  # the loop side owns the summary
         compaction = {
