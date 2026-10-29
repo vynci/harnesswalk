@@ -58,7 +58,10 @@ export function openTurnStream(
   }
 
   const onMessage = (msg: MessageEvent) => {
-    if (ended) return
+    // The harness has an event type named `error`, and so does EventSource: a dropped
+    // connection reaches the `error` listener too, as a plain Event without data. That is the
+    // transport's business (onerror below), not an invalid harness event.
+    if (ended || typeof msg.data !== 'string') return
     let ev: HarnessEvent
     try {
       ev = JSON.parse(String(msg.data)) as HarnessEvent

@@ -57,10 +57,11 @@ describe('stream client against the mock API', () => {
     server.dropConnections()
     await new Promise((r) => setTimeout(r, 30))
     server.dropConnections()
-    const { events, end } = await done
+    const { events, end, invalid } = await done
     expect(end).toBe('turn_end')
     expect(contiguous(events)).toBe(true)
     expect(events.at(-1)!.type).toBe('turn_end')
+    expect(invalid).toBe(0) // a connection error is not an invalid harness event
   })
 
   it('replays a finished turn with follow=false and resumes from a cursor with after', async () => {

@@ -626,7 +626,7 @@ export class MockEventSource implements EventSourceLike {
     const turn = this.server.getTurn(this.turnId)
     if (!turn) {
       this.readyState = 2
-      this.onerror?.call(this as unknown as EventSource, new Event('error'))
+      this.emitError()
       return
     }
     this.readyState = 1
@@ -655,8 +655,15 @@ export class MockEventSource implements EventSourceLike {
     if (this.readyState === 2) return
     this.server.detach(this.turnId, this)
     this.readyState = 0
-    this.onerror?.call(this as unknown as EventSource, new Event('error'))
+    this.emitError()
     if (this.readyState === 0) setTimeout(() => this.open(), 1000)
+  }
+
+  /** Like a browser: a connection error goes to `error` listeners as well as to onerror. */
+  private emitError() {
+    const ev = new Event('error')
+    for (const l of this.listeners.get('error') ?? []) l(ev as MessageEvent)
+    this.onerror?.call(this as unknown as EventSource, ev)
   }
 
   addEventListener(type: string, listener: Listener) {
