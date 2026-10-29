@@ -1,6 +1,6 @@
 [project]
 name = "harnesswalk"
-version = "0.0.0"
+version = "0.1.0a1"
 description = "Walk through an AI harness, one node at a time: a glass-box agent runtime with a live, steppable systems diagram."
 readme = "README.md"
 license = "Apache-2.0"
