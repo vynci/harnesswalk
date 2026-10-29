@@ -1,7 +1,8 @@
 # deploy
 
-Docker Compose for the learner path. P0 ships a skeleton; the API image and pinned tags arrive
-in P1, and the public sandbox deployment in P6.
+Docker Compose for the learner path. The API image is built from `deploy/api.Dockerfile` (uv,
+non-root user, `harnesswalk serve`). Image tags are pinned: `pgvector/pgvector:0.8.7-pg17` and
+`ollama/ollama:0.40.8`. The public sandbox deployment arrives in P6.
 
 ## Profiles
 

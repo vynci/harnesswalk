@@ -1,9 +1,11 @@
-# harnesswalk compose skeleton (P0). Nothing here is started in P0.
+# harnesswalk compose stack.
 #
 #   docker compose -f deploy/docker-compose.yml --profile dev up      # api + postgres + ollama on this machine
 #   docker compose -f deploy/docker-compose.yml --profile homelab up  # api + postgres, model served elsewhere
 #
-# Image tags are pinned in P1. No secrets live in this file; values come from the environment.
+# Image tags are pinned. No secrets live in this file; values come from the environment.
+# The api does not need Postgres in P1 (it keeps SQLite under /data); Postgres is started now
+# so the pgvector stores of P3 have somewhere to land.
 name: harnesswalk
 
 services:
@@ -11,11 +13,12 @@ services:
     profiles: [dev, homelab]
     build:
       context: ..
-      dockerfile: deploy/api.Dockerfile   # added in P1
+      dockerfile: deploy/api.Dockerfile
     environment:
       HARNESSWALK_MODE: ${HARNESSWALK_MODE:-dev}
       HARNESSWALK_PROVIDER: ${HARNESSWALK_PROVIDER:-ollama}
       HARNESSWALK_OLLAMA_URL: ${HARNESSWALK_OLLAMA_URL:-http://ollama:11434}
+      HARNESSWALK_DATA_DIR: /data
       HARNESSWALK_DATABASE_URL: postgresql://harnesswalk:${POSTGRES_PASSWORD:-harnesswalk-local}@postgres:5432/harnesswalk
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -30,7 +33,7 @@ services:
 
   postgres:
     profiles: [dev, homelab]
-    image: pgvector/pgvector:pg17
+    image: pgvector/pgvector:0.8.7-pg17
     environment:
       POSTGRES_USER: harnesswalk
       POSTGRES_DB: harnesswalk
@@ -48,7 +51,7 @@ services:
 
   ollama:
     profiles: [dev]
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.40.8
     ports:
       - "127.0.0.1:11434:11434"
     volumes:
