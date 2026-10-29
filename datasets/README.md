@@ -16,10 +16,21 @@ this file fixes their shape and the licence rule now.
 
 ## The `_starter` pack (P1)
 
-`datasets/_starter/` is the small pack the P1 slice runs with until the five domain packs land:
+`datasets/_starter/` is the small pack the harness runs with until the five domain packs land:
 a fictional shop's system prompt, two skills (`returns`, `order_status`), two lookup tools
-(`lookup_order` read, `cancel_order` destructive, so approval can be tried) and scripted
-responses for the `fake` provider in `fixtures/fake/`.
+(`lookup_order` read, `cancel_order` destructive, so approval can be tried), three documents in
+`docs/` (a returns policy, a shipping FAQ and a product sheet) for knowledge retrieval, six seed
+facts (`facts.jsonl`) and four seed events (`episodes.jsonl`) for semantic and episodic memory,
+and scripted responses for the `fake` provider in `fixtures/fake/`. Documents and seeds are
+indexed when the harness starts (or with `harnesswalk ingest _starter`) into the shared pack
+scope, which every tenant on the pack reads; nothing a tenant writes ever lands there.
+
+Seed lines: a fact is `{"key", "value", "entities"?}`; an event is `{"id", "ts", "kind",
+"text", "outcome"?, "entities"?}`.
+
+Ask "Can I return order A-1003, the Trailhead backpack?" and all five memory badges light:
+procedural always, session from the second turn, a seed fact and a seed event about A-1003,
+and the product sheet from knowledge.
 
 Fake fixtures are JSON Lines: one line per chat turn of a session, each line
 `{"responses": [...]}` with responses shaped as in `spec/conformance/fixture.schema.json`. The
@@ -35,6 +46,9 @@ pack has no fixture of that name.
 | `read_skill` | The on-demand tier: the model reads a skill body, then looks an order up |
 | `cancel_order` | A destructive tool: policy, audit, approval pause, audit, then execute or not |
 | `two_turns` | Two turns in one session, so the second sees the first as history |
+| `cited_answer` | An answer from knowledge that cites the retrieved chunks as `[1]` and `[2]` |
+| `read_doc` | The on-demand tier of knowledge: the model reads a whole document with `read_doc` |
+| `remember_fact` | The model asks to remember a fact with `remember`; the memory writer writes it after the reply, and the next turn retrieves it |
 
 ## Pack layout
 
