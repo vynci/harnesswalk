@@ -1,8 +1,24 @@
-# harnesswalk API image: the reference harness served by uvicorn.
+# harnesswalk API image: the reference harness served by uvicorn, with the built web app.
 #
 #   docker build -f deploy/api.Dockerfile -t harnesswalk-api .
 #
-# Built with uv from the lock file, runs as a non-root user, keeps state under /data.
+# Two stages. The first builds web/ with pnpm when it has a package.json, and otherwise leaves
+# an empty dist, so the image still builds while web/ is a placeholder (the API then serves no
+# app). The second is built with uv from the lock file, runs as a non-root user, keeps state
+# under /data, and serves /app/web/dist at / when it holds an index.html.
+
+FROM node:24-bookworm-slim AS web
+WORKDIR /web
+COPY web/ ./
+RUN if [ -f package.json ]; then \
+        (corepack enable 2>/dev/null || npm install -g pnpm@10) \
+        && pnpm install --frozen-lockfile \
+        && pnpm build; \
+    else \
+        echo "web/ has no package.json: building the API without the web app"; \
+    fi \
+    && mkdir -p dist
+
 FROM python:3.12-slim-bookworm
 
 COPY --from=astral/uv:0.12.24 /uv /uvx /bin/
@@ -24,6 +40,7 @@ COPY spec ./spec
 COPY config ./config
 COPY datasets ./datasets
 RUN uv sync --locked --no-dev
+COPY --from=web /web/dist ./web/dist
 
 RUN useradd --create-home --uid 10001 harnesswalk \
     && mkdir -p /data \
@@ -33,7 +50,8 @@ USER harnesswalk
 
 ENV PATH="/app/.venv/bin:${PATH}" \
     HARNESSWALK_ROOT=/app \
-    HARNESSWALK_DATA_DIR=/data
+    HARNESSWALK_DATA_DIR=/data \
+    HARNESSWALK_WEB_DIST=/app/web/dist
 
 EXPOSE 8000
 

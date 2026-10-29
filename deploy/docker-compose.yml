@@ -4,6 +4,8 @@
 #   docker compose -f deploy/docker-compose.yml --profile homelab up  # api + postgres, model served elsewhere
 #
 # Image tags are pinned. No secrets live in this file; values come from the environment.
+# The api image also builds web/ (a multi-stage deploy/api.Dockerfile) and serves it at
+# http://127.0.0.1:8000/ once web/ has a package.json.
 # The api does not need Postgres in P1 (it keeps SQLite under /data); Postgres is started now
 # so the pgvector stores of P3 have somewhere to land.
 name: harnesswalk

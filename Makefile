@@ -1,5 +1,5 @@
 # harnesswalk developer targets. Every target goes through uv.
-.PHONY: setup test conformance run turn lint format up down
+.PHONY: setup test conformance run turn lint format up down web-build
 
 setup: ## Create .venv and install the package with dev tools
 	uv sync
@@ -11,8 +11,17 @@ conformance: ## Run every spec/conformance case against the live harness, then t
 	uv run python -m tests.conformance.runner
 	uv run pytest tests/spec -q
 
-run: ## Start the API on 127.0.0.1:8000. Without Ollama: make run PROVIDER=fake FIXTURE=plain_answer
-	uv run harnesswalk serve $(if $(PROVIDER),--provider $(PROVIDER)) $(if $(FIXTURE),--fixture $(FIXTURE))
+run: ## Start the API (and web/dist when built) on 127.0.0.1:8000. Without Ollama: make run PROVIDER=fake FIXTURE=plain_answer
+	@if [ -f web/dist/index.html ]; then echo "serving the web app from web/dist at http://127.0.0.1:8000/"; \
+	else echo "no web/dist yet (make web-build); serving the API only"; fi
+	HARNESSWALK_WEB_DIST="$(CURDIR)/web/dist" uv run harnesswalk serve $(if $(PROVIDER),--provider $(PROVIDER)) $(if $(FIXTURE),--fixture $(FIXTURE))
+
+web-build: ## Build the web app into web/dist with pnpm (make run then serves it)
+	@if [ -f web/package.json ]; then \
+		pnpm --dir web install --frozen-lockfile && pnpm --dir web build; \
+	else \
+		echo "web/ has no package.json yet, so there is nothing to build. The web app lands in P2."; \
+	fi
 
 turn: ## One fake-provider turn printed as a walk: make turn FIXTURE=tool_call PROMPT="Where is A-1001?"
 	uv run harnesswalk turn "$(or $(PROMPT),What are your support hours?)" --provider fake --fixture $(or $(FIXTURE),plain_answer)
