@@ -60,6 +60,13 @@ const DONE_RULES: Rule[] = [
   (x) => (s(x.record_id) ? join(s(x.record_id), s(x.decision)) : undefined),
   // A human decision and how long it waited.
   (x) => (s(x.decision) && n(x.waited_ms) !== undefined ? join(s(x.decision), formatMs(n(x.waited_ms))) : undefined),
+  // A policy decision on a spent budget: the budget's use.
+  (x) => {
+    const b = isRecord(x.budget) ? x.budget : undefined
+    return s(x.decision) && b && n(b.used) !== undefined && n(b.limit) !== undefined
+      ? join(s(x.decision), `budget ${b.used}/${b.limit}`)
+      : undefined
+  },
   // A policy decision on a tool.
   (x) => (s(x.decision) ? join(s(x.decision), s(x.tool)) : undefined),
   // A guardrail verdict.
@@ -102,13 +109,24 @@ function firstMatch(rules: Rule[], sum: Summary, ms: string | undefined): string
   return undefined
 }
 
+/** Point events so far in an open span, by the word after the underscore: "1 proposed · 1 written". */
+export function pointStat(run: NodeRun | undefined): string | undefined {
+  if (!run?.points) return undefined
+  return join(...Object.entries(run.points).map(([type, count]) => `${count} ${type.slice(type.indexOf('_') + 1)}`))
+}
+
+/** The plain-words reason a decision carries (`why`), for a tooltip on the node's stat. */
+export function nodeWhy(run: NodeRun | undefined): string | undefined {
+  return run?.state === 'done' || run?.state === 'skipped' ? s(run.lastSummary?.why) : undefined
+}
+
 /** One short line, at most about 28 characters, from a node's latest summary. */
 export function nodeStat(run: NodeRun | undefined): string | undefined {
   if (!run || run.state === 'idle') return undefined
   if (run.state === 'waiting') return run.pausedReason === 'approval' ? 'waiting for a human' : 'paused at breakpoint'
   if (run.state === 'error') return run.error?.code ?? 'error'
   const ms = formatMs(run.lastDurationMs)
-  if (run.state === 'active') return firstMatch(ACTIVE_RULES, run.enterSummary ?? {}, undefined) ?? 'working'
+  if (run.state === 'active') return pointStat(run) ?? firstMatch(ACTIVE_RULES, run.enterSummary ?? {}, undefined) ?? 'working'
   const sum: Summary = run.lastSummary ?? {}
   if (run.state === 'skipped') return join('skipped', s(sum.reason))
   return firstMatch(DONE_RULES, sum, ms) ?? ms

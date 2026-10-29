@@ -15,6 +15,12 @@ export interface ToolCallView {
   actionClass?: string
   decision?: string
   rule?: string
+  /** The policy decision in plain words (P3 `why`). */
+  why?: string
+  /** A budget the decision named: what it allows and what was used. */
+  budget?: { name: string; limit: number; used: number }
+  /** Where the call ran: sandbox level, network and jail (P3). */
+  sandbox?: { level: string; network?: string; jail?: string }
   /** Arguments as the harness shows them (only approvals carry a preview so far). */
   args?: unknown
   approval?: { state: 'requested' | 'approve' | 'deny' | 'expired'; reason?: string; decidedBy?: string }
@@ -56,6 +62,15 @@ export function toolCalls(events: HarnessEvent[]): ToolCallView[] {
     if (str(s.decision) && str(s.rule)) {
       open.decision = str(s.decision)
       open.rule = str(s.rule)
+      if (str(s.why)) open.why = str(s.why)
+      const b = s.budget as Record<string, unknown> | undefined
+      if (b && typeof b.name === 'string' && typeof b.limit === 'number' && typeof b.used === 'number') {
+        open.budget = { name: b.name, limit: b.limit, used: b.used }
+      }
+    }
+    // The sandbox's exit names its level (inprocess, subprocess...), network and jail.
+    if (ev.type === 'node_exit' && str(s.level)) {
+      open.sandbox = { level: str(s.level)!, network: str(s.network), jail: str(s.jail) }
     }
     if (ev.type === 'approval_requested') {
       open.status = 'waiting'

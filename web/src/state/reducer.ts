@@ -26,6 +26,8 @@ export interface NodeRun {
   pausedReason?: 'breakpoint' | 'approval'
   error?: { code: string; message: string }
   cost?: Cost
+  /** Point events this node emitted this turn, by type (memory_proposed, memory_written...). */
+  points?: Record<string, number>
 }
 
 export interface EdgeRun {
@@ -201,6 +203,7 @@ export function reduceEvent(prev: TurnState, ev: HarnessEvent, edgeIndex?: EdgeI
       run.startedAt = ev.ts
       run.pausedReason = undefined
       run.error = undefined
+      run.points = undefined
       s.stack.push(id)
       s.focus = id
       break
@@ -298,9 +301,15 @@ export function reduceEvent(prev: TurnState, ev: HarnessEvent, edgeIndex?: EdgeI
     }
     case 'memory_proposed':
     case 'memory_written':
-    case 'artifact_released':
-      // Point events: kept in the timeline; the inspector's Events tab shows them.
+    case 'artifact_released': {
+      // Point events (rule 7: emitted while their node is open): counted on that node, so the
+      // diagram shows them as they happen; the inspector's Events tab lists them.
+      if (ev.node_id) {
+        const run = nodeRun(s, ev.node_id)
+        run.points = { ...run.points, [ev.type]: (run.points?.[ev.type] ?? 0) + 1 }
+      }
       break
+    }
     case 'error': {
       // Keep the first error of the turn: the enclosing spans that fail after it only repeat it
       // (a provider's fixture_exhausted becomes the loop's provider_error), so it is the cause.
