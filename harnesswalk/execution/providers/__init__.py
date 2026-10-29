@@ -69,9 +69,14 @@ class ProviderResponse:
 class ProviderError(HarnessError):
     """A provider call failed. `retryable` errors let the model layer try a fallback."""
 
-    def __init__(self, code: str, message: str, *, retryable: bool = True) -> None:
+    def __init__(
+        self, code: str, message: str, *, retryable: bool = True, client_error: bool = False
+    ) -> None:
         super().__init__(code, message)
         self.retryable = retryable
+        # The request was refused (a 4xx such as a bad key), not the provider failing: a
+        # fallback may still help, but it says nothing about the provider's health.
+        self.client_error = client_error
 
 
 class ModelProvider(Protocol):

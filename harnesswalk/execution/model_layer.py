@@ -210,7 +210,9 @@ class ModelLayer:
                 last_error = exc
                 if not exc.retryable:
                     raise
-                if self.health is not None:
+                # A caller's own key (BYO) or a refused request is not the provider's health:
+                # one bad key must not take the provider down for every tenant (P3 review).
+                if self.health is not None and not preq.api_key and not exc.client_error:
                     self.health.mark_failed(cfg["provider"], exc.code)
                 continue
             calls = []

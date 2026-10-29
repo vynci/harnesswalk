@@ -40,3 +40,45 @@ async def test_a_tool_never_offered_in_this_mode_is_not_run(tmp_path: Path) -> N
     ctx.mode = "public"
     obs = await h.tools.invoke(ctx, ToolCall("c1", "pack_code", {}))
     assert obs.outcome == "error" and "not offered" in obs.content and not ran
+
+
+@pytest.mark.anyio
+async def test_a_refused_request_or_a_byo_key_does_not_mark_the_provider_down() -> None:
+    """One tenant's bad key used to mark the operator's provider unhealthy for everyone."""
+    from harnesswalk.execution.model_layer import ModelLayer, ModelRequest
+    from harnesswalk.execution.providers import ProviderError, ProviderResponse, ProviderUsage
+    from harnesswalk.execution.providers.health import ProviderHealth
+    from harnesswalk.execution.router import Router
+    from harnesswalk.types import Message
+
+    errors = {"next": ProviderError("provider_error", "HTTP 401", client_error=True)}
+
+    class Flaky:
+        name = "anthropic"
+
+        async def complete(self, request):
+            raise errors["next"]
+
+    class Up:
+        name = "ollama"
+
+        async def complete(self, request):
+            return ProviderResponse("hi", [], "stop", ProviderUsage(1, 1))
+
+    models = {
+        "hosted": {"provider": "anthropic", "price_in_per_mtok": 0, "price_out_per_mtok": 0},
+        "local": {"provider": "ollama", "price_in_per_mtok": 0, "price_out_per_mtok": 0},
+    }
+    providers = {"anthropic": Flaky(), "ollama": Up()}
+    health = ProviderHealth(providers)
+    router = Router([{"id": "d", "when": {}, "use": ["hosted", "local"]}], models, health.ok)
+    layer = ModelLayer(providers, router, models, health=health)
+    request = ModelRequest([Message("user", "hi")], [], step=1)
+
+    await layer.complete(make_ctx()[0], request)  # a 401: refused, not down
+    assert health.report()["anthropic"] != "unhealthy"
+    errors["next"] = ProviderError("provider_error", "connection refused")
+    await layer.complete(make_ctx()[0], request, api_key="sk-caller-own")  # the caller's key
+    assert health.report()["anthropic"] != "unhealthy"
+    await layer.complete(make_ctx()[0], request)  # the server's key, provider down: marked
+    assert health.report()["anthropic"] == "unhealthy"

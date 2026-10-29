@@ -27,7 +27,12 @@ async def post_json(
         raise ProviderError("provider_error", f"{url}: {type(exc).__name__}") from exc
     if response.status_code >= 400:
         # The body may echo the request; keep only a short, key-free prefix.
-        raise ProviderError("provider_error", f"{url} returned HTTP {response.status_code}")
+        status = response.status_code
+        raise ProviderError(
+            "provider_error",
+            f"{url} returned HTTP {status}",
+            client_error=400 <= status < 500 and status not in (408, 429),
+        )
     try:
         return response.json()
     except json.JSONDecodeError as exc:
