@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { History, Info, OctagonX, Play, TriangleAlert } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Eye, History, Info, OctagonX, Play, RefreshCcw, TriangleAlert } from 'lucide-react'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
@@ -13,27 +13,70 @@ import {
   MessageScrollerViewport,
 } from '@/components/ui/message-scroller'
 import { Spinner } from '@/components/ui/spinner'
+import { Switch } from '@/components/ui/switch'
 import { useDisplayTurn } from '@/state/hooks'
 import type { TurnState } from '@/state/reducer'
+import {
+  citationsOf,
+  errorWithCode,
+  inputGuardFacts,
+  limitFacts,
+  outputGuardFacts,
+  placeholderValues,
+  splitPlaceholders,
+  withPlaceholders,
+  type LimitFacts,
+} from '@/state/turnFacts'
 import { useApp, type ChatTurn } from '@/state/store'
 import { ApprovalCard } from './ApprovalCard'
 import { Composer } from './Composer'
 import { StepControls } from './StepControls'
-import { Sources, ToolTrace } from './ToolTrace'
+import { ReplyText, Sources } from './Citations'
+import { InputGuardBadges, OutputGuardBadges } from './Guardrails'
+import { MemoryTrace, ToolTrace } from './ToolTrace'
 
-const TRY_THESE = ['What are your support hours?', 'Where is order A-1001?', 'Please cancel order A-1002.']
+const TRY_THESE = [
+  'What are your support hours?',
+  'Where is order A-1001?',
+  'Please cancel order A-1002.',
+  'Can I return order A-1003, the Trailhead backpack?',
+]
 
-type Notice = { tone: 'info' | 'warn' | 'error'; text: string }
+type Notice = { tone: 'info' | 'warn' | 'error'; text: string; reason?: string }
 
-function noticeFor(exit: TurnState['exit'] | null | undefined, error?: TurnState['error']): Notice | null {
+const LIMIT_TEXT: Record<string, string> = {
+  max_steps: 'The loop used all its steps before it finished.',
+  budget_tokens: 'The loop used its token budget for this turn.',
+  budget_usd: 'The loop used its cost budget for this turn.',
+  budget_tool_calls: 'The tool-call budget for this turn ran out, so the loop stopped.',
+  timeout: 'The loop ran out of time.',
+  stuck: 'The loop kept repeating the same call, so it stopped.',
+}
+
+function limitText(limit: LimitFacts): string {
+  const base = (limit.reason && LIMIT_TEXT[limit.reason]) || 'The loop hit a limit (steps, tokens, budget or time) before it finished.'
+  const used = limit.budget ? ` Policy: ${limit.budget.name.replace(/_/g, ' ')} ${limit.budget.used} of ${limit.budget.limit}` : ''
+  const why = limit.why ? `${used ? ',' : ' Policy:'} ${limit.why}.` : used ? '.' : ''
+  return `${base}${used}${why}`
+}
+
+function noticeFor(exit: TurnState['exit'] | null | undefined, state?: TurnState): Notice | null {
+  const error = state?.error
+  const events = state?.events ?? []
   switch (exit) {
     case 'blocked':
       return { tone: 'warn', text: 'Blocked by a guardrail. The model never saw this message.' }
     case 'limit':
-      return { tone: 'warn', text: 'The loop hit a limit (steps, tokens, budget or time) before it finished.' }
+      return { tone: 'warn', text: limitText(limitFacts(events)), reason: limitFacts(events).reason }
     case 'cancelled':
       return { tone: 'info', text: 'Turn cancelled. Open spans were closed and nothing else ran.' }
     case 'error':
+      if (error?.code === 'restarted' || errorWithCode(events, 'restarted'))
+        return {
+          tone: 'warn',
+          text: 'The harness restarted while this turn was running, so recovery closed it (error restarted). Send the message again.',
+          reason: 'restarted',
+        }
       if (error?.code === 'fixture_exhausted')
         return {
           tone: 'error',
@@ -55,6 +98,7 @@ function SystemNotice({ notice }: { notice: Notice }) {
       className={notice.tone === 'error' ? 'text-xs text-destructive' : notice.tone === 'warn' ? 'text-xs text-state-waiting' : 'text-xs'}
       data-testid="system-notice"
       data-tone={notice.tone}
+      data-reason={notice.reason}
     >
       <MarkerIcon>
         <Icon className="size-3.5" />
@@ -72,13 +116,28 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
   const phase = state?.phase ?? (turn.summary?.status === 'done' ? 'done' : turn.summary ? 'running' : 'idle')
   const reply = state?.reply || (replaying ? '' : (turn.summary?.reply ?? ''))
   const exit = state?.exit ?? (replaying ? null : turn.summary?.exit)
-  const notice = noticeFor(exit, state?.error)
+  const notice = noticeFor(exit, state)
   const finished = phase === 'done' || phase === 'error'
   const working = !finished && !reply
   const streaming = !finished && !!reply && live && !replaying
   const paused = state?.paused
   const pausedLabel = paused ? (diagram?.nodes.find((n) => n.id === paused.nodeId)?.label ?? paused.nodeId) : ''
   const started = turn.summary?.started_at ? new Date(turn.summary.started_at) : turn.createdAt ? new Date(turn.createdAt) : null
+  const openDoc = useApp((s) => s.openDoc)
+  const dev = useApp((s) => s.capabilities?.mode === 'dev')
+  const [reveal, setReveal] = useState(false)
+  const events = state?.events
+  const input = useMemo(() => (events ? inputGuardFacts(events) : null), [events])
+  const output = useMemo(() => (events ? outputGuardFacts(events) : null), [events])
+  const citations = useMemo(() => (events ? citationsOf(events) : []), [events])
+  // The message as the model saw it (placeholders), and the values behind them, read by lining
+  // it up with what this browser sent. Only then can the reply show the placeholders again.
+  const seen = turn.summary?.message ?? null
+  const redacted = !!input && Object.keys(input.redactions).length > 0 && !!seen && seen !== turn.userText
+  const values = useMemo(() => (redacted && turn.userText ? placeholderValues(turn.userText, seen!) : {}), [redacted, turn.userText, seen])
+  const masked = output && output.restored > 0 && Object.keys(values).length ? withPlaceholders(reply, values) : reply
+  const canReveal = dev && masked !== reply
+  const shownReply = canReveal && !reveal ? masked : reply
 
   return (
     <div className="flex flex-col gap-3" data-testid="chat-turn" data-turn-id={turn.turnId} data-phase={phase}>
@@ -97,7 +156,34 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
           </Bubble>
         </MessageContent>
       </Message>
+      {redacted && (
+        <p className="-mt-1 ml-auto max-w-[85%] text-right text-[11px] text-muted-foreground" data-testid="model-saw">
+          <span className="font-medium">The model saw: </span>
+          {splitPlaceholders(seen!).map((part, i) =>
+            part.placeholder ? (
+              <mark key={i} className="rounded-sm bg-state-waiting/15 px-0.5 font-mono text-foreground ring-1 ring-state-waiting/40 ring-inset" data-testid="placeholder">
+                {part.text}
+              </mark>
+            ) : (
+              <span key={i}>{part.text}</span>
+            ),
+          )}
+        </p>
+      )}
+      {input && (input.action !== 'pass' || Object.keys(input.redactions).length > 0 || input.warnings.length > 0 || (input.injectionScore ?? 0) > 0 || dev) && (
+        <InputGuardBadges facts={input} />
+      )}
       {state && <ToolTrace events={state.events} turnOver={finished} />}
+      {turn.reconnected && state?.phase === 'paused' && state.paused?.reason === 'approval' && (
+        <Marker variant="border" role="status" className="text-xs text-state-waiting" data-testid="reattached-notice">
+          <MarkerIcon>
+            <RefreshCcw className="size-3.5" />
+          </MarkerIcon>
+          <MarkerContent className="text-muted-foreground">
+            The event stream dropped and came back, and this turn is still waiting for your decision. A pending approval survives a restart of the harness.
+          </MarkerContent>
+        </Marker>
+      )}
       {state?.approval && <ApprovalCard approval={state.approval} interactive={live && !replaying && phase === 'paused'} onDecide={decide} />}
       {live && !replaying && paused?.reason === 'breakpoint' && (
         <StepControls nodeId={paused.nodeId} nodeLabel={pausedLabel} seq={paused.seq} onResume={resume} />
@@ -114,12 +200,24 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
         <Message align="start">
           <MessageContent>
             <Bubble variant="muted">
-              <BubbleContent className="whitespace-pre-wrap" data-testid="assistant-message" aria-live={live ? 'polite' : undefined}>
-                {reply}
+              <BubbleContent
+                className="whitespace-pre-wrap"
+                data-testid="assistant-message"
+                data-masked={canReveal && !reveal ? 'true' : 'false'}
+                aria-live={live ? 'polite' : undefined}
+              >
+                {finished ? <ReplyText text={shownReply} citations={citations} onOpen={(c) => openDoc(c.doc, c.chunk)} /> : reply}
               </BubbleContent>
             </Bubble>
-            {/* Citation chips arrive with Knowledge in P3. */}
-            <Sources sources={[]} />
+            {finished && output && <OutputGuardBadges facts={output} />}
+            {canReveal && finished && (
+              <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground" data-testid="reveal-toggle">
+                <Switch size="sm" checked={reveal} onCheckedChange={setReveal} aria-label="Show the reply with your values restored (dev mode)" />
+                <Eye className="size-3" aria-hidden />
+                Show restored values (dev only)
+              </label>
+            )}
+            <Sources citations={finished ? citations : []} onOpen={(c) => openDoc(c.doc, c.chunk)} />
             {streaming && (
               <MessageFooter>
                 <span className="shimmer" role="status">
@@ -130,6 +228,7 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
           </MessageContent>
         </Message>
       )}
+      {state && finished && <MemoryTrace events={state.events} />}
       {notice && <SystemNotice notice={notice} />}
       {finished && !replaying && (
         <Button

@@ -13,6 +13,7 @@ import { useThemeClass } from './useTheme'
 const diagramChunk = import('@/diagram/DiagramPanel')
 const DiagramPanel = lazy(() => diagramChunk.then((m) => ({ default: m.DiagramPanel })))
 // The inspector carries markdown and syntax highlighting; load it on first use.
+const DocReader = lazy(() => import('@/chat/DocReader').then((m) => ({ default: m.DocReader })))
 const InspectorDrawer = lazy(() => import('@/inspector/InspectorDrawer').then((m) => ({ default: m.InspectorDrawer })))
 
 export function App() {
@@ -58,6 +59,7 @@ export function App() {
           </main>
         )}
         <Notices />
+        <DocSlot />
       </div>
     </TooltipProvider>
   )
@@ -69,6 +71,17 @@ function InspectorSlot() {
   return (
     <Suspense fallback={<div className="absolute inset-y-0 right-0 z-30 w-full max-w-[460px] border-l bg-background p-4 text-sm text-muted-foreground">Loading…</div>}>
       <InspectorDrawer />
+    </Suspense>
+  )
+}
+
+/** The knowledge document reader, loaded the first time a citation or document is opened. */
+function DocSlot() {
+  const doc = useApp((s) => s.doc)
+  if (!doc) return null
+  return (
+    <Suspense fallback={null}>
+      <DocReader />
     </Suspense>
   )
 }
