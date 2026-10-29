@@ -2,9 +2,10 @@
 
 **Walk through an AI harness, one node at a time.**
 
-Status: **pre-alpha, P0 spec.** There is no runtime yet. This repository holds the specification,
-the canonical diagram, the event contract and the conformance cases that the first runnable
-slice (P1) will be built against. See [docs/ROADMAP.md](docs/ROADMAP.md).
+Status: **pre-alpha, P1 vertical slice.** The harness runs: a request walks the gateway,
+guardrails, context builder, memory, loop, model layer, tools, policy, approval, audit and trace,
+and every step is an event you can stream, store and replay. The web UI is P2. See
+[docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## What this is
 
@@ -146,30 +147,60 @@ The contract is in [`spec/`](spec/), written before the code:
 | [spec/contracts/](spec/contracts/) | One interface per component, plus the HTTP API |
 | [spec/conformance/](spec/conformance/) | Black-box cases any implementation can run |
 
-The reference implementation will be Python (FastAPI) in [`harnesswalk/`](harnesswalk/), with a
-TypeScript web UI in [`web/`](web/). A TypeScript harness port is planned to prove the spec.
+The reference implementation is Python (FastAPI, no agent framework) in
+[`harnesswalk/`](harnesswalk/), and the TypeScript web UI (P2) will live in [`web/`](web/). A
+TypeScript harness port is planned to prove the spec.
 
-## Try it (today)
+## Try it
+
+No model needed: the `fake` provider replays scripted responses, so the whole harness runs
+offline.
 
 ```sh
-make setup        # uv sync
-make test         # checks the spec: schemas, examples, diagram, conformance files
-make lint
+make setup                                   # uv sync (Python 3.12 or newer)
+make turn                                    # one fake turn, printed as a walk
+make turn FIXTURE=tool_call PROMPT="Where is order A-1001?"
+uv run harnesswalk turn "Cancel A-1002" --provider fake --fixture cancel_order   # asks you to approve
+uv run harnesswalk turn "What are your support hours?" --provider fake --fixture plain_answer --step
+uv run harnesswalk events <turn_id>          # the stored events as JSON Lines
 ```
 
-`make run` and `make conformance` print what they will do once P1 lands.
+`make turn` prints every node the request visited, in order, nested, with its status, its time
+and a short summary, then the reply and the cost receipt. Starter fixtures live in
+`datasets/_starter/fixtures/fake/`; the conformance fixtures in `spec/conformance/fixtures/`
+work too.
+
+With a local model ([Ollama](https://ollama.com) and `ollama pull llama3.1:8b`):
+
+```sh
+uv run harnesswalk turn "Where is order A-1001?" --provider ollama
+make run                                     # the HTTP API on 127.0.0.1:8000, Ollama on localhost
+make run PROVIDER=fake FIXTURE=tool_call     # the same API, no model
+make up                                      # docker compose: api, postgres, ollama
+```
+
+The API (`spec/contracts/http_api.md`): `POST /v1/turns`, the event stream as Server-Sent
+Events at `GET /v1/turns/{id}/events`, `POST /v1/turns/{id}/resume` for step mode,
+`POST /v1/approvals/{id}`, `GET /v1/diagram`, `GET /v1/nodes/{id}` and `GET /healthz`.
+
+```sh
+make test          # unit tests, spec checks, conformance suite (offline, fake provider)
+make conformance   # one PASS or FAIL line per conformance case
+make lint
+```
 
 ## Repository layout
 
 ```
 spec/       the language-agnostic contract
-harnesswalk/ reference implementation (Python), skeleton only
+harnesswalk/ reference implementation (Python); harnesswalk/README.md maps nodes to modules
+config/     harness.yaml, policy.yaml, context.yaml, models.yaml
 web/        chat and diagram UI (P2)
-datasets/   five starter packs (P5)
+datasets/   _starter pack now; five domain packs in P5
 lessons/    one chapter per node (P5)
 deploy/     docker compose: dev and homelab profiles
 docs/       roadmap
-tests/      spec checks now, harness tests from P1
+tests/      unit tests, spec checks and the conformance runner
 ```
 
 ## Licence

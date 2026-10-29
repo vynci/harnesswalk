@@ -19,4 +19,8 @@ itself a node. Lessons cover all 15.
 
 ## Current status
 
-P0 (spec and scaffold) is in review. Nothing runs yet.
+P0 (spec and scaffold) is done. P1 (vertical slice) is built: the harness runs end to end with
+the `fake`, `ollama`, `openai_compatible` and `anthropic` providers, the event stream is stored
+in SQLite and served over SSE, step mode and the approval pause work, and every conformance case
+passes with the fake provider. Stubs that P1 registers but does not implement: `semantic`,
+`episodic`, `knowledge`, `memory_writer` (P3), `eval` and `release` (P4). Next: P2, the web UI.

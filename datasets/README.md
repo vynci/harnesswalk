@@ -14,6 +14,28 @@ this file fixes their shape and the licence rule now.
 | `sports` | League rules, fixtures, a stats tool | Cheap-model routing for lookups |
 | `finance` | Fund fact sheets, capital call notices (synthetic) | Citations from knowledge, and the memory writer |
 
+## The `_starter` pack (P1)
+
+`datasets/_starter/` is the small pack the P1 slice runs with until the five domain packs land:
+a fictional shop's system prompt, two skills (`returns`, `order_status`), two lookup tools
+(`lookup_order` read, `cancel_order` destructive, so approval can be tried) and scripted
+responses for the `fake` provider in `fixtures/fake/`.
+
+Fake fixtures are JSON Lines: one line per chat turn of a session, each line
+`{"responses": [...]}` with responses shaped as in `spec/conformance/fixture.schema.json`. The
+file stem is the fixture name, so `harnesswalk turn "..." --provider fake --fixture tool_call`
+reads `fixtures/fake/tool_call.jsonl`, and falls back to `spec/conformance/fixtures/` when the
+pack has no fixture of that name.
+
+| Fixture | What it shows |
+|---|---|
+| `plain_answer` | No tool: the canonical plain path |
+| `tool_call` | A read tool, allowed by policy, not audited |
+| `calculator` | The built-in calculator |
+| `read_skill` | The on-demand tier: the model reads a skill body, then looks an order up |
+| `cancel_order` | A destructive tool: policy, audit, approval pause, audit, then execute or not |
+| `two_turns` | Two turns in one session, so the second sees the first as history |
+
 ## Pack layout
 
 ```

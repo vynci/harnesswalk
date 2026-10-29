@@ -12,9 +12,17 @@ non-root user, `harnesswalk serve`). Image tags are pinned: `pgvector/pgvector:0
 | `homelab` | `api`, `postgres` | An Ollama or vLLM server elsewhere, set `HARNESSWALK_OLLAMA_URL` | A GPU box on your network serves the model |
 
 ```sh
-docker compose -f deploy/docker-compose.yml --profile dev up
-docker compose -f deploy/docker-compose.yml --profile homelab up
+docker compose -f deploy/docker-compose.yml --profile dev up --build      # or: make up
+docker compose -f deploy/docker-compose.yml --profile homelab up --build
 ```
+
+The api container listens on `127.0.0.1:8000`, keeps its SQLite stores in the `harness-data`
+volume (`/data`), and runs as the non-root user `harnesswalk`. The `dev` profile starts an
+empty Ollama; pull the model once with
+`docker compose -f deploy/docker-compose.yml exec ollama ollama pull llama3.1:8b`. To try the
+stack without a model, set `HARNESSWALK_PROVIDER=fake` and `HARNESSWALK_FIXTURE=plain_answer`.
+
+Without Docker, `make run` starts the same API from the working tree.
 
 On macOS, Ollama in a container cannot use the GPU. Running Ollama natively and pointing
 `HARNESSWALK_OLLAMA_URL` at `http://host.docker.internal:11434` with the `homelab` profile is

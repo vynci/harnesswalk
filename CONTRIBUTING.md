@@ -1,7 +1,8 @@
 # Contributing
 
 harnesswalk is pre-alpha. The spec is still moving, so the most useful contributions right now
-are questions and corrections to `spec/`. Code contributions open with P1.
+are questions and corrections to `spec/`, and small fixes to the reference harness. Every change
+keeps `make test`, `make conformance` and `make lint` green.
 
 ## Ground rules
 
