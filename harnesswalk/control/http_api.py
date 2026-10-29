@@ -35,6 +35,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.routing import Match
 from starlette.staticfiles import StaticFiles
 from starlette.types import Scope
 
@@ -59,9 +60,11 @@ CORS_HEADERS = [
     "X-Harnesswalk-Session",
     "X-Harnesswalk-Provider-Key",
 ]
-# Paths the web app's fallback never answers: the API, health and the OpenAPI docs.
-API_PREFIXES = ("v1/", "docs/")
+# Paths the web app's fallback never answers: the API, health and the OpenAPI docs, and the
+# built assets (a missing asset is a 404, not index.html served as JavaScript).
+API_PREFIXES = ("v1/", "healthz/", "docs/", "openapi.json/", "assets/")
 API_PATHS = frozenset({"v1", "healthz", "docs", "openapi.json"})
+ANY_METHOD = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
 
 def error(
@@ -437,6 +440,17 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
     async def capabilities() -> JSONResponse:
         # No identity needed: a signed-out UI reads this to learn the mode and how to sign in.
         return JSONResponse(harness.capabilities())
+
+    async def unknown_api_path(request: Request) -> JSONResponse:
+        # Any method on an unknown /v1 path is a JSON 404, never the web app's 405 or HTML. A
+        # known path with another method stays a 405.
+        for route in app.router.routes:
+            if route.matches(request.scope)[0] == Match.PARTIAL:
+                return error(405, "method_not_allowed", "Method Not Allowed")
+        return error(404, "not_found", "Not Found")
+
+    for path in ("/v1", "/v1/{rest:path}"):
+        app.add_api_route(path, unknown_api_path, methods=ANY_METHOD, include_in_schema=False)
 
     # Last, so every API route above wins over the web app's fallback.
     dist = web_dist if web_dist is not None else web_dist_dir(harness)

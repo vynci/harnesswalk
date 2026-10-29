@@ -280,3 +280,39 @@ async def test_turn_end_is_emitted_even_when_the_receipt_cannot_be_read(
     assert end["type"] == "turn_end" and end["status"] == "error"
     assert end["cost"] == {"input_tokens": 0, "output_tokens": 0, "usd": 0.0}
     assert streamed[-1]["type"] == "turn_end"
+
+
+# -- serving the web app ----------------------------------------------------------------------
+
+
+def make_dist(root: Path) -> Path:
+    dist = root / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>harnesswalk</title>", "utf-8")
+    (dist / "assets" / "app.js").write_text("console.log('hi')", "utf-8")
+    return dist
+
+
+@pytest.mark.anyio
+async def test_api_paths_and_asset_misses_never_fall_back_to_the_app(tmp_path: Path) -> None:
+    h = Harness(settings(tmp_path, "plain_answer"))
+    for app in (create_app(h, web_dist=make_dist(tmp_path)), create_app(h)):
+        async with client(h, app=app) as c:
+            for method, path in (
+                ("GET", "/healthz/x"),
+                ("GET", "/openapi.json/x"),
+                ("POST", "/v1/nope"),
+                ("DELETE", "/v1/turns/turn_x/nope"),
+                ("PUT", "/v1"),
+            ):
+                r = await c.request(method, path)
+                assert r.status_code == 404, (method, path)
+                assert r.json()["error"]["code"] == "not_found", (method, path)
+            # A known path with the wrong method is still 405, as JSON.
+            r = await c.get("/v1/turns")
+            assert r.status_code == 405 and r.json()["error"]["code"] == "method_not_allowed"
+    async with client(h, app=create_app(h, web_dist=tmp_path / "dist")) as c:
+        r = await c.get("/assets/missing.js")  # a missing asset is a 404, not index.html
+        assert r.status_code == 404 and "harnesswalk</title>" not in r.text
+        assert (await c.get("/assets/app.js")).status_code == 200
+        assert "<title>harnesswalk</title>" in (await c.get("/sessions/sess_1")).text

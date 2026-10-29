@@ -484,7 +484,7 @@ async def test_serves_web_dist_with_spa_fallback(tmp_path: Path) -> None:
         assert root.status_code == 200 and "<title>harnesswalk</title>" in root.text
         asset = await c.get("/assets/app.js")
         assert asset.status_code == 200 and "javascript" in asset.headers["content-type"]
-        for route in ("/sessions/sess_1", "/inspect/policy", "/assets/missing.js"):
+        for route in ("/sessions/sess_1", "/inspect/policy"):
             r = await c.get(route)
             assert r.status_code == 200 and "<title>harnesswalk</title>" in r.text, route
         # The API always wins, and an unknown API path is a JSON 404, never the app.

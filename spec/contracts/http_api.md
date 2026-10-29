@@ -424,9 +424,11 @@ Response `200` when ready, `503` when a required dependency is down:
 
 - When the built web app exists (directory from `HARNESSWALK_WEB_DIST`, default `web/dist`,
   relative paths resolved against the repository root), the API serves it at `/`. Any `GET` path
-  that is not under `/v1/`, not `/healthz`, not `/docs` or `/openapi.json`, and not an existing
-  file falls back to `index.html`, so client-side routes survive a reload.
-- `/v1/*` and `/healthz` always win: an unknown `/v1/...` path is a JSON `404`, never the app.
+  that is not `/v1`, `/healthz`, `/docs` or `/openapi.json` or under one of them, not under
+  `/assets/`, and not an existing file falls back to `index.html`, so client-side routes survive
+  a reload. A missing file under `/assets/` is a JSON `404`, never `index.html`.
+- `/v1/*` and `/healthz` always win: an unknown `/v1/...` path is a JSON `404` for every method,
+  never the app; a known path with a method it does not take is a JSON `405`.
 - Without the directory, `/` is a JSON `404` and the API works as before.
 
 ## CORS
