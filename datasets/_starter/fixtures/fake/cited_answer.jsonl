@@ -1,0 +1,1 @@
+{"responses": [{"text": "You can return a shipped order within 30 days of delivery, and opened electronics within 14 days [1]. The refund goes back to your original payment method within 5 business days [2].", "usage": {"input_tokens": 640, "output_tokens": 42}, "expect": {"last_message_role": "user"}}]}

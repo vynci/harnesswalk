@@ -16,6 +16,7 @@ Contract: spec/contracts/loop.md. Node: `loop` (execution plane, kind code).
         exit "interrupted" if someone interrupted the turn meanwhile
         exit "stuck" if this exact (name, arguments) already ran stuck_repeats times
         run it through `tools` (policy, approval and sandbox happen in there)
+        a successful `remember` call becomes a memory proposal (written after the reply)
       checkpoint the step to the session store
 
 After `max_steps` or `stuck` the loop makes one final model call with tools disabled (when
@@ -31,6 +32,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from harnesswalk.context.memory_writer import proposal_from_call
 from harnesswalk.context.stores.session import SessionStore
 from harnesswalk.execution.model_layer import ModelLayer, ModelRequest
 from harnesswalk.execution.providers import ToolSchema
@@ -77,7 +79,7 @@ class LoopResult:
     tool_calls: int
     exit_reason: str
     usage: Usage
-    proposals: list[dict[str, Any]] = field(default_factory=list)
+    proposals: list[Any] = field(default_factory=list)  # context.memory_writer.MemoryProposal
 
 
 def call_key(name: str, arguments: dict[str, Any]) -> str:
@@ -146,6 +148,7 @@ class Loop:
             usage = Usage()
             step = tool_calls = 0
             seen: Counter[str] = Counter()
+            proposals: list[Any] = []  # successful `remember` calls, for the memory writer
             exit_reason, text = None, None
 
             while exit_reason is None:
@@ -193,6 +196,10 @@ class Loop:
                     observation = await self.tools.invoke(ctx, call, before_pause)
                     ctx.emit.edge("tools_to_loop")
                     tool_calls += 1
+                    if observation.outcome == "ok":
+                        proposal = proposal_from_call(ctx, call)
+                        if proposal is not None:
+                            proposals.append(proposal)
                     messages.append(
                         Message(
                             "tool", observation.content, name=call.name, tool_call_id=call.call_id
@@ -216,6 +223,7 @@ class Loop:
             tool_calls=tool_calls,
             exit_reason=exit_reason,
             usage=usage,
+            proposals=proposals,
         )
 
     def _checkpoint(self, ctx, step, messages, usage, pending=None) -> None:

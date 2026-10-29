@@ -1,0 +1,32 @@
+id: memory_written
+title: A remember tool call ends in memory_written, and the next turn retrieves the fact
+spec_version: 0.1.0
+fixture: memory_written
+config:
+  context.stores: [procedural, session, semantic]
+turns:
+  - send:
+      message: Please remember that my preferred name is Sam.
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, tools, policy, audit, model_layer, output_guardrails, gateway, memory_writer, trace]
+      statuses: done
+      events:
+        - { type: node_exit, node_id: policy, summary: { tool: remember, action_class: memory.write, decision: allow } }
+        - { type: node_exit, node_id: tools, summary: { tool: remember, outcome: ok, executed: true } }
+        - { type: node_exit, node_id: gateway, summary: { phase: reply } }
+        - { type: memory_proposed, node_id: memory_writer, status: waiting, summary: { store: semantic, gate: auto, source: loop } }
+        - { type: memory_written, node_id: memory_writer, status: done, summary: { store: semantic, version: 1 } }
+        - { type: node_exit, node_id: memory_writer, status: done, summary: { proposed: 1, written: 1, rejected: 0, pending: 0 } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      reply_contains: [Sam]
+  - send:
+      message: What is my preferred name?
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: node_exit, node_id: semantic, status: done, summary: { hits: 1 } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      absent:
+        - { type: node_enter, node_id: memory_writer }
+      reply_contains: [Sam]

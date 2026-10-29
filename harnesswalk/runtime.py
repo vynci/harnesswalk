@@ -6,14 +6,22 @@ collaborators its contract names, and the trace store subscribes to the event bu
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
 from harnesswalk import SPEC_VERSION, __version__
+from harnesswalk.adapters.storage.vectors import build_vectors
 from harnesswalk.config.loader import Settings
 from harnesswalk.context.builder import ContextBuilder
+from harnesswalk.context.embeddings import build_embedder
+from harnesswalk.context.memory_writer import MemoryWriter, remember_tool
 from harnesswalk.context.stores import Memory
+from harnesswalk.context.stores.episodic import EpisodicStore
+from harnesswalk.context.stores.knowledge import KnowledgeStore, read_doc_tool
+from harnesswalk.context.stores.memory_db import open_memory_db
 from harnesswalk.context.stores.procedural import ProceduralStore
+from harnesswalk.context.stores.semantic import SemanticStore
 from harnesswalk.context.stores.session import SessionStore, Turn
 from harnesswalk.control.approval import ApprovalQueue
 from harnesswalk.control.audit import AuditLog
@@ -47,6 +55,8 @@ from harnesswalk.nodes import load_components
 from harnesswalk.ops.trace import Tracer
 from harnesswalk.types import ConfigError, Message, TurnContext
 
+log = logging.getLogger(__name__)
+
 
 class Harness:
     def __init__(self, settings: Settings) -> None:
@@ -68,6 +78,7 @@ class Harness:
             show_args=bool(s.get("approval.show_args", True)),
         )
         self.procedural = ProceduralStore.from_settings(s)
+        self._build_memory_stores()
 
         self.registry = ToolRegistry()
         self._register_tools()
@@ -106,7 +117,31 @@ class Harness:
         )
 
         estimator = s.get("context.token_estimator", "chars_div_4")
-        self.memory = Memory(self.procedural, self.session, estimator=estimator)
+        enabled = set(s.get("context.stores", ["procedural", "session"]))
+        self.memory = Memory(
+            self.procedural,
+            self.session,
+            estimator=estimator,
+            semantic=self.semantic if "semantic" in enabled else None,
+            episodic=self.episodic if "episodic" in enabled else None,
+            knowledge=self.knowledge if "knowledge" in enabled else None,
+            top_k=s.get("context.retrieval.top_k", {}),
+        )
+        self.memory_writer = MemoryWriter(
+            s.get("memory_writer", {}),
+            self.memory_db,
+            self.semantic,
+            self.episodic,
+            self.policy,
+            episodes_enabled="episodic" in enabled,
+        )
+        self.ingest_report: dict[str, Any] | None = None
+        if bool(s.get("stores.ingest_on_start", True)):
+            try:
+                self.ingest_report = self.ingest()
+            except Exception as exc:  # a broken document or embedder never stops the harness
+                log.warning("knowledge ingestion failed: %s: %s", type(exc).__name__, exc)
+                self.ingest_report = {"error": f"{type(exc).__name__}: {exc}"}
         self.context_builder = ContextBuilder(
             s.get("context", {}), self.memory, self.session, summarizer=self._summarize
         )
@@ -118,6 +153,49 @@ class Harness:
         self._turn_fakes: dict[str, FakeProvider] = {}  # fixture name -> provider
         self._startup_fake: FakeProvider | None = None  # `provider: fake` on another server
 
+    def _build_memory_stores(self) -> None:
+        """The SQLite file, vector index and embedder behind semantic, episodic and knowledge.
+
+        The three stores always exist (the memory writer and the inspectors use them);
+        `context.stores` decides which ones the context builder retrieves from.
+        """
+        s = self.settings
+        self.pack = s.get("dataset", "_starter")
+        self.memory_db = open_memory_db(
+            str(s.resolve(s.get("stores.memory.sqlite_path", "data/memory.db")))
+        )
+        self.vectors = build_vectors(s, self.memory_db)
+        self.embedder = build_embedder(s)
+        estimator = s.get("context.token_estimator", "chars_div_4")
+        args = (self.memory_db, self.vectors, self.embedder, self.pack)
+        self.semantic = SemanticStore(*args, s.get("stores.semantic", {}), estimator)
+        self.episodic = EpisodicStore(*args, s.get("stores.episodic", {}), estimator)
+        self.knowledge = KnowledgeStore(*args, s.get("stores.knowledge", {}), estimator)
+
+    def knowledge_dir(self) -> Path:
+        rel = self.settings.get("stores.knowledge.docs_dir", None)
+        if rel:
+            return self.settings.resolve(rel)
+        return self.settings.root / "datasets" / self.pack / "docs"
+
+    def ingest(self, *, force: bool = False) -> dict[str, Any]:
+        """Index the pack's documents and load its seed facts and episodes (idempotent).
+
+        The documents directory is `stores.knowledge.docs_dir` (the conformance profile names
+        its own) or `datasets/<pack>/docs/`; seeds are `facts.jsonl` and `episodes.jsonl` in
+        the pack directory, or in `stores.seeds_dir` when set.
+        """
+        s = self.settings
+        out = self.knowledge.ingest(self.knowledge_dir(), force=force)
+        seeds_rel = s.get("stores.seeds_dir", None)
+        seeds_dir = s.resolve(seeds_rel) if seeds_rel else s.root / "datasets" / self.pack
+        out["seeded"] = self.memory_writer.seed(seeds_dir)
+        if out["changed"] or force:  # a new embedder needs the facts and events embedded again
+            out["reindexed"] = self.semantic.reindex() + self.episodic.reindex()
+        out["embedder"] = self.embedder.id
+        out["vectors"] = self.vectors.backend
+        return out
+
     def _register_tools(self) -> None:
         s = self.settings
         builtins = s.get("tools.builtins", ["calculator", "read_skill"])
@@ -127,6 +205,10 @@ class Harness:
             self.registry.register(
                 read_skill_tool(self.procedural.skill_body, sorted(self.procedural.skills))
             )
+        if "remember" in builtins:
+            self.registry.register(remember_tool())
+        if "read_doc" in builtins:
+            self.registry.register(read_doc_tool(self.knowledge))
         files = s.get("tools.files", None)
         if files is None:
             pack_tools = Path("datasets") / s.get("dataset", "_starter") / "tools.yaml"
@@ -217,6 +299,8 @@ class Harness:
                 "cancel": True,
                 "byo_key": mode in ("public", "private"),
                 "disable_nodes": mode != "public",
+                "knowledge": self.memory.knowledge is not None,
+                "memory_review": mode != "public",
             },
             "limits": {
                 "max_message_chars": int(s.get("gateway.max_message_chars", 32000)),
@@ -274,5 +358,12 @@ class Harness:
 
     async def aclose(self) -> None:
         await self.gateway.shutdown()
-        for db in (self.tracer.db, self.session.db, self.audit.db, self.approvals.db):
+        for db in (
+            self.tracer.db,
+            self.session.db,
+            self.audit.db,
+            self.approvals.db,
+            self.memory_db,
+        ):
             db.close()
+        self.vectors.close()

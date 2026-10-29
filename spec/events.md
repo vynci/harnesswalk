@@ -154,19 +154,19 @@ Values are small: counts, ids, enums, short previews. Implementations MAY add ke
 | Node | Summary keys |
 |---|---|
 | `turn_start` | `kind` (`chat`, `release`, `eval`, `replay`), `channel`, `mode`, `step_mode`, `message_chars` |
-| `turn_end` | `exit` (`answered`, `blocked`, `limit`, `error`, `cancelled`), `steps`, `reply` |
+| `turn_end` | `exit` (`answered`, `blocked`, `limit`, `error`, `cancelled`), `steps`, `reply`, `citations` (when the reply cites knowledge: `[{n, doc, chunk, citation}]` in first-cited order) |
 | `gateway` | `phase` (`receive`, `reply`), `channel`, `authenticated`, `rate_limit_remaining`, `reply_chars` |
 | `input_guardrails` | `action` (`pass`, `redact`, `block`), `checks`, `redactions` (counts by kind), `injection_score`, `reason` |
 | `policy` | `tool`, `action_class`, `decision` (`allow`, `deny`, `needs_approval`), `rule` |
 | `approval` | `approval_id`, `decision`, `waited_ms` |
 | `audit` | `record_id`, `action` (`policy_decision`, `approval_decision`), `tool`, `decision`, `decided_by` |
-| `context_builder` | enter: `budget_tokens`. exit: `budget_tokens`, `used_tokens`, `slices` (tokens per slice), `compacted`, `stable_prefix_tokens` |
-| `memory` | `stores_queried`, `hits` (per store) |
+| `context_builder` | enter: `budget_tokens`. exit: `budget_tokens`, `used_tokens`, `slices` (tokens per slice), `compacted`, `stable_prefix_tokens`, `retrieved` (items per retrieved slice), `citations` (knowledge chunks numbered), `trimmed` (items dropped per slice), `degraded` (stores that failed) |
+| `memory` | `stores_queried`, `hits` (per store), `degraded` |
 | `procedural` | `prompt_version`, `skills_indexed`, `tokens` |
 | `session` | `turns`, `summary_tokens`, `tokens` |
-| `semantic`, `episodic` | `hits`, `tokens` |
-| `knowledge` | `hits`, `top_score`, `tokens` |
-| `memory_writer` | `proposed`, `written`, `rejected`, `pending` |
+| `semantic`, `episodic` | `hits`, `tokens`, `top_score`, `entity_hits` (semantic), `enabled` (false when the store is not in `context.stores`) |
+| `knowledge` | `hits`, `top_score`, `tokens`, `docs` (document ids of the hits), `embedder`, `reranker`, `enabled` |
+| `memory_writer` | `proposed`, `written`, `rejected`, `pending`, `gate`, `policy_rule`, `rejections` (`[{proposal_id, reason}]`) |
 | `loop` | enter: `max_steps`, `budget_tokens`, `budget_usd`. exit: `steps`, `exit_reason` (`answer`, `max_steps`, `budget_tokens`, `budget_usd`, `timeout`, `stuck`, `interrupted`), `tool_calls` |
 | `model_layer` | enter: `step`. exit: `step`, `provider`, `model`, `finish_reason` (`stop`, `tool_calls`, `length`), `tool_calls`, `fallback`, `tools_enabled`, `cached_tokens` |
 | `router` | `rule`, `model`, `alternatives` |
@@ -184,8 +184,8 @@ Values are small: counts, ids, enums, short previews. Implementations MAY add ke
 | `node_resumed` | `reason`, `approval_id` |
 | `approval_requested` | `approval_id` (required), `tool` (required), `action_class` (required), `args_preview`, `reason`, `expires_at` |
 | `approval_decided` | `approval_id` (required), `decision` (required), `decided_by`, `reason` |
-| `memory_proposed` | `proposal_id` (required), `store` (required), `gate` (`review`, `eval`, `auto`), `preview`, `source` (`loop`, `diagnose`) |
-| `memory_written` | `proposal_id` (required), `store` (required), `record_id` (required), `version` |
+| `memory_proposed` | `proposal_id` (required), `store` (required), `gate` (`review`, `eval`, `auto`, `session`), `preview` (redacted), `source` (`loop`, `turn`, `diagnose`), `redactions` (counts by kind) |
+| `memory_written` | `proposal_id` (required), `store` (required), `record_id` (required), `version`, `op` (`create`, `update`) |
 | `artifact_released` | `artifact` (required), `version` (required), `previous_version`, `gate` |
 | `message_delta` | `delta` (required, string), `index` (required, int from 0) |
 

@@ -1,0 +1,16 @@
+fixture: memory_written
+description: The model proposes a fact with the remember tool; the next turn retrieves it.
+model: fake-small
+turns:
+  - responses:
+      - tool_calls:
+          - { call_id: call_1, name: remember, arguments: { kind: fact, key: preferred name, value: Sam } }
+        usage: { input_tokens: 210, output_tokens: 28 }
+        expect: { last_message_role: user, last_message_contains: preferred name }
+      - text: Thanks, Sam. I will remember your name.
+        usage: { input_tokens: 260, output_tokens: 11 }
+        expect: { last_message_role: tool }
+  - responses:
+      - text: Your preferred name is Sam.
+        usage: { input_tokens: 230, output_tokens: 7 }
+        expect: { last_message_role: user, last_message_contains: preferred name }

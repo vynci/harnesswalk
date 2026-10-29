@@ -10,6 +10,11 @@
     "title": { "type": "string", "minLength": 1 },
     "spec_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
     "fixture": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+    "mode": {
+      "description": "The mode the harness starts in for this case. In public mode the tenant is the anonymous cookie tenant, not the tenant header.",
+      "enum": ["dev", "public", "private"],
+      "default": "dev"
+    },
     "config": {
       "description": "Overrides of profile keys. Only keys listed in profile.yaml `overridable` are allowed.",
       "type": "object",

@@ -142,8 +142,9 @@ async def test_diagram_and_inspectors(tmp_path: Path) -> None:
     async with client(h) as c:
         doc = (await c.get("/v1/diagram")).json()
         by_id = {n["id"]: n for n in doc["nodes"]}
-        assert by_id["loop"]["implemented"] and not by_id["knowledge"]["implemented"]
-        assert by_id["knowledge"]["stub"] and not by_id["artifacts"]["stub"]
+        assert by_id["loop"]["implemented"] and by_id["knowledge"]["implemented"]
+        assert not by_id["eval"]["implemented"]
+        assert by_id["eval"]["stub"] and not by_id["artifacts"]["stub"]
         simple = (await c.get("/v1/diagram", params={"view": "simple"})).json()
         assert len(simple["nodes"]) == 15
         policy = (await c.get("/v1/nodes/policy")).json()

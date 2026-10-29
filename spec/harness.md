@@ -207,6 +207,7 @@ invocation; the "Events" line lists only what they add. Per-node `summary` shape
   - MUST gate every proposal: human review, an eval check, or auto-approve. Auto-approve MUST
     only be possible in `private` mode with the tenant setting on, or in `dev`.
   - Writes MUST be versioned, diffable and scoped to one tenant (and user where applicable).
+  - In `public` mode a proposal MUST NOT be written to durable memory (gate `session`).
   - MUST emit `memory_proposed` for every proposal and `memory_written` for every write.
   - In a chat turn it runs only when the loop produced proposals, after the gateway reply and
     before `trace`, so a slow gate never delays the answer.

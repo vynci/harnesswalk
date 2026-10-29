@@ -127,7 +127,15 @@ def _read_yaml(root: Path, artifact: str, versions: dict[str, str]) -> dict:
 def _normalize_profile(profile: dict) -> dict:
     """Map a conformance profile (spec/conformance/profile.yaml) onto the settings shape."""
     out: dict[str, Any] = {}
-    for key in ("mode", "loop", "approval", "input_guardrails", "output_guardrails"):
+    for key in (
+        "mode",
+        "loop",
+        "approval",
+        "input_guardrails",
+        "output_guardrails",
+        "stores",
+        "memory_writer",
+    ):
         if key in profile:
             out[key] = profile[key]
     if "models" in profile:
@@ -178,6 +186,8 @@ def load_settings(
     data["mode"] = mode
     if env.get("HARNESSWALK_DATASET"):
         data["dataset"] = env["HARNESSWALK_DATASET"]
+    if env.get("HARNESSWALK_VECTORS"):
+        set_dotted(data, "storage.vectors", env["HARNESSWALK_VECTORS"])
     if env.get("HARNESSWALK_OLLAMA_URL"):
         set_dotted(data, "models.providers.ollama.base_url", env["HARNESSWALK_OLLAMA_URL"])
     if fixture:

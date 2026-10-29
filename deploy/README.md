@@ -27,6 +27,13 @@ empty Ollama; pull the model once with
 `docker compose -f deploy/docker-compose.yml exec ollama ollama pull llama3.1:8b`. To try the
 stack without a model, set `HARNESSWALK_PROVIDER=fake` and `HARNESSWALK_FIXTURE=plain_answer`.
 
+The semantic, episodic and knowledge stores keep their vectors in the `postgres` service with
+pgvector (`HARNESSWALK_VECTORS=pgvector` in compose, `HARNESSWALK_VECTORS=sqlite` to opt out);
+their records stay in SQLite under `/data`. Embeddings are local: the api uses the Ollama
+model `nomic-embed-text` when it is pulled
+(`docker compose -f deploy/docker-compose.yml exec ollama ollama pull nomic-embed-text`), and
+hash embeddings otherwise. The api indexes the pack's documents on start-up.
+
 Without Docker, `make run` starts the same API from the working tree, and serves `web/dist`
 when `make web-build` has built it.
 

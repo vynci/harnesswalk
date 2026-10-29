@@ -220,6 +220,9 @@ make turn FIXTURE=tool_call PROMPT="Where is order A-1001?"
 uv run harnesswalk turn "Cancel A-1002" --provider fake --fixture cancel_order   # asks you to approve
 uv run harnesswalk turn "What are your support hours?" --provider fake --fixture plain_answer --step
 uv run harnesswalk events <turn_id>          # the stored events as JSON Lines
+uv run harnesswalk turn "How long do I have to return an item?" --provider fake --fixture cited_answer
+uv run harnesswalk turn "Call me Sam" --provider fake --fixture remember_fact      # the memory writer
+uv run harnesswalk ingest _starter           # index the pack's documents and load its seeds
 uv run harnesswalk turn "Where is order A-1001?" --provider ollama
 ```
 

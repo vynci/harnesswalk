@@ -11,6 +11,8 @@ first, `phase: reply` last.
         (model_layer, tools ...) -> output_guardrails -> gateway (reply)
         -> [memory_writer] -> trace -> turn_end
 
+`turn_end.summary.citations` lists the knowledge chunks the reply cites with `[n]`.
+
 When input guardrails block, the walk is gateway, input_guardrails, gateway, trace.
 """
 
@@ -18,13 +20,13 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import re
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from harnesswalk import diagram
-from harnesswalk.context.memory_writer import run_memory_writer
 from harnesswalk.context.stores.session import SessionForbidden
 from harnesswalk.events import Breakpoints, TurnEmitter, new_trace_id, uuid7
 from harnesswalk.execution.loop import Limits
@@ -86,6 +88,22 @@ class TurnState:
     replied: bool = False  # the reply phase closed: a cancel has nothing left to stop
     recorded: bool = False  # the session holds this turn: a later failure must not rewrite it
     finished_at: float | None = None  # monotonic time the turn ended, for eviction
+
+
+CITATION_MARK = re.compile(r"\[(\d{1,2})\]")
+
+
+def cited_sources(reply: str, citations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The knowledge chunks the reply cites with `[n]`, in first-cited order."""
+    by_n = {c["n"]: c for c in citations}
+    out, seen = [], set()
+    for m in CITATION_MARK.finditer(reply):
+        n = int(m.group(1))
+        if n in by_n and n not in seen:
+            seen.add(n)
+            c = by_n[n]
+            out.append({"n": n, "doc": c["doc"], "chunk": c["chunk"], "citation": c["citation"]})
+    return out
 
 
 def cap_reply(text: str) -> str:
@@ -260,6 +278,7 @@ class Gateway:
         ctx, req, h = state.ctx, state.request, self.h
         emit = ctx.emit
         exit_, steps, reply, user_text = "answered", 0, "", None
+        proposals: list[Any] = []  # memory proposals of this turn, for the memory writer
         try:
             async with node(ctx, "gateway") as span:
                 span.set(
@@ -289,6 +308,7 @@ class Gateway:
                         api_key=req.api_key,
                     )
                     answer, steps = result.answer.text, result.steps
+                    proposals = list(result.proposals)
                     exit_ = EXIT_FOR_REASON[result.exit_reason]
                 except Exception:
                     # A downstream node failed and closed its own span: answer with a notice.
@@ -322,11 +342,16 @@ class Gateway:
             state.replied = True
             h.session.append_turn(ctx, "gateway", user_text, reply, exit_)
             state.recorded = True
-            await run_memory_writer(ctx, [])
+            proposals += h.memory_writer.turn_episode(ctx, user_text, reply, exit_)
+            await h.memory_writer.run(ctx, proposals)
             receipt = await run_trace_node(ctx, h.tracer)
+            end: dict[str, Any] = {"exit": exit_, "steps": steps, "reply": reply}
+            cited = cited_sources(reply, ctx.citations)
+            if cited:
+                end["citations"] = cited
             emit.turn_end(
                 "done",
-                {"exit": exit_, "steps": steps, "reply": reply},
+                end,
                 cost=receipt["total"],
                 # A truncated reply points at the full text in the trace (events.md rule 12).
                 detail={"reply": full_reply} if full_reply != reply else None,

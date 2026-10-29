@@ -30,3 +30,10 @@ step mode, approval cards, Stop, replay, history, the inspector with a code peek
 for working on the UI alone. The API gained cancel, turn summaries, cursor replay, the session
 turn list, the code peek and capabilities. Playwright drives the UI against the real API with
 the fake provider in CI (`make e2e`). Next: P3, the full planes.
+
+P3 context plane (branch `p3-context`): `semantic`, `episodic` and `knowledge` are real stores
+(SQLite by default, vectors in pgvector behind `storage.vectors`), with local embeddings, hybrid
+keyword and vector retrieval fused by reciprocal rank, and citations `[n]` the reply carries
+into `turn_end.summary.citations`. `memory_writer` is the single gated write path (the
+`remember` tool, one episode per turn, gates by mode: dev and private auto, public never).
+`harnesswalk ingest <pack>` indexes a pack's documents and loads its seeds.

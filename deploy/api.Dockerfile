@@ -41,13 +41,13 @@ WORKDIR /app
 
 # Dependencies first, so code edits do not reinstall them.
 COPY pyproject.toml uv.lock README.md LICENSE NOTICE ./
-RUN uv sync --locked --no-dev --no-install-project
+RUN uv sync --locked --no-dev --extra pgvector --no-install-project
 
 COPY harnesswalk ./harnesswalk
 COPY spec ./spec
 COPY config ./config
 COPY datasets ./datasets
-RUN uv sync --locked --no-dev
+RUN uv sync --locked --no-dev --extra pgvector
 COPY --from=web /web/dist ./web/dist
 
 RUN useradd --create-home --uid 10001 harnesswalk \
