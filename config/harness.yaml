@@ -1,0 +1,63 @@
+# harnesswalk runtime configuration. Keys follow spec/contracts/*.md.
+# Environment variables (HARNESSWALK_*) override a few of these; see harnesswalk/config/loader.py.
+mode: dev                       # dev | public | private (env HARNESSWALK_MODE)
+dataset: _starter               # active dataset pack under datasets/
+
+gateway:
+  channels: [web]
+  max_body_bytes: 65536         # request size limit, checked before the body is parsed
+  max_message_chars: 32000      # hard transport cap; input_guardrails.size is the policy limit
+  rate_limit: { per_ip_per_hour: 30, per_tenant_per_hour: 120 }
+  session_ttl_s: 7200
+  dev_tenant: dev
+  allow_tenant_header: true     # X-Harnesswalk-Tenant, honoured in dev mode only
+  stream_reply_chars: 0         # > 0 emits message_delta chunks of this size in the reply span
+
+input_guardrails:
+  enabled: true
+  checks: [control, size, pii, injection]   # pii and injection arrive in P3
+  size: { max_chars: 8000 }
+  pii: { kinds: [email, phone, card, national_id], action: redact }
+  injection: { block_threshold: 0.8 }
+
+output_guardrails:
+  enabled: true
+  checks: [schema, content, length, citations]
+  max_chars: 12000              # longer answers are repaired by truncation
+  citations: { required: true, on_missing: repair }
+  content: { blocklist: [] }
+
+loop:
+  max_steps: 8
+  budget_tokens: 16000
+  budget_usd: 0.05
+  timeout_s: 120
+  stuck_repeats: 3
+  final_call_on_exit: true
+  notices:
+    budget_tokens: I stopped because this turn used its token budget. Try a narrower question.
+    budget_usd: I stopped because this turn used its cost budget. Try a narrower question.
+    timeout: I stopped because this turn ran out of time. Please try again.
+    interrupted: I stopped because the turn was interrupted.
+    max_steps: I stopped after the maximum number of steps without reaching an answer.
+    stuck: I stopped because I was repeating the same tool call without progress.
+    error: Something went wrong while answering. The trace has the details.
+
+tools:
+  builtins: [calculator, read_skill]
+  max_observation_chars: 4000
+
+sandbox:
+  level: inprocess
+  max_timeout_ms: 10000
+
+trace:
+  backend: sqlite
+  sqlite_path: data/trace.db
+  validate_events: true         # validate every event against spec/events.schema.json
+  capture_content: true
+
+audit:
+  backend: sqlite
+  sqlite_path: data/audit.db
+  record_read_allows: false

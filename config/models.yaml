@@ -1,0 +1,29 @@
+# Model layer: providers, model aliases, prices and router rules.
+# See spec/contracts/model_provider.md and router.md.
+# Keys are referenced by environment variable name only, never by value.
+providers:
+  fake: { fixture: plain_answer }
+  ollama: { base_url: http://localhost:11434, timeout_s: 120 }
+  anthropic: { base_url: https://api.anthropic.com, api_key_env: ANTHROPIC_API_KEY, timeout_s: 60 }
+  openai_compatible: { base_url: "", base_url_env: OPENAI_BASE_URL, api_key_env: OPENAI_API_KEY, timeout_s: 60 }
+
+models:
+  fake-small:   { provider: fake, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
+  local-8b:     { provider: ollama, name: "llama3.1:8b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
+  local-small:  { provider: ollama, name: "llama3.2:3b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
+  hosted-small: { provider: anthropic, name: claude-haiku-4-5, context_tokens: 200000, price_in_per_mtok: 1.0, price_out_per_mtok: 5.0, tools: true }
+  compat-default: { provider: openai_compatible, name: default, context_tokens: 32000, tools: true }
+  local-embed:  { provider: ollama, name: nomic-embed-text, embedding: true }
+
+# With the fake provider there is no summarize model, so compaction falls back to truncation.
+# The router picks the first alias in `use` whose provider is configured. Setting
+# HARNESSWALK_PROVIDER configures that provider only, so the same rules serve every provider.
+router:
+  rules:
+    - { id: summarize, when: { step: summarize }, use: [local-small, local-8b, hosted-small, compat-default] }
+    - { id: default,   when: {},                  use: [local-8b, hosted-small, compat-default, fake-small] }
+
+model_layer:
+  timeout_s: 60
+  max_output_tokens: 1024
+  cache: none

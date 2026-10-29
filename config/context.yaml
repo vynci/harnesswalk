@@ -1,0 +1,27 @@
+# Context builder budget and stores. See spec/contracts/context_builder.md and store.md.
+context:
+  total_tokens: 16000
+  reserve_output_tokens: 1024
+  stores: [procedural, session]     # P1 scope; semantic, episodic, knowledge are stubs
+  slices:
+    procedural: 3000
+    semantic: 800
+    episodic: 800
+    knowledge: 4000
+    session: 5000
+  compaction:
+    threshold: 0.8                  # fraction of the session slice that triggers compaction
+    keep_recent_turns: 4
+    summary_tokens: 600             # the running summary is cut to this size
+  retrieval:
+    top_k: { semantic: 5, episodic: 5, knowledge: 6 }
+  token_estimator: chars_div_4
+
+stores:
+  backend: sqlite
+  session: { sqlite_path: data/session.db }
+  embeddings: { provider: ollama, model: nomic-embed-text }
+
+memory_writer:
+  enabled: true
+  gate: review

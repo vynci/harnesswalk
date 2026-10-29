@@ -1,0 +1,22 @@
+# Policy: which tool calls may run. Rules are evaluated in order, first match wins, no match
+# is a deny (rule default.deny). See spec/contracts/policy.md.
+version: 1
+enabled: true
+
+agent:
+  allow_tools: [calculator, read_skill, lookup_order, cancel_order]
+
+roles:
+  user: { allow_action_classes: [read, write, destructive, external] }
+
+rules:
+  - { id: dev.read.allow,          modes: [dev, private, public], action_classes: [read], decision: allow }
+  - { id: dev.write.allow,         modes: [dev, private], action_classes: [write], decision: allow }
+  - { id: dev.destructive.approve, modes: [dev, private], action_classes: [destructive], decision: needs_approval }
+  - { id: external.approve,        modes: [dev, private], action_classes: [external], decision: needs_approval }
+  - { id: public.deny_rest,        modes: [public], decision: deny }
+
+approval:
+  timeout_s: 900
+  deciders: [session_owner]
+  show_args: true

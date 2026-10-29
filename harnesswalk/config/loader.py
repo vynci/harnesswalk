@@ -1,0 +1,198 @@
+"""Load the four config files, an optional conformance profile, env vars and overrides.
+
+Precedence, lowest first: `config/*.yaml`, the profile (`HARNESSWALK_PROFILE`), environment
+variables, explicit arguments, dotted overrides. Lists replace, mappings merge.
+
+Every file is read through `ops.release.current()`, the one door through which the harness
+loads its artifacts (spec/contracts/release.md). In P1 release is a stub that reads the working
+tree and stamps a content hash as the version.
+"""
+
+from __future__ import annotations
+
+import copy
+import os
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from harnesswalk.ops import release
+from harnesswalk.paths import PACKAGE_ROOT
+from harnesswalk.types import ConfigError
+
+PROVIDERS = ("fake", "ollama", "anthropic", "openai_compatible")
+MODES = ("dev", "public", "private")
+_MISSING = object()
+
+
+def deep_merge(base: dict, extra: Mapping) -> dict:
+    out = copy.deepcopy(base)
+    for key, value in extra.items():
+        if isinstance(value, Mapping) and isinstance(out.get(key), dict):
+            out[key] = deep_merge(out[key], value)
+        else:
+            out[key] = copy.deepcopy(value)
+    return out
+
+
+def set_dotted(data: dict, dotted: str, value: Any) -> None:
+    parts = dotted.split(".")
+    node = data
+    for part in parts[:-1]:
+        node = node.setdefault(part, {})
+    node[parts[-1]] = value
+
+
+@dataclass
+class Settings:
+    """The merged configuration plus where things live on disk."""
+
+    data: dict[str, Any]
+    root: Path
+    data_dir: Path
+    provider: str | None = None  # when set, the only configured provider
+    versions: dict[str, str] = field(default_factory=dict)  # artifact -> version
+
+    def get(self, dotted: str, default: Any = _MISSING) -> Any:
+        node: Any = self.data
+        for part in dotted.split("."):
+            if not isinstance(node, Mapping) or part not in node:
+                if default is _MISSING:
+                    raise KeyError(dotted)
+                return default
+            node = node[part]
+        return node
+
+    @property
+    def mode(self) -> str:
+        return self.data["mode"]
+
+    def resolve(self, rel: str | Path) -> Path:
+        """`data/...` lives under the data dir; everything else under the repo root."""
+        rel = Path(rel)
+        if rel.is_absolute():
+            return rel
+        if rel.parts and rel.parts[0] == "data":
+            return self.data_dir.joinpath(*rel.parts[1:])
+        return self.root / rel
+
+    def fixture(self) -> str | None:
+        return self.get("models.providers.fake.fixture", None)
+
+    def provider_configured(self, name: str) -> bool:
+        """A provider is configured when it was selected, or when its prerequisites exist."""
+        if self.provider:
+            return name == self.provider
+        providers = self.get("models.providers", {})
+        if name not in providers:
+            return False
+        if name == "fake":
+            return False  # the fake provider is used only when selected explicitly
+        if name == "ollama":
+            return bool(providers["ollama"].get("base_url"))
+        if name == "anthropic":
+            return bool(os.environ.get(providers["anthropic"].get("api_key_env", "")))
+        if name == "openai_compatible":
+            cfg = providers["openai_compatible"]
+            return bool(cfg.get("base_url") or os.environ.get(cfg.get("base_url_env", "")))
+        return False
+
+
+def _read_yaml(root: Path, artifact: str, versions: dict[str, str]) -> dict:
+    content, version = release.current(root, artifact)
+    versions[artifact] = version
+    data = yaml.safe_load(content) or {}
+    if not isinstance(data, dict):
+        raise ConfigError(f"{artifact} must hold a mapping")
+    return data
+
+
+def _normalize_profile(profile: dict) -> dict:
+    """Map a conformance profile (spec/conformance/profile.yaml) onto the settings shape."""
+    out: dict[str, Any] = {}
+    for key in ("mode", "loop", "approval", "input_guardrails", "output_guardrails"):
+        if key in profile:
+            out[key] = profile[key]
+    if "models" in profile:
+        out["models"] = profile["models"]
+    if "context" in profile:
+        out["context"] = profile["context"]
+    if "procedural" in profile:
+        out["procedural"] = profile["procedural"]
+    if "policy" in profile:
+        out["policy"] = profile["policy"]
+    if "tools" in profile:
+        files = profile["tools"]
+        out["tools"] = {"files": [files] if isinstance(files, str) else list(files)}
+    return out
+
+
+def load_settings(
+    root: Path | None = None,
+    *,
+    mode: str | None = None,
+    provider: str | None = None,
+    fixture: str | None = None,
+    profile: str | Path | None = None,
+    overrides: Mapping[str, Any] | None = None,
+    data_dir: str | Path | None = None,
+    env: Mapping[str, str] | None = None,
+) -> Settings:
+    env = os.environ if env is None else env
+    root = Path(root) if root else Path(env.get("HARNESSWALK_ROOT") or PACKAGE_ROOT)
+    versions: dict[str, str] = {}
+
+    data: dict[str, Any] = _read_yaml(root, "config/harness.yaml", versions)
+    policy = _read_yaml(root, "config/policy.yaml", versions)
+    data["approval"] = policy.pop("approval", {})
+    data["policy"] = policy
+    data.update(_read_yaml(root, "config/context.yaml", versions))
+    data["models"] = _read_yaml(root, "config/models.yaml", versions)
+
+    profile = profile or env.get("HARNESSWALK_PROFILE")
+    if profile:
+        path = Path(profile)
+        rel = path.relative_to(root) if path.is_absolute() else path
+        data = deep_merge(data, _normalize_profile(_read_yaml(root, str(rel), versions)))
+
+    mode = mode or env.get("HARNESSWALK_MODE") or data.get("mode", "dev")
+    provider = provider or env.get("HARNESSWALK_PROVIDER") or None
+    fixture = fixture or env.get("HARNESSWALK_FIXTURE") or None
+    data["mode"] = mode
+    if env.get("HARNESSWALK_DATASET"):
+        data["dataset"] = env["HARNESSWALK_DATASET"]
+    if env.get("HARNESSWALK_OLLAMA_URL"):
+        set_dotted(data, "models.providers.ollama.base_url", env["HARNESSWALK_OLLAMA_URL"])
+    if fixture:
+        set_dotted(data, "models.providers.fake.fixture", fixture)
+    for dotted, value in (overrides or {}).items():
+        set_dotted(data, dotted, value)
+
+    data_dir = Path(data_dir or env.get("HARNESSWALK_DATA_DIR") or root / "data")
+    settings = Settings(
+        data=data, root=root, data_dir=data_dir, provider=provider, versions=versions
+    )
+    validate(settings)
+    return settings
+
+
+def validate(settings: Settings) -> None:
+    """Refuse to start on a configuration the spec forbids. Mode rules live in policy.py."""
+    if settings.mode not in MODES:
+        raise ConfigError(f"mode must be one of {MODES}, got {settings.mode!r}")
+    if settings.provider and settings.provider not in PROVIDERS:
+        raise ConfigError(f"provider must be one of {PROVIDERS}, got {settings.provider!r}")
+    rules = settings.get("models.router.rules", [])
+    if not rules or rules[-1].get("when"):
+        raise ConfigError("router.rules must end with a default rule whose `when` is empty")
+    models = settings.get("models.models", {})
+    for rule in rules:
+        for alias in rule.get("use", []):
+            if alias not in models:
+                raise ConfigError(f"router rule {rule.get('id')} uses unknown model {alias}")
+    for rule in settings.get("policy.rules", []):
+        if rule.get("decision") not in ("allow", "deny", "needs_approval"):
+            raise ConfigError(f"policy rule {rule.get('id')} has an invalid decision")
