@@ -205,6 +205,11 @@ turn summary's `status` becomes `done`.
 | Past the loop (output guardrails, reply, trace) without a breakpoint | Nothing is left to stop; the turn ends as it would have |
 | After the `phase: reply` gateway span closed (memory writer, trace), paused on a breakpoint or not | The reply is already in the session, so nothing is left to stop: the cancel is not honoured. It is still `202`, any breakpoint is released (as `continue`), and the turn ends as it would have, with its own `summary.exit` |
 
+A `202` asks; it does not promise `summary.exit: cancelled`. When the cancel lands inside a
+model call whose response has no tool calls, the response is the answer, the loop exits
+`answer`, and the turn ends `answered` with that reply. The same holds after the reply phase
+(row above). The turn summary and `turn_end` always say which way it went.
+
 The session records a cancelled turn like any other, so turn numbers stay gapless. Cancelling
 twice before the turn ends is `202` again.
 
