@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node (web/)
+node_modules/
+.pnpm-store/
+web/dist/
+*.tsbuildinfo
+npm-debug.log*
+pnpm-debug.log*
+
+# Environment and secrets. Only .env.example (keys, no values) is tracked.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Data volumes and local stores
+data/
+deploy/data/
+*.sqlite
+*.sqlite3
+*.db
+pgdata/
+ollama/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
