@@ -16,7 +16,8 @@ export interface HarnessNodeData extends Record<string, unknown> {
   hasChildren: boolean
   isChild: boolean
   current: boolean
-  off: boolean
+  /** `now`: the API serves the node disabled; `next`: switched off here for the next turn. */
+  off: 'now' | 'next' | null
   onToggle?: (id: string) => void
 }
 
@@ -73,8 +74,12 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
         <span className={cn('truncate font-medium', isChild ? 'text-xs' : 'text-sm')}>{node.label}</span>
         <span className="ml-auto flex items-center gap-1">
           {off && (
-            <span className="rounded border border-current px-1 text-[10px] leading-4 text-state-error" title="Disabled for the next turn">
-              off
+            <span
+              className="shrink-0 rounded border border-current px-1 text-[10px] leading-4 whitespace-nowrap text-state-error"
+              title={off === 'now' ? 'Disabled for this session' : 'Disabled from the next turn you send'}
+              data-testid={`off-${node.id}`}
+            >
+              {off === 'now' ? 'off' : 'off next turn'}
             </span>
           )}
           {hasChildren && data.onToggle && (

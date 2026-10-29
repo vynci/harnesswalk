@@ -44,6 +44,9 @@ export function toFlow(
     const childIds = diagram.nodes.filter((n) => n.parent === l.id).map((n) => n.id)
     const showBadges = l.id === BADGE_NODE && !l.expanded && childIds.length > 0
     const stat = nodeStat(run)
+    // Served as disabled for this session, or switched off here for the next turn.
+    const off = l.node.disabled === true ? 'now' : opts.disabled.has(l.id) ? 'next' : null
+    const offText = off === 'now' ? ', disabled' : off === 'next' ? ', off next turn' : ''
     return {
       id: l.id,
       type: 'harness',
@@ -54,7 +57,7 @@ export function toFlow(
       height: l.height,
       style: { width: l.width, height: l.height },
       draggable: false,
-      ariaLabel: `${l.node.label}, ${state}${stat ? `, ${stat}` : ''}${l.node.implemented === false ? ', not implemented yet' : ''}. Press Enter to inspect.`,
+      ariaLabel: `${l.node.label}, ${state}${stat ? `, ${stat}` : ''}${l.node.implemented === false ? ', not implemented yet' : ''}${offText}. Press Enter to inspect.`,
       data: {
         node: l.node,
         state,
@@ -64,7 +67,7 @@ export function toFlow(
         hasChildren: l.hasChildren,
         isChild: Boolean(l.parentId),
         current: current === l.id,
-        off: opts.disabled.has(l.id) || l.node.disabled === true,
+        off,
         onToggle: opts.onToggle,
       },
     }

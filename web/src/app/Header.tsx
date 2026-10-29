@@ -109,7 +109,7 @@ export function Header() {
         )}
         {disabled.length > 0 && (
           <Badge variant="outline" className="text-state-error" title={`Disabled on the next turn: ${disabled.join(', ')}`}>
-            {disabled.length} off
+            {disabled.length} off next turn
           </Badge>
         )}
         {capabilities?.features.step_mode !== false && (
