@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -84,6 +85,7 @@ class TurnState:
     exit: str = ""
     replied: bool = False  # the reply phase closed: a cancel has nothing left to stop
     recorded: bool = False  # the session holds this turn: a later failure must not rewrite it
+    finished_at: float | None = None  # monotonic time the turn ended, for eviction
 
 
 def cap_reply(text: str) -> str:
@@ -94,12 +96,25 @@ def cap_reply(text: str) -> str:
 
 
 class Gateway:
+    """Starts, runs and controls turns.
+
+    `turns` holds the in-process state of running turns and of recently finished ones. A
+    finished turn is evicted after `gateway.turn_state_ttl_seconds`, or sooner once more than
+    `gateway.turn_state_max` finished turns are kept (oldest finish first). Running and paused
+    turns are never evicted. Nothing is lost: summaries, history and replay read the trace store
+    (`turns.py`), and a control call on an evicted turn answers as for any finished turn.
+    """
+
     def __init__(self, harness: Harness) -> None:
         self.h = harness
         self.cfg = harness.settings.get("gateway", {})
         self.turns: dict[str, TurnState] = {}
         self._open_sessions: dict[str, str] = {}  # session_id -> running turn_id
         self._rate: dict[str, list[float]] = {}
+        self.turn_state_max = max(1, int(self.cfg.get("turn_state_max", 500)))
+        self.turn_state_ttl_s = max(0.0, float(self.cfg.get("turn_state_ttl_seconds", 3600)))
+        self._finished: OrderedDict[str, float] = OrderedDict()  # turn_id -> finished_at
+        self._clock = time.monotonic
 
     # -- starting a turn ----------------------------------------------------------------------
 
@@ -219,6 +234,7 @@ class Gateway:
             providers=turn_providers,
         )
         state = TurnState(ctx=ctx, request=req)
+        self.evict_finished()
         self.turns[turn_id] = state
         self._open_sessions[session_id] = turn_id
         start: dict[str, Any] = {
@@ -325,7 +341,24 @@ class Gateway:
             state.reply, state.exit = reply, exit_
             req.api_key = None  # a BYO key lives for this turn only
             self._open_sessions.pop(ctx.session_id, None)
+            state.finished_at = self._clock()
+            self._finished[ctx.turn_id] = state.finished_at
             state.done.set()
+            self.evict_finished()
+
+    def evict_finished(self) -> int:
+        """Drop the state of finished turns past the TTL or over the cap. Returns how many."""
+        now, evicted = self._clock(), 0
+        while self._finished:
+            turn_id, finished_at = next(iter(self._finished.items()))
+            if now - finished_at < self.turn_state_ttl_s and len(self._finished) <= (
+                self.turn_state_max
+            ):
+                break
+            del self._finished[turn_id]
+            self.turns.pop(turn_id, None)
+            evicted += 1
+        return evicted
 
     def _close_after_failure(self, state: TurnState, code: str, message: str) -> None:
         ctx = state.ctx
@@ -351,10 +384,18 @@ class Gateway:
         state = self.turns.get(turn_id)
         return state if state and state.ctx.tenant_id == tenant_id else None
 
+    def _missing(self, tenant_id: str, turn_id: str, code: str, message: str) -> GatewayError:
+        """The error for a turn this process holds no state for: evicted, or never there."""
+        if self.h.tracer.turn_exists(tenant_id, turn_id):
+            return GatewayError(409, code, message)
+        return GatewayError(404, "turn_not_found", f"No turn {turn_id} for this tenant.")
+
     def resume(self, tenant_id: str, turn_id: str, mode: str) -> str:
         state = self.get(tenant_id, turn_id)
         if state is None:
-            raise GatewayError(404, "turn_not_found", f"No turn {turn_id} for this tenant.")
+            raise self._missing(
+                tenant_id, turn_id, "turn_not_paused", f"Turn {turn_id} is not at a breakpoint."
+            )
         from harnesswalk.events import NotPaused
 
         try:
@@ -375,7 +416,9 @@ class Gateway:
         """
         state = self.get(tenant_id, turn_id)
         if state is None:
-            raise GatewayError(404, "turn_not_found", f"No turn {turn_id} for this tenant.")
+            raise self._missing(
+                tenant_id, turn_id, "turn_finished", f"Turn {turn_id} has already ended."
+            )
         if state.done.is_set():
             raise GatewayError(409, "turn_finished", f"Turn {turn_id} has already ended.")
         if state.replied:
@@ -387,16 +430,21 @@ class Gateway:
         return state
 
     async def wait(self, turn_id: str, timeout: float | None = None) -> TurnState:
+        """Wait for a turn this process holds. KeyError once a finished turn was evicted."""
         state = self.turns[turn_id]
         await asyncio.wait_for(state.done.wait(), timeout)
         return state
 
     async def shutdown(self) -> None:
-        for state in self.turns.values():
+        for state in list(self.turns.values()):  # a finishing turn may evict others
             if state.task and not state.task.done():
                 state.task.cancel()
                 with contextlib.suppress(asyncio.CancelledError, Exception):
                     await state.task
 
     def describe(self) -> dict[str, Any]:
-        return {"running": len(self._open_sessions), "turns": len(self.turns)}
+        return {
+            "running": len(self._open_sessions),
+            "turns": len(self.turns),
+            "finished_kept": len(self._finished),
+        }

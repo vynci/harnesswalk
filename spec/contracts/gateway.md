@@ -64,6 +64,12 @@ record ChannelReply { text: string, citations: [Citation], turn_id: string }
   logged, stored, or placed in any event.
 - One turn per session at a time. A second `start_turn` on a session with an open turn MUST fail
   with `409 turn_in_progress` (HTTP) rather than interleave.
+- In-process turn state is bounded. A finished turn's state MAY be evicted after
+  `gateway.turn_state_ttl_seconds`, or once more than `gateway.turn_state_max` finished turns are
+  kept (oldest finish first); a running or paused turn MUST NOT be evicted. Eviction MUST NOT
+  change what a client sees: summaries, the session turn list and the event stream read the trace
+  store, and `cancel` or `resume` on an evicted turn answer `409` (`turn_finished`,
+  `turn_not_paused`) as for any finished turn, never `404`.
 
 ## Failure behaviour
 
@@ -97,3 +103,6 @@ record ChannelReply { text: string, citations: [Citation], turn_id: string }
 | `gateway.session_ttl_s` | `7200` | Public mode TTL |
 | `gateway.dev_tenant` | `dev` | Tenant used in dev mode when none is given |
 | `gateway.allow_tenant_header` | `true` in dev | Accept `X-Harnesswalk-Tenant` (dev only, ignored elsewhere) |
+| `gateway.stream_reply_chars` | `0` | Above 0, the reply is also sent as `message_delta` events of this many characters inside the `phase: reply` span |
+| `gateway.turn_state_max` | `500` | Finished turns whose in-process state is kept; the oldest beyond this are evicted |
+| `gateway.turn_state_ttl_seconds` | `3600` | A finished turn's in-process state is evicted this long after it ended |
