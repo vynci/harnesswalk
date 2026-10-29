@@ -77,6 +77,7 @@ record ChannelReply { text: string, citations: [Citation], turn_id: string }
 | `cancel` while paused, or at a later breakpoint, before the `phase: reply` span closes | Open spans close with `error` code `cancelled`, then `turn_end` with status `error` and `summary.exit: cancelled` |
 | `cancel` while running | The loop stops at its next step boundary with `exit_reason: interrupted` and its notice; `turn_end.status` `done`, `summary.exit: cancelled` |
 | `cancel` after the `phase: reply` span closed | Not honoured: the reply is recorded, any breakpoint is released, and the turn ends as it would have |
+| The trace store cannot give the receipt while a failed turn closes | `turn_end` is still emitted (status `error`), with a zero `cost`, so every stream closes |
 | A failure after the reply was recorded | `turn_end.status` `error`, but the session keeps the recorded turn; it is never rewritten |
 
 ## Events

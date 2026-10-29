@@ -31,7 +31,7 @@ from harnesswalk.execution.loop import Limits
 from harnesswalk.execution.providers import PROVIDER_NAMES
 from harnesswalk.nodes import node, register
 from harnesswalk.ops.trace import run_trace_node
-from harnesswalk.types import ConfigError, Identity, TurnContext
+from harnesswalk.types import ConfigError, Identity, TurnContext, Usage
 
 if TYPE_CHECKING:
     from harnesswalk.runtime import Harness
@@ -336,12 +336,15 @@ class Gateway:
         for span in reversed(list(emit.stack)):
             emit.fail(span, code, message)
         emit.turn_error(code, message)
-        receipt = self.h.tracer.receipt(ctx.tenant_id, ctx.turn_id)
+        try:
+            cost = self.h.tracer.receipt(ctx.tenant_id, ctx.turn_id)["total"]
+        except Exception:  # the trace store is down: still end the turn, so streams close
+            cost = Usage().cost()
         exit_ = "cancelled" if code == "cancelled" else "error"
         if not state.recorded:  # a turn already in the session keeps its stored answer
             with contextlib.suppress(Exception):  # keep turn numbering gapless after a failure
                 self.h.session.append_turn(ctx, "gateway", None, "", exit_)
-        emit.turn_end("error", {"exit": exit_, "reply": ""}, cost=receipt["total"])
+        emit.turn_end("error", {"exit": exit_, "reply": ""}, cost=cost)
 
     # -- controlling a turn -------------------------------------------------------------------
 

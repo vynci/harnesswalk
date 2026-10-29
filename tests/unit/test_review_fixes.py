@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -255,3 +256,27 @@ async def test_a_malformed_last_event_id_is_400(tmp_path: Path) -> None:
         assert parse_sse((await c.get(url, headers={"Last-Event-ID": " 3 "})).text)[0]["seq"] == 4
         assert parse_sse((await c.get(url, headers={"Last-Event-ID": "-1"})).text)[0]["seq"] == 0
         assert parse_sse((await c.get(url, headers={"Last-Event-ID": ""})).text)[0]["seq"] == 0
+
+
+@pytest.mark.anyio
+async def test_turn_end_is_emitted_even_when_the_receipt_cannot_be_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    h = Harness(settings(tmp_path, "plain_answer"))
+
+    def down(*args: Any, **kwargs: Any) -> None:
+        raise sqlite3.OperationalError("disk I/O error")
+
+    monkeypatch.setattr(h.tracer, "receipt", down)  # the trace node fails, then the close path
+    seen: list[dict] = []
+    h.bus.subscribe(seen.append)
+    async with client(h) as c:
+        r = await c.post("/v1/turns", json={"message": "What are your support hours?"})
+        turn_id, url = r.json()["turn_id"], r.json()["events_url"]
+        streamed = parse_sse((await asyncio.wait_for(c.get(url), 3)).text)
+        await h.gateway.wait(turn_id, 5)
+    assert check_stream(seen) == []
+    end = seen[-1]
+    assert end["type"] == "turn_end" and end["status"] == "error"
+    assert end["cost"] == {"input_tokens": 0, "output_tokens": 0, "usd": 0.0}
+    assert streamed[-1]["type"] == "turn_end"
