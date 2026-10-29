@@ -30,20 +30,29 @@ pnpm build
 pnpm test          # Vitest: reducer, layout, memory badges, stream client against the mock
 pnpm test:e2e      # Playwright smoke tests against a mock build (Chromium only)
 pnpm lint          # ESLint, then tsc -b
-pnpm test:e2e:live # Playwright against a real dev API with the fake provider, see below
+pnpm test:e2e:live # Playwright against the real API with the fake provider, see below
 ```
 
-`pnpm exec playwright install chromium` once before the first e2e run.
+`pnpm exec playwright install chromium` once before the first e2e run. From the repository root
+the same runs are `make web-test`, `make web-e2e-mock` and `make e2e`.
 
-The live suite expects a dev-mode API that has the conformance fixtures, for example
-`uv run harnesswalk serve --provider fake --fixture plain_answer --port 8765` and then
-`HARNESSWALK_API_URL=http://127.0.0.1:8765 pnpm test:e2e:live`.
+The live suite needs no running API. `playwright.live.config.ts` builds the app into
+`dist-e2e/` with the schema validator on (`pnpm build:e2e`), starts
+`uv run harnesswalk serve --mode dev --provider fake` on a scratch port (`HARNESSWALK_E2E_PORT`,
+default 8765) with its stores in a temporary directory, and lets the API serve that build, so
+the tests cover the production path: static files, the session cookie and the SSE stream
+straight from uvicorn. It drives the conformance fixtures (`tool_call`, `approval_approve`,
+`approval_deny`, `step_mode`, `cancel_running`, `guardrail_block`) through the header menu, plus
+reconnect, reload, history, replay, New session and the inspector, and fails a test when any
+event breaks `spec/events.schema.json`. Playwright stops the server when the run ends.
+`HARNESSWALK_SCREENSHOTS=1` (`make screenshots`) also writes `docs/screenshots/*.png`.
 
 ## Environment
 
 | Variable | Where | Meaning |
 |---|---|---|
-| `HARNESSWALK_API_URL` | Vite dev server and `test:e2e:live` | Where the dev proxy sends `/v1` and `/healthz`. Default `http://127.0.0.1:8000` |
+| `HARNESSWALK_API_URL` | Vite dev server | Where the dev proxy sends `/v1` and `/healthz`. Default `http://127.0.0.1:8000` |
+| `HARNESSWALK_E2E_PORT` | `test:e2e:live` | The scratch port of the API the live suite starts. Default 8765 |
 | `VITE_HARNESSWALK_MOCK` | build time | `1` runs the UI on the in-browser mock instead of the API |
 | `VITE_HARNESSWALK_MOCK_STEP_MS` | build time | Milliseconds between mock events, default 140. The `?mockStepMs=` query overrides it |
 | `VITE_HARNESSWALK_API_URL` | build time | API origin when the UI is not served by the API or the proxy. Default same origin |

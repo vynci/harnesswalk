@@ -23,4 +23,10 @@ P0 (spec and scaffold) is done. P1 (vertical slice) is built: the harness runs e
 the `fake`, `ollama`, `openai_compatible` and `anthropic` providers, the event stream is stored
 in SQLite and served over SSE, step mode and the approval pause work, and every conformance case
 passes with the fake provider. Stubs that P1 registers but does not implement: `semantic`,
-`episodic`, `knowledge`, `memory_writer` (P3), `eval` and `release` (P4). Next: P2, the web UI.
+`episodic`, `knowledge`, `memory_writer` (P3), `eval` and `release` (P4).
+
+P2 (web UI) is built: the chat and the live diagram in `web/`, served by the API at `/`, with
+step mode, approval cards, Stop, replay, history, the inspector with a code peek, and a mock mode
+for working on the UI alone. The API gained cancel, turn summaries, cursor replay, the session
+turn list, the code peek and capabilities. Playwright drives the UI against the real API with
+the fake provider in CI (`make e2e`). Next: P3, the full planes.
