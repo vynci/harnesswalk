@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { Ban, Box, Brain, CircleAlert, ShieldQuestion, Wrench } from 'lucide-react'
+import { useMemo, type ReactNode } from 'react'
+import { Box, Brain, Wrench } from 'lucide-react'
 import type { HarnessEvent } from '@/api/types'
 import { Code } from '@/components/code'
 import { Badge } from '@/components/ui/badge'
@@ -17,11 +17,10 @@ import { formatMs } from '@/diagram/stats'
 import { memoryPoints, memoryRejections } from '@/state/turnFacts'
 import { toolCalls, type ToolCallView } from './toolCalls'
 
-function Json({ value }: { value: unknown }) {
-  return <Code code={JSON.stringify(value, null, 2)} language="json" size="sm" wrap contentClassName="max-h-56 text-[11px]" label="Tool call details" />
-}
+const words = (s: string) => s.replace(/_/g, ' ')
 
-function title(call: ToolCallView): string {
+function title(call: ToolCallView, turnOver: boolean): string {
+  if (turnOver && call.status === 'running') return `Stopped before ${call.tool} finished`
   switch (call.status) {
     case 'running':
       return `Running ${call.tool}`
@@ -36,13 +35,22 @@ function title(call: ToolCallView): string {
   }
 }
 
+/** How a decided approval went, in a few words. */
+function verdict(call: ToolCallView): string | null {
+  const a = call.approval
+  if (!a || a.state === 'requested') return null
+  const word = a.state === 'approve' ? 'approved' : a.state === 'deny' ? 'denied' : 'expired'
+  return a.decidedBy && a.state !== 'expired' ? `${word} by ${a.decidedBy}` : word
+}
+
+/**
+ * The line's description: a short outcome and the duration, nothing else (the AI Elements Tool
+ * pattern). A denied call says what denied it; policy, sandbox and arguments are in the content.
+ */
 function description(call: ToolCallView, turnOver: boolean): string {
-  const parts = [
-    call.decision ? `policy ${call.decision.replace(/_/g, ' ')}${call.budget ? ` (${call.budget.name.replace(/_/g, ' ')} ${call.budget.used}/${call.budget.limit})` : ''}` : null,
-    call.approval && call.approval.state !== 'requested' ? `${call.approval.state === 'approve' ? 'approved' : call.approval.state === 'deny' ? 'denied' : 'expired'}${call.approval.decidedBy ? ` by ${call.approval.decidedBy}` : ''}` : null,
-    call.status === 'done' || call.status === 'error' || call.status === 'denied' ? (call.outcome ?? (turnOver ? 'not finished' : null)) : null,
-    formatMs(call.durationMs) ?? null,
-  ]
+  const denial = call.status === 'denied' && !verdict(call) ? (call.budget ? `${words(call.budget.name)} ${call.budget.used}/${call.budget.limit}` : `policy ${words(call.decision ?? 'deny')}`) : null
+  const outcome = call.status === 'error' ? (call.error?.code ?? (call.outcome && call.outcome !== 'ok' ? words(call.outcome) : null)) : null
+  const parts = [verdict(call), denial, outcome, turnOver && call.status === 'running' ? 'not finished' : null, formatMs(call.durationMs) ?? null]
   return parts.filter(Boolean).join(' · ')
 }
 
@@ -50,69 +58,83 @@ function description(call: ToolCallView, turnOver: boolean): string {
 function SandboxChip({ sandbox }: { sandbox: NonNullable<ToolCallView['sandbox']> }) {
   const parts = [
     sandbox.level,
-    sandbox.network === 'blocked' ? 'no net' : sandbox.network === 'allowed' ? 'net' : null,
+    sandbox.network === 'blocked' ? 'no network' : sandbox.network === 'allowed' ? 'network' : null,
     sandbox.jail && sandbox.jail !== 'none' ? sandbox.jail : null,
   ].filter(Boolean)
   return (
     <Badge
-      variant="outline"
-      className="min-w-0 shrink justify-start gap-1 rounded-sm px-1 py-0 font-mono text-[10px] leading-4 font-normal text-muted-foreground"
+      variant="secondary"
+      className="max-w-full justify-start font-mono font-normal"
       title={`Sandbox level ${sandbox.level}, network ${sandbox.network ?? 'n/a'}, jail ${sandbox.jail ?? 'none'}`}
       data-testid="sandbox-chip"
       data-level={sandbox.level}
       data-network={sandbox.network}
       data-jail={sandbox.jail}
     >
-      <Box aria-hidden className="size-2.5 shrink-0" />
+      <Box aria-hidden />
       <span className="truncate">{parts.join(' · ')}</span>
     </Badge>
   )
 }
 
+/** The policy, approval, sandbox and outcome of one call, then its arguments when it has them. */
+function CallDetails({ call }: { call: ToolCallView }) {
+  const rows: [string, ReactNode][] = []
+  if (call.decision) rows.push(['Policy', `${words(call.decision)}${call.rule ? `, rule ${call.rule}` : ''}`])
+  if (call.why) rows.push(['Why', call.why])
+  if (call.budget) rows.push(['Budget', `${words(call.budget.name)} ${call.budget.used}/${call.budget.limit}`])
+  if (call.actionClass) rows.push(['Action', call.actionClass])
+  if (call.approval) rows.push(['Approval', verdict(call) ?? 'waiting for a person'])
+  if (call.sandbox) rows.push(['Sandbox', <SandboxChip key="sandbox" sandbox={call.sandbox} />])
+  if (call.outcome) rows.push(['Outcome', `${words(call.outcome)}${call.executed === false ? ', not executed' : ''}`])
+  if (call.error) rows.push(['Error', `${call.error.code}: ${call.error.message}`])
+  rows.push(['Call', <code key="call" className="font-mono">{call.callId}</code>])
+  return (
+    <div className="flex flex-col gap-2">
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs" data-testid="tool-details">
+        {rows.map(([k, v]) => (
+          <div key={k} className="contents">
+            <dt className="text-muted-foreground/70">{k}</dt>
+            <dd className="min-w-0 text-muted-foreground">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      {call.args !== undefined && <Code code={JSON.stringify(call.args, null, 2)} language="json" size="sm" wrap label="Arguments" contentClassName="max-h-64" />}
+    </div>
+  )
+}
+
 function ToolLine({ call, turnOver }: { call: ToolCallView; turnOver: boolean }) {
-  // A call still open when the turn is over (a cancel) did not finish.
-  const status = call.status === 'error' || (turnOver && call.status === 'running') ? 'error' : call.status === 'running' ? 'running' : call.status === 'waiting' ? 'pending' : undefined
-  const Icon = call.status === 'denied' ? Ban : status === 'error' ? CircleAlert : call.status === 'waiting' ? ShieldQuestion : Wrench
+  // A call still open when the turn is over (a cancel) did not finish. Status is text colour and
+  // shimmer, never an icon swap; a call waiting for a person is not "pending" (not started): the
+  // Confirmation below it asks.
+  const status = call.status === 'error' || (turnOver && call.status === 'running') ? 'error' : call.status === 'running' ? 'running' : undefined
   const line = (
-    <TraceLine status={status} className="text-xs" data-testid="tool-line" data-tool={call.tool} data-call-status={call.status}>
+    <TraceLine status={status} data-testid="tool-line" data-tool={call.tool} data-call-status={call.status}>
       <TraceIcon>
-        <Icon />
+        <Wrench />
       </TraceIcon>
-      <TraceTitle className="shrink-0">{turnOver && call.status === 'running' ? `Stopped before ${call.tool} finished` : title(call)}</TraceTitle>
-      <TraceDescription className="min-w-0 shrink-0 truncate" title={call.why}>
-        {description(call, turnOver)}
-      </TraceDescription>
-      {call.sandbox && <SandboxChip sandbox={call.sandbox} />}
+      <TraceTitle>{title(call, turnOver)}</TraceTitle>
+      <TraceDescription>{description(call, turnOver)}</TraceDescription>
     </TraceLine>
   )
-  const detail = {
-    tool: call.tool,
-    call_id: call.callId,
-    ...(call.actionClass ? { action_class: call.actionClass } : {}),
-    ...(call.args !== undefined ? { args_preview: call.args } : {}),
-    ...(call.decision ? { policy: { decision: call.decision, rule: call.rule, ...(call.why ? { why: call.why } : {}), ...(call.budget ? { budget: call.budget } : {}) } } : {}),
-    ...(call.sandbox ? { sandbox: call.sandbox } : {}),
-    ...(call.approval ? { approval: call.approval } : {}),
-    ...(call.outcome ? { outcome: call.outcome, executed: call.executed } : {}),
-    ...(call.error ? { error: call.error } : {}),
-  }
   if (call.status === 'running' && !turnOver) return line
   return (
     <TraceCollapsible>
-      <TraceCollapsibleTrigger aria-label={`${title(call)}: details`}>{line}</TraceCollapsibleTrigger>
+      <TraceCollapsibleTrigger>{line}</TraceCollapsibleTrigger>
       <TraceCollapsibleContent>
-        <Json value={detail} />
+        <CallDetails call={call} />
       </TraceCollapsibleContent>
     </TraceCollapsible>
   )
 }
 
-/** The tool calls of a turn, inline in the chat: shadcn's Tool pattern (Trace plus Code Block). */
+/** The tool calls of a turn, inline in the chat: the AI Elements Tool pattern (Trace plus Code Block). */
 export function ToolTrace({ events, turnOver }: { events: HarnessEvent[]; turnOver: boolean }) {
   const calls = useMemo(() => toolCalls(events), [events])
   if (calls.length === 0) return null
   return (
-    <Trace role="group" aria-label="Tool calls" data-testid="tool-trace" className="text-xs">
+    <Trace role="group" aria-label="Tool calls" data-testid="tool-trace">
       {calls.map((c) => (
         <ToolLine key={c.callId} call={c} turnOver={turnOver} />
       ))}
@@ -136,31 +158,33 @@ export function MemoryTrace({ events }: { events: HarnessEvent[] }) {
   }, [events])
   if (lines.length === 0) return null
   return (
-    <Trace role="group" aria-label="Memory writes" data-testid="memory-trace" className="text-xs">
-      {lines.map((l) => (
-        <TraceLine
-          key={l.proposalId}
-          className="text-xs"
-          status={l.written || l.rejected ? undefined : 'pending'}
-          data-testid="memory-line"
-          data-store={l.store}
-          data-written={l.written ? 'true' : 'false'}
-          data-rejected={l.rejected ?? undefined}
-        >
-          <TraceIcon>
-            <Brain />
-          </TraceIcon>
-          <TraceTitle className="shrink-0">{l.written ? `Remembered in ${l.store}` : l.rejected ? `Not remembered in ${l.store}` : `Proposed for ${l.store}`}</TraceTitle>
-          <TraceDescription className="min-w-0 shrink truncate">
-            {[
-              l.preview,
-              l.written ? `${l.written.op ?? 'write'} v${l.written.version ?? 1}` : l.rejected ? `rejected: ${l.rejected.replace(/_/g, ' ')}` : `waiting at the ${l.gate ?? 'review'} gate`,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </TraceDescription>
-        </TraceLine>
-      ))}
+    <Trace role="group" aria-label="Memory writes" data-testid="memory-trace">
+      {lines.map((l) => {
+        const detail = [
+          l.preview,
+          l.written ? `${l.written.op ?? 'write'} v${l.written.version ?? 1}` : l.rejected ? `rejected: ${words(l.rejected)}` : `waiting at the ${l.gate ?? 'review'} gate`,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+        return (
+          <TraceLine
+            key={l.proposalId}
+            status={l.written || l.rejected ? undefined : 'pending'}
+            data-testid="memory-line"
+            data-store={l.store}
+            data-written={l.written ? 'true' : 'false'}
+            data-rejected={l.rejected ?? undefined}
+          >
+            <TraceIcon>
+              <Brain />
+            </TraceIcon>
+            <TraceTitle className="shrink-0">{l.written ? `Remembered in ${l.store}` : l.rejected ? `Not remembered in ${l.store}` : `Proposed for ${l.store}`}</TraceTitle>
+            <TraceDescription className="min-w-0 shrink truncate" title={detail}>
+              {detail}
+            </TraceDescription>
+          </TraceLine>
+        )
+      })}
     </Trace>
   )
 }
