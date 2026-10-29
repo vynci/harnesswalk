@@ -2,13 +2,16 @@ import { lazy, Suspense } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ChatPanel } from '@/chat/ChatPanel'
-import { DiagramPanel } from '@/diagram/DiagramPanel'
 import { ReplayBar } from '@/replay/ReplayBar'
 import { useApp } from '@/state/store'
 import { Header } from './Header'
 import { Notices } from './Notices'
 import { useThemeClass } from './useTheme'
 
+// React Flow and the layout router are the biggest part of the app: their own chunk, fetched in
+// parallel with the API boot.
+const diagramChunk = import('@/diagram/DiagramPanel')
+const DiagramPanel = lazy(() => diagramChunk.then((m) => ({ default: m.DiagramPanel })))
 // The inspector carries markdown and syntax highlighting; load it on first use.
 const InspectorDrawer = lazy(() => import('@/inspector/InspectorDrawer').then((m) => ({ default: m.InspectorDrawer })))
 
@@ -45,7 +48,9 @@ export function App() {
                 aria-label="Resize chat and diagram"
               />
               <Panel minSize="35" className="relative min-w-0">
-                <DiagramPanel />
+                <Suspense fallback={<p className="p-4 text-sm text-muted-foreground" aria-busy="true">Loading the diagram…</p>}>
+                  <DiagramPanel />
+                </Suspense>
                 <ReplayBar />
                 <InspectorSlot />
               </Panel>
