@@ -13,6 +13,7 @@ What P1 does not do yet (P3): resume a pending approval after a process restart.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 from dataclasses import dataclass
@@ -94,11 +95,13 @@ class ApprovalQueue:
             raise ApprovalAlreadyDecided(approval_id)
         status = {"approve": "approved", "deny": "denied", "expired": "expired"}[decision]
         decided_at = iso(time.time())
-        self.db.execute(
+        cursor = self.db.execute(
             "UPDATE approvals SET status = ?, decided_by = ?, decided_at = ?, decision_reason = ?"
             " WHERE approval_id = ? AND status = 'pending'",
             (status, decider, decided_at, reason, approval_id),
         )
+        if cursor.rowcount == 0:  # someone decided between the read and the write
+            raise ApprovalAlreadyDecided(approval_id)
         waiter = self._waiters.get(approval_id)
         if waiter and not waiter.done():
             waiter.set_result(ApprovalDecision(approval_id, decision, decider, reason))
@@ -169,10 +172,14 @@ class ApprovalQueue:
             try:
                 decided = await asyncio.wait_for(asyncio.shield(waiter), self.timeout_s)
             except TimeoutError:
-                self.decide(approval_id, ctx.tenant_id, "system", "expired", "approval timed out")
+                with contextlib.suppress(ApprovalAlreadyDecided):  # a human may win the race
+                    self.decide(
+                        approval_id, ctx.tenant_id, "system", "expired", "approval timed out"
+                    )
                 decided = waiter.result()
             except asyncio.CancelledError:
-                self.decide(approval_id, ctx.tenant_id, "system", "expired", "turn cancelled")
+                with contextlib.suppress(ApprovalAlreadyDecided):
+                    self.decide(approval_id, ctx.tenant_id, "system", "expired", "turn cancelled")
                 raise
             finally:
                 waited = time.monotonic() - started
