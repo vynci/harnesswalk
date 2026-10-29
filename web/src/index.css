@@ -1,0 +1,360 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@xyflow/react/dist/style.css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.985 0 0);
+  --foreground: oklch(0.205 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.205 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.205 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.955 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.955 0 0);
+  --muted-foreground: oklch(0.48 0 0);
+  --accent: oklch(0.94 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.905 0 0);
+  --input: oklch(0.905 0 0);
+  --ring: oklch(0.55 0.12 250);
+
+  /* Planes: stroke colour, tinted fill and text-safe ink. */
+  --plane-control: #b26a00;
+  --plane-control-fill: #fdf3e4;
+  --plane-control-group: #fbeed9;
+  --plane-context: #1f5fa8;
+  --plane-context-fill: #e8f0fa;
+  --plane-context-group: #e2ecf8;
+  --plane-execution: #2e7d32;
+  --plane-execution-fill: #e9f5ea;
+  --plane-execution-group: #e3f1e4;
+  --plane-ops: #6a1b9a;
+  --plane-ops-fill: #f3e8f8;
+  --plane-ops-group: #efe3f5;
+
+  /* Node states. */
+  --state-active: #1f7ae0;
+  --state-waiting: #c27c00;
+  --state-done: #2e7d32;
+  --state-error: #c62828;
+  --state-skipped: #8a8a8a;
+}
+
+.dark {
+  --background: oklch(0.17 0 0);
+  --foreground: oklch(0.96 0 0);
+  --card: oklch(0.215 0 0);
+  --card-foreground: oklch(0.96 0 0);
+  --popover: oklch(0.215 0 0);
+  --popover-foreground: oklch(0.96 0 0);
+  --primary: oklch(0.92 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.27 0 0);
+  --secondary-foreground: oklch(0.96 0 0);
+  --muted: oklch(0.27 0 0);
+  --muted-foreground: oklch(0.72 0 0);
+  --accent: oklch(0.3 0 0);
+  --accent-foreground: oklch(0.96 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.65 0.12 250);
+
+  --plane-control: #f0a640;
+  --plane-control-fill: #3a2a12;
+  --plane-control-group: #2a2014;
+  --plane-context: #6aa6ee;
+  --plane-context-fill: #16273d;
+  --plane-context-group: #141f2e;
+  --plane-execution: #6cc070;
+  --plane-execution-fill: #17301a;
+  --plane-execution-group: #142417;
+  --plane-ops: #c08ae0;
+  --plane-ops-fill: #2e1a3a;
+  --plane-ops-group: #23162b;
+
+  --state-active: #5aa9ff;
+  --state-waiting: #f2b33d;
+  --state-done: #6cc070;
+  --state-error: #ff6b6b;
+  --state-skipped: #9a9a9a;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-state-active: var(--state-active);
+  --color-state-waiting: var(--state-waiting);
+  --color-state-done: var(--state-done);
+  --color-state-error: var(--state-error);
+  --color-state-skipped: var(--state-skipped);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family:
+      ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  }
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  [role='tab'] {
+    cursor: pointer;
+  }
+  code,
+  pre,
+  kbd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+}
+
+/* ---------- Diagram ---------- */
+
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-node-border-radius: 10px;
+  --xy-edge-stroke: color-mix(in oklab, var(--foreground) 28%, transparent);
+  --xy-edge-stroke-selected: var(--foreground);
+  --xy-attribution-background-color: color-mix(in oklab, var(--background) 70%, transparent);
+  --xy-controls-button-background-color: var(--card);
+  --xy-controls-button-background-color-hover: var(--accent);
+  --xy-controls-button-color: var(--foreground);
+  --xy-controls-button-border-color: var(--border);
+}
+.react-flow__attribution a {
+  color: var(--muted-foreground);
+}
+
+.hw-group {
+  border-radius: 16px;
+  border: 1.5px dashed var(--plane-stroke);
+  background: var(--plane-group);
+}
+
+.hw-node {
+  --ring-color: transparent;
+  border: 1.5px solid var(--plane-stroke);
+  background: var(--plane-fill);
+  box-shadow: 0 0 0 0 var(--ring-color);
+  transition:
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    opacity 160ms ease;
+}
+.hw-node[data-state='active'] {
+  --ring-color: var(--state-active);
+  border-color: var(--state-active);
+  animation: hw-pulse 1.1s ease-in-out infinite;
+}
+.hw-node[data-state='waiting'] {
+  --ring-color: var(--state-waiting);
+  border-color: var(--state-waiting);
+  border-style: dashed;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--state-waiting) 35%, transparent);
+}
+.hw-node[data-state='done'] {
+  border-color: var(--state-done);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--state-done) 30%, transparent);
+}
+.hw-node[data-state='error'] {
+  border-color: var(--state-error);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--state-error) 35%, transparent);
+}
+.hw-node[data-state='skipped'] {
+  border-style: dotted;
+  opacity: 0.75;
+}
+.hw-node[data-implemented='false'] {
+  opacity: 0.55;
+  border-style: dashed;
+  filter: saturate(0.4);
+}
+.hw-node[data-current='true'] {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+@keyframes hw-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--state-active) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 7px color-mix(in oklab, var(--state-active) 0%, transparent);
+  }
+}
+
+.hw-edge-path {
+  fill: none;
+  stroke-width: 1.5;
+}
+.hw-edge-path[data-active='true'] {
+  stroke: var(--state-active);
+  stroke-width: 2.5;
+  stroke-dasharray: 6 5;
+  animation: hw-dash 0.6s linear infinite;
+}
+.hw-edge-path[data-visited='true'] {
+  stroke: color-mix(in oklab, var(--state-done) 70%, transparent);
+  stroke-width: 2;
+}
+@keyframes hw-dash {
+  to {
+    stroke-dashoffset: -11;
+  }
+}
+
+.hw-store-badge[data-lit='true'] {
+  background: var(--plane-stroke);
+  color: var(--plane-fill);
+  border-color: var(--plane-stroke);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hw-node[data-state='active'] {
+    animation: none;
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--state-active) 40%, transparent);
+  }
+  .hw-edge-path[data-active='true'] {
+    animation: none;
+    stroke-dasharray: none;
+  }
+  .hw-travel-dot {
+    display: none;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* highlight.js tokens, both themes. */
+.hljs-keyword,
+.hljs-built_in,
+.hljs-selector-tag {
+  color: #8a3ab9;
+}
+.hljs-string,
+.hljs-attr-value {
+  color: #2e7d32;
+}
+.hljs-number,
+.hljs-literal {
+  color: #b26a00;
+}
+.hljs-comment {
+  color: #8a8a8a;
+  font-style: italic;
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section {
+  color: #1f5fa8;
+}
+.hljs-attr,
+.hljs-variable,
+.hljs-params {
+  color: #9c4221;
+}
+.hljs-meta {
+  color: #6a1b9a;
+}
+.dark .hljs-keyword,
+.dark .hljs-built_in,
+.dark .hljs-selector-tag {
+  color: #d19af0;
+}
+.dark .hljs-string,
+.dark .hljs-attr-value {
+  color: #8fd18f;
+}
+.dark .hljs-number,
+.dark .hljs-literal {
+  color: #f0b060;
+}
+.dark .hljs-title,
+.dark .hljs-title.function_,
+.dark .hljs-section {
+  color: #7fb4f0;
+}
+.dark .hljs-attr,
+.dark .hljs-variable,
+.dark .hljs-params {
+  color: #f0a080;
+}
+.dark .hljs-meta {
+  color: #c08ae0;
+}
+
+/* Markdown in the prompt inspector. */
+.hw-md > * + * {
+  margin-top: 0.6em;
+}
+.hw-md h1 {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.hw-md h2,
+.hw-md h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.hw-md ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+.hw-md ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+}
+.hw-md code {
+  font-size: 0.85em;
+  background: var(--muted);
+  border-radius: 4px;
+  padding: 0 0.25em;
+}
+.hw-md pre {
+  background: var(--muted);
+  border-radius: 6px;
+  padding: 0.5rem;
+  overflow-x: auto;
+}
+.hw-md a {
+  text-decoration: underline;
+}
