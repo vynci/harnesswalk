@@ -1,0 +1,27 @@
+id: approval_deny
+title: A destructive tool call pauses for approval, is denied, and never executes
+spec_version: 0.1.0
+fixture: approval_deny
+turns:
+  - send:
+      message: Please cancel order A-1002.
+    actions:
+      - when: { type: approval_requested, node_id: approval }
+        do: { approval: deny }
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, tools, policy, audit, approval, audit, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: node_exit, node_id: policy, summary: { decision: needs_approval } }
+        - { type: approval_requested, node_id: approval, summary: { tool: cancel_order } }
+        - { type: node_paused, node_id: approval, summary: { reason: approval } }
+        - { type: approval_decided, node_id: approval, summary: { decision: deny } }
+        - { type: node_resumed, node_id: approval }
+        - { type: node_exit, node_id: audit, summary: { action: approval_decision, decision: deny } }
+        - { type: node_exit, node_id: tools, summary: { tool: cancel_order, outcome: denied, executed: false } }
+        - { type: node_exit, node_id: loop, summary: { exit_reason: answer, steps: 2 } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      absent:
+        - { type: node_exit, node_id: sandbox, summary: { executed: true } }
+        - { type: node_exit, node_id: tools, summary: { executed: true } }
+      reply_contains: [not approved]

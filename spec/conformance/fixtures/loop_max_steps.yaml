@@ -1,0 +1,14 @@
+fixture: loop_max_steps
+description: The model keeps calling tools with new arguments until the loop exits on max_steps,
+  then answers once with tools disabled.
+model: fake-small
+turns:
+  - responses:
+      - tool_calls:
+          - { call_id: call_1, name: track_shipment, arguments: { shipment_id: S-1 } }
+      - tool_calls:
+          - { call_id: call_2, name: track_shipment, arguments: { shipment_id: S-2 } }
+      - tool_calls:
+          - { call_id: call_3, name: track_shipment, arguments: { shipment_id: S-3 } }
+      - text: I checked three shipments. S-1 and S-2 are in transit and S-3 is delayed in Halifax.
+        expect: { tools_enabled: false }

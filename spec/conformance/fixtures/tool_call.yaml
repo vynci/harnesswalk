@@ -1,0 +1,12 @@
+fixture: tool_call
+description: One read-only tool call, allowed by policy, then an answer.
+model: fake-small
+turns:
+  - responses:
+      - tool_calls:
+          - { call_id: call_1, name: lookup_order, arguments: { order_id: A-1001 } }
+        usage: { input_tokens: 905, output_tokens: 24 }
+        expect: { last_message_role: user, last_message_contains: A-1001 }
+      - text: Order A-1001 shipped on 24 October and is due to arrive on 30 October.
+        usage: { input_tokens: 1012, output_tokens: 21 }
+        expect: { last_message_role: tool, last_message_contains: shipped }

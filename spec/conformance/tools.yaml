@@ -1,0 +1,53 @@
+# Conformance tools. Every implementation registers these when it runs the conformance profile.
+# Behaviour is a pure lookup in the tables below; no I/O, no clock, no randomness.
+# The observation content is the JSON of `result`, serialized with sorted keys and no spaces.
+- name: lookup_order
+  description: Look up an order by id and return its status and dates.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [order_id]
+    properties:
+      order_id: { type: string, pattern: "^A-[0-9]{4}$" }
+  table:
+    A-1001: { order_id: A-1001, status: shipped, shipped_on: "2026-10-24", eta: "2026-10-30" }
+    A-1002: { order_id: A-1002, status: processing, total: "42.00" }
+  missing: { error: not_found }
+
+- name: track_shipment
+  description: Track a shipment by id and return its last known position.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [shipment_id]
+    properties:
+      shipment_id: { type: string, pattern: "^S-[0-9]+$" }
+  table:
+    S-1: { shipment_id: S-1, status: in_transit, location: Toronto }
+    S-2: { shipment_id: S-2, status: in_transit, location: Montreal }
+    S-3: { shipment_id: S-3, status: delayed, location: Halifax }
+  missing: { error: not_found }
+
+- name: cancel_order
+  description: Cancel an order that has not shipped and refund it.
+  action_class: destructive
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [order_id]
+    properties:
+      order_id: { type: string, pattern: "^A-[0-9]{4}$" }
+  table:
+    A-1002: { order_id: A-1002, status: cancelled, refund: "42.00" }
+  missing: { error: not_cancellable }

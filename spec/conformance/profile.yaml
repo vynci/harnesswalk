@@ -1,0 +1,55 @@
+# Conformance profile: the configuration every implementation runs the suite with.
+# Keys follow spec/contracts/*.md. A case may override only the keys listed in
+# `overridable` below, through its own `config` map.
+spec_version: 0.1.0
+mode: dev
+tenant_prefix: conformance-          # runner sends X-Harnesswalk-Tenant: conformance-<case id>
+
+models:
+  providers:
+    fake: { fixture_dir: spec/conformance/fixtures }
+  models:
+    fake-small: { provider: fake, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
+  router:
+    rules:
+      - { id: default, when: {}, use: [fake-small] }
+
+procedural:
+  system_prompt: |
+    You are the support assistant for Example Store, a fictional shop used for conformance tests.
+    Support hours are 9am to 5pm Eastern, Monday to Friday.
+  skills: []
+
+context:
+  total_tokens: 16000
+  reserve_output_tokens: 1024
+  stores: [procedural, session]      # P1 scope; other stores are empty in this profile
+
+loop:
+  max_steps: 8
+  budget_tokens: 100000
+  budget_usd: 0
+  timeout_s: 30
+  stuck_repeats: 3
+  final_call_on_exit: true
+
+policy:
+  agent:
+    allow_tools: [lookup_order, track_shipment, cancel_order]
+  rules:
+    - { id: dev.read.allow, modes: [dev], action_classes: [read], decision: allow }
+    - { id: dev.destructive.approve, modes: [dev], action_classes: [destructive], decision: needs_approval }
+
+approval:
+  timeout_s: 300
+
+input_guardrails: { enabled: true, checks: [size, pii, injection] }
+output_guardrails: { enabled: true, checks: [schema, content, citations] }
+
+tools: spec/conformance/tools.yaml
+
+overridable:
+  - loop.max_steps
+  - loop.stuck_repeats
+  - loop.final_call_on_exit
+  - approval.timeout_s

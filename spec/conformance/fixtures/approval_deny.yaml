@@ -1,0 +1,11 @@
+fixture: approval_deny
+description: A destructive tool call that needs approval; the human denies.
+model: fake-small
+turns:
+  - responses:
+      - tool_calls:
+          - { call_id: call_1, name: cancel_order, arguments: { order_id: A-1002 } }
+        usage: { input_tokens: 921, output_tokens: 26 }
+      - text: I did not cancel order A-1002 because the cancellation was not approved.
+        usage: { input_tokens: 1018, output_tokens: 19 }
+        expect: { last_message_role: tool }

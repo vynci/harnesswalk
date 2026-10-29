@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiharness.vynci.dev/spec/0.1/conformance/case.schema.json",
+  "title": "harnesswalk conformance case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "spec_version", "fixture", "turns"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+    "title": { "type": "string", "minLength": 1 },
+    "spec_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "fixture": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+    "config": {
+      "description": "Overrides of profile keys. Only keys listed in profile.yaml `overridable` are allowed.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$" }
+    },
+    "turns": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/turn" }
+    }
+  },
+  "$defs": {
+    "matcher": {
+      "description": "Matches an event when every given key equals the event's value. `summary` matches as a recursive subset: objects by key, scalars and arrays by equality.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "type": { "type": "string" },
+        "node_id": { "type": "string" },
+        "edge_id": { "type": "string" },
+        "status": { "enum": ["active", "waiting", "done", "error", "skipped"] },
+        "summary": { "type": "object" },
+        "error": { "type": "object" }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["when", "do"],
+      "properties": {
+        "when": { "$ref": "#/$defs/matcher" },
+        "do": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "maxProperties": 1,
+          "properties": {
+            "approval": { "enum": ["approve", "deny"] },
+            "resume": { "enum": ["step", "continue"] },
+            "cancel": { "const": true }
+          }
+        },
+        "repeat": { "type": "boolean", "default": false }
+      }
+    },
+    "turn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["send", "expect"],
+      "properties": {
+        "send": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["message"],
+          "properties": {
+            "message": { "type": "string", "minLength": 1 },
+            "options": { "type": "object" }
+          }
+        },
+        "actions": { "type": "array", "items": { "$ref": "#/$defs/action" } },
+        "expect": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path"],
+          "properties": {
+            "path": {
+              "description": "Exact simple-view node path: node_id of each node_enter whose node is a simple node, in seq order.",
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string" }
+            },
+            "statuses": {
+              "description": "Status of the event that closed each path entry. A single value applies to every entry.",
+              "oneOf": [
+                { "enum": ["done", "skipped", "error"] },
+                { "type": "array", "items": { "enum": ["done", "skipped", "error"] } }
+              ]
+            },
+            "events": {
+              "description": "Ordered subsequence: matchers must match distinct events in this order, greedily.",
+              "type": "array",
+              "items": { "$ref": "#/$defs/matcher" }
+            },
+            "absent": {
+              "description": "No event in the turn may match any of these.",
+              "type": "array",
+              "items": { "$ref": "#/$defs/matcher" }
+            },
+            "cost": {
+              "description": "Exact token totals on turn_end.cost.",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "input_tokens": { "type": "integer", "minimum": 0 },
+                "output_tokens": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "reply_contains": {
+              "description": "Substrings of turn_end.summary.reply, case-sensitive.",
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

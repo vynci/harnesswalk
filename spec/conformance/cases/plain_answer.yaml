@@ -1,0 +1,23 @@
+id: plain_answer
+title: A plain question is answered without tools
+spec_version: 0.1.0
+fixture: plain_answer
+turns:
+  - send:
+      message: What are your support hours?
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: turn_start, status: active }
+        - { type: node_exit, node_id: input_guardrails, summary: { action: pass } }
+        - { type: node_exit, node_id: model_layer, summary: { finish_reason: stop } }
+        - { type: node_exit, node_id: loop, summary: { exit_reason: answer, steps: 1 } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      absent:
+        - { type: node_enter, node_id: tools }
+        - { type: node_enter, node_id: policy }
+        - { type: node_enter, node_id: approval }
+        - { type: node_enter, node_id: audit }
+      cost: { input_tokens: 622, output_tokens: 17 }
+      reply_contains: [9am to 5pm]

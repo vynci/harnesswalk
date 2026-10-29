@@ -1,0 +1,30 @@
+id: loop_max_steps
+title: The loop exits on max_steps and answers once with tools disabled
+spec_version: 0.1.0
+fixture: loop_max_steps
+config:
+  loop.max_steps: 3
+  loop.final_call_on_exit: true
+turns:
+  - send:
+      message: Check shipments S-1, S-2 and S-3 one at a time.
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop,
+             model_layer, tools, policy,
+             model_layer, tools, policy,
+             model_layer, tools, policy,
+             model_layer,
+             output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: node_enter, node_id: loop, summary: { max_steps: 3 } }
+        - { type: node_exit, node_id: tools, summary: { tool: track_shipment, outcome: ok } }
+        - { type: node_exit, node_id: tools, summary: { tool: track_shipment, outcome: ok } }
+        - { type: node_exit, node_id: tools, summary: { tool: track_shipment, outcome: ok } }
+        - { type: node_exit, node_id: model_layer, summary: { tools_enabled: false, finish_reason: stop } }
+        - { type: node_exit, node_id: loop, summary: { exit_reason: max_steps, steps: 3, tool_calls: 3 } }
+        - { type: turn_end, status: done, summary: { exit: limit } }
+      absent:
+        - { type: node_enter, node_id: approval }
+        - { type: node_exit, node_id: loop, summary: { exit_reason: stuck } }
+      reply_contains: [S-3]

@@ -1,0 +1,11 @@
+fixture: approval_approve
+description: A destructive tool call that needs approval; the human approves.
+model: fake-small
+turns:
+  - responses:
+      - tool_calls:
+          - { call_id: call_1, name: cancel_order, arguments: { order_id: A-1002 } }
+        usage: { input_tokens: 921, output_tokens: 26 }
+      - text: Done. Order A-1002 is cancelled and a refund of $42.00 is on its way.
+        usage: { input_tokens: 1040, output_tokens: 23 }
+        expect: { last_message_role: tool, last_message_contains: cancelled }
