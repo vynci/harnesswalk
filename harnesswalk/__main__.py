@@ -158,6 +158,11 @@ async def _run_turn(args: argparse.Namespace) -> int:
     print("\n".join(format_walk(events)))
     print("\nreply")
     print("  " + (end.get("summary", {}).get("reply") or "(none)").replace("\n", "\n  "))
+    cited = end.get("summary", {}).get("citations") or []
+    if cited:  # turn_end.summary.citations: what each [n] in the reply names
+        print("\nsources")
+        for c in cited:
+            print(f"  [{c['n']}] {c['citation']}  ({c['doc']}#{c['chunk']})")
     print(
         f"\nexit {end['summary'].get('exit')}, status {end['status']}, "
         f"{end['summary'].get('steps', 0)} step(s), "

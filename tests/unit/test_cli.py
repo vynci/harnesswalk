@@ -105,3 +105,12 @@ def test_make_run_respects_a_web_dist_from_the_environment(tmp_path) -> None:
         ["make", "-n", "run"], cwd=ROOT, env=env, capture_output=True, text=True, check=True
     ).stdout
     assert f'HARNESSWALK_WEB_DIST="{tmp_path}/dist"' in custom
+
+
+def test_turn_prints_the_sources_the_reply_cites(tmp_path, monkeypatch, capsys) -> None:
+    monkeypatch.setenv("HARNESSWALK_DATA_DIR", str(tmp_path))
+    question = "Can I return order A-1003, the Trailhead backpack?"
+    assert main(["turn", question, "--provider", "fake", "--fixture", "trailhead_return"]) == 0
+    sources = capsys.readouterr().out.split("\nsources\n")[1].split("\n\n")[0]
+    assert "[6] Returns policy, Return window  (returns_policy#1)" in sources
+    assert "[5] Returns policy, Return labels  (returns_policy#2)" in sources
