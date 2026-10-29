@@ -17,17 +17,27 @@ gateway:
 
 input_guardrails:
   enabled: true
-  checks: [control, size, pii, injection]   # pii and injection arrive in P3
+  checks: [control, size, pii, injection]
   size: { max_chars: 8000 }
-  pii: { kinds: [email, phone, card, national_id], action: redact }
-  injection: { block_threshold: 0.8 }
+  pii:
+    kinds: [email, phone, card, national_id]
+    action: redact                # redact (numbered placeholders) or block
+    restore_modes: [dev]          # modes whose reply gets the user's own values back
+    names: { enabled: false }     # cue-based name detection ("my name is ...")
+    # national_id.patterns default to US SSN and Canadian SIN; a pack can set its own in
+    # datasets/<pack>/guardrails.yaml
+  injection:
+    block_threshold: 0.8
+    action: { dev: warn, private: block, public: block }
+    classifier: { enabled: false }   # a model's score on top of the heuristics (router step classify)
 
 output_guardrails:
   enabled: true
-  checks: [schema, content, length, citations]
+  checks: [schema, content, length, citations, pii]
   max_chars: 12000              # longer answers are repaired by truncation
-  citations: { required: true, on_missing: repair }
+  citations: { required: true, on_missing: repair, block_public: false }
   content: { blocklist: [] }
+  pii: { action: repair }       # leaked personal data in a reply: repair (redact) or block
 
 loop:
   max_steps: 8
@@ -39,6 +49,7 @@ loop:
   notices:
     budget_tokens: I stopped because this turn used its token budget. Try a narrower question.
     budget_usd: I stopped because this turn used its cost budget. Try a narrower question.
+    budget_tool_calls: I stopped because this turn used its tool-call budget. Try a narrower question.
     timeout: I stopped because this turn ran out of time. Please try again.
     interrupted: I stopped because the turn was interrupted.
     max_steps: I stopped after the maximum number of steps without reaching an answer.
@@ -50,8 +61,13 @@ tools:
   max_observation_chars: 4000
 
 sandbox:
-  level: inprocess
+  level: subprocess             # inprocess | subprocess; public mode always runs inprocess
   max_timeout_ms: 10000
+  subprocess:
+    memory_mb: 256
+    output_cap_bytes: 65536
+    workdir: data/sandbox       # one directory per turn under here, removed when the turn ends
+    os_jail: auto               # auto (sandbox-exec on macOS, unshare on Linux) or off
 
 storage:
   vectors: sqlite               # sqlite (brute-force cosine) | pgvector (POSTGRES_* or HARNESSWALK_DATABASE_URL)
@@ -66,3 +82,4 @@ audit:
   backend: sqlite
   sqlite_path: data/audit.db
   record_read_allows: false
+  export_max: 5000              # GET /v1/audit page ceiling

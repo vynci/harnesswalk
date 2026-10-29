@@ -48,6 +48,10 @@ never imports the implementation.
    `resume: step | continue` posts to `/v1/turns/{turn_id}/resume`; `cancel: true` posts `{}` as
    `application/json` to `/v1/turns/{turn_id}/cancel` and expects `202`. Each action fires once unless `repeat: true`.
    Once a turn is cancelled no further action fires for it.
+   `restart: true` (P3, only in a `two_process` case) kills the harness process (`SIGKILL`),
+   starts it again on the same data directory and configuration, waits for `/healthz`, and
+   reopens the turn's event stream with `?after=<last seq seen>`. Actions listed after it that
+   match the same event then fire against the new process.
 5. **Assert**, in this order, and report the first failure per case:
    1. **Schema.** Every event validates against `spec/events.schema.json`.
    2. **Stream rules.** The rules in `spec/events.md` section 1 hold: `seq` starts at 0 and is
@@ -65,6 +69,8 @@ never imports the implementation.
    6. **Absent.** No event matches any `expect.absent` matcher.
    7. **Cost.** `turn_end.cost` token totals equal `expect.cost` when given.
    8. **Reply.** `turn_end.summary.reply` contains every `expect.reply_contains` substring.
+5b. **HTTP checks** (P3). After a turn ends, each `http` entry is a `GET` whose status must be
+   `status` (default 200) and whose JSON must match `match` (recursive subset, as matchers).
 6. **Report.** One line per case: `PASS` or `FAIL <assertion>: <detail>`. Unused fixture responses
    are reported as warnings. The suite passes when every case passes.
 
@@ -93,6 +99,11 @@ model would say. The fake provider fixes what the model says.
 | `step_mode` | `step_mode` | With `options.step_mode` every node pauses on a breakpoint after its enter and resumes on `resume: step` |
 | `guardrail_block` | `guardrail_block` | An oversized input is blocked by `input_guardrails`; no context, loop or model call; `exit: blocked` |
 | `cancel_running` | `cancel_running` | A step-mode turn cancelled while paused at `tools`: the open spans close with `error` `cancelled`, no policy or tool runs, `exit: cancelled` |
+| `pii_redacted` | `pii_redacted` | An email in the prompt reaches the model as `[EMAIL_1]` (the fixture's `expect` checks it) and is restored in the reply in dev |
+| `injection_blocked_public` | `injection_blocked_public` | Public mode: an instruction-override message scores over the threshold and is blocked before any model call |
+| `budget_limit` | `budget_limit` | A tool-call budget of 2 per turn: the third call is denied by policy (rule `budget.tool_calls_per_turn`), audited, and the turn ends `exit: limit` |
+| `approval_resume_after_restart` | `approval_resume_after_restart` | Two-process: the harness is killed while the turn waits on an approval, restarted, the approval is decided, and the same turn resumes and answers |
+| `audit_chain` | `audit_chain` | An approved destructive call then a denied one: five audit records with an unbroken hash chain (`GET /v1/audit`) |
 | `knowledge_cited` | `knowledge_cited` | With `knowledge` among the stores, the `knowledge` child retrieves the returns policy, the context numbers it `[1]`, and `turn_end.summary.citations` names the chunk the reply cites |
 | `memory_written` | `memory_written` | A `remember` call (class `memory.write`) is allowed and audited, the memory writer runs after the reply and writes the fact (`memory_proposed`, `memory_written`), and the next turn retrieves it from `semantic` |
 | `memory_denied_public` | `memory_denied_public` | In `public` mode the same call is proposed with gate `session` and rejected: no `memory_written` |

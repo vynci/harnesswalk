@@ -2,7 +2,10 @@
 
 The system prompt travels in `system`, tool calls are `tool_use` blocks on the assistant turn,
 and tool results are `tool_result` blocks on the next user turn (consecutive results merge
-into one user message, as the API requires).
+into one user message, as the API requires). Content is read by block type, so `thinking`
+blocks are skipped; the harness does not replay them, so models in config/models.yaml set
+`params.thinking` to a mode that needs no replay (`disabled` for Haiku 5.5). The health probe
+is `GET /v1/models`.
 """
 
 from __future__ import annotations
@@ -18,7 +21,7 @@ from harnesswalk.execution.providers import (
     ProviderResponse,
     ProviderUsage,
 )
-from harnesswalk.execution.providers._http import post_json
+from harnesswalk.execution.providers._http import get_ok, post_json
 from harnesswalk.types import Message, ToolCall
 
 API_VERSION = "2023-06-01"
@@ -74,6 +77,16 @@ class AnthropicProvider:
             float(cfg.get("timeout_s", 60)),
         )
 
+    async def health(self) -> bool:
+        """GET /v1/models with the key: cheap, and proves the key and the network."""
+        key = os.environ.get(self.api_key_env)
+        if not key:
+            return False
+        headers = {"x-api-key": key, "anthropic-version": API_VERSION}
+        return await get_ok(
+            f"{self.base_url}/v1/models?limit=1", headers=headers, transport=self.transport
+        )
+
     async def complete(self, request: ProviderRequest) -> ProviderResponse:
         key = request.api_key or os.environ.get(self.api_key_env)
         if not key:
@@ -91,6 +104,8 @@ class AnthropicProvider:
                 {"name": t.name, "description": t.description, "input_schema": t.parameters}
                 for t in request.tools
             ]
+        for name, value in (request.params or {}).items():  # models.<alias>.params
+            body.setdefault(name, value)
         headers = {"x-api-key": key, "anthropic-version": API_VERSION}
         data = await post_json(
             f"{self.base_url}/v1/messages",

@@ -32,3 +32,19 @@ async def post_json(
         return response.json()
     except json.JSONDecodeError as exc:
         raise ProviderError("provider_error", f"{url} returned invalid JSON") from exc
+
+
+async def get_ok(
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    timeout_s: float = 5.0,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> bool:
+    """A health probe: True when the GET answers 2xx. Never raises."""
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s, transport=transport) as client:
+            response = await client.get(url, headers=headers or {})
+    except httpx.HTTPError:
+        return False
+    return 200 <= response.status_code < 300

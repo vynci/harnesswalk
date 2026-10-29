@@ -75,3 +75,33 @@ record ApprovalDecision { approval_id: string, decision: "approve" | "deny" | "e
 | `approval.timeout_s` | `900` | Pending approvals expire after this |
 | `approval.deciders` | `[session_owner]` | Who may decide: `session_owner`, `role:<name>` |
 | `approval.show_args` | `true` | Include `args_preview` in the card and event |
+
+## P3 additions: restart and expiry
+
+- **Persisted state.** The approval record, the loop checkpoint (with the pending call) and the
+  turn's events up to `node_paused` are durable before the turn waits.
+- **Boot.** A harness that serves the HTTP API (`harnesswalk serve`) recovers at start-up:
+  - Each turn whose stream has no `turn_end` and is paused on a pending approval is
+    re-attached: the gateway rebuilds the turn state and the open spans (`loop`, `tools`,
+    `approval`) from the trace, continues `seq` where the stream stopped, and waits for the
+    decision again with the time left until `expires_at`. `GET /v1/turns/{id}` reports it
+    `paused` with its `pending_approval_id`, the event stream follows it live, and cancel works.
+  - When the decision arrives the stream goes on exactly as it would have without the restart:
+    `approval_decided`, `node_resumed`, the approval's audit record, the tool, then the loop
+    from the checkpoint (the next model call reads the next scripted response with the fake
+    provider).
+  - A pending approval past `expires_at` at boot is decided `expired` (by `system`) and its
+    turn resumes with that decision, which counts as a deny.
+  - Every other turn without `turn_end` (running, or paused on a breakpoint, when the process
+    stopped) is closed: its open spans close with `error` code `restarted`, then a turn-level
+    `error` and `turn_end` with `status: error`, `summary.exit: error`. The session records it
+    so `turn_index` stays unique. Its pending approvals become `expired`.
+- **Graceful shutdown** leaves turns that wait on an approval as they are (no closing events,
+  the record stays `pending`), so the next boot resumes them. Running turns are cancelled.
+- **Expiry sweeper.** A background task (every `approval.sweep_s`, default 30) decides every
+  pending approval past `expires_at` as `expired` and wakes its waiter.
+- Breakpoints do not survive a restart: a re-attached turn continues without step mode.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `approval.sweep_s` | `30` | Expiry sweeper period |

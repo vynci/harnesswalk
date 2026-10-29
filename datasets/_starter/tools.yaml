@@ -22,6 +22,7 @@
   description: Cancel an order that has not shipped and refund it. Needs a human approval.
   action_class: destructive
   timeout_ms: 2000
+  audit: { before: lookup_order }   # the audit record keeps the order as it was, and as it is after
   idempotent: true
   pure: true
   parameters:

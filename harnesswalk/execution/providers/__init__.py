@@ -36,6 +36,7 @@ class TurnRef:
     session_id: str
     turn_id: str
     turn_index: int
+    call_index: int | None = None  # the model call's position in the turn (survives a restart)
 
 
 @dataclass
@@ -47,6 +48,7 @@ class ProviderRequest:
     output_schema: dict[str, Any] | None = None
     api_key: str | None = field(default=None, repr=False)  # BYO key: one call, never logged
     turn: TurnRef | None = None
+    params: dict[str, Any] | None = None  # extra provider fields from models.<alias>.params
 
 
 @dataclass
@@ -76,6 +78,8 @@ class ModelProvider(Protocol):
     name: str
 
     async def complete(self, request: ProviderRequest) -> ProviderResponse: ...
+
+    # Optional: `async def health(self) -> bool`, a cheap probe (providers/health.py).
 
 
 PROVIDER_NAMES = ("fake", "ollama", "anthropic", "openai_compatible")

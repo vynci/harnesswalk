@@ -1,0 +1,8 @@
+# Pack overrides for the input guardrails (spec/contracts/guardrail.md, P3 additions).
+# These patterns replace the defaults for this pack. Each needs a name and a regex; `luhn: true`
+# also requires the digits to pass the Luhn check, which cuts false positives.
+pii:
+  national_id:
+    patterns:
+      - { name: us_ssn, regex: "(?<![\\d-])\\d{3}-\\d{2}-\\d{4}(?![\\d-])", luhn: false }
+      - { name: ca_sin, regex: "(?<![\\d-])\\d{3}[ -]\\d{3}[ -]\\d{3}(?![\\d-])", luhn: true }

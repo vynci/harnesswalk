@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +52,18 @@ class Database:
     def one(self, sql: str, params: Sequence[Any] = ()) -> sqlite3.Row | None:
         with self._lock:
             return self._conn.execute(sql, params).fetchone()
+
+    @contextmanager
+    def transaction(self) -> Iterator[sqlite3.Connection]:
+        """A write transaction (BEGIN IMMEDIATE): reads inside it see no other writer."""
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                yield self._conn
+            except BaseException:
+                self._conn.execute("ROLLBACK")
+                raise
+            self._conn.execute("COMMIT")
 
     def ping(self) -> bool:
         try:

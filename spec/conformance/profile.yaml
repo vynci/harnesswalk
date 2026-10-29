@@ -63,3 +63,5 @@ overridable:
   - loop.final_call_on_exit
   - approval.timeout_s
   - input_guardrails.size.max_chars
+  - input_guardrails.injection.block_threshold
+  - policy.budgets.default.tool_calls_per_turn

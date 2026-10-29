@@ -160,6 +160,19 @@ class Tracer:
         )
         return row is not None
 
+    def unfinished_turns(self) -> list[tuple[str, str]]:
+        """(tenant_id, turn_id) of every stored turn without a turn_end, oldest first.
+
+        The one read across tenants: recovery at start-up, which handles each turn inside its
+        own tenant.
+        """
+        rows = self.db.query(
+            "SELECT s.tenant_id, s.turn_id FROM events s WHERE s.type = 'turn_start'"
+            " AND NOT EXISTS (SELECT 1 FROM events e WHERE e.tenant_id = s.tenant_id"
+            " AND e.turn_id = s.turn_id AND e.type = 'turn_end') ORDER BY s.ts"
+        )
+        return [(r["tenant_id"], r["turn_id"]) for r in rows]
+
     def get_detail(self, tenant_id: str, detail_ref: str) -> Any:
         trace_id, _, event_id = detail_ref.removeprefix("trace://").partition("/")
         row = self.db.one(

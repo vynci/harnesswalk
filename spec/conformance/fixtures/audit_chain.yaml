@@ -1,0 +1,18 @@
+fixture: audit_chain
+description: An approved destructive call, then the same call denied in the next turn.
+model: fake-small
+turns:
+  - responses:
+      - tool_calls:
+          - { call_id: call_1, name: cancel_order, arguments: { order_id: A-1002 } }
+        usage: { input_tokens: 921, output_tokens: 26 }
+      - text: Done. Order A-1002 is cancelled.
+        usage: { input_tokens: 1040, output_tokens: 12 }
+        expect: { last_message_role: tool, last_message_contains: cancelled }
+  - responses:
+      - tool_calls:
+          - { call_id: call_1, name: cancel_order, arguments: { order_id: A-1002 } }
+        usage: { input_tokens: 1100, output_tokens: 26 }
+      - text: The cancellation was not approved, so nothing changed.
+        usage: { input_tokens: 1180, output_tokens: 14 }
+        expect: { last_message_role: tool, last_message_contains: not approved }

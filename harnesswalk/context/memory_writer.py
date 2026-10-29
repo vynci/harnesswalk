@@ -33,7 +33,6 @@ passes PII redaction before it is stored.
 from __future__ import annotations
 
 import json
-import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -43,6 +42,7 @@ from harnesswalk.adapters.storage.sqlite import Database
 from harnesswalk.context.records import PACK_SCOPE
 from harnesswalk.context.stores.episodic import EpisodicStore
 from harnesswalk.context.stores.semantic import SemanticStore, normalize_key
+from harnesswalk.control.pii import PiiDetector
 from harnesswalk.events import iso
 from harnesswalk.execution.registry import ToolSpec
 from harnesswalk.nodes import node, register
@@ -78,22 +78,16 @@ CREATE INDEX IF NOT EXISTS memory_proposals_tenant ON memory_proposals (tenant_i
 
 REMEMBER = "remember"
 WRITER = "memory_writer"
-PII = (
-    ("email", re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")),
-    ("card", re.compile(r"\b(?:\d[ -]?){13,19}\b")),
-    ("phone", re.compile(r"(?<!\w)\+?\d[\d ().-]{7,}\d(?!\w)")),
-)
+_DEFAULT_PII = PiiDetector()
 
 
-def redact(text: str) -> tuple[str, dict[str, int]]:
-    """Input-style PII redaction for proposal content: emails, card-like and phone-like
-    numbers become `[email]`, `[card]`, `[phone]`. Returns the text and counts by kind."""
-    counts: dict[str, int] = {}
-    for kind, pattern in PII:
-        text, n = pattern.subn(f"[{kind}]", text)
-        if n:
-            counts[kind] = counts.get(kind, 0) + n
-    return text, counts
+def redact(text: str, detector: PiiDetector | None = None) -> tuple[str, dict[str, int]]:
+    """PII redaction for proposal content, with the input guardrails' detector (P3): emails,
+    phones, Luhn-valid cards and national ids become typed placeholders (`[EMAIL]`, `[CARD]`).
+    Returns the text and counts by kind."""
+    detector = detector or _DEFAULT_PII
+    findings = detector.find(text)
+    return detector.redact(text, findings), detector.counts(findings)
 
 
 @dataclass
@@ -212,8 +206,10 @@ class MemoryWriter:
         policy: Any = None,
         *,
         episodes_enabled: bool = True,
+        pii: PiiDetector | None = None,
     ) -> None:
         self.cfg = cfg
+        self.pii = pii or _DEFAULT_PII  # the input guardrails' detector, pack patterns included
         self.db = db
         self.semantic = semantic
         self.episodic = episodic
@@ -370,12 +366,11 @@ class MemoryWriter:
 
     # -- checks --------------------------------------------------------------------------------
 
-    @staticmethod
-    def _clean(content: dict[str, Any]) -> tuple[dict[str, Any], dict[str, int]]:
+    def _clean(self, content: dict[str, Any]) -> tuple[dict[str, Any], dict[str, int]]:
         out, counts = {}, {}
         for key, value in content.items():
             if isinstance(value, str) and key not in ("turn_id", "outcome", "ts"):
-                value, found = redact(value)
+                value, found = redact(value, self.pii)
                 for kind, n in found.items():
                     counts[kind] = counts.get(kind, 0) + n
             out[key] = value

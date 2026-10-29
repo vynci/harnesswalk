@@ -124,6 +124,19 @@ async def node(ctx: TurnContext, node_id: str, **enter_summary: Any) -> AsyncIte
             ctx.emit.exit(span)
 
 
+def fail_span(ctx: TurnContext, span: Span, exc: BaseException) -> None:
+    """Close a span opened outside `node()` (a span restored after a restart) on an exception,
+    with the same codes `node()` uses."""
+    if span.closed:
+        return
+    if isinstance(exc, HarnessError):
+        ctx.emit.fail(span, exc.code, exc.message)
+    elif isinstance(exc, asyncio.CancelledError):
+        ctx.emit.fail(span, "cancelled", "The turn was cancelled.")
+    else:
+        ctx.emit.fail(span, "internal", f"{type(exc).__name__}: {exc}")
+
+
 def generated_diagram(
     view: str | None = None, disabled: frozenset[str] = frozenset()
 ) -> dict[str, Any]:

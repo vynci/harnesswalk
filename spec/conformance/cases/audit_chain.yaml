@@ -1,0 +1,36 @@
+id: audit_chain
+title: Every consequential decision is on an unbroken per-tenant hash chain
+spec_version: 0.1.0
+fixture: audit_chain
+turns:
+  - send:
+      message: Please cancel order A-1002.
+    actions:
+      - when: { type: approval_requested, node_id: approval }
+        do: { approval: approve }
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, tools, policy, audit, approval, audit, audit, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: node_exit, node_id: audit, summary: { action: policy_decision, decision: needs_approval, prev_hash: "000000000000" } }
+        - { type: node_exit, node_id: audit, summary: { action: approval_decision, decision: approve } }
+        - { type: node_exit, node_id: audit, summary: { action: tool_executed, executed: true } }
+    http:
+      - get: /v1/audit
+        match: { verify: { ok: true, records: 3 } }
+  - send:
+      message: Cancel it again, please.
+    actions:
+      - when: { type: approval_requested, node_id: approval }
+        do: { approval: deny }
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, tools, policy, audit, approval, audit, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: node_exit, node_id: audit, summary: { action: approval_decision, decision: deny } }
+        - { type: node_exit, node_id: tools, summary: { tool: cancel_order, outcome: denied, executed: false } }
+      absent:
+        - { type: node_exit, node_id: audit, summary: { action: tool_executed } }
+    http:
+      - get: /v1/audit
+        match: { verify: { ok: true, records: 5 } }

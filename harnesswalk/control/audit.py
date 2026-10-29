@@ -4,8 +4,13 @@ Contract: spec/contracts/audit.md. Node: `audit` (control plane, kind store).
 
 One SQLite table. Triggers reject UPDATE and DELETE, so "append-only" is enforced by storage,
 not by convention. Each record carries the hash of the previous record of the same tenant;
-`verify()` walks the chain. Arguments are recorded as a sha256 digest only; the full call is
-in the trace under the same `trace_id`.
+`verify()` walks the chain. Appends run in a write transaction, so two writers (a server and a
+CLI on the same file) cannot fork the chain. Arguments are recorded as a sha256 digest only;
+the full call is in the trace under the same `trace_id`.
+
+Records (P3): `policy_decision` and `approval_decision` before a call runs, `tool_executed`
+after a non-read call ran (with `executed`, `outcome`, and `before` and `after` for writes),
+`memory_written` from the memory writer. `GET /v1/audit` exports a tenant's chain.
 """
 
 from __future__ import annotations
@@ -60,6 +65,11 @@ class AuditEntry:
     rule: str | None = None
     approval_id: str | None = None
     args_digest: str | None = None
+    approver: str | None = None
+    executed: bool | None = None
+    outcome: str | None = None
+    before: Any = None
+    after: Any = None
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -82,43 +92,53 @@ class AuditLog:
     def __init__(self, path: str) -> None:
         self.db = Database(path, SCHEMA)
 
-    def _last_hash(self, tenant_id: str) -> str:
-        row = self.db.one(
-            "SELECT hash FROM audit WHERE tenant_id = ? ORDER BY rowid DESC LIMIT 1", (tenant_id,)
-        )
-        return row["hash"] if row else GENESIS
-
     def append(self, ctx: TurnContext, entry: AuditEntry) -> AuditRecord:
         record_id = "aud_" + uuid7().replace("-", "")[:20]
         ts = iso(time.time())
         body = {k: v for k, v in asdict(entry).items() if v not in (None, {})}
-        prev = self._last_hash(ctx.tenant_id)
-        digest = _hash(prev, record_id, ts, body)
         try:
-            self.db.execute(
-                "INSERT INTO audit VALUES (?, ?, ?, ?, ?, ?)",
-                (record_id, ctx.tenant_id, ts, json.dumps(body, sort_keys=True), prev, digest),
-            )
+            with self.db.transaction() as conn:
+                row = conn.execute(
+                    "SELECT hash FROM audit WHERE tenant_id = ? ORDER BY rowid DESC LIMIT 1",
+                    (ctx.tenant_id,),
+                ).fetchone()
+                prev = row["hash"] if row else GENESIS
+                digest = _hash(prev, record_id, ts, body)
+                conn.execute(
+                    "INSERT INTO audit VALUES (?, ?, ?, ?, ?, ?)",
+                    (record_id, ctx.tenant_id, ts, json.dumps(body, sort_keys=True), prev, digest),
+                )
         except sqlite3.Error as exc:
             raise HarnessError("store_unavailable", f"audit store: {exc}") from exc
         return AuditRecord(record_id, ctx.tenant_id, ts, body, prev, digest)
+
+    def export(
+        self, tenant_id: str, since: str | None = None, limit: int = 500
+    ) -> list[AuditRecord]:
+        """Oldest first, in chain order, from `since` (an RFC 3339 timestamp) on."""
+        rows = self.db.query(
+            "SELECT * FROM audit WHERE tenant_id = ? AND ts >= ? ORDER BY rowid LIMIT ?",
+            (tenant_id, since or "", limit),
+        )
+        return [self._record(r) for r in rows]
+
+    @staticmethod
+    def _record(r: Any) -> AuditRecord:
+        return AuditRecord(
+            r["record_id"],
+            r["tenant_id"],
+            r["ts"],
+            json.loads(r["entry"]),
+            r["prev_hash"],
+            r["hash"],
+        )
 
     def list(self, tenant_id: str, limit: int = 50) -> list[AuditRecord]:
         rows = self.db.query(
             "SELECT * FROM audit WHERE tenant_id = ? ORDER BY rowid DESC LIMIT ?",
             (tenant_id, limit),
         )
-        return [
-            AuditRecord(
-                r["record_id"],
-                r["tenant_id"],
-                r["ts"],
-                json.loads(r["entry"]),
-                r["prev_hash"],
-                r["hash"],
-            )
-            for r in rows
-        ]
+        return [self._record(r) for r in rows]
 
     def verify(self, tenant_id: str) -> dict[str, Any]:
         rows = self.db.query("SELECT * FROM audit WHERE tenant_id = ? ORDER BY rowid", (tenant_id,))
@@ -136,8 +156,15 @@ async def record(ctx: TurnContext, log: AuditLog, entry: AuditEntry) -> AuditRec
     async with node(ctx, "audit") as span:
         rec = log.append(ctx, entry)
         span.set(
-            record_id=rec.record_id, action=entry.action, tool=entry.tool, decision=entry.decision
+            record_id=rec.record_id,
+            action=entry.action,
+            tool=entry.tool,
+            decision=entry.decision,
+            prev_hash=rec.prev_hash[:12],
+            hash=rec.hash[:12],
         )
         if entry.action == "approval_decision":
             span.set(decided_by=entry.actor)
+        if entry.executed is not None:
+            span.set(executed=entry.executed)
     return rec

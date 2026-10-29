@@ -27,17 +27,27 @@ SUMMARY_KEYS = (
     "tools_enabled", "outcome", "executed", "reply_chars", "events", "persisted", "approval_id",
     "record_id", "prompt_version", "skills_indexed", "turns", "hits", "tokens", "input_tokens",
     "output_tokens", "citations", "proposed", "written", "rejected", "pending", "gate",
+    "injection_score", "restored", "level", "network", "budget_source", "cascade",
 )  # fmt: skip
 
 
 def _settings(args: argparse.Namespace):
+    import yaml
+
     from harnesswalk.config.loader import load_settings
 
+    overrides = {}
+    for item in getattr(args, "set", None) or []:
+        key, sep, value = item.partition("=")
+        if not sep or not key:
+            raise SystemExit(f"--set needs key=value, got {item!r}")
+        overrides[key] = yaml.safe_load(value)
     return load_settings(
         mode=getattr(args, "mode", None),
         provider=getattr(args, "provider", None),
         fixture=getattr(args, "fixture", None),
         profile=getattr(args, "profile", None),
+        overrides=overrides,
     )
 
 
@@ -126,6 +136,7 @@ async def _run_turn(args: argparse.Namespace) -> int:
                 step_mode=args.step,
                 disabled_nodes=args.disable or [],
                 channel="cli",
+                model=args.model,
             )
         )
         holder["turn_id"] = state.ctx.turn_id
@@ -256,7 +267,7 @@ def _serve(args: argparse.Namespace) -> int:
         f"harnesswalk {__version__} (spec {SPEC_VERSION}), mode {harness.settings.mode}, "
         f"provider {harness.provider_name}"
     )
-    uvicorn.run(create_app(harness), host=args.host, port=args.port, log_level="info")
+    uvicorn.run(create_app(harness), host=args.host, port=args.port, log_level=args.log_level)
     return 0
 
 
@@ -276,11 +287,15 @@ def build_parser() -> argparse.ArgumentParser:
             "--profile", help="a profile file, for example spec/conformance/profile.yaml"
         )
         p.add_argument("--mode", choices=["dev", "public", "private"])
+        p.add_argument(
+            "--set", action="append", metavar="KEY=VALUE", help="a dotted config override"
+        )
 
     serve = sub.add_parser("serve", help="start the HTTP API")
     common(serve)
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument("--log-level", default="info")
 
     turn = sub.add_parser("turn", help="run one turn in-process and print the walk")
     common(turn)
@@ -292,6 +307,7 @@ def build_parser() -> argparse.ArgumentParser:
     turn.add_argument("--disable", action="append", help="disable a node (repeatable)")
     turn.add_argument("--json", action="store_true", help="print the events instead of the walk")
     turn.add_argument("--cancel-after", metavar="NODE_ID", help="cancel when this node is entered")
+    turn.add_argument("--model", help="a model alias hint for the router (dev mode)")
 
     events = sub.add_parser("events", help="dump a stored turn as JSON Lines")
     events.add_argument("turn_id")

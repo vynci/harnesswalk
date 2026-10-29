@@ -15,6 +15,10 @@
       "enum": ["dev", "public", "private"],
       "default": "dev"
     },
+    "two_process": {
+      "description": "P3: the runner runs the harness as an OS process so a `restart` action can kill it and start a new one on the same data directory.",
+      "type": "boolean"
+    },
     "config": {
       "description": "Overrides of profile keys. Only keys listed in profile.yaml `overridable` are allowed.",
       "type": "object",
@@ -55,7 +59,8 @@
           "properties": {
             "approval": { "enum": ["approve", "deny"] },
             "resume": { "enum": ["step", "continue"] },
-            "cancel": { "const": true }
+            "cancel": { "const": true },
+            "restart": { "const": true }
           }
         },
         "repeat": { "type": "boolean", "default": false }
@@ -76,6 +81,20 @@
           }
         },
         "actions": { "type": "array", "items": { "$ref": "#/$defs/action" } },
+        "http": {
+          "description": "P3: GET requests made after the turn ends; each response must have `status` (default 200) and its JSON must match `match` as a recursive subset.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["get"],
+            "properties": {
+              "get": { "type": "string", "pattern": "^/" },
+              "status": { "type": "integer" },
+              "match": { "type": "object" }
+            }
+          }
+        },
         "expect": {
           "type": "object",
           "additionalProperties": false,

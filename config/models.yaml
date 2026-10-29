@@ -13,7 +13,11 @@ models:
   fake-small:   { provider: fake, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
   local-8b:     { provider: ollama, name: "llama3.1:8b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
   local-small:  { provider: ollama, name: "llama3.2:3b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
-  hosted-small: { provider: anthropic, name: claude-haiku-4-5, context_tokens: 200000, price_in_per_mtok: 1.0, price_out_per_mtok: 5.0, tools: true }
+  # Pinned Anthropic ids (PLAN section 13). Prices per million tokens, first-party API, prompts
+  # up to 100K tokens for Haiku. The harness does not replay thinking blocks, so each model
+  # runs with a thinking mode that needs none.
+  hosted-haiku:  { provider: anthropic, name: claude-haiku-5-5, context_tokens: 1000000, price_in_per_mtok: 0.10, price_out_per_mtok: 0.50, tools: true, params: { thinking: { type: disabled } } }
+  hosted-sonnet: { provider: anthropic, name: claude-sonnet-5-5, context_tokens: 1000000, price_in_per_mtok: 2.0, price_out_per_mtok: 10.0, tools: true, modalities: [text, image], params: { thinking: { type: between_tools } } }
   compat-default: { provider: openai_compatible, name: default, context_tokens: 32000, tools: true }
   local-embed:  { provider: ollama, name: nomic-embed-text, embedding: true }
 
@@ -21,11 +25,21 @@ models:
 # The router picks the first alias in `use` whose provider is configured. Setting
 # HARNESSWALK_PROVIDER configures that provider only, so the same rules serve every provider.
 router:
+  health_check_s: 30
+  cost: { tight_fraction: 0.75 }        # a turn past this share of its dollar budget is cost: low
+  # Cascade (off by default): a low-confidence answer from a local model is retried on the next
+  # hosted alias in the rule's list. See spec/contracts/router.md.
+  cascade: { enabled: false, min_confidence: 0.5, local_providers: [ollama, fake] }
   rules:
-    - { id: summarize, when: { step: summarize }, use: [local-small, local-8b, hosted-small, compat-default] }
+    - { id: vision,    when: { modality: image },  use: [hosted-sonnet] }
+    - { id: summarize, when: { step: summarize },  use: [local-small, local-8b, hosted-haiku, compat-default] }
+    - { id: classify,  when: { step: classify },   use: [hosted-haiku, local-small] }
+    - { id: judge,     when: { step: judge },      use: [hosted-haiku, local-8b] }
     # Public mode stays on local models until the hosted daily budget lands (P6).
-    - { id: public,    when: { mode: public },    use: [local-8b, fake-small] }
-    - { id: default,   when: {},                  use: [local-8b, hosted-small, compat-default, fake-small] }
+    - { id: public,    when: { mode: public },     use: [local-8b, fake-small] }
+    - { id: cheap,     when: { cost: low },        use: [local-8b, hosted-haiku, compat-default, fake-small], max_price_out_per_mtok: 1.0 }
+    - { id: high_risk, when: { risk: high },       use: [hosted-sonnet, local-8b, hosted-haiku, compat-default, fake-small] }
+    - { id: default,   when: {},                   use: [local-8b, hosted-sonnet, hosted-haiku, compat-default, fake-small] }
 
 model_layer:
   timeout_s: 60

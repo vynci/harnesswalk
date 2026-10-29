@@ -141,8 +141,14 @@ def _inspector(h: Harness, tenant_id: str, node: dict[str, Any], recent: list[di
         }
     if kind == "store":
         if node_id == "audit":
-            records = [r.__dict__ for r in h.audit.list(tenant_id, 5)]
-            return {"type": "store", "verify": h.audit.verify(tenant_id), "last_records": records}
+            records = [r.__dict__ for r in h.audit.list(tenant_id, 20)]
+            return {
+                "type": "store",
+                "verify": h.audit.verify(tenant_id),
+                "last_records": records[:5],
+                "records": records,  # the records tab: newest first, with the chain hashes
+                "export": "/v1/audit" if h.settings.mode != "public" else None,
+            }
         if node_id == "session":
             return {"type": "store", "counts": h.session.count(tenant_id)}
         if node_id == "trace":

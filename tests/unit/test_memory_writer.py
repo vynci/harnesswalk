@@ -181,7 +181,7 @@ async def test_proposals_are_redacted_before_they_are_stored(tmp_path: Path) -> 
     ctx, events = ctx_in("dev")
     await w.run(ctx, [fact("contact", "sam@example.com, card 4111 1111 1111 1111")])
     stored = w.semantic.find("t1", None, "contact")
-    assert stored.value == "[email], card [card]"
+    assert stored.value == "[EMAIL], card [CARD]"
     proposed = next(e for e in events.events if e["type"] == "memory_proposed")
     assert "example.com" not in str(proposed["summary"])
     assert proposed["summary"]["redactions"] == {"email": 1, "card": 1}

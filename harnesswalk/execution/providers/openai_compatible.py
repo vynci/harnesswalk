@@ -18,7 +18,7 @@ from harnesswalk.execution.providers import (
     ProviderResponse,
     ProviderUsage,
 )
-from harnesswalk.execution.providers._http import post_json
+from harnesswalk.execution.providers._http import get_ok, post_json
 from harnesswalk.types import Message, ToolCall
 
 
@@ -71,6 +71,11 @@ class OpenAICompatibleProvider:
         cfg = settings.get("models.providers.openai_compatible")
         base = cfg.get("base_url") or os.environ.get(cfg.get("base_url_env", ""), "")
         return cls(base, cfg.get("api_key_env", "OPENAI_API_KEY"), float(cfg.get("timeout_s", 60)))
+
+    async def health(self) -> bool:
+        key = os.environ.get(self.api_key_env)
+        headers = {"Authorization": f"Bearer {key}"} if key else {}
+        return await get_ok(f"{self.base_url}/models", headers=headers, transport=self.transport)
 
     async def complete(self, request: ProviderRequest) -> ProviderResponse:
         if not self.base_url:

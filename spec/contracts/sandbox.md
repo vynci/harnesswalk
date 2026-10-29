@@ -66,3 +66,38 @@ Edge: `registry_to_sandbox`.
 | `sandbox.max_timeout_ms` | `10000` | Ceiling over any tool's own timeout |
 | `sandbox.subprocess.memory_mb` | `256` | |
 | `sandbox.container.image` | unset | Later phase |
+
+## P3 additions: the subprocess level
+
+The reference implementation runs each tool call at `subprocess` level by default in dev and
+private modes (`sandbox.level`), and keeps `inprocess` for tests and for tools that declare it
+(tools that read harness memory, such as `read_skill`). Public mode forces `inprocess` and pure
+tools only.
+
+A subprocess call:
+
+- runs `python -I -B -m harnesswalk.execution.sandbox_child` with a scrubbed environment (no
+  inherited variables beyond `PATH` and a locale; `HOME` and `TMPDIR` are the work directory),
+  in its own process group, in a work directory per turn (`sandbox.subprocess.workdir`/<tenant>/
+  <turn_id>) that is removed when the turn ends;
+- gets the tool by entrypoint (`module:function` or `path/to/file.py:function`, declared in
+  `tools.yaml` as `entrypoint`; lookup-table tools use the built-in table entrypoint);
+- is killed (`SIGKILL` to the group) when `timeout_ms` passes (`outcome: timeout`), when its
+  result is over `sandbox.subprocess.output_cap_bytes` (`outcome: error`), or when its resident
+  memory passes `sandbox.subprocess.memory_mb` (`outcome: error`);
+- has no network unless the tool's class is `external` and policy allowed the call. The block
+  is two layers: a Python audit hook in the child that refuses sockets, process spawning,
+  `ctypes` loading and file writes outside the work directory, and, where available, an OS
+  jail (`sandbox-exec` with a deny-network profile on macOS, `unshare --net` on Linux).
+
+| Key | Default | Meaning |
+|---|---|---|
+| `sandbox.subprocess.output_cap_bytes` | `65536` | Larger results are an error |
+| `sandbox.subprocess.workdir` | `data/sandbox` | Parent of the per-turn directories |
+| `sandbox.subprocess.os_jail` | `auto` | `auto` or `off` |
+
+`tools.yaml` keys added: `sandbox` (`inprocess` or `subprocess`, overrides `sandbox.level`),
+`entrypoint`, `audit.before` (see `audit.md`).
+
+The `sandbox` exit summary adds `level`, `network` (`blocked` or `allowed`), `jail` (the OS
+layer used, or `none`) and `outcome`.

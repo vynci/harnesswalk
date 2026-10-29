@@ -39,7 +39,7 @@ record LoopResult {
   answer: FinalAnswer
   steps: int
   tool_calls: int
-  exit_reason: "answer" | "max_steps" | "budget_tokens" | "budget_usd" | "timeout" | "stuck" | "interrupted"
+  exit_reason: "answer" | "max_steps" | "budget_tokens" | "budget_usd" | "budget_tool_calls" | "timeout" | "stuck" | "interrupted"
   usage: Usage
   proposals: [MemoryProposal]
 }
@@ -83,7 +83,9 @@ exit(reason, text?):
 - A step is one model call plus the tool calls it requested. The final tools-off call after
   `max_steps` or `stuck` is not counted as a step.
 - MUST checkpoint to the `session` store after every step and before any approval pause.
-- MUST NOT call the model again after `budget_tokens`, `budget_usd`, `timeout` or `interrupted`.
+- MUST NOT call the model again after `budget_tokens`, `budget_usd`, `budget_tool_calls`,
+  `timeout` or `interrupted`. `budget_tool_calls` (P3) follows a policy denial on a tool-call
+  budget (`policy.md`, Budgets); calls after it in the same step are not run.
   A cancel is checked before every limit, so a cancel during the last step of `max_steps`
   exits `interrupted` with its notice, never with the tools-off final call.
 - MUST execute tool calls only through `tools`, never directly.

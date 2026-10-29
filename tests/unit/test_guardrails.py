@@ -25,7 +25,8 @@ def test_size_blocks_and_stops_later_checks() -> None:
     assert result.action == "block" and "6 characters" in result.reason
     assert [r.check for r in result.results] == ["control", "size"]
     ok = g.check("1234")
-    assert ok.action == "pass" and ok.pending == ["pii", "injection"]
+    assert ok.action == "pass" and ok.pending == []
+    assert [r.check for r in ok.results] == ["control", "size", "pii", "injection"]
 
 
 def test_output_checks() -> None:
@@ -39,8 +40,9 @@ def test_output_checks() -> None:
     bad = g.check("not json", output_schema=schema)
     assert (bad.action, bad.text) == ("block", SAFE_SCHEMA_MESSAGE)
     cites = OutputGuardrails({"citations": {"required": True, "on_missing": "repair"}}, "dev")
-    missing = cites.check("an answer", knowledge_chunks=2)
-    assert missing.action == "repair" and missing.citations == {"required": True, "present": 0}
+    missing = cites.check("The return window is thirty days long.", knowledge_chunks=[{"n": 1}])
+    assert missing.action == "repair" and missing.citations["required"] is True
+    assert missing.citations["present"] == 0
 
 
 @pytest.mark.anyio

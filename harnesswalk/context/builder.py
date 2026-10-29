@@ -178,6 +178,7 @@ class ContextBuilder:
                     "chunk": h.meta["chunk"],
                     "citation": h.meta["citation"],
                     "id": h.source.id,
+                    "text": h.text,  # memory only: the output guardrails' claim check reads it
                 }
                 for n, h in enumerate(hits["knowledge"], start=1)
             ]

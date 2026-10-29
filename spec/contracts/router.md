@@ -66,7 +66,7 @@ router:
   rules:
     - { id: vision,  when: { modality: image },  use: [hosted-vision] }
     - { id: lookup,  when: { step: first, risk: low }, use: [local-small, local-8b] }
-    - { id: default, when: {},                   use: [local-8b, hosted-small] }
+    - { id: default, when: {},                   use: [local-8b, hosted-sonnet, hosted-haiku] }
 ```
 
 | Key | Meaning |
@@ -74,3 +74,29 @@ router:
 | `router.rules` | Ordered rules |
 | `router.health_check_s` | How often provider health is refreshed, default 30 |
 | `router.public_hosted_budget_usd_per_day` | Default 5 |
+
+## P3 additions
+
+- **Step kinds** add `next` (a call that is neither first nor after a tool), `classify` (the
+  input guardrail's optional injection classifier) and `judge` (P4 evals).
+- **Risk.** The loop sends `risk: high` once any tool call of the turn has a class other than
+  `read`, so a rule can send consequential steps to a stronger model.
+- **Cost.** `when.cost: low | normal`: a request is `cost: low` once the turn has spent
+  `router.cost.tight_fraction` (default 0.75) of its dollar budget. A rule MAY also set
+  `max_price_out_per_mtok` to drop aliases priced above it.
+- **Health.** `model` is the first alias whose provider is configured and healthy. Health is a
+  probe per provider every `router.health_check_s` (a cheap list-models call; `fake` is always
+  healthy) plus a passive signal: a retryable failure marks the provider unhealthy until the
+  next probe. A provider never probed counts as healthy. `GET /healthz` reports it per provider.
+- **Hints.** A turn MAY carry a model alias hint; it is used only if it is in the matched
+  rule's `use` list and healthy.
+- **Cascade (documented option, off by default).** With `router.cascade.enabled`, a response
+  from a local model whose confidence signal is below `router.cascade.min_confidence` is
+  retried on the next hosted alias in `alternatives` (`fallback: true`, `cascade:
+  low_confidence` in the `model_layer` summary). Confidence is deterministic: 0 for an empty
+  answer, a `length` stop or a call to a tool that was not offered, 0.5 for a hedge ("I am not
+  sure", "I don't know"), else 1. Failures already fall back without the cascade.
+- Pinned hosted ids (`config/models.yaml`): `claude-haiku-5-5` (alias `hosted-haiku`, router,
+  summarize, classify and judge steps) and `claude-sonnet-5-5` (alias `hosted-sonnet`, the
+  loop in hosted demos). A model entry MAY carry `params` (provider request fields such as
+  `thinking`) passed through by the adapter.

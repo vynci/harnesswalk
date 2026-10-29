@@ -14,10 +14,10 @@ does not exist yet and the node is served with `implemented: false`.
 | Package | Module | Node id | Contract | Status |
 |---|---|---|---|---|
 | `control` | `gateway.py` | `gateway` | `gateway.md`, `http_api.md` | implemented |
-| `control` | `input_guardrails.py` | `input_guardrails` | `guardrail.md` | implemented (control, size; pii and injection P3) |
-| `control` | `policy.py` | `policy` | `policy.md` | implemented |
-| `control` | `approval.py` | `approval` | `approval_queue.md` | implemented (restart resume P3) |
-| `control` | `audit.py` | `audit` | `audit.md` | implemented |
+| `control` | `input_guardrails.py` | `input_guardrails` | `guardrail.md` | implemented (control, size, PII with reversible placeholders, injection scoring; optional classifier hook) |
+| `control` | `policy.py` | `policy` | `policy.md` | implemented (five action classes, `why`, per-tenant budgets) |
+| `control` | `approval.py` | `approval` | `approval_queue.md` | implemented (resume after restart, expiry sweeper) |
+| `control` | `audit.py` | `audit` | `audit.md` | implemented (hash chain per tenant, `tool_executed` with before and after, `GET /v1/audit`) |
 | `context` | `builder.py` | `context_builder` | `context_builder.md` | implemented |
 | `context` | `stores/__init__.py` | `memory` | `store.md` | implemented |
 | `context` | `stores/procedural.py` | `procedural` | `store.md` | implemented |
@@ -28,12 +28,12 @@ does not exist yet and the node is served with `implemented: false`.
 | `context` | `memory_writer.py` | `memory_writer` | `memory_writer.md` | implemented (P3) |
 | `execution` | `loop.py` | `loop` | `loop.md` | implemented |
 | `execution` | `model_layer.py` | `model_layer` | `model_provider.md` | implemented |
-| `execution` | `router.py` | `router` | `router.md` | implemented |
+| `execution` | `router.py` | `router` | `router.md` | implemented (step, risk, cost, modality, hints, health; cascade off by default) |
 | `execution` | `providers/` (`fake.py`, `ollama.py`, `anthropic.py`, `openai_compatible.py`)` | `providers` | `model_provider.md` | implemented |
 | `execution` | `tools.py` | `tools` | `tool_registry.md` | implemented |
 | `execution` | `registry.py` | `registry` | `tool_registry.md` | implemented |
-| `execution` | `sandbox.py` | `sandbox` | `sandbox.md` | implemented (in-process level only) |
-| `execution` | `output_guardrails.py` | `output_guardrails` | `guardrail.md` | implemented |
+| `execution` | `sandbox.py` | `sandbox` | `sandbox.md` | implemented (subprocess with limits and no network; in-process for tests and public mode) |
+| `execution` | `output_guardrails.py` | `output_guardrails` | `guardrail.md` | implemented (schema, content, length, citations drawn from knowledge, PII leaks, placeholder restore) |
 | `ops` | `trace.py` | `trace` | `tracer.md` | implemented |
 | `ops` | `cost.py` | `cost` | `tracer.md` | implemented |
 | `ops` | `eval/__init__.py` | `eval` | `evaluator.md` | stub (P4) |
@@ -66,6 +66,12 @@ Modules that are not nodes:
 | `control` | `http_memory.py` | The context plane routes: memory proposals and knowledge documents |
 | `execution` | `builtin_tools.py` | `calculator` and `read_skill` |
 | `execution` | `providers/_http.py` | One POST with errors mapped to codes, shared by the HTTP adapters |
+| `execution` | `providers/health.py` | Provider health for the router: probes and the passive failure signal |
+| `execution` | `tool_impls.py` | Tool functions a sandbox child can import (standard library only): calculator, table lookup |
+| `execution` | `sandbox_child.py` | The sandbox child process: limits, audit hook, one call, one JSON result |
+| `control` | `pii.py` | PII detection, Luhn, the per-turn placeholder vault (input and output guardrails, memory writer) |
+| `control` | `injection.py` | Prompt-injection heuristics: a score and the signals that fired |
+| `control` | `budgets.py` | Per-tenant budgets and the hourly usage ledger (read by policy and the loop) |
 | `adapters` | `storage/sqlite.py` | The SQLite helper behind the trace, session, audit and approval stores |
 | `adapters` | `storage/vectors.py` | Vector indexes: `sqlite` (brute-force cosine) and `pgvector`, chosen by `storage.vectors` |
 | `adapters` | `mcp/` | MCP client that registers server tools (later phase) |

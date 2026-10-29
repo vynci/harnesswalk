@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import os
 import re
 import secrets
@@ -43,6 +44,7 @@ from harnesswalk import SPEC_VERSION, __version__, diagram
 from harnesswalk.control.approval import ApprovalAlreadyDecided, ApprovalNotFound
 from harnesswalk.control.gateway import GatewayError, TurnRequest
 from harnesswalk.control.http_memory import add_memory_routes
+from harnesswalk.events import iso, parse_iso
 from harnesswalk.inspectors import inspect_node, node_source
 from harnesswalk.nodes import generated_diagram
 from harnesswalk.runtime import Harness
@@ -164,10 +166,15 @@ def turn_options(data: dict[str, Any], options: dict[str, Any]) -> dict[str, Any
     ):
         if node_id not in disabled:
             disabled.append(node_id)
+    schema = pick("output_schema")
+    if schema is not None and not isinstance(schema, dict):
+        raise GatewayError(400, "invalid_request", "output_schema must be a JSON Schema object")
     return {
         "step_mode": bool(step) or bool(legacy_step),
         "provider": _name(pick("provider"), "provider"),
         "fixture": _name(pick("fixture"), "fixture"),
+        "model": _name(pick("model"), "model"),
+        "output_schema": schema,
         "disabled_nodes": disabled,
     }
 
@@ -175,6 +182,15 @@ def turn_options(data: dict[str, Any], options: dict[str, Any]) -> dict[str, Any
 def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        # Recovery first (approval_queue.md, P3): paused turns re-attach, cut-off turns close.
+        recovered = await harness.start()
+        if recovered["resumed"] or recovered["closed"]:
+            logging.getLogger("harnesswalk").warning(
+                "recovered after a restart: %d turn(s) waiting on an approval re-attached,"
+                " %d cut-off turn(s) closed",
+                len(recovered["resumed"]),
+                len(recovered["closed"]),
+            )
         yield
         await harness.aclose()
 
@@ -270,6 +286,8 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
                 api_key=request.headers.get("x-harnesswalk-provider-key"),
                 provider=chosen["provider"],
                 fixture=chosen["fixture"],
+                model=chosen["model"],
+                output_schema=chosen["output_schema"],
             ),
             client_ip=request.client.host if request.client else "",
         )
@@ -421,6 +439,35 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
                 409, "approval_already_decided", f"Approval {approval_id} is decided."
             ) from exc
         return JSONResponse(record)
+
+    @app.get("/v1/audit")
+    async def audit_export(
+        request: Request, since: str | None = None, limit: int = 500
+    ) -> JSONResponse:
+        identity, _ = identities.resolve(request)
+        if harness.settings.mode == "public":
+            raise GatewayError(403, "forbidden_in_mode", "The audit export is not offered here.")
+        ceiling = int(harness.settings.get("audit.export_max", 5000))
+        if not 1 <= limit <= ceiling:
+            raise GatewayError(400, "invalid_request", f"limit must be between 1 and {ceiling}")
+        if since is not None:
+            try:
+                parse_iso(since)
+            except ValueError as exc:
+                raise GatewayError(
+                    400, "invalid_request", "since must be an RFC 3339 timestamp"
+                ) from exc
+            since = iso(parse_iso(since))  # the stored form, so the comparison is exact
+        tenant = identity.tenant_id
+        records = harness.audit.export(tenant, since, limit)
+        return JSONResponse(
+            {
+                "tenant_id": tenant,
+                "verify": harness.audit.verify(tenant),
+                "records": [r.__dict__ for r in records],
+                "next_since": records[-1].ts if len(records) == limit else None,
+            }
+        )
 
     @app.get("/v1/diagram")
     async def get_diagram(request: Request, view: str | None = None) -> JSONResponse:

@@ -37,7 +37,9 @@ def settings(
     fixtures: Path | None = None,
     mode: str = "dev",
 ) -> Settings:
-    extra = dict(overrides or {})
+    # Unit tests run tools in-process (fast, deterministic); test_sandbox.py and the
+    # conformance runner exercise the subprocess level.
+    extra = {"sandbox.level": "inprocess", **(overrides or {})}
     if fixtures is not None:
         extra["models.providers.fake.fixture_dir"] = str(fixtures)
     return load_settings(
