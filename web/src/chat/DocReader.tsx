@@ -10,6 +10,11 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { useApp } from '@/state/store'
 
+/** Markdown source wraps lines at a fixed width: join those, keep paragraphs and list items. */
+function unwrap(text: string): string {
+  return text.replace(/([^\n])\n(?!\n|\s*[-*+]\s|\s*\d+\.\s)/g, '$1 ')
+}
+
 type Loaded = { key: string; doc?: KnowledgeDocDetail; error?: string }
 
 export function DocReader() {
@@ -88,7 +93,7 @@ export function DocReader() {
                       )}
                       <span className="ml-auto italic">{c.citation}</span>
                     </div>
-                    <p className="leading-relaxed whitespace-pre-wrap">{c.text}</p>
+                    <p className="leading-relaxed whitespace-pre-wrap">{unwrap(c.text)}</p>
                   </li>
                 )
               })}
