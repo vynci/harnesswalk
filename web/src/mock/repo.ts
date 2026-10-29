@@ -18,3 +18,11 @@ export function sourceFor(sourceHint: string): string | undefined {
 export function repoFile(path: string): string | undefined {
   return files[key(path)]
 }
+
+/** Repo files under a directory, as [path relative to the repo, content]. */
+export function repoFilesUnder(dir: string): [string, string][] {
+  const prefix = key(dir.endsWith('/') ? dir : `${dir}/`)
+  return Object.entries(files)
+    .filter(([k]) => k.startsWith(prefix))
+    .map(([k, v]) => [k.slice('../../../'.length), v])
+}

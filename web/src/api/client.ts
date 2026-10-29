@@ -2,8 +2,12 @@
 // in-browser mock can stand in for the server without the client knowing.
 import type {
   ApiErrorBody,
+  AuditExport,
   Capabilities,
   Diagram,
+  KnowledgeDoc,
+  KnowledgeDocDetail,
+  MemoryProposal,
   NodeInfo,
   NodeSource,
   StartTurnRequest,
@@ -108,6 +112,18 @@ export function createApi(t: Transport) {
       call<unknown>('POST', `/v1/approvals/${encodeURIComponent(approvalId)}`, reason ? { decision, reason } : { decision }),
     node: (nodeId: string) => call<NodeInfo>('GET', `/v1/nodes/${encodeURIComponent(nodeId)}`),
     nodeSource: (nodeId: string) => call<NodeSource>('GET', `/v1/nodes/${encodeURIComponent(nodeId)}/source`),
+    // P3: the context plane's routes and the audit export.
+    knowledgeDocs: () => call<{ pack: string; docs: KnowledgeDoc[] }>('GET', '/v1/knowledge/docs'),
+    knowledgeDoc: (docId: string) => call<KnowledgeDocDetail>('GET', `/v1/knowledge/docs/${encodeURIComponent(docId)}`),
+    memoryProposals: (status: 'pending' | 'all' = 'pending') =>
+      call<{ proposals: MemoryProposal[] }>('GET', `/v1/memory/proposals?status=${status}`),
+    decideProposal: (proposalId: string, decision: 'accept' | 'reject', reason?: string) =>
+      call<MemoryProposal>(
+        'POST',
+        `/v1/memory/proposals/${encodeURIComponent(proposalId)}`,
+        reason ? { decision, reason } : { decision },
+      ),
+    audit: (limit = 200) => call<AuditExport>('GET', `/v1/audit?limit=${limit}`),
     eventsUrl: (turnId: string, q?: StreamQuery) => `${t.baseUrl}${eventsPath(turnId, q)}`,
   }
 }

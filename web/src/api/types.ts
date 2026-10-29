@@ -143,6 +143,10 @@ export interface Capabilities {
     cancel: boolean
     byo_key: boolean
     disable_nodes?: boolean
+    /** P3: knowledge is among the context stores, so replies may carry citations. */
+    knowledge?: boolean
+    /** P3: proposals waiting at the review gate can be accepted or rejected here. */
+    memory_review?: boolean
   }
   limits: {
     max_message_chars: number
@@ -180,6 +184,10 @@ export interface StartTurnRequest {
   provider?: string
   fixture?: string
   disable?: string[]
+  /** P3: a JSON Schema the answer must satisfy, or the output guardrails block it. */
+  output_schema?: Record<string, unknown>
+  /** P3, dev mode: a model alias hint for the router. */
+  model?: string
 }
 
 export interface StartTurnResponse {
@@ -215,6 +223,81 @@ export interface NodeSource {
   line_count: number
   source: string
   symbols?: { name: string; line: number }[]
+}
+
+// ---------- Context plane (P3) ----------
+
+/** One entry of `turn_end.summary.citations`: the reply's `[n]` names chunk `chunk` of `doc`. */
+export interface Citation {
+  n: number
+  doc: string
+  chunk: number
+  citation: string
+}
+
+export interface KnowledgeDoc {
+  doc_id: string
+  title: string
+  path: string
+  kind: string
+  version: string
+  chunks: number
+  scope: 'pack' | 'tenant' | string
+}
+
+export interface KnowledgeChunk {
+  position: number
+  heading: string
+  text: string
+  tokens: number
+  citation: string
+}
+
+export interface KnowledgeDocDetail extends Omit<KnowledgeDoc, 'chunks'> {
+  text: string
+  chunks: KnowledgeChunk[]
+}
+
+export interface MemoryDiff {
+  op: string
+  before: unknown
+  after: unknown
+}
+
+export interface MemoryProposal {
+  proposal_id: string
+  store: string
+  content: unknown
+  source?: string
+  evidence?: unknown
+  gate?: string
+  status: string
+  reason?: string | null
+  record_id?: string | null
+  version?: number | null
+  op?: string | null
+  created_at?: string
+  decided_at?: string | null
+  decided_by?: string | null
+  diff?: MemoryDiff
+}
+
+// ---------- Control plane (P3) ----------
+
+export interface AuditRecord {
+  record_id: string
+  tenant_id: string
+  ts: string
+  entry: Record<string, unknown>
+  prev_hash: string
+  hash: string
+}
+
+export interface AuditExport {
+  tenant_id: string
+  verify: { ok: boolean; records: number; first_bad_record?: string }
+  records: AuditRecord[]
+  next_since: string | null
 }
 
 export interface ApiErrorBody {

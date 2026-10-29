@@ -15,7 +15,7 @@ import type {
   TurnSummary,
 } from '@/api/types'
 import { EXAMPLE_MESSAGES, EXAMPLE_NAMES, EXAMPLES, servedDiagram, type ExampleName } from './examples'
-import { repoFile, sourceFor } from './repo'
+import { repoFile, repoFilesUnder, sourceFor } from './repo'
 
 export interface MockOptions {
   /** Milliseconds between streamed events. 0 plays as fast as timers allow. */
@@ -244,6 +244,16 @@ export class MockServer {
     }
     if ((m = p.match(/^\/v1\/nodes\/([^/]+)\/source$/)) && method === 'GET') return this.nodeSource(decodeURIComponent(m[1]!))
     if ((m = p.match(/^\/v1\/nodes\/([^/]+)$/)) && method === 'GET') return this.node(decodeURIComponent(m[1]!))
+    // P3 context and control plane routes, over the starter pack's documents. The mock never
+    // writes memory, so there is nothing to review, and it keeps no audit chain.
+    if (method === 'GET' && p === '/v1/knowledge/docs') return json(200, { pack: '_starter', docs: mockDocs().map(({ text: _t, chunks, ...d }) => ({ ...d, chunks: chunks.length })) })
+    if ((m = p.match(/^\/v1\/knowledge\/docs\/([^/]+)$/)) && method === 'GET') {
+      const doc = mockDocs().find((d) => d.doc_id === decodeURIComponent(m![1]!))
+      return doc ? json(200, doc) : apiError(404, 'doc_not_found', 'No such document.')
+    }
+    if (method === 'GET' && p === '/v1/memory/proposals') return json(200, { proposals: [] })
+    if ((m = p.match(/^\/v1\/memory\/proposals\/([^/]+)$/)) && method === 'POST') return apiError(404, 'proposal_not_found', 'The mock has no proposals.')
+    if (method === 'GET' && p === '/v1/audit') return json(200, { tenant_id: 'dev', verify: { ok: true, records: 0 }, records: [], next_since: null })
     return apiError(404, 'not_found', `No route ${method} ${p} in the mock.`)
   }
 
@@ -257,7 +267,7 @@ export class MockServer {
         { name: 'ollama', configured: false, default: false, models: ['llama3.1:8b'] },
       ],
       fixtures: [...EXAMPLE_NAMES],
-      features: { step_mode: true, approvals: true, message_delta: this.opts.messageDelta, cancel: true, byo_key: false, disable_nodes: true },
+      features: { step_mode: true, approvals: true, message_delta: this.opts.messageDelta, cancel: true, byo_key: false, disable_nodes: true, knowledge: true, memory_review: true },
       limits: { max_message_chars: 4000, max_steps: 8, session_ttl_seconds: null },
     }
   }
@@ -679,4 +689,21 @@ export class MockEventSource implements EventSourceLike {
     this.readyState = 2
     this.server.detach(this.turnId, this)
   }
+}
+
+/** The starter pack's documents, cut into chunks at each heading like the harness does first. */
+function mockDocs() {
+  return repoFilesUnder('datasets/_starter/docs')
+    .filter(([path]) => path.endsWith('.md'))
+    .map(([path, text]) => {
+      const name = path.split('/').pop()!
+      const title = /^#\s+(.+)$/m.exec(text)?.[1]?.trim() ?? name
+      const sections = text.split(/^##\s+/m)
+      const chunks = sections.map((sec, position) => {
+        const heading = position === 0 ? '' : (sec.split('\n')[0] ?? '').trim()
+        const body = (position === 0 ? sec.replace(/^#\s+.+$/m, '') : sec.split('\n').slice(1).join('\n')).trim()
+        return { position, heading, text: body, tokens: Math.ceil(body.length / 4), citation: heading ? `${title}, ${heading}` : title }
+      })
+      return { doc_id: name.replace(/\.md$/, ''), title, path: name, kind: 'markdown', version: 'mock', scope: 'pack', text, chunks }
+    })
 }
