@@ -172,7 +172,7 @@ Response `200`:
 | `status` | `running`, `paused` (a `node_paused` without its `node_resumed`) or `done` (`turn_end` stored) |
 | `exit` | `turn_end.summary.exit`, `null` until done |
 | `reply` | `turn_end.summary.reply`, `null` until done |
-| `message` | The user text as the session stored it after input guardrails; `null` while running and for blocked input |
+| `message` | The user text as the session stored it after input guardrails; `null` while running, for blocked input, and for a turn that ended with `turn_end.status` `error` (those are not session history) |
 | `started_at`, `ended_at` | `ts` of `turn_start` and of `turn_end` (`null` until done) |
 | `cost` | `turn_end.cost` when done; while running, the sum of node costs so far |
 | `event_count` | Events stored for the turn |
