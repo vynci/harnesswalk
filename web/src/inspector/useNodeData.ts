@@ -17,7 +17,7 @@ export function useNodeData(nodeId: string | null): { info: Loadable<NodeInfo>; 
   const refreshKey = useApp((s) => {
     const id = s.liveTurnId
     const t = id ? s.turns[id]?.state : undefined
-    return `${id ?? ''}:${t?.phase ?? ''}`
+    return `${id ?? ''}:${t?.phase ?? ''}:${s.inspectorVersion}`
   })
   const infoKey = `${nodeId ?? ''}|${refreshKey}`
   const [info, setInfo] = useState<Keyed<NodeInfo> | null>(null)

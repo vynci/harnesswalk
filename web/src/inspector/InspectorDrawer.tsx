@@ -41,7 +41,7 @@ export function InspectorDrawer() {
     if (nodeId) closeRef.current?.focus()
   }, [nodeId])
 
-  const detailsLabel = info.data ? detailsTabLabel(info.data.inspector.type) : null
+  const detailsLabel = info.data ? detailsTabLabel(info.data.inspector) : null
   const activeTab = tab === 'details' && !detailsLabel ? 'overview' : tab
   if (!nodeId || !node) return null
   const parent = node.parent ? diagram?.nodes.find((n) => n.id === node.parent) : undefined

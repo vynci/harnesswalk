@@ -2,6 +2,8 @@ import type { NodeInfo } from '@/api/types'
 import { formatMs, nodeStat } from '@/diagram/stats'
 import type { NodeRun } from '@/state/reducer'
 import { DataView, KeyValues } from './DataView'
+import { isRecord } from './shapes'
+import { ContextBudget } from './StoreViews'
 
 export function OverviewTab({ run, info }: { run?: NodeRun; info?: NodeInfo }) {
   return (
@@ -30,6 +32,7 @@ export function OverviewTab({ run, info }: { run?: NodeRun; info?: NodeInfo }) {
           <KeyValues value={run.enterSummary} />
         </section>
       )}
+      {run?.lastSummary && isRecord(run.lastSummary.slices) && <ContextBudget summary={run.lastSummary} />}
       {run?.lastSummary && (
         <section className="flex flex-col gap-1.5" data-testid="overview-summary">
           <h4 className="text-xs font-semibold text-muted-foreground">Last summary</h4>

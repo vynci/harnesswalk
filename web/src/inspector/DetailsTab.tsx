@@ -5,7 +5,10 @@ import type { NodeInfo } from '@/api/types'
 import { Code } from '@/components/code'
 import { Prose } from '@/components/prose'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { DataView } from './DataView'
+import { DataView, KeyValues } from './DataView'
+import { sourceExtras } from './labels'
+import { isAuditPayload, isDocList, isProposalList, isRecord, isScopedRecords } from './shapes'
+import { AuditView, CitationList, ContextBudget, DocList, PendingView, RecordList, WritesView } from './StoreViews'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -56,16 +59,38 @@ export function DetailsTab({ info }: { info: NodeInfo }) {
       </div>
     )
   }
-  // store, queue, model and anything newer: one section per field.
-  const fields = Object.entries(ins).filter(([k]) => k !== 'type')
+  // An audit export: the hash chain with a Verify action.
+  if (isAuditPayload(ins)) return <AuditView ins={ins} />
+  // store, queue, model, a code node's own state and anything newer: one section per field,
+  // each drawn by the shape of its value.
+  const keys = ins.type === 'source' ? sourceExtras(ins) : Object.keys(ins).filter((k) => k !== 'type')
+  const fields = keys.map((k) => [k, ins[k]] as const)
   return (
     <div className="flex flex-col gap-4">
       {fields.length === 0 && <p className="text-xs text-muted-foreground">Nothing to show yet.</p>}
       {fields.map(([k, v]) => (
         <Section key={k} title={k.replace(/_/g, ' ')}>
-          <DataView value={v} name={k} />
+          <FieldView name={k} value={v} />
         </Section>
       ))}
     </div>
   )
+}
+
+function FieldView({ name, value }: { name: string; value: unknown }) {
+  if (name === 'last_writes' && isProposalList(value)) return <WritesView writes={value} />
+  if (name === 'pending' && isProposalList(value)) return <PendingView pending={value} />
+  if (isDocList(value)) return <DocList docs={value as Record<string, unknown>[]} />
+  if (Array.isArray(value) && value.length > 0 && isScopedRecords(value)) return <RecordList rows={value} />
+  if (isRecord(value) && isRecord(value.slices)) {
+    const cites = Array.isArray(value.citations) ? value.citations : []
+    return (
+      <div className="flex flex-col gap-3">
+        <ContextBudget summary={{ ...value, citations: cites.length }} />
+        <CitationList citations={cites as never} />
+      </div>
+    )
+  }
+  if (isRecord(value) && Object.values(value).every((v) => !isRecord(v) && !Array.isArray(v))) return <KeyValues value={value} />
+  return <DataView value={value} name={name} />
 }
