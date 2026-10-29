@@ -349,12 +349,14 @@ Response `200`:
 - `language` comes from the extension (`python`, `yaml`, `markdown`, `json`, else `text`).
 - `symbols` lists the top-level `class` and `def` (`kind`: `class`, `function`) of a Python file
   with their 1-based line, from the syntax tree; it is empty for other files.
+- No identity is needed: the code is the same for every tenant.
 
-Errors: `401`, `404`.
+Errors: `404`.
 
 ## `GET /v1/capabilities`
 
-What this build can do, so the UI adapts instead of guessing.
+What this build can do, so the UI adapts instead of guessing. No identity is needed, so a
+signed-out UI can read the mode first.
 
 Response `200`:
 
