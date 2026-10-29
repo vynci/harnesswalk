@@ -93,10 +93,14 @@ class Settings:
             return False  # the fake provider is used only when selected explicitly
         if name == "ollama":
             return bool(providers["ollama"].get("base_url"))
+        # Hosted providers cost money, so they need an explicit opt-in (`enabled: true`) on top of
+        # their key or URL. A key that merely happens to be in the shell never routes a call.
+        cfg = providers[name]
+        if not cfg.get("enabled", False):
+            return False
         if name == "anthropic":
-            return bool(os.environ.get(providers["anthropic"].get("api_key_env", "")))
+            return bool(os.environ.get(cfg.get("api_key_env", "")))
         if name == "openai_compatible":
-            cfg = providers["openai_compatible"]
             return bool(cfg.get("base_url") or os.environ.get(cfg.get("base_url_env", "")))
         return False
 
