@@ -39,6 +39,11 @@ record ModelResponse    { text: string | null, tool_calls: [ToolCall], finish_re
 record ModelInfo        { name: string, context_tokens: int, price_in_per_mtok: number, price_out_per_mtok: number, modalities: [string], tools: bool }
 ```
 
+## Inputs and outputs
+
+- In: a `ModelRequest` from the `loop`; a `Route` from the `router`; prices and provider settings from `config/models.yaml`.
+- Out: a `ModelResponse` (text and or tool calls, usage, cost) back to the `loop`.
+
 ## Invariants
 
 - The model layer MUST ask the router for the model before every call.

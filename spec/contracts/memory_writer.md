@@ -46,6 +46,11 @@ record WriterReport { proposed: int, written: int, rejected: int, pending: int }
 | `eval` | `memory_writer.gate: eval` | A deterministic check (schema, duplicate, contradiction with an existing fact) accepts or rejects |
 | `auto` | Only `dev`, or `private` with the tenant setting on | Accepted immediately after schema and duplicate checks |
 
+## Inputs and outputs
+
+- In: `MemoryProposal`s from the `loop` (end of turn) and from eval `diagnose`; human decisions through `decide`.
+- Out: versioned records in `semantic` or `episodic`; a `WriterReport` per run; pending proposals for the inspector.
+
 ## Invariants
 
 - MUST be the only component holding a `WriterToken` for `semantic` and `episodic`.

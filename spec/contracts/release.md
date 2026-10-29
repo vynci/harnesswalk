@@ -26,6 +26,11 @@ record Candidate      { candidate_id: string, change: ArtifactChange, base_versi
 record ArtifactVersion { artifact: string, version: string, tenant_id: string | null, created_at: timestamp, author: string, gate: "passed" | "skipped" | "forced", commit?: string }
 ```
 
+## Inputs and outputs
+
+- In: an `ArtifactChange` (a UI edit, a CLI command or a diagnosis proposal), the evaluator's `GateResult`.
+- Out: a new current `ArtifactVersion` that the harness loads for later turns; a history and diffs for the inspector.
+
 ## Invariants
 
 - The harness MUST load prompts, skills, policy, tool definitions and model config only through

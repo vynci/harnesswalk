@@ -26,6 +26,11 @@ record TurnSummary { turn_id: string, trace_id: string, session_id: string, star
 record Receipt     { turn_id: string, total: Cost, by_node: {node_id: Cost}, by_model: {string: Cost}, latency_ms: {node_id: number} }
 ```
 
+## Inputs and outputs
+
+- In: every event from the emitter; detail records from nodes (assembled context, prompts, tool results).
+- Out: live and stored event streams, replays, turn listings, cost receipts, optional OpenTelemetry spans.
+
 ## Invariants
 
 - `record` MUST validate each event against `events.schema.json` in dev mode and in tests, and

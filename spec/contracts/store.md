@@ -42,6 +42,11 @@ record WriterToken { writer: "memory_writer" | "release" | "loop" | "gateway", p
 | `episodic` | Dated events: `{when, what, entities, source}` | `score = w_rel * relevance + w_rec * exp(-age_days / half_life_days)` | `memory_writer` | Yes |
 | `knowledge` | Document chunks with document id, title, position | Hybrid: keyword (BM25 or full-text) and vector similarity fused by reciprocal rank, then rerank top `rerank_k`; every hit carries a citable `SourceRef` | `release` (ingestion of a dataset pack or upload) | Yes, by document version |
 
+## Inputs and outputs
+
+- In: a `Query` from `memory` (built by the context builder) or a `write` from an allowed writer.
+- Out: ranked `Hit`s with `SourceRef`s; record ids for writes; records for the inspector.
+
 ## Invariants
 
 - Every method MUST take `ctx` with a `tenant_id`; a store MUST NOT return or write records of

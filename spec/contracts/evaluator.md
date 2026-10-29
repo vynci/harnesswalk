@@ -45,6 +45,11 @@ record Diagnosis { layer: "context" | "prompt" | "memory" | "tool" | "model" | "
 record GateResult { pass: bool, reasons: [string] }
 ```
 
+## Inputs and outputs
+
+- In: stored traces and their events, golden sets (`datasets/<pack>/golden.jsonl`), user feedback, a candidate release.
+- Out: `EvalReport`s, `GateResult`s for `release`, `Diagnosis` records with regression cases and memory proposals.
+
 ## Invariants
 
 - Deterministic checks and judged checks MUST be reported separately and gated separately.

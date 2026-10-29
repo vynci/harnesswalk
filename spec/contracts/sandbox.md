@@ -23,6 +23,11 @@ record ExecResult {
 }
 ```
 
+## Inputs and outputs
+
+- In: a validated, policy-approved `ToolCall` and its `ToolSpec` from `tools`; per-tenant credentials resolved at execution.
+- Out: an `ExecResult` back to `tools`; the full result as a trace detail record.
+
 ## Invariants
 
 - MUST enforce `spec.timeout_ms`; on expiry the call is abandoned and `outcome` is `timeout`.

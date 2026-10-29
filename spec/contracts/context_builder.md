@@ -47,6 +47,11 @@ record AssembledContext {
 3. `session`: running summary, then recent turns verbatim.
 4. `user`: the new, guardrail-cleaned input.
 
+## Inputs and outputs
+
+- In: the guardrail-cleaned user `Message`, `ctx` (tenant, session), the `Budget` from `config/context.yaml`, and hits from `memory`.
+- Out: an `AssembledContext` to the `loop`; the full context as a trace detail record.
+
 ## Invariants
 
 - `used_tokens` MUST be at most `budget.total_tokens - budget.reserve_output_tokens`.

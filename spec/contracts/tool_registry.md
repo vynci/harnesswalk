@@ -52,6 +52,11 @@ result = sandbox.execute(ctx, spec, call)
 return Observation(outcome result.outcome, content result.content)
 ```
 
+## Inputs and outputs
+
+- In: `ToolSpec`s at startup (dataset `tools.yaml`, code, later MCP); a `ToolCall` from the `loop` at run time.
+- Out: tool schemas for the model; an `Observation` back to the `loop` for every call.
+
 ## Invariants
 
 - Registration happens at startup. The registry is immutable during a turn.

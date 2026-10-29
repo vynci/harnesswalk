@@ -72,6 +72,11 @@ exit(reason, text?):
     answer = fixed notice for reason
 ```
 
+## Inputs and outputs
+
+- In: the `AssembledContext` from the context builder, the tool schemas visible to this tenant and mode, and `Limits`.
+- Out: a `FinalAnswer` to `output_guardrails`; `Checkpoint`s to the session store; `MemoryProposal`s for `memory_writer`.
+
 ## Invariants
 
 - A step is one model call plus the tool calls it requested. The final tools-off call after

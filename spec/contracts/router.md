@@ -25,6 +25,11 @@ record RouteRule {
 record Route { rule: string, model: string, alternatives: [string] }
 ```
 
+## Inputs and outputs
+
+- In: the `ModelRequest` (step, risk, modality, whether tools are enabled), the mode, provider health, the hosted budget state.
+- Out: a `Route` (chosen model alias, the rule that chose it, the allowed fallbacks) to the model layer.
+
 ## Invariants
 
 - Rules are evaluated in order; the first whose `when` matches wins. A final rule with an empty

@@ -42,6 +42,11 @@ record AuditRecord {
 record VerifyResult { ok: bool, records: int, first_bad_record?: string }
 ```
 
+## Inputs and outputs
+
+- In: `AuditEntry` records from `policy` (decisions) and `approval` (decisions), and later from `release` and `memory_writer`.
+- Out: an `AuditRecord` with its id and chain hash; listings and chain verification for the inspector and for compliance export.
+
 ## Invariants
 
 - There is no update or delete method. Storage MUST reject updates (for example a trigger or a
