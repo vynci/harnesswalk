@@ -35,7 +35,11 @@ export function toFlow(
   }))
 
   const byId = new Map(lay.nodes.map((n) => [n.id, n]))
-  const current = turn.paused?.nodeId ?? (turn.phase === 'running' ? turn.focus : null)
+  // The node that holds control. When it is not drawn (an expert child in the simple view, or
+  // inside a collapsed parent), its nearest drawn ancestor stands in for it.
+  const parentOf = new Map(diagram.nodes.map((n) => [n.id, n.parent]))
+  let current = turn.paused?.nodeId ?? (turn.phase === 'running' ? turn.focus : null)
+  while (current && !byId.has(current)) current = parentOf.get(current) ?? null
   const harnessNodes: HarnessFlowNode[] = lay.nodes.map((l) => {
     const run = turn.nodes[l.id]
     const state = run?.state ?? 'idle'
