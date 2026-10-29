@@ -21,6 +21,8 @@ models:
 router:
   rules:
     - { id: summarize, when: { step: summarize }, use: [local-small, local-8b, hosted-small, compat-default] }
+    # Public mode stays on local models until the hosted daily budget lands (P6).
+    - { id: public,    when: { mode: public },    use: [local-8b, fake-small] }
     - { id: default,   when: {},                  use: [local-8b, hosted-small, compat-default, fake-small] }
 
 model_layer:
