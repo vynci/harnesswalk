@@ -79,8 +79,8 @@ def _check_writer(what: str, writer: str) -> None:
 class SessionStore:
     kind = "session"
 
-    def __init__(self, path: str) -> None:
-        self.db = Database(path, SCHEMA)
+    def __init__(self, path: str, *, readonly: bool = False) -> None:
+        self.db = Database(path, SCHEMA, readonly=readonly)
 
     def ensure_session(self, tenant_id: str, session_id: str, dataset: str) -> str:
         """Create the session, or check it belongs to this tenant. Returns its dataset."""

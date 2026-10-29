@@ -71,3 +71,37 @@ def test_turns_lists_a_session_and_cancel_after_stops_a_turn(tmp_path, monkeypat
     turns = json.loads(capsys.readouterr().out)
     assert [t["exit"] for t in turns] == ["cancelled"]
     assert main(["turns", session, "--tenant", "someone_else"]) == 1
+
+
+def test_read_commands_never_create_or_write_stores(tmp_path, monkeypatch, capsys) -> None:
+    data = tmp_path / "data"
+    monkeypatch.setenv("HARNESSWALK_DATA_DIR", str(data))
+    assert main(["turns", "sess_nope"]) == 1
+    assert main(["events", "turn_nope"]) == 1
+    assert not data.exists()  # reading opened nothing read/write, so created nothing
+    assert "no session sess_nope" in capsys.readouterr().err
+
+    assert main(["turn", "Hello", "--provider", "fake", "--fixture", "two_turns"]) == 0
+    session = capsys.readouterr().out.split("session ")[1].split()[0]
+    stores = sorted(p for p in data.iterdir() if p.suffix == ".db")
+    before = {p.name: p.read_bytes() for p in stores}
+    assert main(["turns", session]) == 0 and main(["turns", "sess_other"]) == 1
+    assert {p.name: p.read_bytes() for p in stores} == before
+
+
+def test_make_run_respects_a_web_dist_from_the_environment(tmp_path) -> None:
+    import os
+    import subprocess
+
+    from tests.spec.support import ROOT
+
+    env = {k: v for k, v in os.environ.items() if k != "HARNESSWALK_WEB_DIST"}
+    default = subprocess.run(
+        ["make", "-n", "run"], cwd=ROOT, env=env, capture_output=True, text=True, check=True
+    ).stdout
+    assert f'HARNESSWALK_WEB_DIST="{ROOT}/web/dist"' in default
+    env["HARNESSWALK_WEB_DIST"] = str(tmp_path / "dist")
+    custom = subprocess.run(
+        ["make", "-n", "run"], cwd=ROOT, env=env, capture_output=True, text=True, check=True
+    ).stdout
+    assert f'HARNESSWALK_WEB_DIST="{tmp_path}/dist"' in custom

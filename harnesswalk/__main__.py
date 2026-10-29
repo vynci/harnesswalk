@@ -156,12 +156,36 @@ async def _run_turn(args: argparse.Namespace) -> int:
     return 0 if end["status"] == "done" else 1
 
 
-def _events(args: argparse.Namespace) -> int:
+def _read_stores(args: argparse.Namespace, *names: str) -> list[Any] | None:
+    """The trace and session stores, opened read-only, or None when one does not exist yet.
+
+    Read commands never create a store file or change one a running server is using.
+    """
+    import sqlite3
+
+    from harnesswalk.context.stores.session import SessionStore
     from harnesswalk.ops.trace import Tracer
 
     settings = _settings(args)
-    tracer = Tracer(str(settings.resolve(settings.get("trace.sqlite_path", "data/trace.db"))))
-    events = tracer.get_turn(args.tenant, args.turn_id)
+    kinds = {
+        "trace": (Tracer, "trace.sqlite_path", "data/trace.db"),
+        "session": (SessionStore, "stores.session.sqlite_path", "data/session.db"),
+    }
+    stores = []
+    try:
+        for name in names:
+            cls, key, default = kinds[name]
+            stores.append(cls(str(settings.resolve(settings.get(key, default))), readonly=True))
+    except sqlite3.Error:
+        for store in stores:
+            store.db.close()
+        return None
+    return stores
+
+
+def _events(args: argparse.Namespace) -> int:
+    stores = _read_stores(args, "trace")
+    events = stores[0].get_turn(args.tenant, args.turn_id) if stores else []
     if not events:
         print(f"no stored turn {args.turn_id} for tenant {args.tenant}", file=sys.stderr)
         return 1
@@ -171,16 +195,10 @@ def _events(args: argparse.Namespace) -> int:
 
 
 def _turns(args: argparse.Namespace) -> int:
-    from harnesswalk.context.stores.session import SessionStore
-    from harnesswalk.ops.trace import Tracer
     from harnesswalk.turns import session_turns
 
-    settings = _settings(args)
-    tracer = Tracer(str(settings.resolve(settings.get("trace.sqlite_path", "data/trace.db"))))
-    session = SessionStore(
-        str(settings.resolve(settings.get("stores.session.sqlite_path", "data/session.db")))
-    )
-    turns = session_turns(tracer, session, args.tenant, args.session_id, args.limit)
+    stores = _read_stores(args, "trace", "session")
+    turns = session_turns(*stores, args.tenant, args.session_id, args.limit) if stores else None
     if turns is None:
         print(f"no session {args.session_id} for tenant {args.tenant}", file=sys.stderr)
         return 1

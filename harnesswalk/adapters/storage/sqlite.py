@@ -14,13 +14,23 @@ from typing import Any
 
 
 class Database:
-    def __init__(self, path: Path | str, schema: str) -> None:
+    """One SQLite file. `readonly` opens an existing file without creating or changing it
+    (sqlite3.OperationalError when it does not exist), for commands that only read."""
+
+    def __init__(self, path: Path | str, schema: str, *, readonly: bool = False) -> None:
         self.path = Path(path) if str(path) != ":memory:" else path
+        self._lock = threading.Lock()
+        if readonly:
+            uri = Path(path).resolve().as_uri() + "?mode=ro"
+            self._conn = sqlite3.connect(
+                uri, uri=True, check_same_thread=False, isolation_level=None
+            )
+            self._conn.row_factory = sqlite3.Row
+            return
         if isinstance(self.path, Path):
             self.path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(path), check_same_thread=False, isolation_level=None)
         self._conn.row_factory = sqlite3.Row
-        self._lock = threading.Lock()
         with self._lock:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA synchronous=NORMAL")

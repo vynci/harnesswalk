@@ -11,10 +11,13 @@ conformance: ## Run every spec/conformance case against the live harness, then t
 	uv run python -m tests.conformance.runner
 	uv run pytest tests/spec -q
 
+# The web app `make run` serves. A HARNESSWALK_WEB_DIST already set in the environment wins.
+HARNESSWALK_WEB_DIST ?= $(CURDIR)/web/dist
+
 run: ## Start the API (and web/dist when built) on 127.0.0.1:8000. Without Ollama: make run PROVIDER=fake FIXTURE=plain_answer
-	@if [ -f web/dist/index.html ]; then echo "serving the web app from web/dist at http://127.0.0.1:8000/"; \
-	else echo "no web/dist yet (make web-build); serving the API only"; fi
-	HARNESSWALK_WEB_DIST="$(CURDIR)/web/dist" uv run harnesswalk serve $(if $(PROVIDER),--provider $(PROVIDER)) $(if $(FIXTURE),--fixture $(FIXTURE))
+	@if [ -f "$(HARNESSWALK_WEB_DIST)/index.html" ]; then echo "serving the web app from $(HARNESSWALK_WEB_DIST) at http://127.0.0.1:8000/"; \
+	else echo "no web app in $(HARNESSWALK_WEB_DIST) yet (make web-build); serving the API only"; fi
+	HARNESSWALK_WEB_DIST="$(HARNESSWALK_WEB_DIST)" uv run harnesswalk serve $(if $(PROVIDER),--provider $(PROVIDER)) $(if $(FIXTURE),--fixture $(FIXTURE))
 
 web-build: ## Build the web app into web/dist with pnpm (make run then serves it)
 	@if [ -f web/package.json ]; then \

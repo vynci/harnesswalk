@@ -56,8 +56,8 @@ class TraceRejected(Exception):
 
 
 class Tracer:
-    def __init__(self, path: str, *, buffer_events: int = 10000) -> None:
-        self.db = Database(path, SCHEMA)
+    def __init__(self, path: str, *, buffer_events: int = 10000, readonly: bool = False) -> None:
+        self.db = Database(path, SCHEMA, readonly=readonly)
         self.store = "sqlite"
         self.buffer_events = buffer_events
         self._buffer: list[Event] = []
