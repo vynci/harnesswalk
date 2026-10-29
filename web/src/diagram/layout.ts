@@ -1,18 +1,24 @@
 // Deterministic layout of the served diagram. Pure functions, no React: the same diagram,
-// view and collapsed set always produce the same coordinates.
+// view and collapsed set always produce the same coordinates and edge routes.
 //
 // Rules:
-// 1. A node with a `layout` hint in diagram.json is placed exactly there.
+// 1. A node with a `layout` hint in diagram.json is placed exactly there (`layout.expert` in the
+//    expert view, where parents grow to hold their children).
 // 2. Otherwise the runtime planes (control, context, execution) are columns left to right in
 //    `groups[].order`, and the ops plane, which sits outside the runtime, is a row beneath them.
 //    Inside a plane dagre lays the nodes out over the plane's own edges plus a chain in walk
 //    order, so a column reads top to bottom in the order a request meets it.
 // 3. In the expert view an expanded parent becomes a container and its expert children sit
 //    inside it in a two-column grid.
-// 4. Edges between planes leave and enter by the sides; an edge that skips over a node in its
-//    own column bends around the column (downward on the right, upward on the left).
+// 4. The runtime columns share one top and one bottom; the ops row sits beneath them.
+// 5. An edge whose `layout` hint was drawn for these node boxes follows its hint: named sides,
+//    bend points (route.ts). Every other edge is routed automatically around the node boxes.
+// 6. In the simple view the edges to and from LLM Ops and the telemetry edges are optional: the
+//    renderer hides them by default and draws one bus per runtime plane into each ops node
+//    instead, clipped to start at the plane's border.
 import { Graph, layout as dagreLayout } from '@dagrejs/dagre'
-import type { Diagram, DiagramEdge, DiagramNode, PlaneId, View } from '@/api/types'
+import type { Diagram, DiagramEdge, DiagramNode, EdgeKind, PlaneId, Side, View } from '@/api/types'
+import { autoRoute, clipRouteFrom, hintedRoute, labelSpot, RouteBook, type LabelSpot, type Obstacle, type Pt, type Rect } from './route'
 
 export const NODE_W = 184
 export const NODE_H = 72
@@ -23,6 +29,9 @@ export const PARENT_HEADER = 64
 export const PLANE_PAD = 22
 export const PLANE_HEADER = 34
 export const PLANE_GAP = 56
+/** Clearance the automatic router keeps from a top-level node and from a nested child. */
+const PAD_NODE = 10
+const PAD_CHILD = 3
 export const RANK_SEP = 36
 /** Planes drawn as a horizontal row under the runtime columns. */
 export const ROW_PLANES: ReadonlySet<PlaneId> = new Set<PlaneId>(['ops'])
@@ -61,17 +70,34 @@ export interface PlaneBox {
   height: number
 }
 
-export type Side = 'top' | 'right' | 'bottom' | 'left'
+export type { Side }
 
 export interface VisibleEdge {
+  /** The diagram edge id, or `bus__<plane>__<node>` for a telemetry bus. */
   id: string
+  /** The diagram edge; for a bus, the first edge it stands in for. */
   edge: DiagramEdge
+  kind: EdgeKind
+  label: string
   source: string
   target: string
   sourceSide: Side
   targetSide: Side
   /** Diagram edge ids whose activity this drawn edge shows (itself plus hidden refinements). */
   carries: string[]
+  /** The route, absolute diagram coordinates, from the source port to the target port. */
+  points: Pt[]
+  labelAt: LabelSpot
+  /** The plane of the source node: a request edge takes its colour. */
+  sourcePlane: PlaneId
+  /** A request edge travelling back against walk order (the reply). */
+  reverse: boolean
+  /** Simple view only: hidden unless telemetry is shown, an end is hovered or it is active. */
+  optional: boolean
+  /** Simple view only: the one line drawn in place of hidden telemetry edges. */
+  bus: boolean
+  /** True when the route came from diagram.json hints. */
+  hinted: boolean
 }
 
 export interface DiagramLayout {
@@ -102,30 +128,6 @@ export function rollupTarget(diagram: Diagram, nodeId: string, visible: Readonly
   const node = diagram.nodes.find((n) => n.id === nodeId)
   if (node?.parent && visible.has(node.parent)) return node.parent
   return null
-}
-
-function sideBetween(a: LaidOutNode, b: LaidOutNode, others: LaidOutNode[]): [Side, Side] {
-  const ax = a.x + a.width / 2
-  const ay = a.y + a.height / 2
-  const bx = b.x + b.width / 2
-  const by = b.y + b.height / 2
-  const dx = bx - ax
-  const dy = by - ay
-  // Side by side: leave and enter horizontally.
-  if (Math.abs(dx) > Math.max(a.width, b.width) / 2 && Math.abs(dx) >= Math.abs(dy) / 2) {
-    return dx > 0 ? ['right', 'left'] : ['left', 'right']
-  }
-  if (Math.abs(dx) > Math.max(a.width, b.width) / 2) {
-    return dy >= 0 ? ['bottom', 'top'] : ['top', 'bottom']
-  }
-  // Same column: go straight unless another node sits in between, then bend around it.
-  const top = Math.min(a.y + a.height, b.y + b.height)
-  const bottom = Math.max(a.y, b.y)
-  const blocked = others.some(
-    (o) => o !== a && o !== b && !o.parentId && o.y >= top && o.y + o.height <= bottom && o.x < Math.max(a.x + a.width, b.x + b.width) && o.x + o.width > Math.min(a.x, b.x),
-  )
-  if (blocked) return dy >= 0 ? ['right', 'right'] : ['left', 'left']
-  return dy >= 0 ? ['bottom', 'top'] : ['top', 'bottom']
 }
 
 /** Edges drawn in this view, with the refinement and roll-up rules applied. */
@@ -205,6 +207,11 @@ function layoutPlane(
   return out
 }
 
+function hintPos(n: DiagramNode, view: View): { x: number; y: number } | undefined {
+  if (!n.layout) return undefined
+  return view === 'expert' && n.layout.expert ? n.layout.expert : n.layout
+}
+
 export function computeLayout(diagram: Diagram, opts: ViewOptions): DiagramLayout {
   const visible = visibleNodeIds(diagram, opts)
   const planes = [...diagram.groups].sort((a, b) => a.order - b.order)
@@ -222,13 +229,14 @@ export function computeLayout(diagram: Diagram, opts: ViewOptions): DiagramLayou
     for (const m of members) {
       const p = local.get(m.id)!
       const box = sizes.get(m.id)!
+      const hint = hintPos(m, opts.view)
       maxRight = Math.max(maxRight, p.x + box.width)
       maxBottom = Math.max(maxBottom, p.y + box.height)
       laid.set(m.id, {
         id: m.id,
         node: m,
-        x: m.layout ? m.layout.x : originX + PLANE_PAD + p.x,
-        y: m.layout ? m.layout.y : originY + PLANE_HEADER + PLANE_PAD + p.y,
+        x: hint ? hint.x : originX + PLANE_PAD + p.x,
+        y: hint ? hint.y : originY + PLANE_HEADER + PLANE_PAD + p.y,
         width: box.width,
         height: box.height,
         expanded: box.expanded,
@@ -282,8 +290,9 @@ export function computeLayout(diagram: Diagram, opts: ViewOptions): DiagramLayou
     })
   }
 
+  // Plane boxes are the bounding boxes of their members (layout hints included); the runtime
+  // columns then share one top and one bottom so they read as one band.
   const planeBoxes: PlaneBox[] = []
-  // Plane boxes are the bounding boxes of their members (layout hints included).
   for (const plane of planes) {
     const members = [...laid.values()].filter((n) => n.node.group === plane.id && !n.parentId)
     if (members.length === 0) continue
@@ -300,14 +309,17 @@ export function computeLayout(diagram: Diagram, opts: ViewOptions): DiagramLayou
       height: maxY - minY + 2 * PLANE_PAD + PLANE_HEADER,
     })
   }
+  const columns = planeBoxes.filter((p) => !ROW_PLANES.has(p.id))
+  if (columns.length > 1) {
+    const top = Math.min(...columns.map((p) => p.y))
+    const bottom = Math.max(...columns.map((p) => p.y + p.height))
+    for (const p of columns) {
+      p.y = top
+      p.height = bottom - top
+    }
+  }
 
-  const all = [...laid.values()]
-  const edges: VisibleEdge[] = visibleEdges(diagram, visible).map(({ edge, carries }) => {
-    const a = laid.get(edge.from)!
-    const b = laid.get(edge.to)!
-    const [sourceSide, targetSide] = sideBetween(a, b, all)
-    return { id: edge.id, edge, source: edge.from, target: edge.to, sourceSide, targetSide, carries }
-  })
+  const edges = routeEdges(diagram, opts, visible, laid, planeBoxes)
 
   // Children follow their parent in the list so a renderer can nest them.
   const ordered: LaidOutNode[] = []
@@ -323,5 +335,160 @@ export function computeLayout(diagram: Diagram, opts: ViewOptions): DiagramLayou
   }
   const width = Math.max(0, ...planeBoxes.map((p) => p.x + p.width))
   const height = Math.max(0, ...planeBoxes.map((p) => p.y + p.height))
-  return { nodes: ordered, planes: planeBoxes, edges, width, height }
+  const minX = Math.min(0, ...planeBoxes.map((p) => p.x))
+  const minY = Math.min(0, ...planeBoxes.map((p) => p.y))
+  return { nodes: ordered, planes: planeBoxes, edges, width: width - minX, height: height - minY }
+}
+
+/** True when an edge belongs to LLM Ops or telemetry, which the simple view may hide. */
+export function isOpsEdge(diagram: Diagram, edge: DiagramEdge): boolean {
+  if (edge.kind === 'telemetry') return true
+  const group = (id: string) => diagram.nodes.find((n) => n.id === id)?.group
+  const a = group(edge.from)
+  const b = group(edge.to)
+  return (a !== undefined && ROW_PLANES.has(a)) || (b !== undefined && ROW_PLANES.has(b))
+}
+
+function routeEdges(
+  diagram: Diagram,
+  opts: ViewOptions,
+  visible: ReadonlySet<string>,
+  laid: Map<string, LaidOutNode>,
+  planeBoxes: PlaneBox[],
+): VisibleEdge[] {
+  const walk = new Map(diagram.walk_order.map((id, i) => [id, i]))
+  const byId = new Map(diagram.nodes.map((n) => [n.id, n]))
+  // Hints were drawn for the simple-view boxes. In the expert view they still hold for an edge
+  // whose two ends sit exactly where they do in the simple view.
+  const simpleSize = (n: DiagramNode) => sizeOf(diagram, n, visibleNodeIds(diagram, { view: 'simple', collapsed: new Set() }))
+  const hintHolds = (id: string) => {
+    const n = byId.get(id)!
+    const l = laid.get(id)!
+    if (!n.layout || l.parentId) return false
+    if (opts.view === 'simple') return true
+    const s = simpleSize(n)
+    return l.x === n.layout.x && l.y === n.layout.y && l.width === s.width && l.height === s.height
+  }
+
+  const book = new RouteBook()
+  const drawn = visibleEdges(diagram, visible)
+  const routes = new Map<string, { points: Pt[]; sourceSide: Side; targetSide: Side; hinted: boolean }>()
+  const rectOf = (id: string): Rect => {
+    const l = laid.get(id)!
+    return { x: l.x, y: l.y, width: l.width, height: l.height }
+  }
+  // Hinted edges first, so the automatic ones route around them.
+  for (const { edge } of drawn) {
+    const h = edge.layout
+    if (!h?.handles?.source || !h.handles.target || !hintHolds(edge.from) || !hintHolds(edge.to)) continue
+    const points = hintedRoute(rectOf(edge.from), rectOf(edge.to), {
+      source: h.handles.source,
+      target: h.handles.target,
+      waypoints: (h.waypoints ?? []).map(([x, y]) => [x, y] as Pt),
+    })
+    book.add(edge.id, points)
+    const along = (pt: Pt, side: Side) => (side === 'left' || side === 'right' ? pt[1] : pt[0])
+    book.takePort(edge.from, h.handles.source, along(points[0]!, h.handles.source))
+    book.takePort(edge.to, h.handles.target, along(points[points.length - 1]!, h.handles.target))
+    routes.set(edge.id, { points, sourceSide: h.handles.source, targetSide: h.handles.target, hinted: true })
+  }
+  const ancestors = (id: string) => {
+    const out = new Set([id])
+    let p = laid.get(id)?.parentId
+    while (p) {
+      out.add(p)
+      p = laid.get(p)?.parentId
+    }
+    return out
+  }
+  for (const { edge } of drawn) {
+    if (routes.has(edge.id)) continue
+    const skip = new Set([...ancestors(edge.from), ...ancestors(edge.to)])
+    const obstacles: Obstacle[] = [...laid.values()]
+      .filter((l) => !skip.has(l.id))
+      .map((l) => ({ x: l.x, y: l.y, width: l.width, height: l.height, pad: l.parentId ? PAD_CHILD : PAD_NODE }))
+    // An edge out of a nested child leaves its open parent by a side, not across the title.
+    for (const id of skip) {
+      const l = laid.get(id)!
+      if (l.expanded && id !== edge.from && id !== edge.to) {
+        obstacles.push({ x: l.x + 1, y: l.y + 1, width: l.width - 2, height: PARENT_HEADER - CHILD_GAP - 4, pad: 0 })
+      }
+    }
+    const r = autoRoute(
+      {
+        id: edge.id,
+        sourceId: edge.from,
+        targetId: edge.to,
+        src: rectOf(edge.from),
+        tgt: rectOf(edge.to),
+        // The hinted sides still say which way an edge should leave and arrive.
+        sourceSides: edge.layout?.handles?.source ? [edge.layout.handles.source] : undefined,
+        targetSides: edge.layout?.handles?.target ? [edge.layout.handles.target] : undefined,
+        obstacles,
+        // Ops edges keep to a lane below the runtime planes instead of crossing them.
+        avoid: isOpsEdge(diagram, edge) ? planeBoxes.filter((p) => !ROW_PLANES.has(p.id)) : undefined,
+        sourceStub: laid.get(edge.from)!.parentId ? 6 : undefined,
+        targetStub: laid.get(edge.to)!.parentId ? 6 : undefined,
+      },
+      book,
+    )
+    routes.set(edge.id, { ...r, hinted: false })
+  }
+
+  const simple = opts.view === 'simple'
+  const out: VisibleEdge[] = drawn.map(({ edge, carries }) => {
+    const r = routes.get(edge.id)!
+    const from = byId.get(edge.from)!
+    const reverse = edge.kind === 'request' && (walk.get(edge.to) ?? 0) < (walk.get(edge.from) ?? 0)
+    return {
+      id: edge.id,
+      edge,
+      kind: edge.kind,
+      label: edge.label,
+      source: edge.from,
+      target: edge.to,
+      sourceSide: r.sourceSide,
+      targetSide: r.targetSide,
+      carries,
+      points: r.points,
+      labelAt: labelSpot(r.points, edge.layout?.label),
+      sourcePlane: from.group,
+      reverse,
+      optional: simple && isOpsEdge(diagram, edge),
+      bus: false,
+      hinted: r.hinted,
+    }
+  })
+
+  if (simple) {
+    // One bus per (runtime plane, ops node) for the hidden edges that cross into LLM Ops.
+    const buses = new Map<string, VisibleEdge>()
+    for (const e of out) {
+      if (!e.optional) continue
+      const to = byId.get(e.target)!
+      if (ROW_PLANES.has(e.sourcePlane) || !ROW_PLANES.has(to.group)) continue
+      const id = `bus__${e.sourcePlane}__${e.target}`
+      const prev = buses.get(id)
+      if (prev) {
+        prev.carries.push(...e.carries)
+        continue
+      }
+      const box = planeBoxes.find((p) => p.id === e.sourcePlane)
+      const points = box ? clipRouteFrom(e.points, box) : e.points
+      buses.set(id, {
+        ...e,
+        id,
+        kind: 'telemetry',
+        label: 'telemetry',
+        carries: [...e.carries],
+        points,
+        labelAt: labelSpot(points, e.edge.layout?.label),
+        reverse: false,
+        optional: false,
+        bus: true,
+      })
+    }
+    out.push(...buses.values())
+  }
+  return out
 }
