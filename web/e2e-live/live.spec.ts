@@ -99,9 +99,13 @@ test('tool_call: a read-only tool runs under policy and the reply streams in', a
   })
   await expect(page.getByTestId('stat-policy')).toContainText('allow')
   await expect(page.getByTestId('badge-procedural')).toHaveAttribute('data-lit', 'true')
-  // The stub stores report skipped: their badges stay unlit.
-  await expect(page.getByTestId('badge-semantic')).toHaveAttribute('data-state', 'skipped')
-  await expect(page.getByTestId('badge-semantic')).toHaveAttribute('data-lit', 'false')
+  // P3: the seed fact about A-1001 makes semantic memory answer too.
+  await expect(page.getByTestId('badge-semantic')).toHaveAttribute('data-state', 'done')
+  await expect(page.getByTestId('badge-semantic')).toHaveAttribute('data-lit', 'true')
+  // The tool line says where the call ran: the subprocess sandbox, network blocked.
+  const line = page.getByTestId('tool-line').last()
+  await expect(line.getByTestId('sandbox-chip')).toHaveAttribute('data-level', 'subprocess')
+  await expect(line.getByTestId('sandbox-chip')).toHaveAttribute('data-network', 'blocked')
   const turn = await lastTurn(page, request)
   expect(turn.exit).toBe('answered')
   await expect(page.getByTestId('assistant-message').last()).toHaveText(turn.reply!)

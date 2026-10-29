@@ -1,0 +1,8 @@
+# A live e2e harness with every memory proposal held at the review gate (p3.spec.ts starts it
+# on its own port), so Accept and Reject in the memory writer's inspector can be tried.
+memory_writer:
+  gate: review
+policy:
+  budgets:
+    tenants:
+      e2e-budget: { tool_calls_per_turn: 2 }

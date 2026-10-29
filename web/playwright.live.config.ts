@@ -50,8 +50,9 @@ export default defineConfig({
       HARNESSWALK_ROOT: repo,
       HARNESSWALK_DATA_DIR: data,
       HARNESSWALK_WEB_DIST: dist,
-      // Nothing from the caller's shell may change the harness under test.
-      HARNESSWALK_PROFILE: '',
+      // Nothing from the caller's shell may change the harness under test. The one profile
+      // only adds a tenant with a tool-call budget of two (e2e-live/profile.yaml).
+      HARNESSWALK_PROFILE: 'web/e2e-live/profile.yaml',
       HARNESSWALK_DATASET: '',
       HARNESSWALK_OLLAMA_URL: '',
     },

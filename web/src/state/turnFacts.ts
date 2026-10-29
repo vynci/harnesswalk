@@ -200,6 +200,17 @@ export function memoryPoints(events: HarnessEvent[]): MemoryPoint[] {
   return out
 }
 
+/** Proposals the memory writer rejected (its exit summary's `rejections`), by proposal id. */
+export function memoryRejections(events: HarnessEvent[]): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const e of events) {
+    const list = e.type === 'node_exit' ? e.summary?.rejections : undefined
+    if (!Array.isArray(list)) continue
+    for (const r of list) if (isRecord(r) && typeof r.proposal_id === 'string') out.set(r.proposal_id, str(r.reason) ?? 'rejected')
+  }
+  return out
+}
+
 /** The first error of the turn with this code (rule 8: `restarted`, `cancelled`...). */
 export function errorWithCode(events: HarnessEvent[], code: string): HarnessEvent | undefined {
   return events.find((e) => e.type === 'error' && e.error?.code === code)

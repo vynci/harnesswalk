@@ -14,7 +14,7 @@ import {
   TraceTitle,
 } from '@/components/ui/trace'
 import { formatMs } from '@/diagram/stats'
-import { memoryPoints } from '@/state/turnFacts'
+import { memoryPoints, memoryRejections } from '@/state/turnFacts'
 import { toolCalls, type ToolCallView } from './toolCalls'
 
 function Json({ value }: { value: unknown }) {
@@ -129,21 +129,35 @@ export function MemoryTrace({ events }: { events: HarnessEvent[] }) {
   const lines = useMemo(() => {
     const points = memoryPoints(events)
     const written = new Map(points.filter((p) => p.type === 'memory_written').map((p) => [p.proposalId, p]))
+    const rejected = memoryRejections(events)
     return points
       .filter((p) => p.type === 'memory_proposed' && p.source !== 'turn')
-      .map((p) => ({ ...p, written: written.get(p.proposalId) }))
+      .map((p) => ({ ...p, written: written.get(p.proposalId), rejected: rejected.get(p.proposalId) }))
   }, [events])
   if (lines.length === 0) return null
   return (
     <Trace role="group" aria-label="Memory writes" data-testid="memory-trace" className="text-xs">
       {lines.map((l) => (
-        <TraceLine key={l.proposalId} className="text-xs" status={l.written ? undefined : 'pending'} data-testid="memory-line" data-store={l.store} data-written={l.written ? 'true' : 'false'}>
+        <TraceLine
+          key={l.proposalId}
+          className="text-xs"
+          status={l.written || l.rejected ? undefined : 'pending'}
+          data-testid="memory-line"
+          data-store={l.store}
+          data-written={l.written ? 'true' : 'false'}
+          data-rejected={l.rejected ?? undefined}
+        >
           <TraceIcon>
             <Brain />
           </TraceIcon>
-          <TraceTitle className="shrink-0">{l.written ? `Remembered in ${l.store}` : `Proposed for ${l.store}`}</TraceTitle>
+          <TraceTitle className="shrink-0">{l.written ? `Remembered in ${l.store}` : l.rejected ? `Not remembered in ${l.store}` : `Proposed for ${l.store}`}</TraceTitle>
           <TraceDescription className="min-w-0 shrink truncate">
-            {[l.preview, l.written ? `${l.written.op ?? 'write'} v${l.written.version ?? 1}` : `waiting at the ${l.gate ?? 'review'} gate`].filter(Boolean).join(' · ')}
+            {[
+              l.preview,
+              l.written ? `${l.written.op ?? 'write'} v${l.written.version ?? 1}` : l.rejected ? `rejected: ${l.rejected.replace(/_/g, ' ')}` : `waiting at the ${l.gate ?? 'review'} gate`,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </TraceDescription>
         </TraceLine>
       ))}

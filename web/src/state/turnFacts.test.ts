@@ -9,6 +9,7 @@ import {
   inputGuardFacts,
   limitFacts,
   memoryPoints,
+  memoryRejections,
   outputGuardFacts,
   placeholderValues,
   splitPlaceholders,
@@ -85,6 +86,9 @@ describe('turn facts read from summary keys', () => {
     expect(open.nodes.w!.points).toEqual({ memory_proposed: 1, memory_written: 1 })
     expect(open.nodes.w!.state).toBe('active')
     expect(pointStat(open.nodes.w)).toBe('1 proposed · 1 written')
+    seq = 0
+    const rejected = [ev('node_exit', 'w', { proposed: 1, written: 0, rejected: 1, rejections: [{ proposal_id: 'p9', reason: 'duplicate' }] })]
+    expect(memoryRejections(rejected).get('p9')).toBe('duplicate')
   })
 
   it('tool lines carry the sandbox level, network and jail, and the policy why and budget', () => {
