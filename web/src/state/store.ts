@@ -88,6 +88,17 @@ export interface AppState {
 let stream: TurnStream | null = null
 let noticeId = 0
 
+/**
+ * A fresh session id in the server's own format. The UI always names its session, because a
+ * request without one continues the session in the API's cookie: "New session" would then
+ * quietly append to the old one.
+ */
+export function newSessionId(): string {
+  const bytes = new Uint8Array(10)
+  globalThis.crypto.getRandomValues(bytes)
+  return 'sess_' + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 function describe(err: unknown): string {
   if (err instanceof ApiError) return `${err.message} (${err.status} ${err.code})`
   if (err instanceof Error) return err.message
@@ -251,7 +262,7 @@ export const useApp = create<AppState>()((set, get) => {
       try {
         const res = await api.startTurn({
           message,
-          ...(sessionId ? { session_id: sessionId } : {}),
+          session_id: sessionId ?? newSessionId(),
           ...(stepMode ? { step: true } : {}),
           ...(dev && provider ? { provider } : {}),
           ...(dev && fixture ? { fixture } : {}),
