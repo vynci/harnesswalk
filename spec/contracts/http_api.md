@@ -22,6 +22,10 @@ dev-mode CORS.
 | `GET /v1/nodes/{node_id}/source` | Code peek | P2 |
 | `GET /v1/capabilities` | What this build can do | P2 |
 | `GET /healthz` | Readiness | P1 |
+| `GET /v1/memory/proposals` | Memory proposals of the caller (`?status=pending` waiting at the review gate, default; `all` the last ones with their outcome and diff) | P3 |
+| `POST /v1/memory/proposals/{id}` | Decide a proposal at the review gate: `{"decision": "accept" \| "reject", "reason"?}` | P3 |
+| `GET /v1/knowledge/docs` | The documents the caller can retrieve from (pack and own) | P3 |
+| `GET /v1/knowledge/docs/{doc_id}` | One document with its chunks and their citation strings | P3 |
 
 ## Conventions
 
@@ -475,3 +479,27 @@ Accepted for P2 and scheduled, so a UI author does not mistake them for the cont
 
 Uploads, sign-in endpoints, eval and release endpoints, feedback (`POST /v1/turns/{id}/feedback`
 arrives with online eval in P4), WebSocket transport.
+
+## Context plane routes (P3)
+
+All four are tenant-scoped like every other route.
+
+- `GET /v1/memory/proposals?status=pending|all&limit=<n>` returns `{"proposals": [...]}`. Each
+  item has `proposal_id`, `store`, `content` (redacted), `source`, `evidence`, `gate`,
+  `status`, `reason`, `record_id`, `version`, `created_at`, `decided_at`, `decided_by`; with
+  `all`, accepted items add `diff: {op, before, after}`.
+- `POST /v1/memory/proposals/{id}` with `{"decision": "accept" | "reject", "reason"?}`: `200`
+  with the decided record; `400` for another decision value; `403` in public mode (public
+  memory is never written); `404` for a proposal of another tenant or none; `409`
+  `proposal_not_pending` when it is not waiting at the review gate (decided at most once).
+- `GET /v1/knowledge/docs` returns `{"pack", "docs": [{doc_id, title, path, kind, version,
+  chunks, scope}]}` (`scope` is `pack` or `tenant`).
+- `GET /v1/knowledge/docs/{doc_id}` returns `{doc_id, title, path, kind, version, scope, text,
+  chunks: [{position, heading, text, tokens, citation}]}`, or `404` `doc_not_found`. A
+  citation chip (`turn_end.summary.citations`) opens here at `chunks[chunk]`.
+
+The store inspectors (`GET /v1/nodes/semantic`, `episodic`, `knowledge`, `memory`) return
+`counts`, `last_records` (tenant-scoped; pack seeds and documents marked `scope: pack`) and
+`settings` (embedder, vector backend, ranking settings). `GET /v1/nodes/memory_writer` adds
+`last_writes` (the last proposals with their outcome and, for writes, a diff), `pending` and
+`settings` (including `gate_in_this_mode`).
