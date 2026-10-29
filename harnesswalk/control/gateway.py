@@ -29,7 +29,7 @@ from harnesswalk.events import Breakpoints, TurnEmitter, new_trace_id, uuid7
 from harnesswalk.execution.loop import Limits
 from harnesswalk.nodes import node, register
 from harnesswalk.ops.trace import run_trace_node
-from harnesswalk.types import HarnessError, Identity, TurnContext
+from harnesswalk.types import Identity, TurnContext
 
 if TYPE_CHECKING:
     from harnesswalk.runtime import Harness
@@ -220,10 +220,11 @@ class Gateway:
                 reply = f"I can't take this message: {why}. Please shorten or rephrase it."
             else:
                 user_text = guard.text
-                emit.edge("input_guardrails_to_context_builder")
-                assembled = await h.context_builder.build(ctx, user_text)
-                emit.edge("context_builder_to_loop")
+                notice = h.loop.notices.get("error", "Something went wrong.")
                 try:
+                    emit.edge("input_guardrails_to_context_builder")
+                    assembled = await h.context_builder.build(ctx, user_text)
+                    emit.edge("context_builder_to_loop")
                     result = await h.loop.run(
                         ctx,
                         assembled.messages,
@@ -233,16 +234,24 @@ class Gateway:
                     )
                     answer, steps = result.answer.text, result.steps
                     exit_ = EXIT_FOR_REASON[result.exit_reason]
-                except HarnessError:
-                    answer, exit_ = h.loop.notices.get("error", "Something went wrong."), "error"
-                emit.edge("loop_to_output_guardrails")
-                checked = await h.output_guardrails.run(ctx, answer)
-                if checked.action == "block":
-                    exit_ = "blocked"
-                reply = checked.text
+                except Exception:
+                    # A downstream node failed and closed its own span: answer with a notice.
+                    if emit.stack:
+                        raise
+                    answer, exit_ = notice, "error"
+                try:
+                    emit.edge("loop_to_output_guardrails")
+                    checked = await h.output_guardrails.run(ctx, answer)
+                    if checked.action == "block":
+                        exit_ = "blocked"
+                    reply = checked.text
+                except Exception:
+                    if emit.stack:
+                        raise
+                    reply, exit_ = notice, "error"
                 emit.edge("output_guardrails_to_gateway")
 
-            reply = cap_reply(reply)
+            full_reply, reply = reply, cap_reply(reply)
             async with node(ctx, "gateway") as span:
                 span.set(phase="reply", channel=req.channel, reply_chars=len(reply))
                 size = int(self.cfg.get("stream_reply_chars", 0))
@@ -258,7 +267,11 @@ class Gateway:
             await run_memory_writer(ctx, [])
             receipt = await run_trace_node(ctx, h.tracer)
             emit.turn_end(
-                "done", {"exit": exit_, "steps": steps, "reply": reply}, cost=receipt["total"]
+                "done",
+                {"exit": exit_, "steps": steps, "reply": reply},
+                cost=receipt["total"],
+                # A truncated reply points at the full text in the trace (events.md rule 12).
+                detail={"reply": full_reply} if full_reply != reply else None,
             )
         except asyncio.CancelledError:
             exit_ = "cancelled"
@@ -268,6 +281,7 @@ class Gateway:
             self._close_after_failure(ctx, "internal", f"{type(exc).__name__}: {exc}")
         finally:
             state.reply, state.exit = reply, exit_
+            req.api_key = None  # a BYO key lives for this turn only
             self._open_sessions.pop(ctx.session_id, None)
             state.done.set()
 

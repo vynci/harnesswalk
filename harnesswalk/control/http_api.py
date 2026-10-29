@@ -26,6 +26,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -112,6 +113,11 @@ def create_app(harness: Harness) -> FastAPI:
         code = {404: "not_found", 405: "method_not_allowed"}.get(exc.status_code, "invalid_request")
         return error(exc.status_code, code, str(exc.detail))
 
+    @app.exception_handler(RequestValidationError)
+    async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
+        where = ", ".join(".".join(str(p) for p in e["loc"]) for e in exc.errors())
+        return error(400, "invalid_request", f"invalid parameters: {where}")
+
     async def read_json(request: Request) -> dict[str, Any]:
         length = request.headers.get("content-length")
         if length and length.isdigit() and int(length) > max_body:
@@ -184,15 +190,23 @@ def create_app(harness: Harness) -> FastAPI:
     async def turn_events(request: Request, turn_id: str, after_seq: int | None = None) -> Response:
         identity, _ = identities.resolve(request)
         tenant = identity.tenant_id
-        if gateway.get(tenant, turn_id) is None and not harness.tracer.turn_exists(tenant, turn_id):
+        running = gateway.get(tenant, turn_id)
+        if running is None and not harness.tracer.turn_exists(tenant, turn_id):
             raise GatewayError(404, "turn_not_found", f"No turn {turn_id} for this tenant.")
         last = request.headers.get("last-event-id")
         start = (
             after_seq if after_seq is not None else (int(last) if last and last.isdigit() else -1)
         )
 
+        async def stored():
+            # No live task (a finished turn, or one cut off by a restart): send what is stored.
+            for event in harness.tracer.get_turn(tenant, turn_id, start):
+                yield event
+
         async def stream():
-            async for event in harness.tracer.subscribe(tenant, turn_id, start):
+            live = running is not None and not running.done.is_set()
+            source = harness.tracer.subscribe(tenant, turn_id, start) if live else stored()
+            async for event in source:
                 if event is None:
                     yield ": keepalive\n\n"
                     continue

@@ -158,6 +158,7 @@ class Loop:
                 )
                 if not response.tool_calls:
                     exit_reason, text = "answer", response.text or ""
+                    self._checkpoint(ctx, step, messages, usage)
                     break
                 for i, call in enumerate(response.tool_calls):
                     key = call_key(call.name, call.arguments)
