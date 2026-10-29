@@ -78,8 +78,11 @@ class ModelProvider(Protocol):
     async def complete(self, request: ProviderRequest) -> ProviderResponse: ...
 
 
-def build_providers(settings: Any) -> dict[str, ModelProvider]:
-    """Instantiate every configured provider. Unconfigured ones are simply absent."""
+PROVIDER_NAMES = ("fake", "ollama", "anthropic", "openai_compatible")
+
+
+def build_provider(name: str, settings: Any) -> ModelProvider:
+    """Instantiate one provider from the settings."""
     from harnesswalk.execution.providers.anthropic import AnthropicProvider
     from harnesswalk.execution.providers.fake import FakeProvider
     from harnesswalk.execution.providers.ollama import OllamaProvider
@@ -91,8 +94,13 @@ def build_providers(settings: Any) -> dict[str, ModelProvider]:
         "anthropic": AnthropicProvider.from_settings,
         "openai_compatible": OpenAICompatibleProvider.from_settings,
     }
+    return factories[name](settings)
+
+
+def build_providers(settings: Any) -> dict[str, ModelProvider]:
+    """Instantiate every configured provider. Unconfigured ones are simply absent."""
     return {
-        name: factory(settings)
-        for name, factory in factories.items()
+        name: build_provider(name, settings)
+        for name in PROVIDER_NAMES
         if settings.provider_configured(name)
     }

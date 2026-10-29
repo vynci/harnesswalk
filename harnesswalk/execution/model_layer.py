@@ -79,13 +79,20 @@ class ModelLayer:
         self.capture_content = capture_content
         self.last_route: dict[str, dict[str, Any]] = {}  # tenant -> last routing decision
 
+    def router_for(self, ctx: TurnContext) -> Router:
+        """The router for this turn: narrowed to the turn's own providers when it picked one."""
+        if ctx.providers is None:
+            return self.router
+        chosen = ctx.providers
+        return self.router.restricted(lambda p: p in chosen)
+
     async def complete(
         self, ctx: TurnContext, request: ModelRequest, api_key: str | None = None
     ) -> ModelResponse:
         async with node(ctx, "model_layer", step=request.step) as span:
             route = await run_router(
                 ctx,
-                self.router,
+                self.router_for(ctx),
                 RouteRequest(
                     step=request.step,
                     step_kind=request.step_kind,
@@ -135,7 +142,7 @@ class ModelLayer:
         last_error: ProviderError | None = None
         for attempt, alias in enumerate(candidates, start=1):
             cfg = self.models[alias]
-            provider = self.providers[cfg["provider"]]
+            provider = (ctx.providers or self.providers)[cfg["provider"]]
             preq = ProviderRequest(
                 model=cfg.get("name", alias),
                 messages=request.messages,

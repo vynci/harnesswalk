@@ -138,8 +138,11 @@ class TurnContext:
     identity: Identity | None = None
     disabled_nodes: frozenset[str] = frozenset()
     started_mono: float = field(default_factory=time.monotonic)
-    interrupted: bool = False
+    interrupted: bool = False  # set by a cancel; the loop and the pause points check it
     calls_issued: int = 0  # for call_<n> ids assigned by the model layer
+    # Per-turn provider choice (dev mode, http_api.md `provider` and `fixture`): the only
+    # providers this turn may use. None means the harness's configured providers.
+    providers: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not self.tenant_id:

@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from harnesswalk import SPEC_VERSION, __version__
 from harnesswalk.config.loader import Settings
 from harnesswalk.context.builder import ContextBuilder
 from harnesswalk.context.stores import Memory
@@ -24,7 +25,20 @@ from harnesswalk.execution.builtin_tools import CALCULATOR, read_skill_tool
 from harnesswalk.execution.loop import Loop
 from harnesswalk.execution.model_layer import ModelLayer, ModelRequest
 from harnesswalk.execution.output_guardrails import OutputGuardrails
-from harnesswalk.execution.providers import ProviderError, build_providers
+from harnesswalk.execution.providers import (
+    PROVIDER_NAMES,
+    ModelProvider,
+    ProviderError,
+    build_provider,
+    build_providers,
+)
+from harnesswalk.execution.providers.fake import (
+    FakeProvider,
+    find_fixture,
+    fixture_dirs,
+    list_fixtures,
+    load_fixture,
+)
 from harnesswalk.execution.registry import ToolRegistry
 from harnesswalk.execution.router import Router, RouteRequest
 from harnesswalk.execution.sandbox import Sandbox
@@ -100,6 +114,8 @@ class Harness:
         self.input_guardrails = InputGuardrails(s.get("input_guardrails", {}), mode)
         self.output_guardrails = OutputGuardrails(s.get("output_guardrails", {}), mode)
         self.gateway = Gateway(self)
+        self._turn_providers: dict[str, ModelProvider] = {}  # built on demand for a turn
+        self._turn_fakes: dict[str, FakeProvider] = {}  # fixture name -> provider
 
     def _register_tools(self) -> None:
         s = self.settings
@@ -128,10 +144,85 @@ class Harness:
             return next(iter(self.providers))
         return self.settings.get(f"models.models.{route.model}.provider")
 
+    # -- per-turn provider choice (dev mode) -------------------------------------------------
+
+    def provider_available(self, name: str) -> bool:
+        """Whether a turn could run on this provider (`configured` in /v1/capabilities)."""
+        if name in self.providers:
+            return True
+        if name == "fake":
+            return self.settings.mode == "dev"
+        return self.settings.provider_prerequisites(name)
+
+    def fixtures(self) -> list[str]:
+        return list_fixtures(fixture_dirs(self.settings))
+
+    def turn_providers(self, provider: str | None, fixture: str | None) -> dict[str, ModelProvider]:
+        """The providers one turn may use when it picked a provider or a fixture.
+
+        A fixture loads its own fake provider, cached per fixture and counting turns per
+        session on that fixture (http_api.md). Raises ConfigError for an unknown fixture.
+        """
+        if fixture is not None:
+            fake = self._turn_fakes.get(fixture)
+            if fake is None:
+                loaded = load_fixture(find_fixture(fixture, fixture_dirs(self.settings)))
+                fake = self._turn_fakes[fixture] = FakeProvider(loaded, relative_turns=True)
+            return {"fake": fake}
+        assert provider is not None
+        if provider in self.providers:
+            return {provider: self.providers[provider]}
+        if provider == "fake":
+            return self.turn_providers(None, self.settings.fixture() or "plain_answer")
+        if provider not in self._turn_providers:
+            self._turn_providers[provider] = build_provider(provider, self.settings)
+        return {provider: self._turn_providers[provider]}
+
+    def capabilities(self) -> dict[str, Any]:
+        """GET /v1/capabilities: what this build can do, so the UI adapts (http_api.md)."""
+        s, mode = self.settings, self.settings.mode
+        models = s.get("models.models", {})
+        default = self.provider_name
+        providers = [
+            {
+                "name": name,
+                "configured": self.provider_available(name),
+                "default": name == default,
+                "models": [
+                    alias
+                    for alias, cfg in models.items()
+                    if cfg.get("provider") == name and not cfg.get("embedding")
+                ],
+            }
+            for name in PROVIDER_NAMES
+        ]
+        return {
+            "mode": mode,
+            "version": __version__,
+            "spec_version": SPEC_VERSION,
+            "providers": providers,
+            "fixtures": self.fixtures() if mode == "dev" else [],
+            "features": {
+                "step_mode": True,
+                "approvals": True,
+                "message_delta": int(s.get("gateway.stream_reply_chars", 0)) > 0,
+                "cancel": True,
+                "byo_key": mode in ("public", "private"),
+                "disable_nodes": mode != "public",
+            },
+            "limits": {
+                "max_message_chars": int(s.get("gateway.max_message_chars", 32000)),
+                "max_steps": int(s.get("loop.max_steps", 8)),
+                "session_ttl_seconds": (
+                    int(s.get("gateway.session_ttl_s", 7200)) if mode == "public" else None
+                ),
+            },
+        }
+
     async def _summarize(self, ctx: TurnContext, previous: str, turns: list[Turn]) -> str | None:
         """Compaction by a model, when the router has a non-fake summarize model."""
         try:
-            route = self.router.route(
+            route = self.model_layer.router_for(ctx).route(
                 RouteRequest(step=0, step_kind="summarize", tools_enabled=False, mode=ctx.mode)
             )
         except ProviderError:

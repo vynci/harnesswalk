@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import re
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -27,9 +28,10 @@ from harnesswalk.context.memory_writer import run_memory_writer
 from harnesswalk.context.stores.session import SessionForbidden
 from harnesswalk.events import Breakpoints, TurnEmitter, new_trace_id, uuid7
 from harnesswalk.execution.loop import Limits
+from harnesswalk.execution.providers import PROVIDER_NAMES
 from harnesswalk.nodes import node, register
 from harnesswalk.ops.trace import run_trace_node
-from harnesswalk.types import Identity, TurnContext
+from harnesswalk.types import ConfigError, Identity, TurnContext
 
 if TYPE_CHECKING:
     from harnesswalk.runtime import Harness
@@ -46,6 +48,7 @@ EXIT_FOR_REASON = {
     "timeout": "limit",
     "interrupted": "cancelled",
 }
+FIXTURE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 
 class GatewayError(Exception):
@@ -68,6 +71,8 @@ class TurnRequest:
     disabled_nodes: list[str] = field(default_factory=list)
     channel: str = "web"
     api_key: str | None = field(default=None, repr=False)  # BYO key: this turn only
+    provider: str | None = None  # dev mode only: run this turn on one provider
+    fixture: str | None = None  # dev mode only: the fake provider's fixture for this turn
 
 
 @dataclass
@@ -120,14 +125,44 @@ class Gateway:
             raise GatewayError(
                 422, "invalid_request", "disabling nodes is not allowed in public mode"
             )
+        self._validate_provider(req)
         pack = self.h.settings.get("dataset", "_starter")
         if req.dataset and req.dataset != pack:
             raise GatewayError(
                 422, "invalid_request", f"dataset {req.dataset!r} is not loaded ({pack} is)"
             )
 
+    def _validate_provider(self, req: TurnRequest) -> None:
+        """Per-turn `provider` and `fixture`: dev mode only (http_api.md, POST /v1/turns)."""
+        if req.provider is None and req.fixture is None:
+            return
+        if self.h.settings.mode != "dev":
+            raise GatewayError(
+                400, "invalid_request", "provider and fixture can only be chosen in dev mode"
+            )
+        if req.provider is not None and req.provider not in PROVIDER_NAMES:
+            raise GatewayError(400, "invalid_request", f"unknown provider {req.provider!r}")
+        if req.fixture is not None:
+            if not isinstance(req.fixture, str) or not FIXTURE_NAME.match(req.fixture):
+                raise GatewayError(400, "invalid_request", "fixture is not a valid name")
+            if req.provider not in (None, "fake"):
+                raise GatewayError(400, "invalid_request", "a fixture needs the fake provider")
+        elif not self.h.provider_available(req.provider):  # type: ignore[arg-type]
+            raise GatewayError(
+                422, "provider_not_configured", f"provider {req.provider!r} is not configured"
+            )
+
+    def _turn_providers(self, req: TurnRequest) -> dict[str, Any] | None:
+        if req.provider is None and req.fixture is None:
+            return None
+        try:
+            return self.h.turn_providers(req.provider, req.fixture)
+        except ConfigError as exc:
+            raise GatewayError(400, "invalid_request", str(exc)) from exc
+
     async def start_turn(self, req: TurnRequest, client_ip: str = "") -> TurnState:
         self._validate(req)
+        turn_providers = self._turn_providers(req)
         tenant = req.identity.tenant_id
         remaining = None
         if self.h.settings.mode == "public":
@@ -180,21 +215,25 @@ class Gateway:
             turn_index=self.h.session.next_turn_index(tenant, session_id),
             identity=req.identity,
             disabled_nodes=frozenset(req.disabled_nodes),
+            providers=turn_providers,
         )
         state = TurnState(ctx=ctx, request=req)
         self.turns[turn_id] = state
         self._open_sessions[session_id] = turn_id
-        emitter.turn_start(
-            {
-                "kind": "chat",
-                "channel": req.channel,
-                "mode": ctx.mode,
-                "step_mode": req.step_mode,
-                "message_chars": len(req.message),
-                "dataset": dataset,
-                "turn_index": ctx.turn_index,
-            }
-        )
+        start: dict[str, Any] = {
+            "kind": "chat",
+            "channel": req.channel,
+            "mode": ctx.mode,
+            "step_mode": req.step_mode,
+            "message_chars": len(req.message),
+            "dataset": dataset,
+            "turn_index": ctx.turn_index,
+        }
+        if turn_providers is not None:
+            start["provider"] = next(iter(turn_providers))
+        if req.fixture is not None:
+            start["fixture"] = req.fixture
+        emitter.turn_start(start)
         state.task = asyncio.create_task(self.run_turn(state, remaining))
         return state
 

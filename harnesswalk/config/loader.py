@@ -86,11 +86,21 @@ class Settings:
         """A provider is configured when it was selected, or when its prerequisites exist."""
         if self.provider:
             return name == self.provider
+        if name == "fake":
+            return False  # the fake provider is used only when selected explicitly
+        return self.provider_prerequisites(name)
+
+    def provider_prerequisites(self, name: str) -> bool:
+        """Whether a provider could be built, whichever one was selected at start-up.
+
+        `fake` only needs its config section (the fixture is checked when it loads). Hosted
+        providers still need `enabled: true` plus their key or URL.
+        """
         providers = self.get("models.providers", {})
         if name not in providers:
             return False
         if name == "fake":
-            return False  # the fake provider is used only when selected explicitly
+            return True
         if name == "ollama":
             return bool(providers["ollama"].get("base_url"))
         # Hosted providers cost money, so they need an explicit opt-in (`enabled: true`) on top of

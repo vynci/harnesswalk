@@ -3,7 +3,8 @@
 Semantics are normative (spec/contracts/model_provider.md, "The fake provider"):
 
 - Turn `n` of a session reads `turns[n]`; the `k`th model call in that turn reads
-  `responses[k]`.
+  `responses[k]`. A fixture picked per turn (http_api.md, `fixture`) counts `n` over the
+  session's turns that ran on it (`relative_turns`), so switching fixture starts at `turns[0]`.
 - A response has `text`, `tool_calls`, or both; `finish_reason` follows from them.
 - `expect` checks the request (`tools_enabled`, `last_message_role`, `last_message_contains`)
   and fails with `fixture_mismatch`; running out of responses fails with `fixture_exhausted`.
@@ -77,6 +78,18 @@ def fixture_dirs(settings: Any) -> list[Path]:
     return dirs
 
 
+def list_fixtures(dirs: list[Path]) -> list[str]:
+    """Every fixture name `find_fixture` could load from these directories, sorted."""
+    names = {
+        p.stem
+        for directory in dirs
+        if directory.is_dir()
+        for p in directory.iterdir()
+        if p.suffix in (".yaml", ".jsonl") and p.is_file()
+    }
+    return sorted(names)
+
+
 def fake_embed(text: str, dims: int = 64) -> list[float]:
     """Deterministic hash embedding: sha256 bytes scaled to [-1, 1], 64 dims."""
     out: list[float] = []
@@ -91,12 +104,14 @@ def fake_embed(text: str, dims: int = 64) -> list[float]:
 class FakeProvider:
     name = "fake"
 
-    def __init__(self, fixture: dict[str, Any]) -> None:
+    def __init__(self, fixture: dict[str, Any], *, relative_turns: bool = False) -> None:
         self.fixture = fixture
         self.model = fixture.get("model", "fake-small")
+        self.relative_turns = relative_turns
         self._calls: dict[str, int] = {}  # turn_id -> calls made
         self._used: set[tuple[str, int, int]] = set()  # (session, turn_index, response_index)
         self._sessions: set[str] = set()
+        self._turn_of: dict[str, dict[str, int]] = {}  # session -> turn_id -> index on this fixture
 
     @classmethod
     def from_settings(cls, settings: Any) -> FakeProvider:
@@ -116,16 +131,20 @@ class FakeProvider:
         turns = self.fixture["turns"]
         session_key = f"{turn.tenant_id}/{turn.session_id}"
         self._sessions.add(session_key)
+        index = turn.turn_index
+        if self.relative_turns:
+            seen = self._turn_of.setdefault(session_key, {})
+            index = seen.setdefault(turn.turn_id, len(seen))
         k = self._calls.get(turn.turn_id, 0)
         self._calls[turn.turn_id] = k + 1
-        if turn.turn_index >= len(turns) or k >= len(turns[turn.turn_index]["responses"]):
+        if index >= len(turns) or k >= len(turns[index]["responses"]):
             raise ProviderError(
                 "fixture_exhausted",
-                f"fixture {self.fixture_name} has no response {k} for turn {turn.turn_index}",
+                f"fixture {self.fixture_name} has no response {k} for turn {index}",
                 retryable=False,
             )
-        response = turns[turn.turn_index]["responses"][k]
-        self._used.add((session_key, turn.turn_index, k))
+        response = turns[index]["responses"][k]
+        self._used.add((session_key, index, k))
         self._check_expect(response.get("expect", {}), request)
         if response.get("latency_ms"):
             await asyncio.sleep(response["latency_ms"] / 1000)

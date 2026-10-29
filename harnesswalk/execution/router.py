@@ -54,6 +54,10 @@ class Router:
     def rules(self) -> list[dict[str, Any]]:
         return list(self._rules)
 
+    def restricted(self, provider_ok: Callable[[str], bool]) -> Router:
+        """The same rules over a narrower set of providers (a per-turn provider choice)."""
+        return Router(self._rules, self._models, provider_ok)
+
     @staticmethod
     def matches(when: dict[str, Any], req: RouteRequest) -> bool:
         actual = {
