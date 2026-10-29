@@ -27,6 +27,7 @@ SUMMARY_KEYS = (
     "tools_enabled", "outcome", "executed", "reply_chars", "events", "persisted", "approval_id",
     "record_id", "prompt_version", "skills_indexed", "turns", "hits", "tokens", "input_tokens",
     "output_tokens", "citations", "proposed", "written", "rejected", "pending", "gate",
+    "injection_score", "restored", "level", "network", "budget_source", "cascade",
 )  # fmt: skip
 
 
