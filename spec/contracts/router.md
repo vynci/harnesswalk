@@ -18,12 +18,17 @@ interface Router {
 
 record RouteRule {
   id: string
-  when: { step?: "first" | "after_tool" | "final" | int, risk?: "low" | "high", modality?: string, tools?: bool, mode?: string }
+  when: { step?: "first" | "after_tool" | "final" | "summarize" | int, risk?: "low" | "high", modality?: string, tools?: bool, mode?: string }
   use: [string]                                  // model aliases in preference order; the tail is the fallback chain
 }
 
 record Route { rule: string, model: string, alternatives: [string] }
 ```
+
+Step kinds: `first` is the loop's first call, `after_tool` a call that follows tool results,
+`final` the tools-off call after `max_steps` or `stuck`, and `summarize` the context builder's
+compaction call. When the route lands on the `fake` provider, compaction truncates instead
+of calling a model.
 
 ## Inputs and outputs
 

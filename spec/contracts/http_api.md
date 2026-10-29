@@ -142,11 +142,12 @@ resumed here).
 The diagram, generated from the node registry merged with `spec/diagram/diagram.json`
 (`harness.md` section 6).
 
-Response `200`: the `diagram.json` document with two additions per node:
+Response `200`: the `diagram.json` document with these additions per node:
 
 | Field | Meaning |
 |---|---|
-| `implemented` | `true` when a component is registered under this id |
+| `implemented` | `true` when a working component is registered under this id |
+| `stub` | Optional. `true` when the id is registered by a placeholder that only reports `skipped`; such a node has `implemented: false` |
 | `disabled` | `true` when the node is disabled for the caller's session |
 
 Query `?view=simple|expert` filters nodes and edges by `view` (expert includes simple). Default
