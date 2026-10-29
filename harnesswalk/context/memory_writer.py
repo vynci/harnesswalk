@@ -271,9 +271,12 @@ class MemoryWriter:
             if not self.enabled or ctx.is_disabled("memory_writer"):
                 report.proposed = report.rejected = len(proposals)
                 span.skip(
-                    disabled=True, proposed=len(proposals), written=0, rejected=len(proposals),
+                    disabled=True,
+                    proposed=len(proposals),
+                    written=0,
+                    rejected=len(proposals),
                     pending=0,
-                )  # fmt: skip
+                )
                 return report
             gate = self.gate_for(ctx)
             decision, rule = policy_decision(self.policy, ctx)
@@ -321,9 +324,13 @@ class MemoryWriter:
         if decision == "needs_approval" and gate in ("auto", "eval"):
             gate = "review"
         record = ProposalRecord(
-            "prop_" + uuid.uuid4().hex[:16], ctx.tenant_id, proposal.store, "pending", gate,
+            "prop_" + uuid.uuid4().hex[:16],
+            ctx.tenant_id,
+            proposal.store,
+            "pending",
+            gate,
             proposal.source,
-        )  # fmt: skip
+        )
         self._insert(ctx, proposal, content, record)
         preview = self._preview(proposal.store, content)
         ctx.emit.point(
@@ -552,9 +559,14 @@ class MemoryWriter:
         return self.semantic.history(tenant_id, record_id)
 
     def decide(
-        self, tenant_id: str, proposal_id: str, decider: str, decision: str, mode: str,
+        self,
+        tenant_id: str,
+        proposal_id: str,
+        decider: str,
+        decision: str,
+        mode: str,
         reason: str | None = None,
-    ) -> dict[str, Any]:  # fmt: skip
+    ) -> dict[str, Any]:
         """A human decision on a proposal waiting at the review gate. Decided at most once.
 
         Raises KeyError for an unknown proposal, ValueError when it is not pending review or
@@ -579,18 +591,28 @@ class MemoryWriter:
         content = row["content"]
         if row["store"] == "semantic":
             result = self.semantic.write(
-                tenant_id, row["user_id"], content["key"], content["value"], writer=WRITER,
-                source=f"review:{decider}", proposal_id=proposal_id,
-            )  # fmt: skip
+                tenant_id,
+                row["user_id"],
+                content["key"],
+                content["value"],
+                writer=WRITER,
+                source=f"review:{decider}",
+                proposal_id=proposal_id,
+            )
             record_id, version, op = result.record_id, result.version, result.op
             before, after = result.before, result.after
         else:
             record_id = self.episodic.append(
-                tenant_id, writer=WRITER, session_id=row["session_id"], turn_id=row["turn_id"],
-                kind=content.get("kind", "note"), text=content["text"],
-                outcome=content.get("outcome", ""), source=f"review:{decider}",
+                tenant_id,
+                writer=WRITER,
+                session_id=row["session_id"],
+                turn_id=row["turn_id"],
+                kind=content.get("kind", "note"),
+                text=content["text"],
+                outcome=content.get("outcome", ""),
+                source=f"review:{decider}",
                 proposal_id=proposal_id,
-            )  # fmt: skip
+            )
             version, op, before, after = 1, "create", None, content["text"]
         self.db.execute(
             "UPDATE memory_proposals SET status = 'accepted', record_id = ?, version = ?, op = ?,"
@@ -618,9 +640,14 @@ class MemoryWriter:
                 item = json.loads(line)
                 key, value = normalize_key(item["key"]), str(item["value"])
                 result = self.semantic.write(
-                    PACK_SCOPE, None, key, value, writer=WRITER,
-                    source=f"seed:{self.semantic.pack}", extra_entities=item.get("entities"),
-                )  # fmt: skip
+                    PACK_SCOPE,
+                    None,
+                    key,
+                    value,
+                    writer=WRITER,
+                    source=f"seed:{self.semantic.pack}",
+                    extra_entities=item.get("entities"),
+                )
                 facts += result.op != "unchanged"
         episodes_file = pack_dir / "episodes.jsonl"
         if episodes_file.exists():
@@ -637,10 +664,16 @@ class MemoryWriter:
                 if seed_id in seen:  # events are append-only: a seed is loaded once
                     continue
                 self.episodic.append(
-                    PACK_SCOPE, writer=WRITER, session_id="seed", turn_id=seed_id,
-                    kind=item.get("kind", "event"), text=item["text"],
-                    outcome=item.get("outcome", ""), ts=item["ts"],
-                    source=f"seed:{self.episodic.pack}", extra_entities=item.get("entities"),
-                )  # fmt: skip
+                    PACK_SCOPE,
+                    writer=WRITER,
+                    session_id="seed",
+                    turn_id=seed_id,
+                    kind=item.get("kind", "event"),
+                    text=item["text"],
+                    outcome=item.get("outcome", ""),
+                    ts=item["ts"],
+                    source=f"seed:{self.episodic.pack}",
+                    extra_entities=item.get("entities"),
+                )
                 episodes += 1
         return {"facts": facts, "episodes": episodes}

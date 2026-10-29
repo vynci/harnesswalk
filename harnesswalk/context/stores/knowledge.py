@@ -231,9 +231,17 @@ class KnowledgeStore:
                 f"{doc.title}. {c.heading}. {c.text}" if c.heading else f"{doc.title}. {c.text}"
             )
             rows.append(
-                (vid, scope, self.pack, doc.doc_id, c.position, c.heading, c.text,
-                 estimate(c.text, self.estimator))
-            )  # fmt: skip
+                (
+                    vid,
+                    scope,
+                    self.pack,
+                    doc.doc_id,
+                    c.position,
+                    c.heading,
+                    c.text,
+                    estimate(c.text, self.estimator),
+                )
+            )
             fts.append((indexed, vid, scope, self.pack, doc.doc_id))
             texts.append(indexed)
         self.db.executemany("INSERT INTO kn_chunks VALUES (?, ?, ?, ?, ?, ?, ?, ?)", rows)

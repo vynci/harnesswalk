@@ -193,20 +193,35 @@ def _memory_store(h: Harness, tenant_id: str, node_id: str) -> dict[str, Any]:
             **h.episodic.count(tenant_id),
             **h.knowledge.count(tenant_id),
         }
-        return {"type": "store", "counts": counts, "settings": {**common, "stores": [
-            "procedural", "session", *h.memory.enabled()]}}  # fmt: skip
+        return {
+            "type": "store",
+            "counts": counts,
+            "settings": {**common, "stores": ["procedural", "session", *h.memory.enabled()]},
+        }
     if node_id == "semantic":
         records = [f.to_dict() for f in h.semantic.list(view, 50)]
         settings = {**common, "min_score": h.semantic.min_score}
-        return {"type": "store", "counts": h.semantic.count(tenant_id), "last_records": records,
-                "settings": settings}  # fmt: skip
+        return {
+            "type": "store",
+            "counts": h.semantic.count(tenant_id),
+            "last_records": records,
+            "settings": settings,
+        }
     if node_id == "episodic":
         records = [e.to_dict() for e in h.episodic.list(view, 20)]
         e = h.episodic
-        settings = {**common, "half_life_days": e.half_life_days, "min_relevance": e.min_relevance,
-                    "weights": {"relevance": e.w_rel, "recency": e.w_rec}}  # fmt: skip
-        return {"type": "store", "counts": e.count(tenant_id), "last_records": records,
-                "settings": settings}  # fmt: skip
+        settings = {
+            **common,
+            "half_life_days": e.half_life_days,
+            "min_relevance": e.min_relevance,
+            "weights": {"relevance": e.w_rel, "recency": e.w_rec},
+        }
+        return {
+            "type": "store",
+            "counts": e.count(tenant_id),
+            "last_records": records,
+            "settings": settings,
+        }
     k = h.knowledge
     settings = {
         **common,
@@ -219,8 +234,12 @@ def _memory_store(h: Harness, tenant_id: str, node_id: str) -> dict[str, Any]:
         "min_keyword_coverage": k.min_keyword_coverage,
         "pack": h.pack,
     }
-    return {"type": "store", "counts": k.count(tenant_id), "last_records": k.docs(view),
-            "settings": settings}  # fmt: skip
+    return {
+        "type": "store",
+        "counts": k.count(tenant_id),
+        "last_records": k.docs(view),
+        "settings": settings,
+    }
 
 
 def inspect_node(h: Harness, tenant_id: str, node_id: str, recent_n: int = 5) -> dict[str, Any]:
