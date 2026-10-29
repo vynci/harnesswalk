@@ -56,7 +56,7 @@ export function DocReader() {
               <>
                 <code className="font-mono">{doc.path}</code>
                 <span>· {doc.chunks.length} chunks · version {doc.version}</span>
-                <Badge variant="outline" className="rounded-sm px-1 py-0 text-[10px] font-normal" data-testid="doc-scope">
+                <Badge variant="outline" className="font-normal" data-testid="doc-scope">
                   {doc.scope}
                 </Badge>
               </>
@@ -76,18 +76,18 @@ export function DocReader() {
                   <li
                     key={c.position}
                     ref={cited ? (el) => void (target.current = el) : undefined}
-                    className={cn('rounded-md border p-3 text-sm', cited && 'border-kind-store bg-kind-store/10 ring-1 ring-kind-store/40')}
+                    className={cn('rounded-2xl border p-3 text-sm', cited && 'border-transparent bg-kind-store/10')}
                     data-testid="doc-chunk"
                     data-position={c.position}
                     data-cited={cited ? 'true' : 'false'}
                     aria-current={cited ? 'true' : undefined}
                   >
-                    <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                       <span className="font-mono">#{c.position}</span>
                       <span className="font-medium text-foreground">{c.heading || 'Introduction'}</span>
                       <span>· {c.tokens} tok</span>
                       {cited && (
-                        <Badge variant="outline" className="rounded-sm border-kind-store px-1 py-0 text-[10px] font-normal">
+                        <Badge variant="secondary" className="font-normal">
                           cited
                         </Badge>
                       )}

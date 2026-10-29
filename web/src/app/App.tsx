@@ -1,8 +1,10 @@
 import { lazy, Suspense } from 'react'
-import { Group, Panel, Separator } from 'react-resizable-panels'
+import { useDefaultLayout } from 'react-resizable-panels'
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ChatPanel } from '@/chat/ChatPanel'
 import { ReplayBar } from '@/replay/ReplayBar'
+import { layoutStorage } from '@/state/persist'
 import { useApp } from '@/state/store'
 import { Header } from './Header'
 import { Notices } from './Notices'
@@ -27,7 +29,7 @@ export function App() {
         <Header />
         {bootError ? (
           <main className="m-auto max-w-md p-6 text-center">
-            <h2 className="text-lg font-semibold">Cannot reach the harness API</h2>
+            <h2 className="text-lg font-medium">Cannot reach the harness API</h2>
             <p className="mt-2 text-sm text-muted-foreground">{bootError}</p>
             <p className="mt-4 text-sm text-muted-foreground">
               Start it with <code className="font-mono">make run</code>, or try the UI without an API using{' '}
@@ -40,22 +42,7 @@ export function App() {
           </main>
         ) : (
           <main className="min-h-0 flex-1">
-            <Group orientation="horizontal" className="h-full">
-              <Panel defaultSize="34" minSize="22" className="min-w-0">
-                <ChatPanel />
-              </Panel>
-              <Separator
-                className="w-1.5 bg-border transition-colors hover:bg-ring/60 focus-visible:bg-ring focus-visible:outline-none data-[separator=active]:bg-ring"
-                aria-label="Resize chat and diagram"
-              />
-              <Panel minSize="35" className="relative min-w-0">
-                <Suspense fallback={<p className="p-4 text-sm text-muted-foreground" aria-busy="true">Loading the diagram…</p>}>
-                  <DiagramPanel />
-                </Suspense>
-                <ReplayBar />
-                <InspectorSlot />
-              </Panel>
-            </Group>
+            <Split />
           </main>
         )}
         <Notices />
@@ -65,13 +52,54 @@ export function App() {
   )
 }
 
-function InspectorSlot() {
-  const selected = useApp((s) => s.selectedNode)
-  if (!selected) return null
+/** Chat on the left, the workspace (diagram and inspector) on the right, sizes kept per viewer. */
+function Split() {
+  const layout = useDefaultLayout({ id: 'split', storage: layoutStorage, onlySaveAfterUserInteractions: true })
   return (
-    <Suspense fallback={<div className="absolute inset-y-0 right-0 z-30 w-full max-w-[460px] border-l bg-background p-4 text-sm text-muted-foreground">Loading…</div>}>
-      <InspectorDrawer />
-    </Suspense>
+    <ResizablePanelGroup orientation="horizontal" defaultLayout={layout.defaultLayout} onLayoutChanged={layout.onLayoutChanged}>
+      <ResizablePanel id="chat-pane" defaultSize="34" minSize="22" className="min-w-0">
+        <ChatPanel />
+      </ResizablePanel>
+      <ResizableHandle withHandle aria-label="Resize chat and diagram" />
+      <ResizablePanel id="workspace-pane" minSize="35" className="min-w-0">
+        <Workspace />
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  )
+}
+
+/**
+ * The diagram, with the inspector docked beside it as a resizable pane while a node is open (not
+ * a modal Sheet, so step mode keeps it open). Its width is kept per viewer too.
+ */
+function Workspace() {
+  const selected = useApp((s) => s.selectedNode)
+  const open = !!selected
+  const layout = useDefaultLayout({
+    id: 'inspector',
+    panelIds: open ? ['diagram-pane', 'inspector-pane'] : ['diagram-pane'],
+    storage: layoutStorage,
+    onlySaveAfterUserInteractions: true,
+  })
+  return (
+    <ResizablePanelGroup orientation="horizontal" defaultLayout={layout.defaultLayout} onLayoutChanged={layout.onLayoutChanged}>
+      <ResizablePanel id="diagram-pane" minSize="30" className="relative min-w-0">
+        <Suspense fallback={<p className="p-4 text-sm text-muted-foreground" aria-busy="true">Loading the diagram…</p>}>
+          <DiagramPanel />
+        </Suspense>
+        <ReplayBar />
+      </ResizablePanel>
+      {open && (
+        <>
+          <ResizableHandle withHandle aria-label="Resize diagram and inspector" />
+          <ResizablePanel id="inspector-pane" defaultSize={440} minSize={320} maxSize="70" className="min-w-0">
+            <Suspense fallback={<div className="h-full bg-background p-4 text-sm text-muted-foreground">Loading…</div>}>
+              <InspectorDrawer />
+            </Suspense>
+          </ResizablePanel>
+        </>
+      )}
+    </ResizablePanelGroup>
   )
 }
 

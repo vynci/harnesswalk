@@ -4,6 +4,8 @@
 import { BookOpen } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Citation } from '@/api/types'
+import { Button } from '@/components/ui/button'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import {
   Trace,
   TraceCollapsible,
@@ -17,25 +19,39 @@ import {
 import { cn } from '@/lib/utils'
 import { splitPlaceholders } from '@/state/turnFacts'
 
-/** One `[n]` chip. */
+/** The number of a citation as a small round chip, shared by the inline citation and Sources. */
+const NUMBER = 'h-5 min-w-5 rounded-full px-1.5 font-mono text-xs tabular-nums'
+
+/**
+ * One `[n]` in the reply: the AI Elements Inline Citation. Hovering shows the passage's citation
+ * and where it lives; clicking opens the document reader at that chunk.
+ */
 export function CitationChip({ citation, onOpen, className }: { citation: Citation; onOpen: (c: Citation) => void; className?: string }) {
   return (
-    <button
-      type="button"
-      className={cn(
-        'mx-0.5 inline-flex h-4 min-w-4 cursor-pointer items-center justify-center rounded-sm bg-kind-store/15 px-1 align-baseline font-mono text-[10px] leading-none font-medium text-foreground ring-1 ring-kind-store/40 ring-inset hover:bg-kind-store/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-        className,
-      )}
-      onClick={() => onOpen(citation)}
-      aria-label={`Source ${citation.n}: ${citation.citation}. Open the document at this passage`}
-      title={citation.citation}
-      data-testid="citation-chip"
-      data-n={citation.n}
-      data-doc={citation.doc}
-      data-chunk={citation.chunk}
-    >
-      {citation.n}
-    </button>
+    <HoverCard openDelay={10} closeDelay={100}>
+      <HoverCardTrigger asChild>
+        <Button
+          type="button"
+          variant="secondary"
+          size="xs"
+          className={cn(NUMBER, 'mx-0.5 align-baseline', className)}
+          onClick={() => onOpen(citation)}
+          aria-label={`Source ${citation.n}: ${citation.citation}. Open the document at this passage`}
+          data-testid="citation-chip"
+          data-n={citation.n}
+          data-doc={citation.doc}
+          data-chunk={citation.chunk}
+        >
+          {citation.n}
+        </Button>
+      </HoverCardTrigger>
+      <HoverCardContent side="top" className="flex w-64 flex-col gap-1 p-3">
+        <p className="font-medium">{citation.citation}</p>
+        <p className="font-mono text-xs text-muted-foreground">
+          {citation.doc}#{citation.chunk}
+        </p>
+      </HoverCardContent>
+    </HoverCard>
   )
 }
 
@@ -52,7 +68,7 @@ export function ReplyText({ text, citations, onOpen }: { text: string; citations
   for (const part of splitPlaceholders(text)) {
     if (part.placeholder) {
       out.push(
-        <mark key={key++} className="rounded-sm bg-state-waiting/15 px-0.5 font-mono text-[0.92em] text-foreground ring-1 ring-state-waiting/40 ring-inset" data-testid="placeholder">
+        <mark key={key++} className="rounded-md bg-state-waiting/15 px-1 font-mono text-[0.92em] text-foreground" data-testid="placeholder">
           {part.text}
         </mark>,
       )
@@ -71,15 +87,18 @@ export function ReplyText({ text, citations, onOpen }: { text: string; citations
   return <>{out}</>
 }
 
-/** shadcn's Sources pattern on Trace: "Cited 2 sources", opening to one line per chunk. */
+/**
+ * The AI Elements Sources pattern on Trace: "Cited 2 passages", closed until opened, one line per
+ * chunk opening the document reader (a Dialog) at that passage.
+ */
 export function Sources({ citations, onOpen }: { citations: Citation[]; onOpen: (c: Citation) => void }) {
   if (citations.length === 0) return <div data-slot="citations" hidden />
   const docs = new Set(citations.map((c) => c.doc)).size
   return (
-    <Trace data-slot="citations" className="text-xs" data-testid="sources">
-      <TraceCollapsible defaultOpen>
-        <TraceCollapsibleTrigger aria-label="Sources the reply cites">
-          <TraceLine className="text-xs">
+    <Trace data-slot="citations" data-testid="sources">
+      <TraceCollapsible>
+        <TraceCollapsibleTrigger>
+          <TraceLine>
             <TraceIcon>
               <BookOpen />
             </TraceIcon>
@@ -91,8 +110,8 @@ export function Sources({ citations, onOpen }: { citations: Citation[]; onOpen: 
             </TraceDescription>
           </TraceLine>
         </TraceCollapsibleTrigger>
-        <TraceCollapsibleContent className="mt-1.5">
-          <Trace className="gap-1.5">
+        <TraceCollapsibleContent>
+          <Trace>
             {citations.map((c) => (
               <button
                 key={`${c.n}`}
@@ -103,12 +122,12 @@ export function Sources({ citations, onOpen }: { citations: Citation[]; onOpen: 
                 data-doc={c.doc}
                 data-chunk={c.chunk}
               >
-                <TraceLine className="text-xs">
-                  <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-sm bg-kind-store/15 px-1 font-mono text-[10px] text-foreground ring-1 ring-kind-store/40 ring-inset" aria-hidden>
+                <TraceLine>
+                  <span className={cn(NUMBER, 'inline-flex shrink-0 items-center justify-center bg-secondary text-secondary-foreground')} aria-hidden>
                     {c.n}
                   </span>
                   <TraceTitle>{c.citation}</TraceTitle>
-                  <TraceDescription className="font-mono">
+                  <TraceDescription className="font-mono text-xs">
                     {c.doc}#{c.chunk}
                   </TraceDescription>
                 </TraceLine>

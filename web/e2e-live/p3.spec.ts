@@ -32,6 +32,9 @@ test('citations: the Trailhead question lights all five stores and its chips ope
   const end = (await lastTurnEvents(page, request)).find((e) => e.type === 'turn_end')!
   const cited = end.summary!.citations as { n: number; doc: string; chunk: number }[]
   expect(cited.map((c) => c.n)).toEqual([6, 5])
+  // Sources start closed (the AI Elements pattern) and open to one line per cited chunk.
+  await expect(page.getByTestId('sources').getByTestId('source-line')).toHaveCount(0)
+  await page.getByTestId('sources').getByRole('button', { name: /Cited 2 passages/ }).click()
   await expect(page.getByTestId('sources').getByTestId('source-line')).toHaveCount(2)
   await expect(page.getByTestId('guard-citations')).toContainText('citations 2')
 
@@ -146,7 +149,8 @@ test.describe('a tenant with a tool-call budget of two per turn', () => {
     await expect(lines).toHaveCount(3)
     await expect(lines.nth(2)).toHaveAttribute('data-call-status', 'denied')
     await expect(lines.nth(2)).toContainText('tool calls per turn 2/2')
-    await expect(lines.nth(0).getByTestId('sandbox-chip')).toHaveAttribute('data-level', 'subprocess')
+    await lines.nth(0).click()
+    await expect(page.getByTestId('tool-trace').getByTestId('sandbox-chip').first()).toHaveAttribute('data-level', 'subprocess')
     await expect(page.getByTestId('turn-budget')).toContainText('tool calls per turn 2/2')
     await expect(page.getByTestId('stat-policy')).toContainText('budget 2/2')
     await expect(page.getByTestId('stat-policy').locator('[data-why]')).toHaveAttribute('title', /budget is 2 per turn/)
@@ -207,7 +211,7 @@ test.describe('a harness of its own', () => {
       await pickFixture(approvalPage, 'approval_resume_after_restart')
       await send(approvalPage, 'Please cancel order A-1002.')
       const card = approvalPage.getByTestId('approval-card').last()
-      await expect(card).toContainText('Approval needed')
+      await expect(card).toContainText('Run cancel_order?')
 
       const steppedPage = await browser.newPage()
       await steppedPage.goto(h.url)

@@ -33,3 +33,24 @@ export function rememberMessage(turnId: string, text: string): void {
 export function recallMessages(): Record<string, string> {
   return load<Record<string, string>>('messages', {})
 }
+
+/**
+ * Where the resizable panes keep their sizes (react-resizable-panels' `useDefaultLayout`), as
+ * `harnesswalk.layout.*` keys. Guarded like everything here: no storage means default sizes.
+ */
+export const layoutStorage = {
+  getItem(key: string): string | null {
+    try {
+      return globalThis.localStorage?.getItem(PREFIX + key.replace(/^react-resizable-panels:/, 'layout.')) ?? null
+    } catch {
+      return null
+    }
+  },
+  setItem(key: string, value: string): void {
+    try {
+      globalThis.localStorage?.setItem(PREFIX + key.replace(/^react-resizable-panels:/, 'layout.'), value)
+    } catch {
+      // Storage is a convenience; ignore failures.
+    }
+  },
+}

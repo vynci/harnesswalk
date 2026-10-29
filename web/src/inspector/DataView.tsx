@@ -18,7 +18,7 @@ export function RecordTable({ rows, caption }: { rows: Record<string, unknown>[]
   if (rows.length === 0) return <p className="text-xs text-muted-foreground">No records.</p>
   return (
     <div className="rounded-md border">
-      <Table className="text-[11px]">
+      <Table className="text-xs">
         {caption && <TableCaption className="sr-only">{caption}</TableCaption>}
         <TableHeader className="bg-muted/60">
           <TableRow>
@@ -49,7 +49,7 @@ export function KeyValues({ value }: { value: Record<string, unknown> }) {
   const entries = Object.entries(value)
   if (entries.length === 0) return <p className="text-xs text-muted-foreground">Empty.</p>
   return (
-    <dl className="grid grid-cols-[minmax(6rem,auto)_1fr] gap-x-3 gap-y-1 text-[11px]">
+    <dl className="grid grid-cols-[minmax(6rem,auto)_1fr] gap-x-3 gap-y-1 text-xs">
       {entries.map(([k, v]) => (
         <div key={k} className="contents">
           <dt className="text-muted-foreground">{k}</dt>
@@ -63,7 +63,7 @@ export function KeyValues({ value }: { value: Record<string, unknown> }) {
 export function DataView({ value, name }: { value: unknown; name?: string }) {
   if (Array.isArray(value)) {
     if (value.every(isRecord)) return <RecordTable rows={value} caption={name} />
-    return <p className="font-mono text-[11px]">{value.map(scalar).join(', ') || 'None.'}</p>
+    return <p className="font-mono text-xs">{value.map(scalar).join(', ') || 'None.'}</p>
   }
   if (isRecord(value)) {
     const values = Object.values(value)
@@ -72,5 +72,5 @@ export function DataView({ value, name }: { value: unknown; name?: string }) {
     }
     return <KeyValues value={value} />
   }
-  return <p className="font-mono text-[11px]">{scalar(value)}</p>
+  return <p className="font-mono text-xs">{scalar(value)}</p>
 }

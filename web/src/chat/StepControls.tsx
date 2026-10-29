@@ -1,8 +1,8 @@
 import { FastForward, StepForward } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ButtonGroup } from '@/components/ui/button-group'
-import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item'
 
+/** A breakpoint in step mode, as an outline Item: where the turn stopped, Continue and Next. */
 export function StepControls({
   nodeId,
   nodeLabel,
@@ -16,28 +16,22 @@ export function StepControls({
   onResume: (mode: 'step' | 'continue') => Promise<void>
 }) {
   return (
-    <div
-      data-node={nodeId}
-      data-seq={seq}
-      className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-state-waiting bg-card px-3 py-2"
-      data-testid="step-controls"
-    >
-      <Marker className="w-auto text-xs text-foreground">
-        <MarkerIcon>
-          <StepForward className="size-3.5 text-state-waiting" />
-        </MarkerIcon>
-        <MarkerContent>
-          Paused at <span className="font-medium">{nodeLabel}</span>
-        </MarkerContent>
-      </Marker>
-      <ButtonGroup className="ml-auto" aria-label="Step mode controls">
-        <Button size="sm" onClick={() => void onResume('step')} aria-label="Next node" autoFocus>
-          <StepForward aria-hidden /> Next
-        </Button>
+    <Item variant="outline" size="sm" role="group" aria-label="Step mode controls" data-node={nodeId} data-seq={seq} data-testid="step-controls">
+      <ItemMedia variant="icon">
+        <StepForward className="text-state-waiting" aria-hidden />
+      </ItemMedia>
+      <ItemContent className="min-w-0">
+        <ItemTitle className="line-clamp-none">Paused at {nodeLabel}</ItemTitle>
+        <ItemDescription className="text-xs">Step mode: Next moves one hop.</ItemDescription>
+      </ItemContent>
+      <ItemActions>
         <Button size="sm" variant="outline" onClick={() => void onResume('continue')} aria-label="Continue to the end">
           <FastForward aria-hidden /> Continue
         </Button>
-      </ButtonGroup>
-    </div>
+        <Button size="sm" onClick={() => void onResume('step')} aria-label="Next node" autoFocus>
+          <StepForward aria-hidden /> Next
+        </Button>
+      </ItemActions>
+    </Item>
   )
 }

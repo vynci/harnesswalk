@@ -54,8 +54,8 @@ export function AuditView({ ins }: { ins: Record<string, unknown> }) {
       <div className="flex flex-wrap items-center gap-2">
         {shown && (
           <Badge
-            variant="outline"
-            className={cn('gap-1', shown.ok ? 'border-state-done/60 text-state-done' : 'border-state-error/60 text-state-error')}
+            variant={shown.ok ? 'secondary' : 'destructive'}
+            className={cn('gap-1', shown.ok && 'text-state-done')}
             data-testid="audit-verify"
             data-ok={shown.ok ? 'true' : 'false'}
           >
@@ -73,10 +73,10 @@ export function AuditView({ ins }: { ins: Record<string, unknown> }) {
             </a>
           </Button>
         )}
-        {check.state === 'done' && <span className="text-[11px] text-muted-foreground">verified the whole chain on the server just now</span>}
-        {check.state === 'error' && <span className="text-[11px] text-destructive">{check.error}</span>}
+        {check.state === 'done' && <span className="text-xs text-muted-foreground">verified the whole chain on the server just now</span>}
+        {check.state === 'error' && <span className="text-xs text-destructive">{check.error}</span>}
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Each record's hash covers the previous record's hash, its id, time and entry, so editing or dropping one breaks every hash after it. Verify walks the whole chain of your tenant.
       </p>
       {records.length === 0 ? (
@@ -89,9 +89,9 @@ export function AuditView({ ins }: { ins: Record<string, unknown> }) {
             // Newest first: this record's prev_hash must be the next row's hash.
             const linked = older ? r.prev_hash === older.hash : true
             return (
-              <li key={text(r.record_id)} className="rounded-md border p-2 text-[11px]" data-testid="audit-record" data-linked={linked ? 'true' : 'false'}>
+              <li key={text(r.record_id)} className="rounded-md border p-2 text-xs" data-testid="audit-record" data-linked={linked ? 'true' : 'false'}>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge variant="outline" className="rounded-sm px-1 py-0 text-[10px] font-normal">
+                  <Badge variant="outline" className="font-normal">
                     {text(entry.action)}
                   </Badge>
                   {str(entry.tool) && <span className="font-mono">{text(entry.tool)}</span>}
@@ -99,7 +99,7 @@ export function AuditView({ ins }: { ins: Record<string, unknown> }) {
                   {str(entry.actor) && <span className="text-muted-foreground">by {text(entry.actor)}</span>}
                   <span className="ml-auto text-muted-foreground">{text(r.ts).replace('T', ' ').slice(0, 19)}</span>
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-1 font-mono text-[10px] text-muted-foreground">
+                <div className="mt-1 flex flex-wrap items-center gap-1 font-mono text-xs text-muted-foreground">
                   <span title={text(r.prev_hash)}>prev {short(r.prev_hash)}</span>
                   <Link2 className={cn('size-3', linked ? 'text-state-done' : 'text-state-error')} aria-label={linked ? 'linked to the record before' : 'not linked to the record before'} />
                   <span className="text-foreground" title={text(r.hash)}>
@@ -131,11 +131,11 @@ export function RecordList({ rows }: { rows: Record<string, unknown>[] }) {
         const meta = META.filter((k) => r[k] !== undefined && r[k] !== null).map((k) => `${k} ${text(r[k])}`)
         const scope = text(r.scope)
         return (
-          <li key={text(r.id) || i} className="rounded-md border p-2 text-[11px]" data-testid="store-record" data-scope={scope}>
+          <li key={text(r.id) || i} className="rounded-md border p-2 text-xs" data-testid="store-record" data-scope={scope}>
             <div className="flex items-start gap-1.5">
               <Badge
                 variant="outline"
-                className={cn('shrink-0 rounded-sm px-1 py-0 text-[10px] font-normal', scope === 'pack' ? 'text-muted-foreground' : 'border-kind-store/60 text-foreground')}
+                className={cn('shrink-0 font-normal', scope === 'pack' && 'text-muted-foreground')}
                 title={scope === 'pack' ? 'Seeded by the dataset pack: every tenant reads it, none can write it' : 'Written for your tenant'}
                 data-testid="scope-tag"
               >
@@ -143,7 +143,7 @@ export function RecordList({ rows }: { rows: Record<string, unknown>[] }) {
               </Badge>
               <span className="min-w-0 leading-snug break-words">{text(primary)}</span>
             </div>
-            {meta.length > 0 && <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground">{meta.join(' · ')}</p>}
+            {meta.length > 0 && <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{meta.join(' · ')}</p>}
           </li>
         )
       })}
@@ -156,7 +156,7 @@ export function DocList({ docs }: { docs: Record<string, unknown>[] }) {
   const openDoc = useApp((s) => s.openDoc)
   return (
     <div className="rounded-md border" data-testid="doc-list">
-      <Table className="text-[11px]">
+      <Table className="text-xs">
         <TableCaption className="sr-only">Knowledge documents</TableCaption>
         <TableHeader className="bg-muted/60">
           <TableRow>
@@ -177,7 +177,7 @@ export function DocList({ docs }: { docs: Record<string, unknown>[] }) {
               </TableCell>
               <TableCell className="px-2 py-1 font-mono">{text(d.chunks)}</TableCell>
               <TableCell className="px-2 py-1">
-                <Badge variant="outline" className="rounded-sm px-1 py-0 text-[10px] font-normal">
+                <Badge variant="outline" className="font-normal">
                   {text(d.scope)}
                 </Badge>
               </TableCell>
@@ -222,24 +222,22 @@ export function Diff({ before, after }: { before: unknown; after: unknown }) {
   )
 }
 
-const STATUS_TONE: Record<string, string> = {
-  accepted: 'border-state-done/60 text-state-done',
-  rejected: 'border-state-error/60 text-state-error',
-  pending: 'border-state-waiting/60 text-state-waiting',
-}
+// Status by text colour on a filled chip, no coloured borders.
+const STATUS_VARIANT: Record<string, 'secondary' | 'destructive' | 'outline'> = { accepted: 'secondary', rejected: 'destructive', pending: 'outline' }
+const STATUS_TONE: Record<string, string> = { accepted: 'text-state-done' }
 
 function ProposalHead({ p }: { p: MemoryProposal }) {
   return (
     <CardHeader className="flex flex-wrap items-center gap-1.5 px-2.5">
-      <Badge variant="kind" data-kind="store" className="rounded-sm px-1 py-0 text-[10px] font-normal">
+      <Badge variant="kind" data-kind="store" className="font-normal">
         {p.store}
       </Badge>
-      <Badge variant="outline" className={cn('rounded-sm px-1 py-0 text-[10px] font-normal', STATUS_TONE[p.status])} data-testid="proposal-status">
+      <Badge variant={STATUS_VARIANT[p.status] ?? 'outline'} className={cn('font-normal', STATUS_TONE[p.status])} data-testid="proposal-status">
         {p.status}
       </Badge>
-      {p.gate && <span className="text-[10px] text-muted-foreground">gate {p.gate}</span>}
-      {p.source && <span className="text-[10px] text-muted-foreground">from {p.source}</span>}
-      <CardTitle className="ml-auto font-mono text-[10px] font-normal text-muted-foreground">{p.proposal_id}</CardTitle>
+      {p.gate && <span className="text-xs text-muted-foreground">gate {p.gate}</span>}
+      {p.source && <span className="text-xs text-muted-foreground">from {p.source}</span>}
+      <CardTitle className="ml-auto font-mono text-xs font-normal text-muted-foreground">{p.proposal_id}</CardTitle>
     </CardHeader>
   )
 }
@@ -260,10 +258,10 @@ export function WritesView({ writes }: { writes: MemoryProposal[] }) {
       {writes.map((p) => (
         <Card key={p.proposal_id} className="gap-1.5 py-2 shadow-none" data-testid="memory-write" data-status={p.status} data-store={p.store}>
           <ProposalHead p={p} />
-          <CardContent className="flex flex-col gap-1 px-2.5 text-[11px]">
+          <CardContent className="flex flex-col gap-1 px-2.5 text-xs">
             {p.diff ? (
               <>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {p.diff.op} {p.record_id ?? ''}
                   {p.version ? ` · v${p.version}` : ''}
                 </span>
@@ -272,7 +270,7 @@ export function WritesView({ writes }: { writes: MemoryProposal[] }) {
             ) : (
               <span className="break-words">{contentText(p.content)}</span>
             )}
-            {p.reason && <span className="text-[10px] text-muted-foreground">reason: {p.reason}</span>}
+            {p.reason && <span className="text-xs text-muted-foreground">reason: {p.reason}</span>}
           </CardContent>
         </Card>
       ))}
@@ -293,11 +291,11 @@ export function PendingView({ pending }: { pending: MemoryProposal[] }) {
   }
   return (
     <div className="flex flex-col gap-2" data-testid="memory-pending">
-      {!review && <p className="text-[11px] text-muted-foreground">Review is off in this mode: nothing here can be accepted.</p>}
+      {!review && <p className="text-xs text-muted-foreground">Review is off in this mode: nothing here can be accepted.</p>}
       {pending.map((p) => (
         <Card key={p.proposal_id} className="gap-1.5 py-2 shadow-none" data-testid="pending-proposal" data-store={p.store}>
           <ProposalHead p={p} />
-          <CardContent className="flex flex-col gap-1.5 px-2.5 text-[11px]">
+          <CardContent className="flex flex-col gap-1.5 px-2.5 text-xs">
             <span className="break-words">{contentText(p.content)}</span>
             {review && (
               <div className="flex gap-1.5">
@@ -335,10 +333,10 @@ export function ContextBudget({ summary }: { summary: Record<string, unknown> })
   const citations = num(summary.citations) ?? (Array.isArray(summary.citations) ? summary.citations.length : undefined)
   return (
     <section className="flex flex-col gap-2" aria-label="Context budget" data-testid="context-budget">
-      <h4 className="text-xs font-semibold text-muted-foreground">Context budget</h4>
+      <h4 className="text-xs font-medium text-muted-foreground">Context budget</h4>
       {budget !== undefined && (
         <div className="flex flex-col gap-1">
-          <div className="flex justify-between text-[11px]">
+          <div className="flex justify-between text-xs">
             <span>used</span>
             <span className="font-mono">
               {used} / {budget} tok ({Math.round((used / budget) * 100)}%)
@@ -354,16 +352,16 @@ export function ContextBudget({ summary }: { summary: Record<string, unknown> })
           const isStore = name in retrieved
           return (
             <div key={name} className="flex flex-col gap-0.5" data-testid="context-slice" data-slice={name} data-tokens={t}>
-              <div className="flex items-baseline gap-1.5 text-[11px]">
+              <div className="flex items-baseline gap-1.5 text-xs">
                 <span className={cn('font-medium', !t && 'text-muted-foreground')}>{name}</span>
                 {retrieved[name] !== undefined && <span className="text-muted-foreground">{retrieved[name]} retrieved</span>}
                 {trimmed[name] ? (
-                  <Badge variant="outline" className="rounded-sm border-state-waiting/60 px-1 py-0 text-[10px] font-normal text-state-waiting" data-testid="slice-trimmed">
+                  <Badge variant="secondary" className="font-normal" data-testid="slice-trimmed">
                     {trimmed[name]} trimmed
                   </Badge>
                 ) : null}
                 {degraded.includes(name) && (
-                  <Badge variant="outline" className="rounded-sm border-state-error/60 px-1 py-0 text-[10px] font-normal text-state-error" data-testid="slice-degraded">
+                  <Badge variant="destructive" className="font-normal" data-testid="slice-degraded">
                     degraded
                   </Badge>
                 )}
@@ -398,8 +396,8 @@ export function CitationList({ citations }: { citations: (Citation & { text?: st
   return (
     <ol className="flex flex-col gap-1" data-testid="context-citations">
       {citations.map((c) => (
-        <li key={c.n} className="flex items-center gap-1.5 text-[11px]">
-          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-sm bg-kind-store/15 px-1 font-mono text-[10px] ring-1 ring-kind-store/40 ring-inset">{c.n}</span>
+        <li key={c.n} className="flex items-center gap-1.5 text-xs">
+          <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-secondary px-1.5 font-mono text-xs tabular-nums">{c.n}</span>
           <span className="min-w-0 truncate" title={c.text}>
             {c.citation}
           </span>

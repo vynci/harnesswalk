@@ -71,8 +71,8 @@ owner's feedback) beside a fresh capture.
 | `VITE_HARNESSWALK_API_URL` | build time | API origin when the UI is not served by the API or the proxy. Default same origin |
 | `VITE_HARNESSWALK_VALIDATE` | build time | `1` validates every event against the schema in a production build too (dev and mock builds always do) |
 
-Per-viewer conveniences (theme, view, collapsed groups, the telemetry switch, the session id and
-the messages this browser sent) live in `localStorage` under `harnesswalk.*`. The app works without storage.
+Per-viewer conveniences (theme, view, collapsed groups, the telemetry switch, the pane sizes, the
+session id and the messages this browser sent) live in `localStorage` under `harnesswalk.*`. The app works without storage.
 
 ## Mock mode
 
@@ -90,51 +90,94 @@ run as against the real API. It:
 
 The mock and the schema validator are dynamic imports behind build-time constants, so a
 production build contains neither. The diagram (React Flow), the inspector and shiki are their
-own chunks too, so the main chunk stays near 570 KB.
+own chunks too, so the main chunk stays near 530 KB.
 
 ## Components
 
 The UI is [shadcn/ui](https://ui.shadcn.com) on **Radix** (`radix-ui`), and Radix only: no
 `@base-ui/react`. The components are source files in `src/components/ui/`, owned by this repo;
-change them freely. `components.json` keeps the `new-york` style and the `@/components/ui`,
-`@/lib/utils`, `@/hooks` aliases. The `shadcn` CLI is a pinned dev dependency, so
-`pnpm exec shadcn` is the same version for everyone.
+change them freely. The whole app is on one style, **`radix-rhea`**: the soft, filled look of
+shadcn's [AI Elements](https://ui.shadcn.com/docs/ai-elements) pages. `components.json` names
+it, with the `@/components/ui`, `@/lib/utils`, `@/hooks` aliases. The `shadcn` CLI is a pinned
+dev dependency, so `pnpm exec shadcn` is the same version for everyone.
 
 ### Adding a component
 
-- **A primitive** (button, card, dialog, ...): `pnpm exec shadcn add <name>`. It resolves against
-  the `new-york` registry, like the eight primitives the app started with.
-- **An AI component** (Trace, Message, Message Scroller, Marker, Bubble, Code Block, Spinner,
-  Attachment, Questionnaire): these ship only in the newer `radix-*` styles, so add them by URL
-  from `radix-vega`, the style closest to new-york:
-  `pnpm exec shadcn add https://ui.shadcn.com/r/styles/radix-vega/<name>.json`.
-  An item whose own dependencies exist only there (Code Block needs `use-highlighted-code`)
-  fails to resolve that way: set `"style": "radix-vega"` in `components.json` for that one
-  `add`, answer no to overwriting `button.tsx`, then put `components.json` back.
-- **With the shadcn MCP server**: `search_items_in_registries` / `view_items_in_registries` with
-  registry `@shadcn` (new-york items), `get_add_command_for_items` for the CLI line; for the AI
-  components, view the radix-vega JSON above and add by URL.
-- **After every add**, check the diff. Current registries write `import { cn } from "cn"` and
-  add the `cn` package (and `next-themes` for Sonner): change the import to `@/lib/utils`,
-  `pnpm remove cn next-themes`, and pin any new dependency to an exact version.
-- Patterns from shadcn's AI Elements pages (Tool, Sources, Reasoning, Task, Plan, Queue, Chain of
-  Thought, Terminal, Stack Trace, Test Results) are not components: they are compositions of
-  Trace and Code Block that you copy into the app, as `src/chat/ToolTrace.tsx` does.
+- **Any component** (a primitive or an AI part: Trace, Message, Bubble, Marker, Message
+  Scroller, Code Block, Input Group, Item, Empty, Hover Card, Attachment, Questionnaire...):
+  `pnpm exec shadcn add <name>` resolves against `radix-rhea` because `components.json` says so.
+  The explicit form is `pnpm exec shadcn add https://ui.shadcn.com/r/styles/radix-rhea/<name>.json`.
+- **With the shadcn MCP server**: `view_items_in_registries` shows an item; its search covers the
+  `new-york` registry only, so view the `radix-rhea` JSON above for the code you will get.
+- **After every add**, check `git diff`. The registry writes `import { cn } from "cn"` and adds
+  the `cn` package (and `next-themes` for Sonner): change the import to `@/lib/utils`,
+  `pnpm remove cn next-themes`, and pin any new dependency to an exact version. An add with
+  `--overwrite` also rewrites the files below; put the local changes back.
+- **AI Elements patterns** (Chat, Prompt Input, Message, Tool, Confirmation, Sources, Inline
+  Citation, Context, Suggestion, Reasoning, Plan, Queue, Task, Subagent, Terminal, Test
+  Results, Checkpoint, File Tree) are not registry items: they are compositions you copy from
+  the pattern page into the app, as `src/chat/` does. The map below says which file holds which.
 
 `src/index.css` imports `shadcn/tailwind.css` for the `data-open` / `data-closed` variants, the
-`shimmer` utility (streaming text) and `scroll-fade`. Local changes to generated files, kept on
-purpose: `sonner.tsx` takes the theme as a prop (no next-themes), `badge.tsx` has a `kind`
-variant for node kinds, `lib/highlighter.tsx` loads shiki itself lazily and only the five
-languages the inspector shows.
+`shimmer` utility (streaming text), `scroll-fade` and `no-scrollbar`. Local changes to generated
+files, kept on purpose: `sonner.tsx` takes the theme as a prop (no next-themes), `badge.tsx` has
+a `kind` variant for node kinds, `scroll-area.tsx` lays its viewport out as a block,
+`slider.tsx` puts the `aria-label` on the thumb (the element with role slider), and
+`lib/highlighter.tsx` loads shiki itself lazily with only the five languages the inspector
+shows.
 
 ### Tokens
 
 Every colour is a CSS variable in `src/index.css`, light in `:root` and dark in `.dark`: the
 shadcn set (`--background`, `--card`, `--primary`, `--muted`, `--border`, ...) and the diagram's
 channels (`--plane-*`, `--state-*`, `--kind-*`, `--edge-*`). `@theme inline` maps them to
-Tailwind colours, so components write `bg-card`, `border-state-waiting` or `text-kind-store`,
+Tailwind colours, so components write `bg-card`, `text-state-waiting` or `text-kind-store`,
 never a hex value. A restyle is an edit to that one file; `colors.test.ts` checks the contrast
 of the diagram tokens in both themes.
+
+### The style rules
+
+What makes AI Elements look minimal, applied across the app so the chat, inspector, header,
+legend and diagram chrome read as one system:
+
+- **Monochrome.** Status is text colour (`text-destructive`), `opacity-60` for not started, the
+  `shimmer` for running (off under reduced motion) and the tense of the title. Primary fill only
+  on the send button and the main action of a prompt (Approve, Next). Plane, kind and state
+  colours appear on icons, the 3 px accent bars, diagram strokes and small chips, never as
+  coloured or dashed borders around chat or inspector surfaces.
+- **Borders.** Trace lines have none; open content gets one hairline on the left. Bubbles are
+  fills. Items are a 1 px outline. Raised surfaces (cards, menus, hover cards) use
+  `ring-1 ring-foreground/5` and a shadow.
+- **Radii (rhea).** Buttons, inputs, the input group, items, code blocks, menus and badges
+  `rounded-2xl`; bubbles `rounded-3xl`; the composer's round buttons `rounded-full`.
+- **Type.** `text-sm` for body and lines, `text-xs` as the floor: no 10 or 11 px text anywhere.
+  `font-medium` for titles only, no `font-semibold`, no uppercase eyebrows; `tabular-nums` for
+  numbers; mono only for code, ids, paths and commands.
+- **Icons.** lucide at `size-4`, `size-3` in `xs` buttons; one icon per line; chevrons rotate.
+- **Muted by default.** Trace lines, descriptions, footers and addons are muted; foreground is
+  for what the reader acts on.
+
+### AI Elements map
+
+| AI Elements | Where | Notes |
+|---|---|---|
+| Chat (Message Scroller, Message, Bubble) | `chat/ChatPanel.tsx` | The person's turn is a muted Bubble on the right; the agent's reply has no bubble. One agent Message holds the turn's lines, prompts, reply, sources and notices |
+| Prompt Input (Input Group) | `chat/Composer.tsx` | Plus on the left (`aria-disabled`, tooltip "Attach, coming later"; attachments are P6), dev Options and a Model Selector menu for the model hint, the arrow-up send on the right that turns into Stop while a turn runs; Enter and Shift+Enter hints under it |
+| Message actions | `chat/ChatPanel.tsx` | Replay is a MessageFooter icon action with a tooltip; P4 adds Good and Bad here |
+| Tool (Trace, Code Block) | `chat/ToolTrace.tsx` | One wrench line per call: running, waiting for approval, ran, denied, failed. The description is a short outcome and the duration; policy, why, budget, approval, sandbox chip and arguments open below |
+| Confirmation (Item) | `chat/ApprovalCard.tsx` | "Run X?" with the action class, reason, countdown and arguments; Deny then Approve. Once decided it goes and the tool line above says how |
+| Item | `chat/StepControls.tsx` | The step-mode pause: "Paused at X", Continue, Next |
+| Sources, Inline Citation (Hover Card) | `chat/Citations.tsx` | `[n]` chips with a hover card, click opens the document reader (a Dialog); "Cited N passages" starts closed |
+| Empty, Suggestion | `chat/ChatPanel.tsx` | An empty chat: Empty in the thread, a row of suggested prompts above the input |
+| Context (Hover Card, Progress) | `diagram/TurnStatusBar.tsx` | "{n}% budget" opens a Progress bar per budget (tokens, cost, steps, policy) |
+| Reasoning, Plan | `chat/Reasoning.tsx` | Mounted as empty slots; P4 fills them from the stream |
+| Marker | `chat/ChatPanel.tsx` | Turn separators (the Checkpoint shape; P4 adds Restore), the working shimmer, system notices |
+| Trace | `inspector/EventsTab.tsx`, `chat/ToolTrace.tsx` | The inspector's Events tab is a Trace too; its icons keep the node kind colours |
+| Resizable | `app/App.tsx` | The chat and diagram split and the docked inspector, with the grip handle; sizes kept per viewer |
+
+Later phases: Reasoning and Plan get data in P4, with Task, Chain of Thought, Test Results,
+Terminal, Checkpoint Restore and message Good/Bad; File Tree and Questionnaire in P5; Attachment
+behind the plus button and the Model Selector for your own key in P6; Subagent in P7.
 
 ### Which part uses what
 
@@ -142,15 +185,13 @@ of the diagram tokens in both themes.
 |---|---|
 | Header | Select (provider, fixture), Switch (step mode), Toggle Group (Simple/Expert, theme), Dropdown Menu (session: new, copy id), Badge (mode), Tooltip on every unlabelled control |
 | Notices | Sonner toasts (errors carry `role="alert"`), plus a toast when the event stream drops and when it reconnects |
-| Chat transcript | Message Scroller (auto-scroll, scroll-to-latest button), Message and Bubble (user, assistant), Marker (turn dividers, the shimmering "walking the harness" state, system notices for blocked, limit, error, cancelled), Spinner |
-| Tool calls in the chat | Trace (one line per call: running, waiting for approval, ran, denied, failed) opening to a Code Block, with a Badge for the sandbox level, network and jail; a Memory Trace line per `remember` proposal (written, waiting, rejected) |
-| Citations and guardrails | Sources (Trace) listing `turn_end.summary.citations`, `[n]` chips in the reply, a Dialog reading the document at the cited chunk (`GET /v1/knowledge/docs/{doc}`); Badges for input guardrails (redactions, injection score, warnings) and output guardrails (citations, restored); placeholders as `mark`, a Switch revealing the restored reply (dev only) |
-| Composer options (dev) | Collapsible with a Textarea for `output_schema` and a Select for the model hint |
-| Approval | Card with an Alert (why it needs a person), the arguments in a Code Block, Buttons and the countdown |
-| Step controls, composer | Button Group (Next, Continue); Textarea, Button and Kbd (Enter, Shift+Enter) |
-| Inspector, P3 payloads | Picked by payload shape (`src/inspector/shapes.ts`), never node id: the audit chain as a list with prev and hash, a Verify Button and the `/v1/audit` link; store records with a scope Badge; the knowledge document list as a Table opening the reader; memory writes as Cards with a diff, pending proposals with Accept and Reject (`POST /v1/memory/proposals/{id}`, hidden when `features.memory_review` is false); the context builder's budget as Progress bars per slice, with trimmed, degraded and citations |
-| Inspector | A docked panel (not a modal Sheet, so step mode keeps it open) with Tabs and Scroll Area; Badge (kind, view); Events as a Trace (running, pending, error per event, opening to the event JSON in a Code Block); Code and config in a Code Block with line numbers; prompts in `Prose`; records in a Table; Switch (disable next turn); Kbd (Esc) |
-| Diagram | Nodes are Cards (CardTitle, CardDescription) with Badges for the kind chip, store badges and the off and not-yet tags; the legend is a Card with Badge rows and a Switch; the turn status bar is a Card. The canvas, edges and layout stay React Flow |
+| Chat | Message Scroller, Message, Bubble, Marker, Spinner, Empty, Button (suggestions, message actions), Tooltip |
+| Tool calls and memory | Trace lines opening to a Code Block, a Badge for the sandbox; a Memory Trace line per `remember` proposal (written, waiting, rejected) |
+| Citations and guardrails | Hover Card and Button (inline citations), Trace (Sources), Dialog (the document reader at the cited chunk, `GET /v1/knowledge/docs/{doc}`); secondary Badges for input guardrails (redactions, injection score, warnings) and output guardrails (citations, restored); placeholders as `mark`, a Switch revealing the restored reply (dev only) |
+| Composer | Input Group (Textarea, Buttons, Text), Dropdown Menu (model hint), Textarea (`output_schema`, dev only), Kbd, Tooltip, Spinner |
+| Approval, step controls | Item (Media, Content, Title, Description, Actions, Footer), Code Block, Badge, Button |
+| Inspector | A Resizable pane docked beside the diagram (not a modal Sheet, so step mode keeps it open) with Tabs and Scroll Area; Badge (kind, view); Events as a Trace opening to the event JSON in a Code Block; Code and config in a Code Block with line numbers; prompts in `Prose`; records in a Table; payload views picked by shape (`src/inspector/shapes.ts`): the audit chain with a Verify Button, store records with a scope Badge, the document list, memory writes as Cards with a diff and Accept/Reject, the context budget as Progress bars; Switch (disable next turn); Kbd (Esc) |
+| Diagram | Nodes are Cards (CardTitle, CardDescription) with Badges for the kind chip, store badges and the off and not-yet tags; the legend is a Card with a Switch; the turn status bar is a Card with the Context hover card. The canvas, edges and layout stay React Flow |
 | Replay bar | Card, Button Group (previous, play, next), Slider, Tooltip with Kbd |
 
 App-level helpers on top of the primitives live in `src/components/`: `hint.tsx` (a Tooltip on
@@ -214,8 +255,8 @@ src/api        types, HTTP client, SSE stream client, schema validator
 src/state      the reducer (events to state), turn facts read from summary keys, the Zustand
                store, persistence
 src/diagram    layout, React Flow nodes and edges, stats and memory badges
-src/chat       chat panel, composer, approval card, step controls, tool calls, citations and
-               the document reader, guardrail badges
+src/chat       chat panel, composer, approval confirmation, step controls, tool calls, citations,
+               the document reader, guardrail badges, reasoning and plan slots
 src/inspector  node drawer: overview, config or prompt or records, code, events (Trace)
 src/components shadcn/ui in ui/, plus hint, code and prose
 src/lib, hooks cn() and the shiki highlighter, from the shadcn CLI

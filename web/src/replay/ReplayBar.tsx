@@ -34,7 +34,8 @@ export function ReplayBar() {
 
   return (
     <Card
-      className="absolute inset-x-3 bottom-3 z-20 mx-auto max-w-3xl flex-row flex-wrap items-center gap-2 rounded-lg bg-card/95 px-3 py-2 shadow-md backdrop-blur"
+      size="sm"
+      className="absolute inset-x-3 bottom-3 z-20 mx-auto max-w-3xl flex-row flex-wrap items-center gap-3 rounded-2xl px-3 py-2"
       role="group"
       aria-label="Replay controls"
       data-testid="replay-bar"
@@ -42,10 +43,10 @@ export function ReplayBar() {
         if (e.key === 'Escape') exitReplay()
       }}
     >
-      <span className="text-xs font-semibold">Replay</span>
+      <span className="pl-1 text-sm font-medium">Replay</span>
       <ButtonGroup aria-label="Step through the turn">
         <Hint label="Previous event" side="top">
-          <Button size="icon-sm" variant="outline" className="size-7" onClick={() => stepReplay(-1)} disabled={replay.cursor <= 0} aria-label="Previous event" data-testid="replay-prev">
+          <Button size="icon-sm" variant="outline" onClick={() => stepReplay(-1)} disabled={replay.cursor <= 0} aria-label="Previous event" data-testid="replay-prev">
             <ChevronLeft />
           </Button>
         </Hint>
@@ -53,7 +54,6 @@ export function ReplayBar() {
           <Button
             size="icon-sm"
             variant="outline"
-            className="size-7"
             onClick={() => setPlaying(!replay.playing)}
             aria-label={replay.playing ? 'Pause replay' : 'Play replay'}
             data-testid="replay-play"
@@ -62,7 +62,7 @@ export function ReplayBar() {
           </Button>
         </Hint>
         <Hint label="Next event" side="top">
-          <Button size="icon-sm" variant="outline" className="size-7" onClick={() => stepReplay(1)} disabled={replay.cursor >= last} aria-label="Next event" data-testid="replay-next">
+          <Button size="icon-sm" variant="outline" onClick={() => stepReplay(1)} disabled={replay.cursor >= last} aria-label="Next event" data-testid="replay-next">
             <ChevronRight />
           </Button>
         </Hint>
@@ -77,7 +77,7 @@ export function ReplayBar() {
         aria-label="Replay position"
         data-testid="replay-slider"
       />
-      <span className="w-48 truncate font-mono text-[11px] text-muted-foreground" data-testid="replay-position" title={what}>
+      <span className="w-48 truncate font-mono text-xs text-muted-foreground tabular-nums" data-testid="replay-position" title={what}>
         {replay.cursor + 1}/{replay.events.length} {what}
       </span>
       <Hint
@@ -88,7 +88,7 @@ export function ReplayBar() {
         }
         side="top"
       >
-        <Button size="icon" variant="ghost" className="size-7" onClick={exitReplay} aria-label="Exit replay" aria-keyshortcuts="Escape" data-testid="replay-exit">
+        <Button size="icon-sm" variant="ghost" onClick={exitReplay} aria-label="Exit replay" aria-keyshortcuts="Escape" data-testid="replay-exit">
           <X />
         </Button>
       </Hint>

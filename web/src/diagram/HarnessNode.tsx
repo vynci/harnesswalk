@@ -58,7 +58,7 @@ function StateIcon({ state }: { state: NodeState }) {
 function KindChip({ kind, small }: { kind: DiagramNode['kind']; small: boolean }) {
   const Icon = KIND_ICON[kind]
   return (
-    <Badge variant="kind" className={cn('rounded-[4px] p-0', small ? 'size-4 [&>svg]:size-2.5' : 'size-[18px] [&>svg]:size-3')} data-kind={kind} title={KIND_HINT[kind]} data-testid="kind-chip">
+    <Badge variant="kind" className={cn('rounded-[4px] p-0', small ? 'size-4 [&>svg]:size-2.5!' : 'size-[18px] [&>svg]:size-3!')} data-kind={kind} title={KIND_HINT[kind]} data-testid="kind-chip">
       <Icon aria-hidden strokeWidth={2.25} />
       <span className="sr-only">{kind}</span>
     </Badge>
@@ -96,8 +96,8 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
           <KindChip kind={node.kind} small={isChild} />
           {off && (
             <Badge
-              variant="outline"
-              className="rounded-sm border-current px-1 py-0 text-[10px] leading-4 font-normal text-state-error"
+              variant="destructive"
+              className="h-4 px-1.5 font-normal"
               title={off === 'now' ? 'Disabled for this session' : 'Disabled from the next turn you send'}
               data-testid={`off-${node.id}`}
             >
@@ -123,9 +123,9 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
           )}
         </span>
       </div>
-      <CardDescription className={cn('mt-0.5 flex shrink-0 items-center gap-1 truncate', isChild ? 'text-[10px] leading-3' : 'text-[11px] leading-4')} data-testid={`stat-${node.id}`}>
+      <CardDescription className={cn('mt-0.5 flex shrink-0 items-center gap-1 truncate', isChild ? 'text-xs leading-3.5' : 'text-xs leading-4')} data-testid={`stat-${node.id}`}>
         {notYet && (
-          <Badge variant="outline" className="rounded-sm border-dashed border-current px-1 py-0 text-[10px] leading-3.5 font-normal text-muted-foreground" title="Not implemented yet">
+          <Badge variant="outline" className="h-4 border-dashed border-current px-1.5 font-normal text-muted-foreground" title="Not implemented yet">
             not yet
           </Badge>
         )}
@@ -139,7 +139,7 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
             <Badge
               key={b.id}
               variant="outline"
-              className="hw-store-badge rounded-sm border-(--plane-stroke)/40 px-1 py-0 text-[10px] leading-4 font-normal text-muted-foreground"
+              className="hw-store-badge h-4 border-(--plane-stroke)/40 px-1.5 font-normal text-muted-foreground"
               data-testid={`badge-${b.id}`}
               // A store that was skipped (a stub, or switched off) did no work: it stays unlit.
               data-lit={b.state !== 'idle' && b.state !== 'skipped' ? 'true' : 'false'}
