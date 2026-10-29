@@ -33,9 +33,11 @@ passes PII redaction before it is stored.
 from __future__ import annotations
 
 import json
+import logging
 import time
 import uuid
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any
 
 from harnesswalk.adapters.storage.sqlite import Database
@@ -49,6 +51,7 @@ from harnesswalk.nodes import node, register
 from harnesswalk.types import ToolCall, TurnContext
 
 register("memory_writer", __name__)
+log = logging.getLogger("harnesswalk.memory_writer")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS memory_proposals (
@@ -201,8 +204,10 @@ class MemoryWriter:
         *,
         episodes_enabled: bool = True,
         pii: PiiDetector | None = None,
+        audit: Any = None,
     ) -> None:
         self.cfg = cfg
+        self.audit = audit  # AuditLog: every write is a `memory_written` record (audit.md)
         self.pii = pii or _DEFAULT_PII  # the input guardrails' detector, pack patterns included
         self.db = db
         self.semantic = semantic
@@ -460,6 +465,17 @@ class MemoryWriter:
             )
             return record
         record.status = "accepted"
+        self._audit_write(
+            ctx.tenant_id,
+            ctx.turn_id,
+            ctx.trace_id,
+            f"gate:{record.gate}",
+            proposal.store,
+            record.record_id,
+            record.op,
+            before,
+            after,
+        )
         self.db.execute(
             "UPDATE memory_proposals SET status = 'accepted', record_id = ?, version = ?, op = ?,"
             " before = ?, after = ?, decided_at = ?, decided_by = ? WHERE proposal_id = ?",
@@ -475,6 +491,45 @@ class MemoryWriter:
             ),
         )
         return record
+
+    def _audit_write(
+        self,
+        tenant_id: str,
+        turn_id: str,
+        trace_id: str,
+        actor: str,
+        store: str,
+        record_id: str | None,
+        op: str | None,
+        before: Any,
+        after: Any,
+    ) -> None:
+        """A `memory_written` audit record (redacted content, 1 KiB per side), best effort."""
+        if self.audit is None:
+            return
+        from harnesswalk.control.audit import AuditEntry
+
+        def cap(v: Any) -> Any:
+            return v if v is None or len(str(v)) <= 1024 else str(v)[:1000] + " [truncated]"
+
+        entry = AuditEntry(
+            action="memory_written",
+            actor=actor,
+            turn_id=turn_id,
+            trace_id=trace_id,
+            tool=REMEMBER,
+            action_class="memory.write",
+            decision="allow",
+            executed=True,
+            outcome=op,
+            before=cap(before),
+            after=cap(after),
+            extra={"store": store, "record_id": record_id},
+        )
+        try:
+            self.audit.append(SimpleNamespace(tenant_id=tenant_id), entry)
+        except Exception as exc:  # the write happened; a missing audit row must not undo it
+            log.warning("memory_written audit failed: %s", type(exc).__name__)
 
     def _insert(self, ctx, proposal, content, record) -> None:
         self.db.execute(
@@ -603,6 +658,9 @@ class MemoryWriter:
                 proposal_id=proposal_id,
             )
             version, op, before, after = 1, "create", None, content["text"]
+        self._audit_write(
+            tenant_id, row["turn_id"] or "", "", decider, row["store"], record_id, op, before, after
+        )
         self.db.execute(
             "UPDATE memory_proposals SET status = 'accepted', record_id = ?, version = ?, op = ?,"
             " before = ?, after = ?, decided_at = ?, decided_by = ?, reason = ?"

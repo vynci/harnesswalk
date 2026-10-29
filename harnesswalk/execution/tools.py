@@ -45,7 +45,7 @@ SNAPSHOT_CHARS = 1024
 _scrubber = PiiDetector()
 
 
-def snapshot(content: str | None) -> Any:
+def snapshot(content: str | None, scrubber: PiiDetector | None = None) -> Any:
     """A small, PII-redacted value for an audit record's before or after."""
     if content is None:
         return None
@@ -53,7 +53,7 @@ def snapshot(content: str | None) -> Any:
         value: Any = json.loads(content)
     except (json.JSONDecodeError, TypeError):
         value = content
-    value = _scrubber.scrub(value)
+    value = (scrubber or _scrubber).scrub(value)
     text = json.dumps(value, sort_keys=True, separators=(",", ":"))
     if len(text) > SNAPSHOT_CHARS:
         return {"truncated": text[: SNAPSHOT_CHARS - 40]}
@@ -77,6 +77,9 @@ class Tools:
         self.approvals = approvals
         self.sandbox = sandbox
         self.max_observation_chars = max_observation_chars
+        # Redacts audit before and after snapshots; the runtime sets the input guardrails'
+        # detector here, so pack patterns (national ids, names) apply too (P3 review).
+        self.scrubber: PiiDetector | None = None
 
     def schemas(self, mode: str):
         return [s.schema() for s in self.registry.list(mode, self.policy.allow_tools)]
@@ -242,7 +245,7 @@ class Tools:
             if reader is not None:
                 snap_call = ToolCall(call.call_id + ".before", reader.name, call.arguments)
                 snap = await self.sandbox.execute(ctx, reader, snap_call)
-                before = snapshot(snap.content if snap.outcome == "ok" else None)
+                before = snapshot(snap.content if snap.outcome == "ok" else None, self.scrubber)
         network = spec.action_class == "external"  # policy allowed it, or we would not be here
         result = await run_sandbox(ctx, self.sandbox, spec, call, network=network)
         span.set(executed=True)
@@ -267,7 +270,9 @@ class Tools:
                     executed=True,
                     outcome=result.outcome,
                     before=before,
-                    after=snapshot(result.content) if result.outcome == "ok" else None,
+                    after=snapshot(result.content, self.scrubber)
+                    if result.outcome == "ok"
+                    else None,
                 ),
             )
         content = result.content

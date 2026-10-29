@@ -99,3 +99,24 @@ async def test_the_writer_gate_is_policys_decision_with_roles(tmp_path: Path) ->
     assert (report.written, report.rejected) == (0, 1)
     ctx.identity.roles = ["admin"]
     assert w.policy.decide_memory_write(["admin"]).rule == "admins.remember"
+
+
+@pytest.mark.anyio
+async def test_memory_writes_are_audited_and_tools_scrub_with_the_pack_patterns(
+    tmp_path: Path,
+) -> None:
+    from tests.unit.support import harness, run_turn
+
+    h = harness(
+        tmp_path,
+        "memory_written",
+        overrides={"context.stores": ["procedural", "session", "semantic"]},
+    )
+    await run_turn(h, "Please remember that my preferred name is Sam.")
+    entries = [r.entry for r in h.audit.list("t1", 20)]
+    written = [e for e in entries if e["action"] == "memory_written"]
+    assert written and written[0]["extra"]["store"] == "semantic"
+    assert written[0]["actor"] == "gate:auto" and "Sam" in str(written[0]["after"])
+    assert h.audit.verify("t1")["ok"]
+    # Audit snapshots of tool results go through the input guardrails' detector.
+    assert h.tools.scrubber is h.input_guardrails.pii

@@ -163,7 +163,9 @@ class Harness:
             self.policy,
             episodes_enabled="episodic" in enabled,
             pii=self.input_guardrails.pii,
+            audit=self.audit,
         )
+        self.tools.scrubber = self.input_guardrails.pii
         self.ingest_report: dict[str, Any] | None = None
         if bool(s.get("stores.ingest_on_start", True)):
             try:
