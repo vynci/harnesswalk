@@ -34,6 +34,7 @@ import { ApprovalCard } from './ApprovalCard'
 import { Composer } from './Composer'
 import { StepControls } from './StepControls'
 import { ReplyText, Sources } from './Citations'
+import { Plan, Reasoning } from './Reasoning'
 import { InputGuardBadges, OutputGuardBadges } from './Guardrails'
 import { MemoryTrace, ToolTrace } from './ToolTrace'
 
@@ -182,6 +183,9 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
       </Message>
       <Message align="start">
         <MessageContent className="gap-3">
+          {/* P4 fills these from the stream (thinking, the loop's plan); empty slots until then. */}
+          <Reasoning reasoning={null} />
+          <Plan plan={null} />
           {state && <ToolTrace events={state.events} turnOver={finished} />}
           {turn.reconnected && state?.phase === 'paused' && state.paused?.reason === 'approval' && (
             <Marker variant="border" role="status" data-testid="reattached-notice">
