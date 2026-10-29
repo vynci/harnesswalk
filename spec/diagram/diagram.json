@@ -36,7 +36,8 @@
       "kind": "code",
       "view": "simple",
       "lesson": "The front door. Every request arrives here, whatever the channel, and leaves here as a reply. The gateway decides who is asking and for which tenant, applies rate limits, and turns the channel's message into one internal shape. Without it every other node would have to know about HTTP, sessions and identity, and tenant isolation would depend on each of them getting it right.",
-      "source_hint": "harnesswalk/control/gateway.py"
+      "source_hint": "harnesswalk/control/gateway.py",
+      "layout": {"x": 0, "y": 0}
     },
     {
       "id": "input_guardrails",
@@ -46,7 +47,8 @@
       "view": "simple",
       "lesson": "Deterministic checks that run before the model sees anything: size limits, PII redaction and prompt-injection heuristics. They are plain code on purpose, because a check that lives in a prompt can be talked out of. Turn this node off and send a message containing an email address: you will see it reach the model and the trace untouched.",
       "source_hint": "harnesswalk/control/input_guardrails.py",
-      "can_disable": true
+      "can_disable": true,
+      "layout": {"x": 90, "y": 112}
     },
     {
       "id": "policy",
@@ -57,7 +59,8 @@
       "lesson": "The rules that decide whether a tool call may run. Every tool has an action class (read, write, destructive, external) and every mode has an allowlist. Policy answers allow, deny or needs approval, and it is evaluated on every single call. A line in the system prompt saying \"never cancel orders\" is advice; this node is the control.",
       "source_hint": "harnesswalk/control/policy.py",
       "artifact_hint": "config/policy.yaml",
-      "can_disable": true
+      "can_disable": true,
+      "layout": {"x": 0, "y": 224}
     },
     {
       "id": "approval",
@@ -66,7 +69,8 @@
       "kind": "queue",
       "view": "simple",
       "lesson": "Where risky actions wait for a human. When policy says needs approval, the loop checkpoints, the exact action is shown as a card in the chat, and nothing runs until someone approves or denies. The diagram shows this node as waiting, which is the only time a request pauses on its own.",
-      "source_hint": "harnesswalk/control/approval.py"
+      "source_hint": "harnesswalk/control/approval.py",
+      "layout": {"x": 90, "y": 336}
     },
     {
       "id": "audit",
@@ -75,7 +79,8 @@
       "kind": "store",
       "view": "simple",
       "lesson": "An append-only record of decisions with consequences: who asked, what ran, who approved it and when. It is not the trace. The trace is for debugging and is sampled and pruned; the audit log is for accountability and is kept. Read-only lookups go to the trace only, which is why this node stays dark on a plain question.",
-      "source_hint": "harnesswalk/control/audit.py"
+      "source_hint": "harnesswalk/control/audit.py",
+      "layout": {"x": 0, "y": 448}
     },
     {
       "id": "context_builder",
@@ -85,7 +90,8 @@
       "view": "simple",
       "lesson": "Assembles what the model will see, inside a token budget. Each slice (system prompt, skills index, session, facts, episodes, documents) has its own budget and tier: always included, retrieved, or fetched on demand. Stable content goes first so prompt caching works. Open it to see the assembled context and a budget bar per slice.",
       "source_hint": "harnesswalk/context/builder.py",
-      "artifact_hint": "config/context.yaml"
+      "artifact_hint": "config/context.yaml",
+      "layout": {"x": 374, "y": 112}
     },
     {
       "id": "memory",
@@ -94,7 +100,8 @@
       "kind": "store",
       "view": "simple",
       "lesson": "The stores the context builder reads from, shown as one group. They share a retrieval interface but differ in what they hold, how they rank, and how they are written. Expand it in the expert view to see the five stores: procedural, session, semantic, episodic and knowledge.",
-      "source_hint": "harnesswalk/context/stores/__init__.py"
+      "source_hint": "harnesswalk/context/stores/__init__.py",
+      "layout": {"x": 374, "y": 224}
     },
     {
       "id": "procedural",
@@ -158,7 +165,8 @@
       "view": "simple",
       "lesson": "The only way anything is written into semantic or episodic memory. The loop and the eval diagnosis propose memories; the writer gates them (human review, an eval check, or auto-approve in private mode when enabled), versions them and scopes them to one tenant. Without a gate, one bad turn can poison every later one.",
       "source_hint": "harnesswalk/context/memory_writer.py",
-      "can_disable": true
+      "can_disable": true,
+      "layout": {"x": 374, "y": 388, "expert": {"x": 374, "y": 495}}
     },
     {
       "id": "loop",
@@ -167,7 +175,8 @@
       "kind": "code",
       "view": "simple",
       "lesson": "Plan, act, observe, adjust. The loop calls the model, runs the tools it asks for, feeds the results back, and repeats until there is an answer or an exit condition fires: max steps, token or dollar budget, wall-clock timeout, the same call repeated, or a human interrupt. It checkpoints after every step so a paused or crashed turn can resume.",
-      "source_hint": "harnesswalk/execution/loop.py"
+      "source_hint": "harnesswalk/execution/loop.py",
+      "layout": {"x": 786, "y": 112, "expert": {"x": 1054, "y": 112}}
     },
     {
       "id": "model_layer",
@@ -177,7 +186,8 @@
       "view": "simple",
       "lesson": "One interface in front of every model. It picks a model for the step (the router), calls the provider, falls back on errors or rate limits, and returns structured output. Swap the provider from local to hosted and nothing else in the harness changes.",
       "source_hint": "harnesswalk/execution/model_layer.py",
-      "artifact_hint": "config/models.yaml"
+      "artifact_hint": "config/models.yaml",
+      "layout": {"x": 898, "y": 248, "expert": {"x": 1166, "y": 248}}
     },
     {
       "id": "router",
@@ -207,7 +217,8 @@
       "kind": "code",
       "view": "simple",
       "lesson": "Functions the model can ask to run, each with a typed schema. Every call is checked by policy before it runs and executes with a timeout. The node shows two sub-states, policy check then execute, so you can see a call that was stopped before it did anything.",
-      "source_hint": "harnesswalk/execution/tools.py"
+      "source_hint": "harnesswalk/execution/tools.py",
+      "layout": {"x": 674, "y": 248, "expert": {"x": 808, "y": 248}}
     },
     {
       "id": "registry",
@@ -238,7 +249,8 @@
       "view": "simple",
       "lesson": "Checks on the answer before it leaves: schema validation, content checks, and citations required when the answer draws on knowledge documents. Like input guardrails, these are code, not instructions to the model.",
       "source_hint": "harnesswalk/execution/output_guardrails.py",
-      "can_disable": true
+      "can_disable": true,
+      "layout": {"x": 786, "y": 0, "expert": {"x": 1054, "y": 0}}
     },
     {
       "id": "trace",
@@ -247,7 +259,8 @@
       "kind": "store",
       "view": "simple",
       "lesson": "Every event of every turn, in order, under one trace id: the assembled context, prompt versions, each tool call with its inputs and outputs, tokens, cost and latency. The diagram you are looking at is drawn from the same events, so replaying a trace replays the animation.",
-      "source_hint": "harnesswalk/ops/trace.py"
+      "source_hint": "harnesswalk/ops/trace.py",
+      "layout": {"x": 0, "y": 646, "expert": {"x": 0, "y": 693}}
     },
     {
       "id": "cost",
@@ -266,7 +279,8 @@
       "kind": "code",
       "view": "simple",
       "lesson": "How you know a change made things better. Offline evals replay a golden set in CI; online evals judge a sample of live turns and collect thumbs; diagnose maps a failure to the layer that caused it, so the fix goes to the right place.",
-      "source_hint": "harnesswalk/ops/eval/__init__.py"
+      "source_hint": "harnesswalk/ops/eval/__init__.py",
+      "layout": {"x": 232, "y": 646, "expert": {"x": 232, "y": 693}}
     },
     {
       "id": "online_eval",
@@ -306,7 +320,8 @@
       "kind": "code",
       "view": "simple",
       "lesson": "Everything the harness loads is a versioned artifact: prompts, skills, policy, tool definitions, model config. A release passes the eval gate, ships, and can be rolled back by version. Editing a skill in the UI creates a new version here.",
-      "source_hint": "harnesswalk/ops/release.py"
+      "source_hint": "harnesswalk/ops/release.py",
+      "layout": {"x": 464, "y": 646, "expert": {"x": 598, "y": 693}}
     },
     {
       "id": "artifacts",
@@ -326,7 +341,8 @@
       "to": "input_guardrails",
       "label": "message",
       "kind": "request",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "bottom", "target": "top"}, "waypoints": [[140, 92]]}
     },
     {
       "id": "gateway_to_policy",
@@ -334,7 +350,8 @@
       "to": "policy",
       "label": "identity + tenant",
       "kind": "control",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "bottom", "target": "top"}, "waypoints": [[40, 148]], "label": "right"}
     },
     {
       "id": "input_guardrails_to_context_builder",
@@ -342,7 +359,8 @@
       "to": "context_builder",
       "label": "clean input",
       "kind": "request",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "right", "target": "left"}, "waypoints": [[324, 148]], "label": "below"}
     },
     {
       "id": "memory_to_context_builder",
@@ -350,7 +368,8 @@
       "to": "context_builder",
       "label": "retrieve + rank, within budget",
       "kind": "data",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "top", "target": "bottom"}, "waypoints": [[466, 204]], "label": "right"}
     },
     {
       "id": "context_builder_to_loop",
@@ -358,7 +377,8 @@
       "to": "loop",
       "label": "assembled context",
       "kind": "request",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "right", "target": "left"}, "waypoints": [[700, 130]], "label": "above"}
     },
     {
       "id": "loop_to_model_layer",
@@ -366,7 +386,8 @@
       "to": "model_layer",
       "label": "inference",
       "kind": "request",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "bottom", "target": "top"}, "waypoints": [[922, 216]], "label": "left"}
     },
     {
       "id": "model_layer_to_loop",
@@ -374,7 +395,8 @@
       "to": "loop",
       "label": "completion",
       "kind": "data",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "top", "target": "bottom"}, "waypoints": [[946, 216]], "label": "right"}
     },
     {
       "id": "loop_to_tools",
@@ -382,7 +404,8 @@
       "to": "tools",
       "label": "tool call",
       "kind": "request",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "bottom", "target": "top"}, "waypoints": [[810, 216]], "label": "left"}
     },
     {
       "id": "tools_to_policy",
@@ -390,7 +413,8 @@
       "to": "policy",
       "label": "policy check per call",
       "kind": "control",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "bottom", "target": "right"}, "waypoints": [[716, 500], [334, 500], [334, 260]], "label": "above"}
     },
     {
       "id": "policy_to_audit",
@@ -398,7 +422,8 @@
       "to": "audit",
       "label": "record decision",
       "kind": "data",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "bottom", "target": "top"}, "waypoints": [[40, 372]], "label": "right"}
     },
     {
       "id": "policy_to_approval",
@@ -406,7 +431,8 @@
       "to": "approval",
       "label": "needs approval",
       "kind": "control",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "bottom", "target": "top"}, "waypoints": [[140, 316]], "label": "right"}
     },
     {
       "id": "approval_to_audit",
@@ -414,7 +440,8 @@
       "to": "audit",
       "label": "record decision",
       "kind": "data",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "bottom", "target": "top"}, "waypoints": [[140, 428]], "label": "right"}
     },
     {
       "id": "approval_to_tools",
@@ -422,7 +449,8 @@
       "to": "tools",
       "label": "approve / deny, resume",
       "kind": "control",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "right", "target": "bottom"}, "waypoints": [[314, 372], [314, 524], [756, 524]], "label": "below"}
     },
     {
       "id": "tools_to_loop",
@@ -430,7 +458,8 @@
       "to": "loop",
       "label": "observation",
       "kind": "data",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "top", "target": "bottom"}, "waypoints": [[834, 216]], "label": "right"}
     },
     {
       "id": "loop_to_output_guardrails",
@@ -438,7 +467,8 @@
       "to": "output_guardrails",
       "label": "final answer",
       "kind": "request",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "top", "target": "bottom"}, "waypoints": [[878, 92]], "label": "right"}
     },
     {
       "id": "output_guardrails_to_gateway",
@@ -446,7 +476,8 @@
       "to": "gateway",
       "label": "reply via channel",
       "kind": "request",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "left", "target": "right"}, "waypoints": [[480, 36]], "label": "above"}
     },
     {
       "id": "loop_to_memory",
@@ -454,7 +485,8 @@
       "to": "memory",
       "label": "checkpoint per step",
       "kind": "data",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "left", "target": "right"}, "waypoints": [[596, 152], [596, 300]], "label": "left"}
     },
     {
       "id": "loop_to_memory_writer",
@@ -462,7 +494,8 @@
       "to": "memory_writer",
       "label": "proposed memories",
       "kind": "data",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "left", "target": "right"}, "waypoints": [[614, 174], [614, 424]], "label": "right"}
     },
     {
       "id": "memory_writer_to_memory",
@@ -470,7 +503,8 @@
       "to": "memory",
       "label": "gated writes",
       "kind": "data",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "top", "target": "bottom"}, "waypoints": [[466, 368]], "label": "right"}
     },
     {
       "id": "loop_to_trace",
@@ -478,7 +512,8 @@
       "to": "trace",
       "label": "telemetry",
       "kind": "telemetry",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "bottom", "target": "top"}, "waypoints": [[878, 566], [150, 566]], "label": "above"}
     },
     {
       "id": "trace_to_eval",
@@ -486,7 +521,8 @@
       "to": "eval",
       "label": "sample + feedback",
       "kind": "telemetry",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "right", "target": "left"}, "waypoints": [[208, 682]], "label": "above"}
     },
     {
       "id": "eval_to_memory_writer",
@@ -494,7 +530,8 @@
       "to": "memory_writer",
       "label": "proposed fixes, facts and skills",
       "kind": "data",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "top", "target": "bottom"}, "waypoints": [[395, 600]], "label": "right"}
     },
     {
       "id": "eval_to_release",
@@ -502,7 +539,8 @@
       "to": "release",
       "label": "eval gate",
       "kind": "release",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "right", "target": "left"}, "waypoints": [[440, 682]], "label": "above"}
     },
     {
       "id": "release_to_memory",
@@ -510,7 +548,8 @@
       "to": "memory",
       "label": "loaded on release",
       "kind": "release",
-      "view": "simple"
+      "view": "simple",
+      "layout": {"handles": {"source": "top", "target": "right"}, "waypoints": [[632, 324]], "label": "right"}
     },
     {
       "id": "procedural_to_context_builder",
