@@ -78,7 +78,7 @@ test('replay scrubbing changes node states', async ({ page }) => {
 })
 
 test('step mode pauses at every node and Next moves one hop', async ({ page }) => {
-  await page.getByTestId('step-toggle').click()
+  await page.getByRole('switch', { name: /Step mode/ }).click()
   await send(page, 'What are your support hours?')
   const controls = page.getByTestId('step-controls')
   await expect(controls).toContainText('Gateway')
@@ -101,7 +101,7 @@ test('Stop cancels a paused turn', async ({ page }) => {
 
 test('expert view expands children and the inspector shows lesson and code', async ({ page }) => {
   await expect(node(page, 'procedural')).toHaveCount(0)
-  await page.getByTestId('view-expert').click()
+  await page.getByRole('radiogroup', { name: 'Diagram view' }).getByRole('radio', { name: 'Expert' }).click()
   await expect(node(page, 'procedural')).toBeVisible()
   await page.getByRole('button', { name: 'Collapse Memory' }).click()
   await expect(node(page, 'procedural')).toHaveCount(0)
@@ -119,7 +119,7 @@ test('expert view expands children and the inspector shows lesson and code', asy
 })
 
 test('a focused node opens its inspector with Enter', async ({ page }) => {
-  await page.locator('.react-flow__node-harness[data-id="loop"]').focus()
+  await page.getByRole('group', { name: /^Loop,.*Press Enter to inspect/ }).focus()
   await page.keyboard.press('Enter')
   await expect(page.getByTestId('inspector-title')).toHaveText('Loop')
   await expect(page.getByRole('button', { name: 'Close inspector' })).toBeFocused()
@@ -149,4 +149,61 @@ test('the legend explains the colours and the telemetry toggle swaps the bus for
 
   await page.getByTestId('legend-toggle').click()
   await expect(legend).toHaveAttribute('data-open', 'false')
+})
+
+test('a tool call shows inline in the chat and opens to its details', async ({ page }) => {
+  await send(page, 'Where is order A-1001?')
+  await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  const calls = page.getByRole('group', { name: 'Tool calls' }).last()
+  const line = calls.getByTestId('tool-line')
+  await expect(line).toHaveAttribute('data-call-status', 'done')
+  await expect(line).toContainText('Ran lookup_order')
+  await expect(line).toContainText('policy allow')
+  const trigger = calls.getByRole('button', { name: /Ran lookup_order/ })
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  await trigger.click()
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+  await expect(calls).toContainText('dev.read.allow')
+})
+
+test('an approval shows as a waiting tool line until it is decided', async ({ page }) => {
+  await send(page, 'Please cancel order A-1002.')
+  const line = page.getByTestId('tool-line').last()
+  await expect(line).toHaveAttribute('data-call-status', 'waiting')
+  await expect(line).toHaveAttribute('data-status', 'pending')
+  await page.getByTestId('approval-card').last().getByRole('button', { name: 'Approve cancel_order' }).click()
+  await expect(line).toHaveAttribute('data-call-status', 'done')
+  await expect(line).toContainText('approved by')
+})
+
+test('the inspector events are a trace whose lines open to the event JSON', async ({ page }) => {
+  await send(page, 'Where is order A-1001?')
+  await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  await node(page, 'model_layer').click()
+  const inspector = page.getByTestId('inspector')
+  await inspector.getByRole('tab', { name: /^Events/ }).click()
+  const events = inspector.getByRole('list', { name: 'Node events' })
+  await expect(events.getByRole('listitem').first()).toContainText('node_enter')
+  // A finished turn has no running or pending lines.
+  await expect(events.locator('[data-slot=trace-line][data-status]')).toHaveCount(0)
+  const exit = events.getByRole('button', { name: /^node_exit #\d+/ }).first()
+  await exit.click()
+  await expect(events).toContainText('"finish_reason"')
+})
+
+test('the theme and view toggles, and the session menu starts a new session', async ({ page }) => {
+  const theme = page.getByRole('radiogroup', { name: 'Theme' })
+  await theme.getByRole('radio', { name: 'Dark theme' }).click()
+  await expect(page.locator('html')).toHaveClass(/\bdark\b/)
+  await theme.getByRole('radio', { name: 'Light theme' }).click()
+  await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
+  const view = page.getByRole('radiogroup', { name: 'Diagram view' })
+  await view.getByRole('radio', { name: 'Expert' }).click()
+  await expect(view.getByRole('radio', { name: 'Expert' })).toHaveAttribute('aria-checked', 'true')
+
+  await expect(page.getByTestId('chat-turn').first()).toBeVisible()
+  await page.getByRole('button', { name: 'Session actions' }).click()
+  await page.getByRole('menuitem', { name: 'New session' }).click()
+  await expect(page.getByTestId('chat-turn')).toHaveCount(0)
+  await expect(page.getByTestId('try-prompt').first()).toBeVisible()
 })
