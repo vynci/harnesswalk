@@ -2,6 +2,9 @@ import { memo } from 'react'
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
 import { ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleDashed, CirclePause, Loader, MinusCircle } from 'lucide-react'
 import type { DiagramNode } from '@/api/types'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import type { NodeState } from '@/state/reducer'
 import { KIND_HINT, KIND_ICON, planeStyle } from './planes'
@@ -51,10 +54,10 @@ function StateIcon({ state }: { state: NodeState }) {
 function KindChip({ kind, small }: { kind: DiagramNode['kind']; small: boolean }) {
   const Icon = KIND_ICON[kind]
   return (
-    <span className={cn('hw-kind inline-flex shrink-0 items-center justify-center rounded-[4px]', small ? 'size-4' : 'size-[18px]')} data-kind={kind} title={KIND_HINT[kind]} data-testid="kind-chip">
-      <Icon className={small ? 'size-2.5' : 'size-3'} aria-hidden strokeWidth={2.25} />
+    <Badge variant="kind" className={cn('rounded-[4px] p-0', small ? 'size-4 [&>svg]:size-2.5' : 'size-[18px] [&>svg]:size-3')} data-kind={kind} title={KIND_HINT[kind]} data-testid="kind-chip">
+      <Icon aria-hidden strokeWidth={2.25} />
       <span className="sr-only">{kind}</span>
-    </span>
+    </Badge>
   )
 }
 
@@ -62,9 +65,9 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
   const { node, state, stat, badges, expanded, hasChildren, isChild, current, off } = data
   const notYet = node.implemented === false
   return (
-    <div
+    <Card
       className={cn(
-        'hw-node relative flex h-full w-full flex-col rounded-[10px] py-2 pr-2 pl-3.5 text-left',
+        'hw-node relative h-full w-full gap-0 rounded-[10px] py-2 pr-2 pl-3.5 text-left shadow-none',
         isChild && 'py-1.5 pr-1.5 pl-3',
       )}
       style={planeStyle(node.group)}
@@ -83,22 +86,25 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
       ))}
       <div className="flex items-center gap-1.5">
         <StateIcon state={state} />
-        <span className={cn('min-w-0 truncate font-medium tracking-[-0.005em]', isChild ? 'text-xs' : 'text-[13.5px]')}>{node.label}</span>
+        <CardTitle className={cn('min-w-0 truncate leading-normal font-medium tracking-[-0.005em]', isChild ? 'text-xs' : 'text-[13.5px]')}>{node.label}</CardTitle>
         <span className="ml-auto flex shrink-0 items-center gap-1">
           <KindChip kind={node.kind} small={isChild} />
           {off && (
-            <span
-              className="shrink-0 rounded border border-current px-1 text-[10px] leading-4 whitespace-nowrap text-state-error"
+            <Badge
+              variant="outline"
+              className="rounded-sm border-current px-1 py-0 text-[10px] leading-4 font-normal text-state-error"
               title={off === 'now' ? 'Disabled for this session' : 'Disabled from the next turn you send'}
               data-testid={`off-${node.id}`}
             >
               {off === 'now' ? 'off' : 'off next turn'}
-            </span>
+            </Badge>
           )}
           {hasChildren && data.onToggle && (
-            <button
+            <Button
               type="button"
-              className="nodrag nopan rounded p-0.5 text-muted-foreground hover:bg-black/5 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/10"
+              variant="ghost"
+              size="icon-xs"
+              className="nodrag nopan size-5 text-muted-foreground"
               aria-label={expanded ? `Collapse ${node.label}` : `Expand ${node.label}`}
               aria-expanded={expanded}
               onClick={(e) => {
@@ -108,24 +114,25 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
               onKeyDown={(e) => e.stopPropagation()}
             >
               {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-            </button>
+            </Button>
           )}
         </span>
       </div>
-      <div className={cn('mt-0.5 flex shrink-0 items-center gap-1 truncate text-muted-foreground', isChild ? 'text-[10px] leading-3' : 'text-[11px] leading-4')} data-testid={`stat-${node.id}`}>
+      <CardDescription className={cn('mt-0.5 flex shrink-0 items-center gap-1 truncate', isChild ? 'text-[10px] leading-3' : 'text-[11px] leading-4')} data-testid={`stat-${node.id}`}>
         {notYet && (
-          <span className="shrink-0 rounded border border-dashed border-current px-1 text-[10px] leading-3.5" title="Not implemented yet">
+          <Badge variant="outline" className="rounded-sm border-dashed border-current px-1 py-0 text-[10px] leading-3.5 font-normal text-muted-foreground" title="Not implemented yet">
             not yet
-          </span>
+          </Badge>
         )}
         <span className="truncate">{stat ?? (notYet || isChild ? '' : node.kind)}</span>
-      </div>
+      </CardDescription>
       {badges && badges.length > 0 && (
-        <div className="mt-1 flex flex-wrap gap-0.5" aria-label="Memory stores">
+        <div className="mt-1 flex flex-wrap gap-0.5" role="group" aria-label="Memory stores">
           {badges.map((b) => (
-            <span
+            <Badge
               key={b.id}
-              className="hw-store-badge rounded border border-[var(--plane-stroke)]/40 px-1 text-[10px] leading-4 text-muted-foreground"
+              variant="outline"
+              className="hw-store-badge rounded-sm border-(--plane-stroke)/40 px-1 py-0 text-[10px] leading-4 font-normal text-muted-foreground"
               data-testid={`badge-${b.id}`}
               // A store that was skipped (a stub, or switched off) did no work: it stays unlit.
               data-lit={b.state !== 'idle' && b.state !== 'skipped' ? 'true' : 'false'}
@@ -133,11 +140,11 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
               title={`${b.label}: ${b.state}`}
             >
               {b.label}
-            </span>
+            </Badge>
           ))}
         </div>
       )}
-    </div>
+    </Card>
   )
 }
 

@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
 @import '@xyflow/react/dist/style.css';
 
 @custom-variant dark (&:is(.dark *));
@@ -159,6 +160,21 @@
   --color-state-error: var(--state-error);
   --color-state-skipped: var(--state-skipped);
   --color-state-idle: var(--state-idle);
+  /* Diagram channels as Tailwind colours (bg-plane-context, text-kind-store, ...). */
+  --color-plane-control: var(--plane-control);
+  --color-plane-context: var(--plane-context);
+  --color-plane-execution: var(--plane-execution);
+  --color-plane-ops: var(--plane-ops);
+  --color-kind-code: var(--kind-code);
+  --color-kind-config: var(--kind-config);
+  --color-kind-prompt: var(--kind-prompt);
+  --color-kind-store: var(--kind-store);
+  --color-kind-queue: var(--kind-queue);
+  --color-kind-model: var(--kind-model);
+  --color-edge-data: var(--edge-data);
+  --color-edge-control: var(--edge-control);
+  --color-edge-telemetry: var(--edge-telemetry);
+  --color-edge-release: var(--edge-release);
 }
 
 @layer base {
@@ -218,7 +234,7 @@
    active, waiting or failed node changes its border, so the one running node stands out. */
 .hw-node {
   --ring-color: transparent;
-  --accent: var(--state-idle);
+  --node-accent: var(--state-idle);
   border: 1.5px solid var(--plane-stroke);
   background: var(--plane-fill);
   box-shadow: 0 0 0 0 var(--ring-color);
@@ -234,31 +250,31 @@
   bottom: 7px;
   width: 3px;
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--node-accent);
   opacity: 0.55;
 }
 .hw-node[data-state='active'] {
-  --accent: var(--state-active);
+  --node-accent: var(--state-active);
   --ring-color: var(--state-active);
   border-color: var(--state-active);
   animation: hw-pulse 1.1s ease-in-out infinite;
 }
 .hw-node[data-state='waiting'] {
-  --accent: var(--state-waiting);
+  --node-accent: var(--state-waiting);
   border-color: var(--state-waiting);
   border-style: dashed;
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--state-waiting) 35%, transparent);
 }
 .hw-node[data-state='done'] {
-  --accent: var(--state-done);
+  --node-accent: var(--state-done);
 }
 .hw-node[data-state='error'] {
-  --accent: var(--state-error);
+  --node-accent: var(--state-error);
   border-color: var(--state-error);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--state-error) 35%, transparent);
 }
 .hw-node[data-state='skipped'] {
-  --accent: var(--state-skipped);
+  --node-accent: var(--state-skipped);
   border-style: dotted;
   opacity: 0.75;
 }
@@ -266,7 +282,7 @@
   opacity: 1;
 }
 .hw-node[data-state='skipped'] .hw-accent {
-  background: repeating-linear-gradient(to bottom, var(--accent) 0 3px, transparent 3px 6px);
+  background: repeating-linear-gradient(to bottom, var(--node-accent) 0 3px, transparent 3px 6px);
 }
 .hw-node[data-implemented='false'] {
   opacity: 0.55;
@@ -278,12 +294,9 @@
   outline-offset: 3px;
 }
 
-/* Node kind chip. */
-.hw-kind {
+/* Node kind: [data-kind] sets --kind for whatever draws it (the Badge `kind` variant, trace icons). */
+[data-kind] {
   --kind: var(--kind-code);
-  color: var(--kind);
-  background: color-mix(in oklab, var(--kind) 13%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--kind) 30%, transparent);
 }
 [data-kind='config'] {
   --kind: var(--kind-config);
@@ -400,100 +413,7 @@
   *::before,
   *::after {
     transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
-}
-
-/* highlight.js tokens, both themes. */
-.hljs-keyword,
-.hljs-built_in,
-.hljs-selector-tag {
-  color: #8a3ab9;
-}
-.hljs-string,
-.hljs-attr-value {
-  color: #2e7d32;
-}
-.hljs-number,
-.hljs-literal {
-  color: #b26a00;
-}
-.hljs-comment {
-  color: #8a8a8a;
-  font-style: italic;
-}
-.hljs-title,
-.hljs-title.function_,
-.hljs-section {
-  color: #1f5fa8;
-}
-.hljs-attr,
-.hljs-variable,
-.hljs-params {
-  color: #9c4221;
-}
-.hljs-meta {
-  color: #6a1b9a;
-}
-.dark .hljs-keyword,
-.dark .hljs-built_in,
-.dark .hljs-selector-tag {
-  color: #d19af0;
-}
-.dark .hljs-string,
-.dark .hljs-attr-value {
-  color: #8fd18f;
-}
-.dark .hljs-number,
-.dark .hljs-literal {
-  color: #f0b060;
-}
-.dark .hljs-title,
-.dark .hljs-title.function_,
-.dark .hljs-section {
-  color: #7fb4f0;
-}
-.dark .hljs-attr,
-.dark .hljs-variable,
-.dark .hljs-params {
-  color: #f0a080;
-}
-.dark .hljs-meta {
-  color: #c08ae0;
-}
-
-/* Markdown in the prompt inspector. */
-.hw-md > * + * {
-  margin-top: 0.6em;
-}
-.hw-md h1 {
-  font-size: 1.05rem;
-  font-weight: 600;
-}
-.hw-md h2,
-.hw-md h3 {
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-.hw-md ul {
-  list-style: disc;
-  padding-left: 1.25rem;
-}
-.hw-md ol {
-  list-style: decimal;
-  padding-left: 1.25rem;
-}
-.hw-md code {
-  font-size: 0.85em;
-  background: var(--muted);
-  border-radius: 4px;
-  padding: 0 0.25em;
-}
-.hw-md pre {
-  background: var(--muted);
-  border-radius: 6px;
-  padding: 0.5rem;
-  overflow-x: auto;
-}
-.hw-md a {
-  text-decoration: underline;
 }

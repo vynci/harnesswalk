@@ -2,7 +2,9 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { stringify } from 'yaml'
 import type { NodeInfo } from '@/api/types'
-import { CodeView } from './CodeView'
+import { Code } from '@/components/code'
+import { Prose } from '@/components/prose'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DataView } from './DataView'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -25,7 +27,11 @@ export function DetailsTab({ info }: { info: NodeInfo }) {
           {typeof ins.version === 'string' ? ` · ${ins.version}` : ''}
           {' · read-only in P2'}
         </p>
-        {content ? <CodeView code={content} language="yaml" label="Config" className="flex-1" /> : <p className="text-xs">Nothing configured.</p>}
+        {content ? (
+          <Code code={content} language="yaml" lineNumbers size="sm" label="Config" contentClassName="text-[12px]" data-testid="config-view" />
+        ) : (
+          <p className="text-xs">Nothing configured.</p>
+        )}
       </div>
     )
   }
@@ -35,15 +41,17 @@ export function DetailsTab({ info }: { info: NodeInfo }) {
       <div className="flex flex-col gap-4">
         {items.length === 0 && <p className="text-xs text-muted-foreground">No prompt or skills loaded.</p>}
         {items.map((item) => (
-          <article key={item.name} className="rounded-md border p-3">
-            <header className="mb-2 flex items-baseline gap-2">
-              <h4 className="font-mono text-xs font-semibold">{item.name}</h4>
+          <Card key={item.name} className="gap-2 py-3 shadow-none">
+            <CardHeader className="flex items-baseline gap-2 px-3">
+              <CardTitle className="font-mono text-xs">{item.name}</CardTitle>
               {item.version && <span className="text-[11px] text-muted-foreground">{item.version}</span>}
-            </header>
-            <div className="hw-md text-sm">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.content ?? ''}</ReactMarkdown>
-            </div>
-          </article>
+            </CardHeader>
+            <CardContent className="px-3">
+              <Prose>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.content ?? ''}</ReactMarkdown>
+              </Prose>
+            </CardContent>
+          </Card>
         ))}
       </div>
     )

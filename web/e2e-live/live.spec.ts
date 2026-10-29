@@ -150,7 +150,7 @@ test('approval_deny: Deny skips the tool and the reply says so', async ({ page, 
 
 test('step_mode: Next walks every node, one hop at a time, to the end', async ({ page, request }) => {
   await pickFixture(page, 'step_mode')
-  await page.getByTestId('step-toggle').click()
+  await page.getByRole('switch', { name: /Step mode/ }).click()
   await send(page, 'What are your support hours?')
   const visited = await stepThrough(page)
   // The simple-view walk, in order (expert children pause too, in between).
@@ -164,7 +164,7 @@ test('step_mode: Next walks every node, one hop at a time, to the end', async ({
 
 test('cancel_running: Stop while paused before the tool ends the turn cancelled', async ({ page, request }) => {
   await pickFixture(page, 'cancel_running')
-  await page.getByTestId('step-toggle').click()
+  await page.getByRole('switch', { name: /Step mode/ }).click()
   await send(page, 'Where is order A-1001?')
   await stepThrough(page, 'tools')
   await page.getByTestId('stop-button').click()
@@ -218,7 +218,7 @@ test('a dropped stream reconnects from its cursor without losing or repeating ev
     await route.fulfill({ response: cut, body: await cut.text() })
   })
   await pickFixture(page, 'plain_answer')
-  await page.getByTestId('step-toggle').click()
+  await page.getByRole('switch', { name: /Step mode/ }).click()
   await send(page, 'What are your support hours?')
   const controls = page.getByTestId('step-controls')
   await expect(controls).toHaveAttribute('data-node', 'gateway')
@@ -233,7 +233,7 @@ test('a dropped stream reconnects from its cursor without losing or repeating ev
 
 test('a reload mid-turn picks the paused turn up again', async ({ page }) => {
   await pickFixture(page, 'plain_answer')
-  await page.getByTestId('step-toggle').click()
+  await page.getByRole('switch', { name: /Step mode/ }).click()
   await send(page, 'What are your support hours?')
   await expect(page.getByTestId('step-controls')).toHaveAttribute('data-node', 'gateway')
   await page.reload()
@@ -263,7 +263,8 @@ test('history reloads, a past turn replays, and New session starts clean', async
   await page.getByTestId('replay-exit').click()
 
   // A new session is a new session on the server too, not the one in the cookie.
-  await page.getByRole('button', { name: 'Start a new session' }).click()
+  await page.getByRole('button', { name: 'Session actions' }).click()
+  await page.getByRole('menuitem', { name: 'New session' }).click()
   await pickFixture(page, 'plain_answer')
   await send(page, 'What are your support hours?')
   await expect(status(page)).toHaveAttribute('data-phase', 'done')

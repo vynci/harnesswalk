@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
+import { Hint } from '@/components/hint'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Kbd } from '@/components/ui/kbd'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { planeStyle } from '@/diagram/planes'
+import { KIND_HINT, KIND_ICON, planeStyle } from '@/diagram/planes'
 import { useDisplayTurn } from '@/state/hooks'
 import { useApp } from '@/state/store'
 import { CodeView } from './CodeView'
@@ -43,6 +46,8 @@ export function InspectorDrawer() {
   if (!nodeId || !node) return null
   const parent = node.parent ? diagram?.nodes.find((n) => n.id === node.parent) : undefined
   const group = diagram?.groups.find((g) => g.id === node.group)
+  const KindIcon = KIND_ICON[node.kind]
+  const turnOver = turn.phase === 'done' || turn.phase === 'error'
   const canDisable = node.can_disable && canDisableNodes && mode !== undefined && mode !== 'public'
 
   return (
@@ -66,12 +71,20 @@ export function InspectorDrawer() {
               {parent ? ` · inside ${parent.label}` : ''} · <code className="font-mono">{node.id}</code>
             </p>
           </div>
-          <Button ref={closeRef} size="icon" variant="ghost" className="ml-auto size-8 shrink-0" onClick={() => selectNode(null)} aria-label="Close inspector">
-            <X />
-          </Button>
+          <span className="ml-auto flex shrink-0 items-center gap-1">
+            <Kbd aria-hidden>Esc</Kbd>
+            <Button ref={closeRef} size="icon" variant="ghost" className="size-8" onClick={() => selectNode(null)} aria-label="Close inspector" aria-keyshortcuts="Escape">
+              <X />
+            </Button>
+          </span>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <Badge variant="outline">{node.kind}</Badge>
+          <Hint label={KIND_HINT[node.kind]}>
+            <Badge variant="kind" data-kind={node.kind}>
+              <KindIcon aria-hidden />
+              {node.kind}
+            </Badge>
+          </Hint>
           <Badge variant="outline">{node.view} view</Badge>
           {node.implemented === false && <Badge variant="secondary">not yet built</Badge>}
           {node.stub && <Badge variant="secondary">stub</Badge>}
@@ -93,38 +106,48 @@ export function InspectorDrawer() {
           <TabsTrigger value="code">Code</TabsTrigger>
           <TabsTrigger value="events">Events{events.length ? ` (${events.length})` : ''}</TabsTrigger>
         </TabsList>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <TabsContent value="overview">
-            <OverviewTab run={turn.nodes[node.id]} info={info.data} />
-            {info.status === 'error' && <p className="mt-3 text-xs text-destructive">Could not load node details: {info.error}</p>}
+        <TabsContent value="overview" className="min-h-0">
+          <ScrollArea className="h-full">
+            <div className="p-4">
+              <OverviewTab run={turn.nodes[node.id]} info={info.data} />
+              {info.status === 'error' && <p className="mt-3 text-xs text-destructive">Could not load node details: {info.error}</p>}
+            </div>
+          </ScrollArea>
+        </TabsContent>
+        {detailsLabel && info.data && (
+          <TabsContent value="details" className="min-h-0">
+            <ScrollArea className="h-full">
+              <div className="p-4">
+                <DetailsTab info={info.data} />
+              </div>
+            </ScrollArea>
           </TabsContent>
-          {detailsLabel && info.data && (
-            <TabsContent value="details" className="flex h-full flex-col">
-              <DetailsTab info={info.data} />
-            </TabsContent>
+        )}
+        <TabsContent value="code" className="flex min-h-0 flex-col gap-2 p-4">
+          {source.status === 'loading' && <p className="text-xs text-muted-foreground">Loading source…</p>}
+          {source.status === 'error' && <p className="text-xs text-destructive">No source available: {source.error}</p>}
+          {source.data && (
+            <>
+              <p className="text-xs text-muted-foreground">
+                <code className="font-mono">{source.data.path}</code> · {source.data.line_count} lines · read-only
+              </p>
+              <CodeView
+                code={source.data.source}
+                language={source.data.language}
+                symbols={source.data.symbols}
+                label={`Source of ${source.data.path}`}
+                className="min-h-[300px] flex-1"
+              />
+            </>
           )}
-          <TabsContent value="code" className="flex h-full min-h-0 flex-col gap-2">
-            {source.status === 'loading' && <p className="text-xs text-muted-foreground">Loading source…</p>}
-            {source.status === 'error' && <p className="text-xs text-destructive">No source available: {source.error}</p>}
-            {source.data && (
-              <>
-                <p className="text-xs text-muted-foreground">
-                  <code className="font-mono">{source.data.path}</code> · {source.data.line_count} lines · read-only
-                </p>
-                <CodeView
-                  code={source.data.source}
-                  language={source.data.language}
-                  symbols={source.data.symbols}
-                  label={`Source of ${source.data.path}`}
-                  className="min-h-[300px] flex-1"
-                />
-              </>
-            )}
-          </TabsContent>
-          <TabsContent value="events">
-            <EventsTab events={events} />
-          </TabsContent>
-        </div>
+        </TabsContent>
+        <TabsContent value="events" className="min-h-0">
+          <ScrollArea className="h-full">
+            <div className="p-4">
+              <EventsTab events={events} nodeId={node.id} turnOver={turnOver} />
+            </div>
+          </ScrollArea>
+        </TabsContent>
       </Tabs>
     </aside>
   )

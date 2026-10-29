@@ -177,7 +177,7 @@ answers with a real local model instead.
   fixtures (`tool_call`, `approval_approve`, `approval_deny`, `step_mode`, `cancel_running`,
   `guardrail_block` and more). Fake replies are canned: each fixture scripts the first turn (or
   first few turns) of a session, whatever you type, and a turn past the script fails with
-  `fixture_exhausted`. Press New session (the circular arrow) or pick another fixture to go
+  `fixture_exhausted`. Choose New session in the session menu (the `⋯` button), or pick another fixture, to go
   again.
 - **Approvals.** Pick `approval_approve` or `approval_deny` and ask to cancel an order. Policy
   marks `cancel_order` as destructive, the turn pauses on the Approval node, and a card in the

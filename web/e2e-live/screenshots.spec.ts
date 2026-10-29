@@ -86,6 +86,11 @@ test('the inspector code tab', async ({ page }) => {
   const inspector = page.getByTestId('inspector')
   await inspector.getByRole('tab', { name: 'Code' }).click()
   await expect(inspector.getByTestId('code-view')).toContainText('class Loop')
+  // shiki loads on first use; wait for the coloured tokens.
+  await expect(inspector.getByTestId('code-view').locator('[style*="--shiki-light"]').first()).toBeAttached()
+  // Jump past the module docstring to the class itself.
+  await inspector.getByRole('navigation', { name: 'Symbols' }).getByRole('button').filter({ hasText: /^Loop:\d+$/ }).click()
+  await page.waitForTimeout(600)
   await settle(page)
   await page.screenshot({ path: out('inspector-code') })
 })

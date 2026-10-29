@@ -17,6 +17,9 @@ const badgeVariants = cva(
           "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         link: "text-primary underline-offset-4 [a&]:hover:underline",
+        // harnesswalk: a node kind. Set data-kind on the badge; the chip and icon take the
+        // kind's hue (--kind-* in index.css), the text stays foreground for contrast.
+        kind: "rounded-sm border-transparent bg-(--kind)/13 text-foreground ring-1 ring-(--kind)/30 ring-inset [&>svg]:text-(--kind)",
       },
     },
     defaultVariants: {

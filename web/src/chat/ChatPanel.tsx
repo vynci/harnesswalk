@@ -1,12 +1,25 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import { History, Info, OctagonX, Play, TriangleAlert } from 'lucide-react'
+import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
+import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
+import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from '@/components/ui/message-scroller'
+import { Spinner } from '@/components/ui/spinner'
 import { useDisplayTurn } from '@/state/hooks'
 import type { TurnState } from '@/state/reducer'
 import { useApp, type ChatTurn } from '@/state/store'
 import { ApprovalCard } from './ApprovalCard'
 import { Composer } from './Composer'
 import { StepControls } from './StepControls'
+import { Sources, ToolTrace } from './ToolTrace'
 
 const TRY_THESE = ['What are your support hours?', 'Where is order A-1001?', 'Please cancel order A-1002.']
 
@@ -32,22 +45,26 @@ function noticeFor(exit: TurnState['exit'] | null | undefined, error?: TurnState
   }
 }
 
+/** A system notice (blocked, limit, error, cancelled) as a bordered Marker. */
 function SystemNotice({ notice }: { notice: Notice }) {
   const Icon = notice.tone === 'error' ? OctagonX : notice.tone === 'warn' ? TriangleAlert : Info
   return (
-    <div
+    <Marker
+      variant="border"
       role="status"
-      className="mx-auto flex max-w-[90%] items-start gap-2 rounded-md border bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground"
+      className={notice.tone === 'error' ? 'text-xs text-destructive' : notice.tone === 'warn' ? 'text-xs text-state-waiting' : 'text-xs'}
       data-testid="system-notice"
       data-tone={notice.tone}
     >
-      <Icon className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-      <span>{notice.text}</span>
-    </div>
+      <MarkerIcon>
+        <Icon className="size-3.5" />
+      </MarkerIcon>
+      <MarkerContent className="text-muted-foreground">{notice.text}</MarkerContent>
+    </Marker>
   )
 }
 
-function TurnView({ turn, state, live, replaying }: { turn: ChatTurn; state?: TurnState; live: boolean; replaying: boolean }) {
+function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; index: number; state?: TurnState; live: boolean; replaying: boolean }) {
   const decide = useApp((s) => s.decide)
   const resume = useApp((s) => s.resume)
   const enterReplay = useApp((s) => s.enterReplay)
@@ -58,45 +75,75 @@ function TurnView({ turn, state, live, replaying }: { turn: ChatTurn; state?: Tu
   const notice = noticeFor(exit, state?.error)
   const finished = phase === 'done' || phase === 'error'
   const working = !finished && !reply
+  const streaming = !finished && !!reply && live && !replaying
   const paused = state?.paused
   const pausedLabel = paused ? (diagram?.nodes.find((n) => n.id === paused.nodeId)?.label ?? paused.nodeId) : ''
+  const started = turn.summary?.started_at ? new Date(turn.summary.started_at) : turn.createdAt ? new Date(turn.createdAt) : null
 
   return (
-    <li className="flex flex-col gap-2" data-testid="chat-turn" data-turn-id={turn.turnId}>
-      <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground" data-testid="user-message">
-        {turn.userText ?? <span className="italic opacity-80">Message sent from another browser</span>}
-      </div>
-      {state?.approval && (
-        <ApprovalCard approval={state.approval} interactive={live && !replaying && phase === 'paused'} onDecide={decide} />
+    <div className="flex flex-col gap-3" data-testid="chat-turn" data-turn-id={turn.turnId} data-phase={phase}>
+      <Marker variant="separator" className="text-[11px]">
+        <MarkerContent>
+          Turn {index + 1}
+          {started && Number.isFinite(started.getTime()) ? ` · ${started.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+        </MarkerContent>
+      </Marker>
+      <Message align="end">
+        <MessageContent>
+          <Bubble variant="default" align="end">
+            <BubbleContent data-testid="user-message">
+              {turn.userText ?? <span className="italic opacity-80">Message sent from another browser</span>}
+            </BubbleContent>
+          </Bubble>
+        </MessageContent>
+      </Message>
+      {state && <ToolTrace events={state.events} turnOver={finished} />}
+      {state?.approval && <ApprovalCard approval={state.approval} interactive={live && !replaying && phase === 'paused'} onDecide={decide} />}
+      {live && !replaying && paused?.reason === 'breakpoint' && (
+        <StepControls nodeId={paused.nodeId} nodeLabel={pausedLabel} seq={paused.seq} onResume={resume} />
       )}
-      {live && !replaying && paused?.reason === 'breakpoint' && <StepControls nodeId={paused.nodeId} nodeLabel={pausedLabel} seq={paused.seq} onResume={resume} />}
-      {(reply || working) && (
-        <div className="group mr-auto flex max-w-[90%] flex-col gap-1">
-          <div
-            className="rounded-2xl rounded-bl-sm bg-muted px-3 py-2 text-sm whitespace-pre-wrap"
-            data-testid="assistant-message"
-            aria-live={live ? 'polite' : undefined}
-          >
-            {reply || <span className="text-muted-foreground">{paused ? 'Waiting…' : 'Walking the harness…'}</span>}
-          </div>
-          {/* Citation chips arrive with Knowledge in P3. */}
-          <div data-slot="citations" hidden />
-        </div>
+      {working && (
+        <Marker role="status" className="text-xs" data-testid="assistant-working">
+          <MarkerIcon>
+            <Spinner role={undefined} aria-hidden className="size-3.5 motion-reduce:animate-none" />
+          </MarkerIcon>
+          <MarkerContent className="shimmer">{paused ? 'Waiting…' : 'Walking the harness…'}</MarkerContent>
+        </Marker>
+      )}
+      {reply && (
+        <Message align="start">
+          <MessageContent>
+            <Bubble variant="muted">
+              <BubbleContent className="whitespace-pre-wrap" data-testid="assistant-message" aria-live={live ? 'polite' : undefined}>
+                {reply}
+              </BubbleContent>
+            </Bubble>
+            {/* Citation chips arrive with Knowledge in P3. */}
+            <Sources sources={[]} />
+            {streaming && (
+              <MessageFooter>
+                <span className="shimmer" role="status">
+                  Streaming the reply…
+                </span>
+              </MessageFooter>
+            )}
+          </MessageContent>
+        </Message>
       )}
       {notice && <SystemNotice notice={notice} />}
       {finished && !replaying && (
         <Button
           variant="ghost"
-          size="sm"
-          className="mr-auto h-6 px-2 text-xs text-muted-foreground"
+          size="xs"
+          className="mr-auto text-muted-foreground"
           onClick={() => void enterReplay(turn.turnId)}
           aria-label="Replay this turn on the diagram"
           data-testid="replay-button"
         >
-          <Play aria-hidden className="size-3" /> Replay
+          <Play aria-hidden /> Replay
         </Button>
       )}
-    </li>
+    </div>
   )
 }
 
@@ -112,7 +159,6 @@ export function ChatPanel() {
   const stop = useApp((s) => s.stop)
   const exitReplay = useApp((s) => s.exitReplay)
   const replayState = useDisplayTurn()
-  const listRef = useRef<HTMLDivElement>(null)
 
   const live = liveTurnId ? turns[liveTurnId]?.state : undefined
   const busy = !!live && (live.phase === 'running' || live.phase === 'paused')
@@ -121,12 +167,6 @@ export function ChatPanel() {
     const i = order.indexOf(replay.turnId)
     return i >= 0 ? order.slice(0, i + 1) : order
   }, [order, replay])
-  const lastState = visible.length ? turns[visible[visible.length - 1]!]?.state : undefined
-
-  useEffect(() => {
-    const el = listRef.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [visible.length, lastState?.reply, lastState?.approval, lastState?.paused, lastState?.phase, replay?.cursor])
 
   return (
     <section className="flex h-full min-h-0 flex-col" aria-label="Chat">
@@ -140,8 +180,8 @@ export function ChatPanel() {
           </Button>
         )}
       </div>
-      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-        {visible.length === 0 ? (
+      {visible.length === 0 ? (
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
           <div className="mx-auto mt-6 max-w-sm text-center text-sm text-muted-foreground">
             <p>Send a message and watch it walk through the harness on the right.</p>
             <p className="mt-4 text-xs font-medium tracking-wide uppercase">Try these</p>
@@ -153,24 +193,27 @@ export function ChatPanel() {
               ))}
             </div>
           </div>
-        ) : (
-          <ol className="flex flex-col gap-4" aria-label="Messages">
-            {visible.map((id) => {
-              const turn = turns[id]!
-              const isReplayed = replay?.turnId === id
-              return (
-                <TurnView
-                  key={id}
-                  turn={turn}
-                  state={isReplayed ? replayState : turn.state}
-                  live={id === liveTurnId}
-                  replaying={isReplayed}
-                />
-              )
-            })}
-          </ol>
-        )}
-      </div>
+        </div>
+      ) : (
+        <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+          <MessageScroller className="min-h-0 flex-1">
+            <MessageScrollerViewport aria-label="Messages">
+              <MessageScrollerContent className="gap-5 px-3 py-3">
+                {visible.map((id, index) => {
+                  const turn = turns[id]!
+                  const isReplayed = replay?.turnId === id
+                  return (
+                    <MessageScrollerItem key={id} messageId={id} scrollAnchor>
+                      <TurnView turn={turn} index={index} state={isReplayed ? replayState : turn.state} live={id === liveTurnId} replaying={isReplayed} />
+                    </MessageScrollerItem>
+                  )
+                })}
+              </MessageScrollerContent>
+            </MessageScrollerViewport>
+            <MessageScrollerButton aria-label="Scroll to the latest message" />
+          </MessageScroller>
+        </MessageScrollerProvider>
+      )}
       <Composer
         busy={busy}
         stopping={busy && stopRequested === liveTurnId}
