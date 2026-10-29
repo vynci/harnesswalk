@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea'
 export function Composer({
   busy,
   canStop,
+  stopping,
   sending,
   maxChars,
   onSend,
@@ -13,6 +14,8 @@ export function Composer({
 }: {
   busy: boolean
   canStop: boolean
+  /** Stop was pressed and the turn has not ended yet. */
+  stopping: boolean
   sending: boolean
   maxChars: number
   onSend: (text: string) => Promise<void>
@@ -64,8 +67,17 @@ export function Composer({
         </span>
         <span className="ml-auto flex gap-2">
           {busy && canStop && (
-            <Button type="button" size="sm" variant="outline" onClick={() => void onStop()} aria-label="Stop the running turn" data-testid="stop-button">
-              <Square aria-hidden className="fill-current" /> Stop
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void onStop()}
+              disabled={stopping}
+              aria-label={stopping ? 'Stopping the turn' : 'Stop the running turn'}
+              title="Stops at the next step boundary. A model or tool call already in flight finishes first."
+              data-testid="stop-button"
+            >
+              <Square aria-hidden className="fill-current" /> {stopping ? 'Stopping…' : 'Stop'}
             </Button>
           )}
           <Button type="submit" size="sm" disabled={!canSend} aria-label="Send message" data-testid="send-button">

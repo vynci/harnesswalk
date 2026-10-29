@@ -64,7 +64,7 @@ function TurnView({ turn, state, live, replaying }: { turn: ChatTurn; state?: Tu
       {state?.approval && (
         <ApprovalCard approval={state.approval} interactive={live && !replaying && phase === 'paused'} onDecide={decide} />
       )}
-      {live && !replaying && paused?.reason === 'breakpoint' && <StepControls nodeLabel={pausedLabel} onResume={resume} />}
+      {live && !replaying && paused?.reason === 'breakpoint' && <StepControls nodeId={paused.nodeId} nodeLabel={pausedLabel} seq={paused.seq} onResume={resume} />}
       {(reply || working) && (
         <div className="group mr-auto flex max-w-[90%] flex-col gap-1">
           <div
@@ -99,6 +99,7 @@ export function ChatPanel() {
   const order = useApp((s) => s.order)
   const turns = useApp((s) => s.turns)
   const liveTurnId = useApp((s) => s.liveTurnId)
+  const stopRequested = useApp((s) => s.stopRequested)
   const replay = useApp((s) => s.replay)
   const capabilities = useApp((s) => s.capabilities)
   const sending = useApp((s) => s.sending)
@@ -167,6 +168,7 @@ export function ChatPanel() {
       </div>
       <Composer
         busy={busy}
+        stopping={busy && stopRequested === liveTurnId}
         sending={sending}
         canStop={capabilities?.features.cancel !== false}
         maxChars={capabilities?.limits.max_message_chars ?? 4000}

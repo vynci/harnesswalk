@@ -1,9 +1,22 @@
 import { FastForward, StepForward } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-export function StepControls({ nodeLabel, onResume }: { nodeLabel: string; onResume: (mode: 'step' | 'continue') => Promise<void> }) {
+export function StepControls({
+  nodeId,
+  nodeLabel,
+  seq,
+  onResume,
+}: {
+  nodeId: string
+  nodeLabel: string
+  /** The seq of the node_paused event, so each pause is told apart from the last. */
+  seq: number
+  onResume: (mode: 'step' | 'continue') => Promise<void>
+}) {
   return (
     <div
+      data-node={nodeId}
+      data-seq={seq}
       className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-[var(--state-waiting)] bg-card px-3 py-2"
       role="group"
       aria-label="Step mode controls"

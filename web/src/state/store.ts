@@ -54,6 +54,8 @@ export interface AppState {
   turns: Record<string, ChatTurn>
   order: string[]
   liveTurnId: string | null
+  /** The turn a Stop was sent for, until that turn ends. */
+  stopRequested: string | null
   connection: Connection
   sending: boolean
   invalidEvents: number
@@ -225,6 +227,7 @@ export const useApp = create<AppState>()((set, get) => {
     turns: {},
     order: [],
     liveTurnId: null,
+    stopRequested: null,
     connection: 'idle',
     sending: false,
     invalidEvents: 0,
@@ -285,10 +288,14 @@ export const useApp = create<AppState>()((set, get) => {
     async stop() {
       const { api, liveTurnId } = get()
       if (!api || !liveTurnId) return
+      set({ stopRequested: liveTurnId })
       try {
         await api.cancel(liveTurnId)
       } catch (err) {
-        if (!(err instanceof ApiError && err.status === 409)) get().notify('error', `Could not stop the turn: ${describe(err)}`)
+        if (!(err instanceof ApiError && err.status === 409)) {
+          set({ stopRequested: null })
+          get().notify('error', `Could not stop the turn: ${describe(err)}`)
+        }
       }
     },
 
