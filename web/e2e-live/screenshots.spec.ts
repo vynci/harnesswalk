@@ -82,7 +82,7 @@ test('a finished turn in the expert view', async ({ page }) => {
 
 test('the approval card', async ({ page }) => {
   await turn(page, 'approval_approve', 'Please cancel order A-1002.')
-  await expect(page.getByTestId('approval-card').last()).toContainText('Approval needed')
+  await expect(page.getByTestId('approval-card').last()).toContainText('Run cancel_order?')
   await expect(page.getByTestId('node-approval')).toHaveAttribute('data-state', 'waiting')
   await settle(page)
   await page.screenshot({ path: out('approval-card') })
