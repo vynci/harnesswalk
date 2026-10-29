@@ -64,7 +64,7 @@ function FlowEdgeImpl({ id, data }: EdgeProps<FlowEdgeType>) {
       {d.active && (
         <EdgeLabelRenderer>
           <div
-            className="pointer-events-none absolute rounded bg-background/95 px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap text-foreground shadow-sm ring-1 ring-border"
+            className="pointer-events-none absolute rounded bg-background/95 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-foreground shadow-sm ring-1 ring-border"
             style={{ transform: `translate(${d.labelAt.x}px, ${d.labelAt.y}px) ${LABEL_SHIFT[d.labelAt.side]}` }}
             data-testid={`edge-label-${id}`}
           >
