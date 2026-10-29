@@ -31,7 +31,8 @@ record ChannelRequest {
   session_id?: string                          // continue a session, else a new one is created
   message: string
   attachments?: [MediaRef]
-  options?: { step_mode?: bool, dataset?: string }
+  options?: { step_mode?: bool, dataset?: string, disabled_nodes?: [string],
+              provider?: string, fixture?: string }   // provider and fixture: dev only
 }
 
 record Identity   { tenant_id: string, user_id: string | null, roles: [string], anonymous: bool }
@@ -73,7 +74,8 @@ record ChannelReply { text: string, citations: [Citation], turn_id: string }
 | Over rate limit | `rate_limited`, no turn |
 | A downstream node fails | The turn continues to the reply with an error notice; `turn_end.status` is `error` only when no reply could be produced |
 | Client disconnects from the stream | The turn continues; events stay available for resumption |
-| `cancel` | Open spans close with `error` code `cancelled`, then `turn_end` with status `error` |
+| `cancel` while paused, or at a later breakpoint | Open spans close with `error` code `cancelled`, then `turn_end` with status `error` and `summary.exit: cancelled` |
+| `cancel` while running | The loop stops at its next step boundary with `exit_reason: interrupted` and its notice; `turn_end.status` `done`, `summary.exit: cancelled` |
 
 ## Events
 

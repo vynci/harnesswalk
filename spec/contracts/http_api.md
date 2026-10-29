@@ -1,7 +1,27 @@
-# Contract: HTTP API (gateway, P1)
+# Contract: HTTP API (gateway, P1 and P2)
 
 The gateway's HTTP surface. The web UI, the CLI runner and the conformance runner all use it.
 JSON in and out, UTF-8, except the event stream, which is Server-Sent Events.
+
+P1 defined turns, the event stream, resume, approvals, the diagram, node inspectors and health.
+P2 adds what the web UI needs: cancel, turn summaries, cursor replay with `follow`, the session
+turn list, a code peek per node, capabilities, per-turn options, serving the built web app and
+dev-mode CORS.
+
+| Method and path | Purpose | Since |
+|---|---|---|
+| `POST /v1/turns` | Start a turn | P1, options P2 |
+| `GET /v1/turns/{turn_id}` | Turn summary | P2 |
+| `GET /v1/turns/{turn_id}/events` | Event stream, replay and reconnect | P1, `after` and `follow` P2 |
+| `POST /v1/turns/{turn_id}/resume` | Release a breakpoint | P1 |
+| `POST /v1/turns/{turn_id}/cancel` | Stop a running or paused turn | P2 |
+| `GET /v1/sessions/{session_id}/turns` | Turn list for chat history | P2 |
+| `POST /v1/approvals/{approval_id}` | Decide a pending approval | P1 |
+| `GET /v1/diagram` | The diagram with implementation flags | P1 |
+| `GET /v1/nodes/{node_id}` | What an inspector shows | P1 |
+| `GET /v1/nodes/{node_id}/source` | Code peek | P2 |
+| `GET /v1/capabilities` | What this build can do | P2 |
+| `GET /healthz` | Readiness | P1 |
 
 ## Conventions
 
@@ -25,7 +45,7 @@ JSON in and out, UTF-8, except the event stream, which is Server-Sent Events.
 | `400` | `invalid_request` (body or parameters) |
 | `401` | `unauthenticated` |
 | `404` | Unknown id, or another tenant's |
-| `409` | Conflict: turn already running in the session, approval already decided, turn not paused |
+| `409` | Conflict: turn already running in the session, approval already decided, turn not paused, turn already finished |
 | `422` | Valid JSON that breaks a rule (for example disabling a node in public mode) |
 | `429` | `rate_limited`, with `Retry-After` |
 | `503` | Not ready (`/healthz` only reports it) |
@@ -40,7 +60,9 @@ Request:
 {
   "message": "Please cancel order A-1002.",
   "session_id": "sess_demo",
-  "options": { "step_mode": false, "dataset": "ecommerce", "disabled_nodes": [] }
+  "step": false,
+  "disable": [],
+  "options": { "dataset": "ecommerce" }
 }
 ```
 
@@ -48,9 +70,31 @@ Request:
 |---|---|---|
 | `message` | yes | User text, at most `gateway.max_message_chars` |
 | `session_id` | no | Continue a session; omitted creates one |
-| `options.step_mode` | no | Breakpoint on every node (section 8 of `harness.md`) |
+| `step` | no | Boolean. Start with a breakpoint on every node (section 8 of `harness.md`) |
+| `provider` | no | Dev mode only: run this turn on one provider (`fake`, `ollama`, `anthropic`, `openai_compatible`). It must be `configured` in `/v1/capabilities` |
+| `fixture` | no | Dev mode only: the `fake` provider's fixture for this turn. Implies `provider: fake` |
+| `disable` | no | Node ids with `can_disable`, disabled for this turn, the same as the CLI `--disable`. Dev and private only |
+| `options.step_mode` | no | P1 spelling of `step`; either one turns step mode on |
 | `options.dataset` | no | Dataset pack for this session; fixed after the first turn |
-| `options.disabled_nodes` | no | Node ids with `can_disable`; `422` in public mode |
+| `options.disabled_nodes` | no | P1 spelling of `disable`; the two lists are merged |
+
+`step`, `provider`, `fixture` and `disable` are also accepted inside `options`; a top-level value
+wins. Mode checks:
+
+| Field | `dev` | `private` | `public` |
+|---|---|---|---|
+| `step` | yes | yes | yes |
+| `provider`, `fixture` | yes | `400 invalid_request` | `400 invalid_request` |
+| `disable` | yes | yes | `422 invalid_request` |
+
+An unknown provider, an unknown fixture, or a fixture with a provider other than `fake` is `400
+invalid_request`. A known provider that is not configured is `422 provider_not_configured`. A node
+without `can_disable` is `422 invalid_request`, as in P1.
+
+A per-turn fixture follows the fake provider's rule (`model_provider.md`), counted over the turns
+of the session that ran on that same fixture: the first turn on a fixture reads `turns[0]`,
+whatever the session's turn number. A fixture set at start-up (`HARNESSWALK_FIXTURE`) keeps the
+plain rule, turn `n` of the session reads `turns[n]`.
 
 Response `202 Accepted`:
 
@@ -69,13 +113,18 @@ Errors: `400`, `401`, `409 turn_in_progress`, `422`, `429`.
 
 The turn's event stream as Server-Sent Events (`Content-Type: text/event-stream`).
 
+Query `?after=<seq>&follow=<bool>`.
+
 - Each event is one SSE message: `id:` is `seq`, `event:` is the event `type`, `data:` is the
-  event JSON on a single line.
-- Resumption: the standard `Last-Event-ID` header, or the query `?after_seq=N`, returns events
-  with `seq > N`. Without either, the stream starts at `seq` 0.
-- For a running turn the server sends stored events, then live events as they happen, and
-  closes the stream after `turn_end`.
-- For a finished turn it sends all stored events and closes. This is also how replay works in
+  event JSON on a single line. Every message carries `id:`, so `Last-Event-ID` works.
+- Cursor: the query `after=N` (P1 spelling `after_seq=N`) or the standard `Last-Event-ID`
+  header returns events with `seq > N`. When more than one is given the largest wins, so a
+  browser that reconnects to the same URL with `Last-Event-ID` never sees an event twice.
+  Without any, the stream starts at `seq` 0; `after=-1` means the same.
+- `follow` (default `true`): for a running turn the server sends stored events, then live events
+  as they happen, and closes the stream after `turn_end`. With `follow=false` it sends what is
+  stored and closes, running or not.
+- For a finished turn it sends the stored events and closes. This is also how replay works in
   the UI.
 - While a turn is paused (approval or breakpoint) the server sends an SSE comment
   (`: keepalive`) every 15 seconds.
@@ -87,7 +136,82 @@ data: {"schema_version":"0.1.0","event_id":"evt_approval_pause_037","seq":37,...
 
 ```
 
-Errors (before the stream starts, as JSON): `401`, `404`.
+Errors (before the stream starts, as JSON): `400` (a cursor that is not an integer), `401`,
+`404`.
+
+## `GET /v1/turns/{turn_id}`
+
+The turn summary, for a reload, the chat history and a Stop button that knows whether to show.
+Built from the turn's stored events (rule 1 of `events.md`), so it reads the same live and after
+a restart.
+
+Response `200`:
+
+```json
+{
+  "turn_id": "turn_approval_pause",
+  "session_id": "sess_demo",
+  "tenant_id": "dev",
+  "trace_id": "5b8aa5a2d2c872e8321cf37308d69df2",
+  "turn_index": 0,
+  "status": "paused",
+  "exit": null,
+  "reply": null,
+  "message": null,
+  "started_at": "2026-10-29T14:10:00.000Z",
+  "ended_at": null,
+  "cost": { "input_tokens": 980, "output_tokens": 24, "usd": 0.0 },
+  "event_count": 37,
+  "paused_at_node": "approval",
+  "pending_approval_id": "apr_0001"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `status` | `running`, `paused` (a `node_paused` without its `node_resumed`) or `done` (`turn_end` stored) |
+| `exit` | `turn_end.summary.exit`, `null` until done |
+| `reply` | `turn_end.summary.reply`, `null` until done |
+| `message` | The user text as the session stored it after input guardrails; `null` while running and for blocked input |
+| `started_at`, `ended_at` | `ts` of `turn_start` and of `turn_end` (`null` until done) |
+| `cost` | `turn_end.cost` when done; while running, the sum of node costs so far |
+| `event_count` | Events stored for the turn |
+| `paused_at_node` | The paused node, else `null` |
+| `pending_approval_id` | An `approval_requested` without its `approval_decided`, else `null` |
+| `trace_id`, `turn_index` | Extra, for linking a trace and ordering a session |
+
+Errors: `401`, `404`.
+
+## `POST /v1/turns/{turn_id}/cancel`
+
+Stop a running or paused turn. No body.
+
+Response `202`: `{ "turn_id": "...", "cancel_requested": true }`. The turn ends on its own; the
+client keeps reading the event stream until `turn_end` with `summary.exit: cancelled`, and the
+turn summary's `status` becomes `done`.
+
+| The turn is | Effect |
+|---|---|
+| Running, between steps | The loop stops at the next step boundary (before a model call, before each tool call) with `exit_reason: interrupted`, answers with its fixed notice, and the turn ends normally: `turn_end.status` `done`, `summary.exit` `cancelled` |
+| Paused on a breakpoint or an approval, or reaching one after the cancel | Stops at once. The paused node and every open node close with `error` code `cancelled` (rule 8 of `events.md`), a pending approval becomes `expired`, then `turn_end` with status `error` and `summary.exit` `cancelled` (`gateway.md`) |
+| Inside a model or tool call | The call finishes, then one of the rows above applies |
+| Past the loop (output guardrails, reply, trace) without a breakpoint | Nothing is left to stop; the turn ends as it would have |
+
+The session records a cancelled turn like any other, so turn numbers stay gapless. Cancelling
+twice before the turn ends is `202` again.
+
+Errors: `401`, `404`, `409 turn_finished` when the turn already ended. The `409` body carries the
+final state next to the error: `{ "error": {...}, "turn": <turn summary> }`. A turn this process
+is not running and that has no `turn_end` (cut off by a restart) is `409 turn_not_running`.
+
+## `GET /v1/sessions/{session_id}/turns`
+
+Query `?limit=<n>` (default 50, at most 200).
+
+Response `200`: a JSON array of turn summaries (the shape of `GET /v1/turns/{turn_id}`), newest
+first. Tenant-scoped: an unknown session, or another tenant's, is `404 session_not_found`.
+
+Errors: `400` (bad `limit`), `401`, `404`.
 
 ## `POST /v1/approvals/{approval_id}`
 
@@ -198,6 +322,71 @@ Response `200`:
 
 Errors: `401`, `404` (unknown node id).
 
+## `GET /v1/nodes/{node_id}/source`
+
+The code peek for the inspector: the file named by the node's `source_hint`. Available in every
+mode, since the code is open source.
+
+Response `200`:
+
+```json
+{
+  "node_id": "policy",
+  "path": "harnesswalk/control/policy.py",
+  "language": "python",
+  "line_count": 212,
+  "source": "\"\"\"Policy: ...",
+  "truncated": false,
+  "symbols": [ { "name": "Policy", "line": 40, "kind": "class" } ]
+}
+```
+
+- `path` is relative to the repository root. Only regular files under the `harnesswalk/` package
+  are served, after resolving links and `..`; anything else, and a node whose file does not exist
+  yet, is `404 source_not_found`.
+- `source` is capped at 200 KiB of UTF-8; a longer file is cut at a line end and has
+  `truncated: true`. `line_count` counts the whole file.
+- `language` comes from the extension (`python`, `yaml`, `markdown`, `json`, else `text`).
+- `symbols` lists the top-level `class` and `def` (`kind`: `class`, `function`) of a Python file
+  with their 1-based line, from the syntax tree; it is empty for other files.
+
+Errors: `401`, `404`.
+
+## `GET /v1/capabilities`
+
+What this build can do, so the UI adapts instead of guessing.
+
+Response `200`:
+
+```json
+{
+  "mode": "dev",
+  "version": "0.1.0",
+  "spec_version": "0.1.0",
+  "providers": [
+    { "name": "fake", "configured": true, "default": true, "models": ["fake-small"] },
+    { "name": "ollama", "configured": true, "default": false, "models": ["local-8b", "local-small"] }
+  ],
+  "fixtures": ["approval_approve", "plain_answer"],
+  "features": {
+    "step_mode": true, "approvals": true, "message_delta": false, "cancel": true,
+    "byo_key": false, "disable_nodes": true
+  },
+  "limits": { "max_message_chars": 32000, "max_steps": 8, "session_ttl_seconds": null }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `providers` | Every known provider. `configured` is true when a turn could use it: the one selected at start-up, `fake` in dev mode, `ollama` with a base URL, a hosted provider only with `enabled: true` and its key or URL. `default` marks the provider the default route lands on. `models` are the chat model aliases of `config/models.yaml` for that provider |
+| `fixtures` | Fixture names the `fake` provider can load, dev mode only, else empty |
+| `features.message_delta` | True when `gateway.stream_reply_chars` is above 0 |
+| `features.byo_key` | True in `public` and `private` mode (the `X-Harnesswalk-Provider-Key` header) |
+| `features.disable_nodes` | True outside `public` mode |
+| `limits.max_message_chars` | `gateway.max_message_chars`, the transport cap; input guardrails may block shorter messages |
+| `limits.max_steps` | `loop.max_steps` |
+| `limits.session_ttl_seconds` | `gateway.session_ttl_s` in `public` mode, else `null` |
+
 ## `GET /healthz`
 
 Response `200` when ready, `503` when a required dependency is down:
@@ -216,7 +405,37 @@ Response `200` when ready, `503` when a required dependency is down:
 
 `fixture` is present only when the provider is `fake`.
 
-## Not in P1
+## Serving the web app
+
+- When the built web app exists (directory from `HARNESSWALK_WEB_DIST`, default `web/dist`,
+  relative paths resolved against the repository root), the API serves it at `/`. Any `GET` path
+  that is not under `/v1/`, not `/healthz`, not `/docs` or `/openapi.json`, and not an existing
+  file falls back to `index.html`, so client-side routes survive a reload.
+- `/v1/*` and `/healthz` always win: an unknown `/v1/...` path is a JSON `404`, never the app.
+- Without the directory, `/` is a JSON `404` and the API works as before.
+
+## CORS
+
+In `dev` mode the API sends CORS headers for `http://127.0.0.1:5173` and `http://localhost:5173`
+(the Vite dev server), with credentials, for `GET` and `POST` and the `Content-Type`,
+`Last-Event-ID` and `X-Harnesswalk-*` request headers. Other modes send none: the app is served
+from the same origin.
+
+## Event stream guarantees the UI relies on
+
+Restated from `events.md`, so a UI author finds them here:
+
+- `approval_requested.summary` carries `approval_id`, `tool`, `action_class`, `args_preview` and
+  `expires_at`; the decision goes to `POST /v1/approvals/{approval_id}`.
+- `node_paused.summary` carries `reason` (`breakpoint` or `approval`, with `approval_id`). No
+  resume token is needed: a breakpoint is released with `POST /v1/turns/{turn_id}/resume` and
+  `{ "mode": "step" | "continue" }`.
+- `message_delta` events, when enabled, arrive inside the `phase: reply` gateway span in
+  `summary.index` order.
+- `turn_end.summary` carries `reply`, `exit` and `steps`; the turn's total cost is the
+  `turn_end.cost` field (rule 13), not a summary key.
+
+## Not yet
 
 Uploads, sign-in endpoints, eval and release endpoints, feedback (`POST /v1/turns/{id}/feedback`
 arrives with online eval in P4), WebSocket transport.

@@ -41,8 +41,9 @@ never imports the implementation.
    `GET /v1/turns/{turn_id}/events` until `turn_end`, with a 30 second limit per turn.
 4. **Act.** While reading, when an event matches an `actions[].when` matcher, perform its `do`:
    `approval: approve | deny` posts to `/v1/approvals/{summary.approval_id}`;
-   `resume: step | continue` posts to `/v1/turns/{turn_id}/resume`; `cancel: true` cancels the
-   turn. Each action fires once unless `repeat: true`.
+   `resume: step | continue` posts to `/v1/turns/{turn_id}/resume`; `cancel: true` posts to
+   `/v1/turns/{turn_id}/cancel` and expects `202`. Each action fires once unless `repeat: true`.
+   Once a turn is cancelled no further action fires for it.
 5. **Assert**, in this order, and report the first failure per case:
    1. **Schema.** Every event validates against `spec/events.schema.json`.
    2. **Stream rules.** The rules in `spec/events.md` section 1 hold: `seq` starts at 0 and is
@@ -87,6 +88,7 @@ model would say. The fake provider fixes what the model says.
 | `loop_max_steps` | `loop_max_steps` | `loop.max_steps: 3` stops a tool-happy model, then one tools-off call answers |
 | `step_mode` | `step_mode` | With `options.step_mode` every node pauses on a breakpoint after its enter and resumes on `resume: step` |
 | `guardrail_block` | `guardrail_block` | An oversized input is blocked by `input_guardrails`; no context, loop or model call; `exit: blocked` |
+| `cancel_running` | `cancel_running` | A step-mode turn cancelled while paused at `tools`: the open spans close with `error` `cancelled`, no policy or tool runs, `exit: cancelled` |
 
 ## Adding a case
 
