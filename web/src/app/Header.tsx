@@ -40,7 +40,7 @@ function SessionMenu() {
     <DropdownMenu>
       <Hint label="Session">
         <DropdownMenuTrigger asChild>
-          <Button size="icon" variant="ghost" className="size-8" aria-label="Session actions" data-testid="session-menu">
+          <Button size="icon" variant="ghost" aria-label="Session actions" data-testid="session-menu">
             <Ellipsis />
           </Button>
         </DropdownMenuTrigger>
@@ -48,7 +48,7 @@ function SessionMenu() {
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel className="flex flex-col gap-0.5">
           <span>Session</span>
-          <span className="truncate font-mono text-[11px] font-normal text-muted-foreground">
+          <span className="truncate font-mono text-xs font-normal text-muted-foreground">
             {sessionId ?? 'starts with your first message'}
             {turns ? ` · ${turns} turn${turns === 1 ? '' : 's'}` : ''}
           </span>
@@ -85,7 +85,7 @@ export function Header() {
   return (
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2">
       <div className="flex items-baseline gap-2">
-        <h1 className="text-base font-semibold tracking-tight">harnesswalk</h1>
+        <h1 className="text-base font-medium tracking-tight">harnesswalk</h1>
         <span className="hidden text-xs text-muted-foreground lg:inline">walk through an AI harness, one node at a time</span>
       </div>
       {capabilities && (
@@ -107,7 +107,7 @@ export function Header() {
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
               Provider
               <Select value={provider ?? AUTO} onValueChange={(v) => setProvider(v === AUTO ? null : v)}>
-                <SelectTrigger size="sm" className="h-7 w-32 text-xs" aria-label="Provider">
+                <SelectTrigger size="sm" className="w-32" aria-label="Provider">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -125,7 +125,7 @@ export function Header() {
               <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 Fixture
                 <Select value={fixture ?? AUTO} onValueChange={(v) => setFixture(v === AUTO ? null : v)}>
-                  <SelectTrigger size="sm" className="h-7 w-36 text-xs" aria-label="Fixture" data-testid="fixture-select">
+                  <SelectTrigger size="sm" className="w-36" aria-label="Fixture" data-testid="fixture-select">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -164,10 +164,10 @@ export function Header() {
           onValueChange={(v) => v && setView(v as View)}
           aria-label="Diagram view"
         >
-          <ToggleGroupItem value="simple" className="h-7 px-2.5 text-xs" data-testid="view-simple">
+          <ToggleGroupItem value="simple" data-testid="view-simple">
             Simple
           </ToggleGroupItem>
-          <ToggleGroupItem value="expert" className="h-7 px-2.5 text-xs" data-testid="view-expert">
+          <ToggleGroupItem value="expert" data-testid="view-expert">
             Expert
           </ToggleGroupItem>
         </ToggleGroup>

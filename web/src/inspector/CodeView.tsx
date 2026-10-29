@@ -39,7 +39,7 @@ export function CodeView({
               type="button"
               variant="outline"
               size="xs"
-              className="h-5 px-1.5 font-mono text-[11px] font-normal"
+              className="h-5 px-1.5 font-mono text-xs font-normal"
               onClick={() => jump(s.line)}
               title={`Jump to line ${s.line}`}
             >
@@ -57,7 +57,7 @@ export function CodeView({
         label={label}
         contentRef={scroller}
         className="min-h-0 flex-1"
-        contentClassName="h-full text-[12px] leading-[18px]"
+        contentClassName="h-full text-xs leading-[18px]"
         data-testid="code-view"
       />
     </div>

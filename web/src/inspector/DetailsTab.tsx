@@ -13,7 +13,7 @@ import { AuditView, CitationList, ContextBudget, DocList, PendingView, RecordLis
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-1.5">
-      <h4 className="text-xs font-semibold text-muted-foreground">{title}</h4>
+      <h4 className="text-xs font-medium text-muted-foreground">{title}</h4>
       {children}
     </section>
   )
@@ -31,7 +31,7 @@ export function DetailsTab({ info }: { info: NodeInfo }) {
           {' · read-only in P2'}
         </p>
         {content ? (
-          <Code code={content} language="yaml" lineNumbers size="sm" label="Config" contentClassName="text-[12px]" data-testid="config-view" />
+          <Code code={content} language="yaml" lineNumbers size="sm" label="Config" contentClassName="text-xs" data-testid="config-view" />
         ) : (
           <p className="text-xs">Nothing configured.</p>
         )}
@@ -47,7 +47,7 @@ export function DetailsTab({ info }: { info: NodeInfo }) {
           <Card key={item.name} className="gap-2 py-3 shadow-none">
             <CardHeader className="flex items-baseline gap-2 px-3">
               <CardTitle className="font-mono text-xs">{item.name}</CardTitle>
-              {item.version && <span className="text-[11px] text-muted-foreground">{item.version}</span>}
+              {item.version && <span className="text-xs text-muted-foreground">{item.version}</span>}
             </CardHeader>
             <CardContent className="px-3">
               <Prose>

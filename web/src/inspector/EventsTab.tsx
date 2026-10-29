@@ -18,9 +18,9 @@ import { traceItems, type TraceItem } from './trace'
 function Line({ item, kind }: { item: TraceItem; kind: NodeKind }) {
   const Icon = KIND_ICON[kind]
   return (
-    <TraceLine status={item.status} className="text-xs" data-type={item.event.type} data-status={item.status}>
+    <TraceLine status={item.status} data-type={item.event.type} data-status={item.status}>
       <TraceIcon className="text-(--kind)" data-kind={kind}>
-        <Icon className="size-3.5" />
+        <Icon />
       </TraceIcon>
       <TraceTitle>{item.title}</TraceTitle>
       <TraceDescription>{item.description}</TraceDescription>
@@ -48,7 +48,7 @@ export function EventsTab({ events, nodeId, turnOver }: { events: HarnessEvent[]
               <Line item={item} kind={kind} />
             </TraceCollapsibleTrigger>
             <TraceCollapsibleContent>
-              <Code code={JSON.stringify(item.detail, null, 2)} language="json" size="sm" wrap label={`Event ${item.event.seq}`} contentClassName="max-h-64 text-[11px]" />
+              <Code code={JSON.stringify(item.detail, null, 2)} language="json" size="sm" wrap label={`Event ${item.event.seq}`} contentClassName="max-h-64 text-xs" />
             </TraceCollapsibleContent>
           </TraceCollapsible>
         ) : (
