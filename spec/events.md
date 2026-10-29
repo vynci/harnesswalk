@@ -100,6 +100,7 @@ events correctly and any UI built on harnesswalk can draw your harness.
 | `provider_error` | model_layer | Provider failed and no fallback succeeded |
 | `provider_timeout` | model_layer | Provider timed out and no fallback succeeded |
 | `fixture_exhausted` | model_layer | The `fake` provider has no scripted response left |
+| `fixture_mismatch` | model_layer | A `fake` response's `expect` did not match the request |
 | `tool_error` | tools | The tool raised; the loop receives an error observation |
 | `tool_timeout` | tools | The sandbox timeout fired |
 | `store_unavailable` | memory, trace, audit | A store could not be reached |
