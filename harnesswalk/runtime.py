@@ -299,6 +299,8 @@ class Harness:
                 "cancel": True,
                 "byo_key": mode in ("public", "private"),
                 "disable_nodes": mode != "public",
+                "knowledge": self.memory.knowledge is not None,
+                "memory_review": mode != "public",
             },
             "limits": {
                 "max_message_chars": int(s.get("gateway.max_message_chars", 32000)),

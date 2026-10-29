@@ -397,7 +397,7 @@ Response `200`:
   "fixtures": ["approval_approve", "plain_answer"],
   "features": {
     "step_mode": true, "approvals": true, "message_delta": true, "cancel": true,
-    "byo_key": false, "disable_nodes": true
+    "byo_key": false, "disable_nodes": true, "knowledge": true, "memory_review": true
   },
   "limits": { "max_message_chars": 32000, "max_steps": 8, "session_ttl_seconds": null }
 }
@@ -410,6 +410,8 @@ Response `200`:
 | `features.message_delta` | True when `gateway.stream_reply_chars` is above 0 |
 | `features.byo_key` | True in `public` and `private` mode (the `X-Harnesswalk-Provider-Key` header) |
 | `features.disable_nodes` | True outside `public` mode |
+| `features.knowledge` | True when `knowledge` is among `context.stores`, so replies may carry citations |
+| `features.memory_review` | True outside `public` mode: proposals at the review gate can be decided (`POST /v1/memory/proposals/{id}`) |
 | `limits.max_message_chars` | `gateway.max_message_chars`, the transport cap; input guardrails may block shorter messages |
 | `limits.max_steps` | `loop.max_steps` |
 | `limits.session_ttl_seconds` | `gateway.session_ttl_s` in `public` mode, else `null` |
