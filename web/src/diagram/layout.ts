@@ -28,7 +28,7 @@ export const RANK_SEP = 36
 export const ROW_PLANES: ReadonlySet<PlaneId> = new Set<PlaneId>(['ops'])
 /** The node whose store badges stand in for its collapsed children. */
 export const BADGE_NODE = 'memory'
-export const BADGE_ROW_H = 40
+export const BADGE_ROW_H = 52
 
 export interface ViewOptions {
   view: View

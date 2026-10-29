@@ -94,7 +94,7 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
           )}
         </span>
       </div>
-      <div className={cn('mt-0.5 flex items-center gap-1 truncate text-muted-foreground', isChild ? 'text-[10px] leading-3' : 'text-[11px] leading-4')} data-testid={`stat-${node.id}`}>
+      <div className={cn('mt-0.5 flex shrink-0 items-center gap-1 truncate text-muted-foreground', isChild ? 'text-[10px] leading-3' : 'text-[11px] leading-4')} data-testid={`stat-${node.id}`}>
         {notYet && (
           <span className="shrink-0 rounded border border-dashed border-current px-1 text-[10px] leading-3.5" title="Not implemented yet">
             not yet
@@ -103,7 +103,7 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
         <span className="truncate">{stat ?? (notYet || isChild ? '' : node.kind)}</span>
       </div>
       {badges && badges.length > 0 && (
-        <div className="mt-1 flex flex-wrap gap-1" aria-label="Memory stores">
+        <div className="mt-1 flex flex-wrap gap-0.5" aria-label="Memory stores">
           {badges.map((b) => (
             <span
               key={b.id}
