@@ -120,3 +120,31 @@ async def test_memory_writes_are_audited_and_tools_scrub_with_the_pack_patterns(
     assert h.audit.verify("t1")["ok"]
     # Audit snapshots of tool results go through the input guardrails' detector.
     assert h.tools.scrubber is h.input_guardrails.pii
+
+
+@pytest.mark.anyio
+async def test_audit_export_pages_by_record_without_repeats(tmp_path: Path) -> None:
+    from harnesswalk.control.audit import AuditEntry
+    from tests.unit.support import harness
+    from tests.unit.test_http_p2 import client
+
+    h = harness(tmp_path)
+    ctx, _ = make_ctx()
+    for i in range(5):  # within one millisecond or two: timestamps repeat
+        h.audit.append(
+            ctx, AuditEntry(action="policy_decision", actor="agent", turn_id=f"t{i}", trace_id="x")
+        )
+    async with client(h) as c:
+        seen: list[str] = []
+        after = None
+        for _ in range(5):
+            q = f"/v1/audit?limit=2{f'&after={after}' if after else ''}"
+            body = (await c.get(q)).json()
+            seen += [r["record_id"] for r in body["records"]]
+            after = body["next_after"]
+            if after is None:
+                break
+        assert len(seen) == 5 == len(set(seen))
+        assert (await c.get("/v1/audit?since=2026-10-29T10:00:00")).status_code == 400
+        assert (await c.get("/v1/audit?since=2026-10-29T10:00:00Z")).status_code == 200
+        assert (await c.get("/v1/audit?after=aud_nope")).status_code == 400

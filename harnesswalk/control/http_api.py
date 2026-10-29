@@ -442,7 +442,7 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
 
     @app.get("/v1/audit")
     async def audit_export(
-        request: Request, since: str | None = None, limit: int = 500
+        request: Request, since: str | None = None, limit: int = 500, after: str | None = None
     ) -> JSONResponse:
         identity, _ = identities.resolve(request)
         if harness.settings.mode == "public":
@@ -451,6 +451,11 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
         if not 1 <= limit <= ceiling:
             raise GatewayError(400, "invalid_request", f"limit must be between 1 and {ceiling}")
         if since is not None:
+            # An offset is required: a bare local time would be read in the server's zone.
+            if not re.search(r"(Z|[+-]\d{2}:\d{2})$", since.strip()):
+                raise GatewayError(
+                    400, "invalid_request", "since must be an RFC 3339 timestamp with an offset"
+                )
             try:
                 parse_iso(since)
             except ValueError as exc:
@@ -459,13 +464,19 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
                 ) from exc
             since = iso(parse_iso(since))  # the stored form, so the comparison is exact
         tenant = identity.tenant_id
-        records = harness.audit.export(tenant, since, limit)
+        try:
+            records = harness.audit.export(tenant, since, limit, after)
+        except KeyError as exc:
+            raise GatewayError(400, "invalid_request", "after names no record of yours") from exc
+        full = len(records) == limit
         return JSONResponse(
             {
                 "tenant_id": tenant,
                 "verify": harness.audit.verify(tenant),
                 "records": [r.__dict__ for r in records],
-                "next_since": records[-1].ts if len(records) == limit else None,
+                # Follow `next_after` to page: timestamps can repeat at millisecond precision.
+                "next_after": records[-1].record_id if full else None,
+                "next_since": records[-1].ts if full else None,
             }
         )
 

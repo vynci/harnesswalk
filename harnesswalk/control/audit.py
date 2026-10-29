@@ -113,12 +113,26 @@ class AuditLog:
         return AuditRecord(record_id, ctx.tenant_id, ts, body, prev, digest)
 
     def export(
-        self, tenant_id: str, since: str | None = None, limit: int = 500
+        self,
+        tenant_id: str,
+        since: str | None = None,
+        limit: int = 500,
+        after: str | None = None,
     ) -> list[AuditRecord]:
-        """Oldest first, in chain order, from `since` (an RFC 3339 timestamp) on."""
+        """Oldest first, in chain order, from `since` (an RFC 3339 timestamp) on, and after the
+        record `after` (exclusive) when given: the cursor that pages without repeats."""
+        after_row = 0
+        if after:
+            row = self.db.query(
+                "SELECT rowid FROM audit WHERE tenant_id = ? AND record_id = ?", (tenant_id, after)
+            )
+            if not row:
+                raise KeyError(after)
+            after_row = row[0]["rowid"]
         rows = self.db.query(
-            "SELECT * FROM audit WHERE tenant_id = ? AND ts >= ? ORDER BY rowid LIMIT ?",
-            (tenant_id, since or "", limit),
+            "SELECT * FROM audit WHERE tenant_id = ? AND ts >= ? AND rowid > ?"
+            " ORDER BY rowid LIMIT ?",
+            (tenant_id, since or "", after_row, limit),
         )
         return [self._record(r) for r in rows]
 

@@ -495,6 +495,12 @@ Records come oldest first, in chain order. `verify` walks the whole chain of the
 only the page. `next_since` is the `ts` to ask for next when the page was full, else `null`.
 Errors: `400` (bad `since` or `limit`), `401`, `403 forbidden_in_mode` in public mode.
 
+P3 integration (additive): `?after=<record_id>` starts after that record (exclusive, in chain
+order) and the response carries `next_after`, the last `record_id` of a full page, else `null`.
+Page with `next_after`: several records can share a millisecond `ts`, so following
+`next_since` can return the boundary records again. `since` must carry an offset (`Z` or
+`+hh:mm`); a bare local time is `400`. An `after` that names no record of the caller is `400`.
+
 ## Per-turn options added in P3
 
 `POST /v1/turns` also takes `output_schema` (a JSON Schema; the answer must be JSON valid
