@@ -450,6 +450,17 @@ Restated from `events.md`, so a UI author finds them here:
 - `turn_end.summary` carries `reply`, `exit` and `steps`; the turn's total cost is the
   `turn_end.cost` field (rule 13), not a summary key.
 
+## Known limits
+
+Accepted for P2 and scheduled, so a UI author does not mistake them for the contract:
+
+- `GET /v1/sessions/{session_id}/turns` reads each listed turn's full event list to build its
+  summary, one read per turn (up to 200). Fine at teaching scale; P4 (ops) adds an index or a
+  summary table so the list costs one query.
+- After a restart cut a turn off (no `turn_end`), that turn never reached the session store, so
+  the next turn of the session can reuse its `turn_index`, and two summaries can share one.
+  P3 (restart resume) finishes or closes such turns, which keeps `turn_index` unique.
+
 ## Not yet
 
 Uploads, sign-in endpoints, eval and release endpoints, feedback (`POST /v1/turns/{id}/feedback`
