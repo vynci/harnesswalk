@@ -51,3 +51,23 @@ def test_turn_with_approval_flag(tmp_path, monkeypatch, capsys) -> None:
     assert main(args) == 0
     out = capsys.readouterr().out
     assert "decision=deny" in out and "outcome=denied" in out
+
+
+def test_turns_lists_a_session_and_cancel_after_stops_a_turn(tmp_path, monkeypatch, capsys) -> None:
+    monkeypatch.setenv("HARNESSWALK_DATA_DIR", str(tmp_path))
+    base = ["--provider", "fake", "--fixture", "two_turns"]
+    assert main(["turn", "Hello", *base]) == 0
+    session = capsys.readouterr().out.split("session ")[1].split()[0]
+    args = ["turn", "Where is A-1002?", "--session", session, "--cancel-after", "loop", *base]
+    assert main(args) == 0  # stopped at the loop's first step boundary, with its notice
+    out = capsys.readouterr().out
+    assert "exit cancelled" in out and "exit_reason=interrupted" in out
+
+    assert main(["turns", session]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert len(lines) == 2 and lines[0].split()[0] == "1" and lines[1].split()[0] == "0"
+    assert "cancelled" in lines[0] and "answered" in lines[1]
+    assert main(["turns", session, "--json", "--limit", "1"]) == 0
+    turns = json.loads(capsys.readouterr().out)
+    assert [t["exit"] for t in turns] == ["cancelled"]
+    assert main(["turns", session, "--tenant", "someone_else"]) == 1

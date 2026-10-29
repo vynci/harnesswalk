@@ -3,13 +3,17 @@
 harnesswalk serve                         start the HTTP API (uvicorn)
 harnesswalk turn "<prompt>" --provider fake --fixture plain_answer
                                           run one turn in-process and print the walk
+harnesswalk turn "<prompt>" --cancel-after loop
+                                          cancel the turn as soon as that node is entered
 harnesswalk events <turn_id>              dump a stored turn as JSON Lines
+harnesswalk turns <session_id>            list a session's turns, newest first
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import sys
 from typing import Any
@@ -69,7 +73,7 @@ def format_walk(events: list[dict[str, Any]]) -> list[str]:
 
 
 async def _run_turn(args: argparse.Namespace) -> int:
-    from harnesswalk.control.gateway import TurnRequest
+    from harnesswalk.control.gateway import GatewayError, TurnRequest
     from harnesswalk.runtime import Harness
     from harnesswalk.types import Identity
 
@@ -99,7 +103,13 @@ async def _run_turn(args: argparse.Namespace) -> int:
             summary["approval_id"], args.tenant, "user:cli", decision, "from the CLI"
         )
 
+    def cancel_now() -> None:
+        with contextlib.suppress(GatewayError):  # the turn may have ended meanwhile
+            harness.gateway.cancel(args.tenant, holder["turn_id"])
+
     def on_event(event: dict[str, Any]) -> None:
+        if event["type"] == "node_enter" and event["node_id"] == args.cancel_after:
+            loop.call_soon(cancel_now)
         if event["type"] == "node_paused" and event["summary"]["reason"] == "breakpoint":
             loop.create_task(on_breakpoint(event["node_id"]))
         elif event["type"] == "approval_requested":
@@ -160,6 +170,35 @@ def _events(args: argparse.Namespace) -> int:
     return 0
 
 
+def _turns(args: argparse.Namespace) -> int:
+    from harnesswalk.context.stores.session import SessionStore
+    from harnesswalk.ops.trace import Tracer
+    from harnesswalk.turns import session_turns
+
+    settings = _settings(args)
+    tracer = Tracer(str(settings.resolve(settings.get("trace.sqlite_path", "data/trace.db"))))
+    session = SessionStore(
+        str(settings.resolve(settings.get("stores.session.sqlite_path", "data/session.db")))
+    )
+    turns = session_turns(tracer, session, args.tenant, args.session_id, args.limit)
+    if turns is None:
+        print(f"no session {args.session_id} for tenant {args.tenant}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(turns, indent=2, ensure_ascii=False))
+        return 0
+    for t in turns:
+        cost = t["cost"]
+        said = (t["message"] or "").replace("\n", " ")[:40]
+        reply = (t["reply"] or "").replace("\n", " ")[:60]
+        print(
+            f"{t['turn_index']:>3}  {t['turn_id']}  {t['status']:<7} {t['exit'] or '-':<9} "
+            f"{t['started_at']}  {cost['input_tokens']}/{cost['output_tokens']} tok  "
+            f"{said!r} -> {reply!r}"
+        )
+    return 0
+
+
 def _serve(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -206,10 +245,17 @@ def build_parser() -> argparse.ArgumentParser:
     turn.add_argument("--approval", choices=["ask", "approve", "deny"], default="ask")
     turn.add_argument("--disable", action="append", help="disable a node (repeatable)")
     turn.add_argument("--json", action="store_true", help="print the events instead of the walk")
+    turn.add_argument("--cancel-after", metavar="NODE_ID", help="cancel when this node is entered")
 
     events = sub.add_parser("events", help="dump a stored turn as JSON Lines")
     events.add_argument("turn_id")
     events.add_argument("--tenant", default="dev")
+
+    turns = sub.add_parser("turns", help="list a session's turns, newest first")
+    turns.add_argument("session_id")
+    turns.add_argument("--tenant", default="dev")
+    turns.add_argument("--limit", type=int, default=50)
+    turns.add_argument("--json", action="store_true", help="print the turn summaries as JSON")
     return parser
 
 
@@ -221,6 +267,8 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(_run_turn(args))
     if args.command == "events":
         return _events(args)
+    if args.command == "turns":
+        return _turns(args)
     build_parser().print_help()
     return 0
 
