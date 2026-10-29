@@ -110,6 +110,10 @@ class Tools:
         spec = await run_registry(ctx, self.registry, call.name)
         if spec is None:
             return Observation(call.call_id, "error", f"Unknown tool {call.name!r}.")
+        if spec.action_class != "memory.write" and spec not in self.registry.list(ctx.mode, None):
+            # A model can name a tool it was never offered; this mode does not run it. The one
+            # exception is `remember`, which only proposes: the memory writer gates it by mode.
+            return Observation(call.call_id, "error", f"Tool {call.name!r} is not offered here.")
         try:
             jsonschema.validate(call.arguments, spec.parameters)
         except jsonschema.ValidationError as exc:

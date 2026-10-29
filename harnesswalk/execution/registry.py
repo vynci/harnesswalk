@@ -110,6 +110,13 @@ class ToolRegistry:
         if not isinstance(spec.timeout_ms, int) or spec.timeout_ms <= 0:
             raise ConfigError(f"tool {spec.name} needs a positive timeout_ms")
         jsonschema.Draft202012Validator.check_schema(spec.parameters)
+        if spec.action_class == "memory.write" and (spec.name, spec.source) != (
+            "remember",
+            "local",
+        ):
+            # The class skips the tool-call budget and the tool_executed audit (the writer
+            # records the write), so only the built-in `remember`, which only proposes, has it.
+            raise ConfigError(f"tool {spec.name}: memory.write is reserved for remember")
         if spec.name in self._tools:
             raise ConfigError(f"tool {spec.name} is registered twice")
         self._tools[spec.name] = spec
@@ -170,14 +177,15 @@ class ToolRegistry:
         return list(self._tools.values())
 
     def list(self, mode: str, allow_tools: list[str] | None) -> list[ToolSpec]:
-        """Tools this agent may be offered in this mode, in registration order."""
+        """Tools this agent may be offered in this mode, in registration order.
+
+        Public mode offers pure read tools only: they run in-process there (sandbox.md).
+        """
         out = []
         for spec in self._tools.values():
             if allow_tools is not None and spec.name not in allow_tools:
                 continue
-            if mode == "public" and not (
-                (spec.pure or spec.source == "dataset") and spec.action_class == "read"
-            ):
+            if mode == "public" and not (spec.pure and spec.action_class == "read"):
                 continue
             out.append(spec)
         return out
