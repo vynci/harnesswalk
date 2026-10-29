@@ -1,33 +1,67 @@
-import { Monitor, Moon, RotateCcw, Sun } from 'lucide-react'
+import { Copy, Ellipsis, Monitor, Moon, RotateCcw, Sun } from 'lucide-react'
+import { Hint } from '@/components/hint'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { cn } from '@/lib/utils'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import type { View } from '@/api/types'
 import { useApp, type Theme } from '@/state/store'
 
-const NEXT_THEME: Record<Theme, Theme> = { system: 'light', light: 'dark', dark: 'system' }
 const AUTO = '__auto__'
 
-function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; label: string }) {
+const THEMES: { value: Theme; label: string; Icon: typeof Sun }[] = [
+  { value: 'system', label: 'System theme', Icon: Monitor },
+  { value: 'light', label: 'Light theme', Icon: Sun },
+  { value: 'dark', label: 'Dark theme', Icon: Moon },
+]
+
+function SessionMenu() {
+  const sessionId = useApp((s) => s.sessionId)
+  const turns = useApp((s) => s.order.length)
+  const newSession = useApp((s) => s.newSession)
+  const notify = useApp((s) => s.notify)
+  const copy = () => {
+    if (!sessionId) return
+    navigator.clipboard?.writeText(sessionId).then(
+      () => notify('info', 'Session id copied.'),
+      () => notify('error', 'Could not copy the session id.'),
+    )
+  }
   return (
-    <div role="group" aria-label={label} className="inline-flex rounded-md border p-0.5">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          aria-pressed={value === o.value}
-          onClick={() => onChange(o.value)}
-          className={cn(
-            'rounded px-2 py-0.5 text-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-            value === o.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
-          )}
-          data-testid={`view-${o.value}`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
+    <DropdownMenu>
+      <Hint label="Session">
+        <DropdownMenuTrigger asChild>
+          <Button size="icon" variant="ghost" className="size-8" aria-label="Session actions" data-testid="session-menu">
+            <Ellipsis />
+          </Button>
+        </DropdownMenuTrigger>
+      </Hint>
+      <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuLabel className="flex flex-col gap-0.5">
+          <span>Session</span>
+          <span className="truncate font-mono text-[11px] font-normal text-muted-foreground">
+            {sessionId ?? 'starts with your first message'}
+            {turns ? ` · ${turns} turn${turns === 1 ? '' : 's'}` : ''}
+          </span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={newSession}>
+          <RotateCcw /> New session
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={copy} disabled={!sessionId}>
+          <Copy /> Copy session id
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -44,11 +78,9 @@ export function Header() {
   const setProvider = useApp((s) => s.setProvider)
   const fixture = useApp((s) => s.fixture)
   const setFixture = useApp((s) => s.setFixture)
-  const newSession = useApp((s) => s.newSession)
   const invalidEvents = useApp((s) => s.invalidEvents)
   const disabled = useApp((s) => s.disabled)
   const dev = capabilities?.mode === 'dev'
-  const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor
 
   return (
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2">
@@ -57,15 +89,17 @@ export function Header() {
         <span className="hidden text-xs text-muted-foreground lg:inline">walk through an AI harness, one node at a time</span>
       </div>
       {capabilities && (
-        <Badge variant="outline" className="font-mono" data-testid="mode-badge" title={`API ${capabilities.version}`}>
-          {capabilities.mode}
-          {mock ? ' · mock' : ''}
-        </Badge>
+        <Hint label={`API ${capabilities.version}${mock ? ', in-browser mock' : ''}`}>
+          <Badge variant="outline" className="font-mono" data-testid="mode-badge">
+            {capabilities.mode}
+            {mock ? ' · mock' : ''}
+          </Badge>
+        </Hint>
       )}
       {invalidEvents > 0 && (
-        <Badge variant="destructive" title="Events that failed schema validation (see the console)">
-          {invalidEvents} invalid events
-        </Badge>
+        <Hint label="Events that failed schema validation (see the console)">
+          <Badge variant="destructive">{invalidEvents} invalid events</Badge>
+        </Hint>
       )}
       <div className="ml-auto flex flex-wrap items-center gap-3">
         {dev && capabilities && (
@@ -108,39 +142,45 @@ export function Header() {
           </>
         )}
         {disabled.length > 0 && (
-          <Badge variant="outline" className="text-state-error" title={`Disabled on the next turn: ${disabled.join(', ')}`}>
-            {disabled.length} off next turn
-          </Badge>
+          <Hint label={`Disabled on the next turn: ${disabled.join(', ')}`}>
+            <Badge variant="outline" className="text-state-error">
+              {disabled.length} off next turn
+            </Badge>
+          </Hint>
         )}
         {capabilities?.features.step_mode !== false && (
-          <label className="flex items-center gap-1.5 text-xs">
-            <Switch checked={stepMode} onCheckedChange={setStepMode} aria-label="Step mode: pause at every node" data-testid="step-toggle" />
-            Step mode
-          </label>
+          <Hint label="Pause at every node. Press Next to move one hop.">
+            <label className="flex items-center gap-1.5 text-xs">
+              <Switch checked={stepMode} onCheckedChange={setStepMode} aria-label="Step mode: pause at every node" data-testid="step-toggle" />
+              Step mode
+            </label>
+          </Hint>
         )}
-        <Segmented
-          label="Diagram view"
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          size="sm"
           value={view}
-          onChange={setView}
-          options={[
-            { value: 'simple', label: 'Simple' },
-            { value: 'expert', label: 'Expert' },
-          ]}
-        />
-        <Button size="icon" variant="ghost" className="size-8" onClick={newSession} aria-label="Start a new session" title="New session">
-          <RotateCcw />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="size-8"
-          onClick={() => setTheme(NEXT_THEME[theme])}
-          aria-label={`Theme: ${theme}. Switch to ${NEXT_THEME[theme]}`}
-          title={`Theme: ${theme}`}
-          data-testid="theme-toggle"
+          onValueChange={(v) => v && setView(v as View)}
+          aria-label="Diagram view"
         >
-          <ThemeIcon />
-        </Button>
+          <ToggleGroupItem value="simple" className="h-7 px-2.5 text-xs" data-testid="view-simple">
+            Simple
+          </ToggleGroupItem>
+          <ToggleGroupItem value="expert" className="h-7 px-2.5 text-xs" data-testid="view-expert">
+            Expert
+          </ToggleGroupItem>
+        </ToggleGroup>
+        <ToggleGroup type="single" size="sm" value={theme} onValueChange={(v) => v && setTheme(v as Theme)} aria-label="Theme" data-testid="theme-toggle">
+          {THEMES.map(({ value, label, Icon }) => (
+            <Hint key={value} label={label}>
+              <ToggleGroupItem value={value} aria-label={label} className="size-7 min-w-7 px-0">
+                <Icon />
+              </ToggleGroupItem>
+            </Hint>
+          ))}
+        </ToggleGroup>
+        <SessionMenu />
       </div>
     </header>
   )
