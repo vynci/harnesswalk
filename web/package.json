@@ -15,6 +15,7 @@
     "dev:mock": "VITE_HARNESSWALK_MOCK=1 vite",
     "build": "tsc -b && vite build",
     "build:mock": "tsc -b && VITE_HARNESSWALK_MOCK=1 vite build --outDir dist-mock",
+    "build:e2e": "tsc -b && VITE_HARNESSWALK_VALIDATE=1 vite build --outDir dist-e2e",
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "lint": "eslint . --max-warnings 0 && tsc -b",

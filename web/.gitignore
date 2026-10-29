@@ -4,3 +4,4 @@ dist-mock/
 playwright-report/
 test-results/
 blob-report/
+dist-e2e/
