@@ -21,6 +21,11 @@ function noticeFor(exit: TurnState['exit'] | null | undefined, error?: TurnState
     case 'cancelled':
       return { tone: 'info', text: 'Turn cancelled. Open spans were closed and nothing else ran.' }
     case 'error':
+      if (error?.code === 'fixture_exhausted')
+        return {
+          tone: 'error',
+          text: 'The fake provider replays canned replies, and this fixture has no reply scripted for this turn of the session. Start a new session or pick another fixture.',
+        }
       return { tone: 'error', text: `The turn failed${error ? `: ${error.code}, ${error.message}` : '.'}` }
     default:
       return null

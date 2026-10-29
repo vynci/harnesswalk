@@ -302,7 +302,9 @@ export function reduceEvent(prev: TurnState, ev: HarnessEvent, edgeIndex?: EdgeI
       // Point events: kept in the timeline; the inspector's Events tab shows them.
       break
     case 'error': {
-      s.error = ev.error ?? { code: 'internal', message: 'unknown error' }
+      // Keep the first error of the turn: the enclosing spans that fail after it only repeat it
+      // (a provider's fixture_exhausted becomes the loop's provider_error), so it is the cause.
+      s.error = s.error ?? ev.error ?? { code: 'internal', message: 'unknown error' }
       if (ev.node_id) {
         const run = nodeRun(s, ev.node_id)
         run.state = 'error'

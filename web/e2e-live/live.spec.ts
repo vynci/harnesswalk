@@ -292,3 +292,15 @@ test('a saved theme applies before the app script runs, so there is no flash', a
   await page.unroute('**/assets/*.js')
   await page.evaluate(() => localStorage.removeItem('harnesswalk.theme'))
 })
+
+test('a second turn on a one-turn fixture explains that fake replies are canned', async ({ page }) => {
+  await pickFixture(page, 'plain_answer')
+  await send(page, 'What are your support hours?')
+  await expect(status(page)).toHaveAttribute('data-phase', 'done')
+  await send(page, 'And on weekends?')
+  await expect(page.getByTestId('chat-turn')).toHaveCount(2)
+  await expect(status(page)).toContainText('exit: error')
+  await expect(page.getByTestId('system-notice').last()).toContainText('canned replies')
+  await expect(node(page, 'model_layer')).toHaveAttribute('data-state', 'error')
+  await expect(page.getByTestId('stat-model_layer')).toContainText('fixture_exhausted')
+})
