@@ -17,6 +17,7 @@ services:
     environment:
       HARNESSWALK_MODE: ${HARNESSWALK_MODE:-dev}
       HARNESSWALK_PROVIDER: ${HARNESSWALK_PROVIDER:-ollama}
+      HARNESSWALK_FIXTURE: ${HARNESSWALK_FIXTURE:-}
       HARNESSWALK_OLLAMA_URL: ${HARNESSWALK_OLLAMA_URL:-http://ollama:11434}
       HARNESSWALK_DATA_DIR: /data
       HARNESSWALK_DATABASE_URL: postgresql://harnesswalk:${POSTGRES_PASSWORD:-harnesswalk-local}@postgres:5432/harnesswalk
