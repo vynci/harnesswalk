@@ -1,0 +1,60 @@
+# harnesswalk compose skeleton (P0). Nothing here is started in P0.
+#
+#   docker compose -f deploy/docker-compose.yml --profile dev up      # api + postgres + ollama on this machine
+#   docker compose -f deploy/docker-compose.yml --profile homelab up  # api + postgres, model served elsewhere
+#
+# Image tags are pinned in P1. No secrets live in this file; values come from the environment.
+name: harnesswalk
+
+services:
+  api:
+    profiles: [dev, homelab]
+    build:
+      context: ..
+      dockerfile: deploy/api.Dockerfile   # added in P1
+    environment:
+      HARNESSWALK_MODE: ${HARNESSWALK_MODE:-dev}
+      HARNESSWALK_PROVIDER: ${HARNESSWALK_PROVIDER:-ollama}
+      HARNESSWALK_OLLAMA_URL: ${HARNESSWALK_OLLAMA_URL:-http://ollama:11434}
+      HARNESSWALK_DATABASE_URL: postgresql://harnesswalk:${POSTGRES_PASSWORD:-harnesswalk-local}@postgres:5432/harnesswalk
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - harness-data:/data
+
+  postgres:
+    profiles: [dev, homelab]
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: harnesswalk
+      POSTGRES_DB: harnesswalk
+      # Local-only default for the learner path. Set POSTGRES_PASSWORD for anything else.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-harnesswalk-local}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U harnesswalk -d harnesswalk"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  ollama:
+    profiles: [dev]
+    image: ollama/ollama:latest
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+
+volumes:
+  harness-data:
+  pgdata:
+  ollama-models:
