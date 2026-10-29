@@ -14,6 +14,10 @@ export interface HarnessNodeData extends Record<string, unknown> {
   node: DiagramNode
   state: NodeState
   stat?: string
+  /** The decision's plain-words reason (`why`), shown on hover over the stat. */
+  why?: string
+  /** Point events emitted this turn, by type. */
+  points?: Record<string, number>
   badges?: StoreBadge[]
   expanded: boolean
   hasChildren: boolean
@@ -62,7 +66,7 @@ function KindChip({ kind, small }: { kind: DiagramNode['kind']; small: boolean }
 }
 
 function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
-  const { node, state, stat, badges, expanded, hasChildren, isChild, current, off } = data
+  const { node, state, stat, why, points, badges, expanded, hasChildren, isChild, current, off } = data
   const notYet = node.implemented === false
   return (
     <Card
@@ -76,6 +80,7 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
       data-implemented={notYet ? 'false' : 'true'}
       data-current={current ? 'true' : 'false'}
       data-node-kind={node.kind}
+      data-points={points ? Object.entries(points).map(([k, v]) => `${k}:${v}`).join(' ') : undefined}
     >
       <span className="hw-accent" aria-hidden />
       {SIDES.map(([pos, side]) => (
@@ -124,7 +129,9 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
             not yet
           </Badge>
         )}
-        <span className="truncate">{stat ?? (notYet || isChild ? '' : node.kind)}</span>
+        <span className="truncate" title={why} data-why={why ? 'true' : undefined}>
+          {stat ?? (notYet || isChild ? '' : node.kind)}
+        </span>
       </CardDescription>
       {badges && badges.length > 0 && (
         <div className="mt-1 flex flex-wrap gap-0.5" role="group" aria-label="Memory stores">

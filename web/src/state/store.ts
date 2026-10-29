@@ -14,6 +14,8 @@ export interface ChatTurn {
   /** Reduced events, when this browser has streamed or loaded them. */
   state?: TurnState
   createdAt: number
+  /** The event stream dropped and came back while the turn was still going (a restart, say). */
+  reconnected?: boolean
 }
 
 export interface Notice {
@@ -65,6 +67,13 @@ export interface AppState {
   replay: ReplayState | null
   selectedNode: string | null
   notices: Notice[]
+  /** The knowledge document open in the reader, at a chunk when a citation opened it. */
+  doc: { docId: string; chunk?: number } | null
+  /** Bumped after a write the inspector should show (a memory proposal decided). */
+  inspectorVersion: number
+  /** Dev mode composer options: a JSON Schema for the answer, and a model alias hint. */
+  outputSchema: string
+  modelHint: string | null
 
   boot: (t: Transport, opts?: { mock?: boolean; validate?: AppState['validate']; seedMessages?: Record<string, string>; sessionId?: string }) => Promise<void>
   send: (text: string) => Promise<void>
@@ -88,6 +97,23 @@ export interface AppState {
   toggleDisabled: (id: string) => void
   notify: (level: Notice['level'], text: string) => void
   dismissNotice: (id: number) => void
+  openDoc: (docId: string, chunk?: number) => void
+  closeDoc: () => void
+  decideProposal: (proposalId: string, decision: 'accept' | 'reject') => Promise<boolean>
+  setOutputSchema: (text: string) => void
+  setModelHint: (alias: string | null) => void
+}
+
+/** The composer's schema text as a JSON Schema object, or an error message. Empty is none. */
+export function parseOutputSchema(text: string): { schema?: Record<string, unknown>; error?: string } {
+  if (!text.trim()) return {}
+  try {
+    const value: unknown = JSON.parse(text)
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return { error: 'The schema must be a JSON object.' }
+    return { schema: value as Record<string, unknown> }
+  } catch (err) {
+    return { error: `Not valid JSON: ${err instanceof Error ? err.message : String(err)}` }
+  }
 }
 
 let stream: TurnStream | null = null
@@ -129,6 +155,7 @@ export const useApp = create<AppState>()((set, get) => {
     if (!api) return
     stream?.close()
     set({ liveTurnId: turnId, connection: 'connecting' })
+    let dropped = false
     stream = openTurnStream(
       api.transport,
       turnId,
@@ -141,7 +168,16 @@ export const useApp = create<AppState>()((set, get) => {
             set({ selectedNode: ev.node_id })
           }
         },
-        onStatus: (status) => set({ connection: status }),
+        onStatus: (status) => {
+          // A drop and a successful reconnect, while the turn is still going: the chat says so,
+          // because a restart re-attaches a turn waiting on an approval (approval_queue.md).
+          if (status === 'reconnecting') dropped = true
+          if (status === 'open' && dropped) {
+            dropped = false
+            updateTurn(turnId, (t) => ({ ...t, reconnected: true }))
+          }
+          set({ connection: status })
+        },
         onInvalid: (_ev, problems) => {
           set((s) => ({ invalidEvents: s.invalidEvents + 1 }))
           console.warn('[harnesswalk] event failed schema validation', problems)
@@ -244,6 +280,10 @@ export const useApp = create<AppState>()((set, get) => {
     replay: null,
     selectedNode: null,
     notices: [],
+    doc: null,
+    inspectorVersion: 0,
+    outputSchema: '',
+    modelHint: null,
 
     async boot(t, opts = {}) {
       const api = createApi(t)
@@ -260,9 +300,15 @@ export const useApp = create<AppState>()((set, get) => {
     },
 
     async send(text) {
-      const { api, sessionId, stepMode, provider, fixture, disabled, capabilities, liveTurnId, turns } = get()
+      const { api, sessionId, stepMode, provider, fixture, disabled, capabilities, liveTurnId, turns, outputSchema, modelHint } = get()
       const message = text.trim()
       if (!api || !message) return
+      const dev = capabilities?.mode === 'dev'
+      const parsed = dev ? parseOutputSchema(outputSchema) : {}
+      if (parsed.error) {
+        get().notify('error', `Output schema: ${parsed.error}`)
+        return
+      }
       const live = liveTurnId ? turns[liveTurnId]?.state : undefined
       if (live && (live.phase === 'running' || live.phase === 'paused')) {
         get().notify('info', 'A turn is still running. Stop it or wait for it to finish.')
@@ -270,7 +316,6 @@ export const useApp = create<AppState>()((set, get) => {
       }
       get().exitReplay()
       set({ sending: true })
-      const dev = capabilities?.mode === 'dev'
       try {
         const res = await api.startTurn({
           message,
@@ -279,6 +324,8 @@ export const useApp = create<AppState>()((set, get) => {
           ...(dev && provider ? { provider } : {}),
           ...(dev && fixture ? { fixture } : {}),
           ...(capabilities?.mode !== 'public' && capabilities?.features.disable_nodes !== false && disabled.length ? { disable: disabled } : {}),
+          ...(parsed.schema ? { output_schema: parsed.schema } : {}),
+          ...(dev && modelHint ? { model: modelHint } : {}),
         })
         rememberMessage(res.turn_id, message)
         if (res.session_id !== sessionId) {
@@ -432,6 +479,37 @@ export const useApp = create<AppState>()((set, get) => {
 
     dismissNotice(id) {
       set((s) => ({ notices: s.notices.filter((n) => n.id !== id) }))
+    },
+
+    openDoc(docId, chunk) {
+      set({ doc: { docId, chunk } })
+    },
+
+    closeDoc() {
+      set({ doc: null })
+    },
+
+    async decideProposal(proposalId, decision) {
+      const api = get().api
+      if (!api) return false
+      try {
+        await api.decideProposal(proposalId, decision)
+        get().notify('info', decision === 'accept' ? 'Proposal accepted: the memory writer wrote it.' : 'Proposal rejected: nothing was written.')
+        return true
+      } catch (err) {
+        get().notify('error', `Could not decide the proposal: ${describe(err)}`)
+        return false
+      } finally {
+        set((s) => ({ inspectorVersion: s.inspectorVersion + 1 }))
+      }
+    },
+
+    setOutputSchema(outputSchema) {
+      set({ outputSchema })
+    },
+
+    setModelHint(modelHint) {
+      set({ modelHint })
     },
   }
 })

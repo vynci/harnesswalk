@@ -6,7 +6,7 @@ import type { HarnessFlowNode } from './HarnessNode'
 import { BADGE_NODE, type DiagramLayout, type VisibleEdge } from './layout'
 import { edgeColor } from './planes'
 import type { PlaneFlowNode } from './PlaneNode'
-import { memoryBadges, nodeStat } from './stats'
+import { memoryBadges, nodeStat, nodeWhy } from './stats'
 
 export interface FlowOptions {
   disabled: ReadonlySet<string>
@@ -84,6 +84,8 @@ export function toFlow(
         node: l.node,
         state,
         stat,
+        why: nodeWhy(run),
+        points: run?.points,
         badges: showBadges ? memoryBadges(diagram, turn, l.id) : undefined,
         expanded: l.expanded,
         hasChildren: l.hasChildren,

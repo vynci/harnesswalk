@@ -1,9 +1,79 @@
 import { useState, type KeyboardEvent } from 'react'
-import { SendHorizontal, Square } from 'lucide-react'
+import { ChevronRight, SendHorizontal, SlidersHorizontal, Square } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Button } from '@/components/ui/button'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { parseOutputSchema, useApp } from '@/state/store'
+
+const NO_HINT = '__none__'
+const EXAMPLE_SCHEMA = '{"type": "object", "required": ["answer"], "properties": {"answer": {"type": "string"}}}'
+
+/**
+ * Dev mode only: per-turn options the API takes on POST /v1/turns. `output_schema` makes the
+ * output guardrails check the answer against a JSON Schema; `model` is a router hint, honoured
+ * only when the matching rule allows it.
+ */
+function TurnOptions() {
+  const capabilities = useApp((s) => s.capabilities)
+  const outputSchema = useApp((s) => s.outputSchema)
+  const setOutputSchema = useApp((s) => s.setOutputSchema)
+  const modelHint = useApp((s) => s.modelHint)
+  const setModelHint = useApp((s) => s.setModelHint)
+  const [open, setOpen] = useState(false)
+  if (capabilities?.mode !== 'dev') return null
+  const models = [...new Set(capabilities.providers.filter((p) => p.configured).flatMap((p) => p.models))]
+  const schemaError = parseOutputSchema(outputSchema).error
+  const active = [outputSchema.trim() ? 'schema' : null, modelHint ? `model ${modelHint}` : null].filter(Boolean)
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} data-testid="turn-options">
+      <CollapsibleTrigger asChild>
+        <Button type="button" variant="ghost" size="xs" className="text-muted-foreground" aria-label="Turn options (dev mode)">
+          <ChevronRight aria-hidden className={open ? 'rotate-90 transition-transform' : 'transition-transform'} />
+          <SlidersHorizontal aria-hidden /> Options{active.length ? `: ${active.join(', ')}` : ''}
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-1.5 flex flex-col gap-2 rounded-md border p-2">
+        <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-2">
+            Output schema (JSON Schema the answer must satisfy)
+            <Button type="button" variant="link" size="xs" className="h-auto p-0 text-[11px]" onClick={() => setOutputSchema(EXAMPLE_SCHEMA)}>
+              example
+            </Button>
+          </span>
+          <Textarea
+            value={outputSchema}
+            onChange={(e) => setOutputSchema(e.target.value)}
+            rows={2}
+            placeholder="Empty: no schema check"
+            className="min-h-0 resize-y font-mono text-[11px]"
+            aria-invalid={!!schemaError}
+            data-testid="output-schema-input"
+          />
+          {schemaError && <span className="text-destructive">{schemaError}</span>}
+        </label>
+        <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          Model hint
+          <Select value={modelHint ?? NO_HINT} onValueChange={(v) => setModelHint(v === NO_HINT ? null : v)}>
+            <SelectTrigger size="sm" className="h-7 w-40 text-xs" aria-label="Model hint for the router" data-testid="model-hint">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_HINT}>none (router decides)</SelectItem>
+              {models.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {m}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
 
 export function Composer({
   busy,
@@ -64,6 +134,7 @@ export function Composer({
         aria-invalid={tooLong}
         data-testid="composer-input"
       />
+      <TurnOptions />
       <div className="flex items-center gap-2">
         <span id="composer-keys" className="flex items-center gap-1 text-[11px] text-muted-foreground">
           <Kbd>Enter</Kbd> sends,
