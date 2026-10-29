@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import os
 import re
 import secrets
@@ -181,7 +182,14 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         # Recovery first (approval_queue.md, P3): paused turns re-attach, cut-off turns close.
-        await harness.start()
+        recovered = await harness.start()
+        if recovered["resumed"] or recovered["closed"]:
+            logging.getLogger("harnesswalk").warning(
+                "recovered after a restart: %d turn(s) waiting on an approval re-attached,"
+                " %d cut-off turn(s) closed",
+                len(recovered["resumed"]),
+                len(recovered["closed"]),
+            )
         yield
         await harness.aclose()
 

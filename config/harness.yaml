@@ -49,6 +49,7 @@ loop:
   notices:
     budget_tokens: I stopped because this turn used its token budget. Try a narrower question.
     budget_usd: I stopped because this turn used its cost budget. Try a narrower question.
+    budget_tool_calls: I stopped because this turn used its tool-call budget. Try a narrower question.
     timeout: I stopped because this turn ran out of time. Please try again.
     interrupted: I stopped because the turn was interrupted.
     max_steps: I stopped after the maximum number of steps without reaching an answer.
