@@ -77,8 +77,8 @@ class Tracer:
             self._flush_buffer()
             self._insert(event)
         except sqlite3.Error:
-            if len(self._buffer) < self.buffer_events:
-                self._buffer.append(event)
+            # Stream events are never dropped; detail records are what overflow sacrifices.
+            self._buffer.append(event)
         for queue in self._live.get(turn_id, []):
             queue.put_nowait(event)
         if event["type"] == "turn_end":
@@ -110,13 +110,18 @@ class Tracer:
     def persisted(self) -> bool:
         return not self._buffer
 
-    def put_detail(self, tenant_id: str, trace_id: str, event_id: str, record: Any) -> str:
+    def put_detail(self, tenant_id: str, trace_id: str, event_id: str, record: Any) -> str | None:
         """Store a full record (assembled context, prompt, tool result) and return its ref."""
+        if len(self._buffer) >= self.buffer_events:
+            return None  # the store is down and the buffer is full: drop details first
         body = json.dumps(record, default=str, ensure_ascii=False)
-        self.db.execute(
-            "INSERT OR REPLACE INTO details VALUES (?, ?, ?, ?)",
-            (tenant_id, trace_id, event_id, body),
-        )
+        try:
+            self.db.execute(
+                "INSERT OR REPLACE INTO details VALUES (?, ?, ?, ?)",
+                (tenant_id, trace_id, event_id, body),
+            )
+        except sqlite3.Error:
+            return None
         return f"trace://{trace_id}/{event_id}"
 
     # -- reading ----------------------------------------------------------------------------
@@ -126,7 +131,13 @@ class Tracer:
             "SELECT body FROM events WHERE tenant_id = ? AND turn_id = ? AND seq > ? ORDER BY seq",
             (tenant_id, turn_id, after_seq),
         )
-        return [json.loads(r["body"]) for r in rows]
+        events = [json.loads(r["body"]) for r in rows]
+        buffered = [
+            e
+            for e in self._buffer
+            if e["tenant_id"] == tenant_id and e["turn_id"] == turn_id and e["seq"] > after_seq
+        ]
+        return sorted(events + buffered, key=lambda e: e["seq"]) if buffered else events
 
     def turn_exists(self, tenant_id: str, turn_id: str) -> bool:
         row = self.db.one(

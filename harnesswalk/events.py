@@ -131,6 +131,7 @@ class Breakpoints:
         node_id = self.paused_node
         if mode == "continue":
             self.enabled = False
+        self.paused_node = None  # a second resume before the turn wakes is a 409
         self._release.set()
         return node_id
 
@@ -214,7 +215,9 @@ class TurnEmitter:
             if value is not None:
                 event[key] = value
         if detail is not None and self.detail_sink is not None:
-            event["detail_ref"] = self.detail_sink(event["event_id"], detail)
+            ref = self.detail_sink(event["event_id"], detail)  # None: detail dropped, event kept
+            if ref:
+                event["detail_ref"] = ref
         if self.validate:
             problems = validate_event(event)
             if problems:
@@ -234,12 +237,21 @@ class TurnEmitter:
         return self._emit("turn_start", "active", summary=summary)
 
     def turn_end(
-        self, status: str, summary: dict[str, Any], cost: dict[str, Any] | None = None
+        self,
+        status: str,
+        summary: dict[str, Any],
+        cost: dict[str, Any] | None = None,
+        detail: Any = None,
     ) -> Event:
         if self.stack:
             raise StreamError(f"turn_end with open nodes {[s.node_id for s in self.stack]}")
         event = self._emit(
-            "turn_end", status, summary=summary, cost=cost, duration_ms=self._ms(self.started)
+            "turn_end",
+            status,
+            summary=summary,
+            cost=cost,
+            duration_ms=self._ms(self.started),
+            detail=detail,
         )
         self.ended = True
         return event
@@ -258,13 +270,23 @@ class TurnEmitter:
         span = Span(node_id, self.seq)
         self._emit("node_enter", "active", node_id=node_id, summary=summary or None)
         self.stack.append(span)
-        await self.breakpoints.hit(self, node_id)
+        try:
+            await self.breakpoints.hit(self, node_id)
+        except BaseException as exc:  # cancelled while paused: close this span first
+            cancelled = isinstance(exc, asyncio.CancelledError)
+            self.fail(
+                span, "cancelled" if cancelled else "internal", "The turn stopped while paused."
+            )
+            raise
         return span
 
-    def _close(self, span: Span) -> None:
+    def _check_top(self, span: Span) -> None:
         if not self.stack or self.stack[-1] is not span:
             top = self.stack[-1].node_id if self.stack else None
             raise StreamError(f"closing {span.node_id} but the innermost open node is {top}")
+
+    def _pop(self, span: Span) -> None:
+        """Pop only after the closing event is out, so a failed emit never strands a span."""
         self.stack.pop()
         span.closed = True
 
@@ -276,10 +298,10 @@ class TurnEmitter:
         cost: dict[str, Any] | None = None,
         detail: Any = None,
     ) -> Event:
-        self._close(span)
+        self._check_top(span)
         if summary:
             span.summary.update(summary)
-        return self._emit(
+        event = self._emit(
             "node_exit",
             status or span.status,
             node_id=span.node_id,
@@ -288,15 +310,17 @@ class TurnEmitter:
             cost=cost or span.cost,
             detail=detail if detail is not None else span.detail,
         )
+        self._pop(span)
+        return event
 
     def fail(
         self, span: Span, code: str, message: str, summary: dict[str, Any] | None = None
     ) -> Event:
         """Emit `error` for this node, which closes its span."""
-        self._close(span)
+        self._check_top(span)
         if summary:
             span.summary.update(summary)
-        return self._emit(
+        event = self._emit(
             "error",
             "error",
             node_id=span.node_id,
@@ -305,6 +329,8 @@ class TurnEmitter:
             cost=span.cost,
             error={"code": code, "message": message[:1000]},
         )
+        self._pop(span)
+        return event
 
     # -- point events and edges ---------------------------------------------------------------
 
