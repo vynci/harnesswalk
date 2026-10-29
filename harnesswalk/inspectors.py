@@ -84,7 +84,7 @@ def _inspector(h: Harness, tenant_id: str, node: dict[str, Any], recent: list[di
             "models": h.settings.get("models.models", {}),
             "router_rules": h.router.rules(),
             "providers": sorted(h.providers),
-            "last_routing": h.model_layer.last_route,
+            "last_routing": h.model_layer.last_route.get(tenant_id),
         }
     if kind == "store":
         if node_id == "audit":

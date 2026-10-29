@@ -77,7 +77,7 @@ class ModelLayer:
         self.timeout_s = timeout_s
         self.max_output_tokens = max_output_tokens
         self.capture_content = capture_content
-        self.last_route: dict[str, Any] | None = None
+        self.last_route: dict[str, dict[str, Any]] = {}  # tenant -> last routing decision
 
     async def complete(
         self, ctx: TurnContext, request: ModelRequest, api_key: str | None = None
@@ -95,7 +95,8 @@ class ModelLayer:
                     mode=ctx.mode,
                 ),
             )
-            self.last_route = {"rule": route.rule, "model": route.model, "alts": route.alternatives}
+            routed = {"rule": route.rule, "model": route.model, "alts": route.alternatives}
+            self.last_route[ctx.tenant_id] = routed
             response = await self._call_with_fallback(ctx, request, route, api_key)
             span.cost = response.usage.cost()
             span.set(
@@ -112,7 +113,7 @@ class ModelLayer:
                 span.set(cached_tokens=response.usage.cached_tokens)
             if self.capture_content:
                 span.detail = {
-                    "route": self.last_route,
+                    "route": routed,
                     "request": [m.to_dict() for m in request.messages],
                     "tools": [t.name for t in request.tools],
                     "response": {
@@ -129,6 +130,8 @@ class ModelLayer:
         self, ctx: TurnContext, request: ModelRequest, route: Any, api_key: str | None
     ) -> ModelResponse:
         candidates = [route.model, *route.alternatives]
+        # A BYO key belongs to the provider of the routed model; fallbacks never see it.
+        key_provider = self.models[route.model]["provider"]
         last_error: ProviderError | None = None
         for attempt, alias in enumerate(candidates, start=1):
             cfg = self.models[alias]
@@ -139,7 +142,7 @@ class ModelLayer:
                 tools=request.tools,
                 max_output_tokens=request.max_output_tokens or self.max_output_tokens,
                 output_schema=request.output_schema,
-                api_key=api_key,
+                api_key=api_key if cfg["provider"] == key_provider else None,
                 turn=TurnRef(ctx.tenant_id, ctx.session_id, ctx.turn_id, ctx.turn_index),
             )
             try:
