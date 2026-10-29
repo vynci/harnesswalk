@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { EdgeKind, NodeKind, PlaneId, View } from '@/api/types'
+import { Hint } from '@/components/hint'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { edgeColor, KIND_HINT, KIND_ICON } from './planes'
@@ -49,7 +53,7 @@ function Row({ title, children }: { title: string; children: React.ReactNode }) 
   return (
     <div className="flex items-center gap-1.5">
       <dt className="w-9 shrink-0 font-medium text-foreground">{title}</dt>
-      <dd className="flex items-center gap-x-2.5">{children}</dd>
+      <dd className="flex items-center gap-x-1">{children}</dd>
     </div>
   )
 }
@@ -58,15 +62,17 @@ export function Legend({ view, showTelemetry, onShowTelemetry }: { view: View; s
   // Open by default in the simple view, where people meet the colours first.
   const [open, setOpen] = useState(view === 'simple')
   return (
-    <div
-      className="absolute right-3 bottom-8 z-10 hidden rounded-md bg-card/95 text-[11px] whitespace-nowrap text-muted-foreground shadow-sm ring-1 ring-border backdrop-blur-sm md:block"
+    <Card
+      className="absolute right-3 bottom-8 z-10 hidden gap-0 rounded-md bg-card/95 py-0 text-[11px] whitespace-nowrap text-muted-foreground shadow-sm backdrop-blur-sm md:flex"
       data-testid="legend"
       data-open={open ? 'true' : 'false'}
     >
       <div className="flex items-center gap-3 px-2 py-1">
-        <button
+        <Button
           type="button"
-          className="flex items-center gap-1 rounded font-medium text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          variant="ghost"
+          size="xs"
+          className="-ml-1 h-5 gap-1 px-1 text-[11px] text-foreground"
           aria-expanded={open}
           aria-controls="diagram-legend"
           onClick={() => setOpen(!open)}
@@ -74,19 +80,21 @@ export function Legend({ view, showTelemetry, onShowTelemetry }: { view: View; s
         >
           {open ? <ChevronDown className="size-3.5" aria-hidden /> : <ChevronUp className="size-3.5" aria-hidden />}
           Legend
-        </button>
+        </Button>
         {view === 'simple' && (
-          <label className="ml-auto flex cursor-pointer items-center gap-1.5" title="Draw every edge to and from LLM Ops (telemetry, eval, release) instead of one telemetry bus. Hovering a node shows its own.">
-            <Switch size="sm" checked={showTelemetry} onCheckedChange={onShowTelemetry} data-testid="telemetry-toggle" aria-label="Show telemetry and LLM Ops edges" />
-            Show telemetry
-          </label>
+          <Hint label="Draw every edge to and from LLM Ops (telemetry, eval, release) instead of one telemetry bus. Hovering a node shows its own." side="top">
+            <label className="ml-auto flex cursor-pointer items-center gap-1.5">
+              <Switch size="sm" checked={showTelemetry} onCheckedChange={onShowTelemetry} data-testid="telemetry-toggle" aria-label="Show telemetry and LLM Ops edges" />
+              Show telemetry
+            </label>
+          </Hint>
         )}
       </div>
       {open && (
         <dl id="diagram-legend" className="space-y-1 border-t border-border px-2 pt-1.5 pb-1.5" title="Faint: not used this turn. Moving: in use now. Stronger: used this turn.">
           <Row title="State">
             {STATES.map((s) => (
-              <span key={s.state} className="flex items-center gap-1">
+              <Badge key={s.state} variant="ghost" className="gap-1 px-1 py-0 text-[11px] font-normal text-muted-foreground">
                 <span
                   className={cn('inline-block h-2.5 w-[3px] rounded-sm')}
                   style={{
@@ -97,36 +105,36 @@ export function Legend({ view, showTelemetry, onShowTelemetry }: { view: View; s
                   }}
                 />
                 {s.label}
-              </span>
+              </Badge>
             ))}
-            <span className="flex items-center gap-1">
+            <Badge variant="ghost" className="gap-1 px-1 py-0 text-[11px] font-normal text-muted-foreground">
               <span className="inline-block h-2.5 w-3.5 rounded-sm border border-dashed border-current opacity-60" />
               not built
-            </span>
+            </Badge>
           </Row>
           <Row title="Node">
             {KINDS.map((k) => {
               const Icon = KIND_ICON[k]
               return (
-                <span key={k} className="flex items-center gap-1" title={KIND_HINT[k]}>
-                  <span className="hw-kind inline-flex size-4 items-center justify-center rounded-[4px]" data-kind={k}>
-                    <Icon className="size-2.5" strokeWidth={2.25} aria-hidden />
-                  </span>
+                <Badge key={k} variant="ghost" className="gap-1 px-1 py-0 text-[11px] font-normal text-muted-foreground" title={KIND_HINT[k]}>
+                  <Badge variant="kind" className="size-4 rounded-[4px] p-0 [&>svg]:size-2.5" data-kind={k}>
+                    <Icon strokeWidth={2.25} aria-hidden />
+                  </Badge>
                   {k}
-                </span>
+                </Badge>
               )
             })}
           </Row>
           <Row title="Edge">
             {EDGES.map((e) => (
-              <span key={e.label} className="flex items-center gap-1" title={e.title}>
+              <Badge key={e.label} variant="ghost" className="gap-1 px-1 py-0 text-[11px] font-normal text-muted-foreground [&>svg]:h-2 [&>svg]:w-5" title={e.title}>
                 <EdgeSwatch kind={e.kind} reverse={e.reverse} />
                 {e.label}
-              </span>
+              </Badge>
             ))}
           </Row>
         </dl>
       )}
-    </div>
+    </Card>
   )
 }

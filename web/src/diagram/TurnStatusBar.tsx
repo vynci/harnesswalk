@@ -1,3 +1,4 @@
+import { Card } from '@/components/ui/card'
 import type { TurnState } from '@/state/reducer'
 import { formatMs } from './stats'
 
@@ -21,8 +22,8 @@ export function TurnStatusBar({ turn }: { turn: TurnState }) {
     .filter(Boolean)
     .join(', ')
   return (
-    <div
-      className="pointer-events-none absolute top-3 left-3 z-10 flex flex-wrap items-center gap-2 rounded-md bg-card/90 px-2.5 py-1.5 text-xs shadow-sm ring-1 ring-border backdrop-blur"
+    <Card
+      className="pointer-events-none absolute top-3 left-3 z-10 flex-row flex-wrap items-center gap-2 rounded-md bg-card/90 px-2.5 py-1.5 text-xs shadow-sm backdrop-blur"
       data-testid="turn-status"
       data-phase={turn.phase}
     >
@@ -44,6 +45,6 @@ export function TurnStatusBar({ turn }: { turn: TurnState }) {
           <span className="text-muted-foreground">{turn.events.length} events</span>
         </>
       )}
-    </div>
+    </Card>
   )
 }
