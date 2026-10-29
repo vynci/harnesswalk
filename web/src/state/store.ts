@@ -145,7 +145,12 @@ export const useApp = create<AppState>()((set, get) => {
         },
         onEnd: (why) => {
           set({ connection: 'idle' })
-          if (why === 'failed') get().notify('error', 'Lost the event stream for this turn. Reload to reconnect.')
+          if (why === 'failed') {
+            // Either the network is gone or the API no longer runs this turn (a restart cut it
+            // off, so it never ends). Release the composer instead of waiting forever.
+            if (get().liveTurnId === turnId) set({ liveTurnId: null })
+            get().notify('error', 'Lost the event stream for this turn. Reload to reconnect.')
+          }
           if (why === 'turn_end') void refreshSummary(turnId)
         },
       },
