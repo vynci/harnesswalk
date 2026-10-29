@@ -6,7 +6,8 @@ Contract: spec/contracts/tool_registry.md ("The invoke path"). Node: `tools` (ex
     validate         invalid arguments     -> error observation
     policy.check     on every call, no cache
     audit            when policy says the decision must be recorded
-    approval         when policy says needs_approval (the turn pauses), then audit again
+    approval         when policy says needs_approval (the turn pauses), then audit again;
+                     approved but cancelled meanwhile -> audit says so, the turn stops
     sandbox          executes with a timeout; skipped (and shown so) when denied
 
 Whatever happens, the loop gets an `Observation`. The `tools` span closes with `error` only
@@ -22,12 +23,15 @@ import jsonschema
 from harnesswalk.control.approval import ApprovalQueue
 from harnesswalk.control.audit import AuditEntry, AuditLog, args_digest, record
 from harnesswalk.control.policy import Policy
+from harnesswalk.events import TurnCancelled
 from harnesswalk.execution.registry import ToolRegistry, run_registry
 from harnesswalk.execution.sandbox import Sandbox, run_sandbox, skip_sandbox
 from harnesswalk.nodes import node, register
 from harnesswalk.types import HarnessError, Observation, ToolCall, TurnContext
 
 register("tools", __name__)
+
+NOT_RUN_NOTE = "approved, not run: the turn was cancelled"
 
 
 class Tools:
@@ -109,6 +113,8 @@ class Tools:
             decided = await self.approvals.request(
                 ctx, call, spec.name, spec.action_class, decision.reason, before_pause
             )
+            # Approved, then cancelled before the turn woke up: record the approval, run nothing.
+            not_run = decided.decision == "approve" and ctx.interrupted
             ctx.emit.edge("approval_to_audit")
             await record(
                 ctx,
@@ -123,8 +129,11 @@ class Tools:
                     decision=decided.decision,
                     approval_id=decided.approval_id,
                     args_digest=args_digest(call.arguments),
+                    extra={"executed": False, "note": NOT_RUN_NOTE} if not_run else {},
                 ),
             )
+            if not_run:
+                raise TurnCancelled()
             ctx.emit.edge("approval_to_tools")
             if decided.decision != "approve":
                 await skip_sandbox(ctx, spec, call, f"approval {decided.decision}")

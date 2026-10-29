@@ -59,3 +59,34 @@ async def test_cancel_then_decide_is_409_and_the_record_is_expired_at_once(tmp_p
         assert check_stream(events) == []
         assert not any(e.get("node_id") == "sandbox" for e in events)
         assert events[-1]["summary"]["exit"] == "cancelled"
+
+
+@pytest.mark.anyio
+async def test_decide_then_cancel_does_not_run_the_tool(tmp_path: Path) -> None:
+    h = Harness(settings(tmp_path, "approval_approve"))
+    async with client(h) as c:
+        r = await c.post("/v1/turns", json={"message": "Please cancel order A-1002."})
+        turn_id = r.json()["turn_id"]
+        approval_id = (await until(c, turn_id, "paused_at_node", "approval"))["pending_approval_id"]
+        # Approve, then cancel before the turn's task has woken up to run the tool.
+        h.approvals.decide(approval_id, "t1", "user:t1", "approve", None)
+        h.gateway.cancel("t1", turn_id)
+        await h.gateway.wait(turn_id, 5)
+        events = h.tracer.get_turn("t1", turn_id)
+        assert check_stream(events) == []
+        assert not any(e.get("node_id") == "sandbox" for e in events)
+        assert h.approvals.get(approval_id, "t1")["status"] == "approved"
+        end = events[-1]
+        assert end["status"] == "error" and end["summary"]["exit"] == "cancelled"
+        closing = [(e.get("node_id"), e["error"]["code"]) for e in events if e["type"] == "error"]
+        assert closing == [("tools", "cancelled"), ("loop", "cancelled"), (None, "cancelled")]
+        # The audit record says what happened: approved, and not executed.
+        decisions = [
+            r.entry for r in h.audit.list("t1") if r.entry["action"] == "approval_decision"
+        ]
+        assert len(decisions) == 1
+        assert decisions[0]["decision"] == "approve"
+        assert decisions[0]["extra"] == {
+            "executed": False,
+            "note": "approved, not run: the turn was cancelled",
+        }
