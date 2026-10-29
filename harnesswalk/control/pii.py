@@ -102,6 +102,9 @@ class Vault:
     def __len__(self) -> int:
         return len(self.by_placeholder)
 
+    def __repr__(self) -> str:  # never the values: a vault may end up in a log line
+        return f"Vault({len(self)} placeholders)"
+
 
 class PiiDetector:
     def __init__(self, cfg: dict[str, Any] | None = None) -> None:

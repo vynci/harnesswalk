@@ -263,8 +263,15 @@ class ApprovalQueue:
         """
         approval_id = record["approval_id"]
         waiter = self._register(approval_id, ctx.turn_id)
+        # Read it again now that the waiter is in place: a decision made between recovery and
+        # this line is in the database, and one made after it wakes the waiter.
+        record = self.get(approval_id, ctx.tenant_id)
         status = record["status"]
-        if status != "pending":
+        if ctx.interrupted and status == "pending":  # cancelled before this task ran
+            with contextlib.suppress(ApprovalAlreadyDecided):
+                self._record(approval_id, "expired", "system", "turn cancelled")
+            waiter.set_exception(TurnCancelled())
+        elif status != "pending":
             decision = {"approved": "approve", "denied": "deny"}.get(status, "expired")
             waiter.set_result(
                 ApprovalDecision(

@@ -206,6 +206,7 @@ class Tools:
     ) -> Observation:
         """A resumed turn: close the restored `tools` span the way `invoke` would have."""
         spec = self.registry.get(call.name)
+        span.set(tool=call.name, call_id=call.call_id, executed=False)
         try:
             if spec is None:
                 observation = Observation(call.call_id, "error", f"Unknown tool {call.name!r}.")
