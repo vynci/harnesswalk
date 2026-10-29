@@ -1,0 +1,1 @@
+{"responses": [{"tool_calls": [{"name": "calculator", "arguments": {"expression": "3 * 19.99"}}], "usage": {"input_tokens": 220, "output_tokens": 20}}, {"text": "Three items at $19.99 come to $59.97.", "usage": {"input_tokens": 260, "output_tokens": 14}, "expect": {"last_message_role": "tool", "last_message_contains": "59.97"}}]}

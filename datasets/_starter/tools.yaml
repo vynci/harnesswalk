@@ -1,0 +1,35 @@
+# Starter pack tools. Pure lookups in the tables below: no I/O, no clock, no randomness.
+# The observation is the JSON of the matched row, with sorted keys and no spaces.
+- name: lookup_order
+  description: Look up an order by id and return its status and dates.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [order_id]
+    properties:
+      order_id: { type: string, pattern: "^A-[0-9]{4}$" }
+  table:
+    A-1001: { order_id: A-1001, status: shipped, shipped_on: "2026-10-24", eta: "2026-10-30" }
+    A-1002: { order_id: A-1002, status: processing, total: "42.00" }
+    A-1003: { order_id: A-1003, status: delivered, delivered_on: "2026-10-20" }
+  missing: { error: not_found }
+
+- name: cancel_order
+  description: Cancel an order that has not shipped and refund it. Needs a human approval.
+  action_class: destructive
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [order_id]
+    properties:
+      order_id: { type: string, pattern: "^A-[0-9]{4}$" }
+  table:
+    A-1002: { order_id: A-1002, status: cancelled, refund: "42.00" }
+  missing: { error: not_cancellable }

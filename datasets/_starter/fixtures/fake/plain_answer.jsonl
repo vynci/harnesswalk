@@ -1,0 +1,1 @@
+{"responses": [{"text": "Our support team is available 9am to 5pm Eastern, Monday to Friday.", "usage": {"input_tokens": 180, "output_tokens": 17}, "expect": {"tools_enabled": true, "last_message_role": "user"}}]}

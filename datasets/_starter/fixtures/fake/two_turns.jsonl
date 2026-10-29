@@ -1,0 +1,2 @@
+{"responses": [{"text": "Hello! I can help with orders, returns and support hours.", "usage": {"input_tokens": 170, "output_tokens": 14}}]}
+{"responses": [{"tool_calls": [{"name": "lookup_order", "arguments": {"order_id": "A-1002"}}], "usage": {"input_tokens": 260, "output_tokens": 22}, "expect": {"last_message_role": "user", "last_message_contains": "A-1002"}}, {"text": "Order A-1002 is still processing, so it has not shipped yet.", "usage": {"input_tokens": 320, "output_tokens": 16}, "expect": {"last_message_role": "tool"}}]}
