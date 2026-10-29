@@ -134,7 +134,7 @@ Action strength, weakest to strongest: `pass`, `redact` (input) or `repair` (out
 | `schema` | When a structured reply was requested (`output_schema` on the turn), the answer must be JSON valid against it | `block` with a safe message |
 | `content` | Literal blocklist | `block` |
 | `length` | Longer than `max_chars` | `repair` (truncate) |
-| `citations` | When knowledge chunks were in context: counts `[n]` markers, invalid markers (no such chunk), and uncited claims (sentences of six or more words with no marker) | `repair` once, or `block` (`on_missing: block`, or `block_public: true` in public mode) |
+| `citations` | When knowledge chunks were in context and the answer makes a claim from them (a sentence of six or more words that shares at least three content words, or two in five of its own, with a chunk): counts `[n]` markers, invalid markers (no such chunk), drawn claims and drawn claims with no marker. An answer that draws nothing from the chunks is not penalised | `repair` once, or `block` (`on_missing: block`, or `block_public: true` in public mode) |
 | `pii` | PII in the answer that is not one of this turn's input placeholders (a leak, for example from a tool result) | `repair` (typed, non-reversible placeholder) or `block` (`pii.action`) |
 
 After the checks pass, input placeholders are restored in the reply when the mode is in
@@ -147,7 +147,7 @@ After the checks pass, input placeholders are restored in the reply when the mod
   `injection_signals` (counts by category), `warnings` (for example `["injection"]`),
   `classifier_score` when the hook ran, `reason` on a block.
 - `output_guardrails` exit: `action`, `checks`, `citations`
-  (`required`, `present`, `invalid`, `uncited_claims`), `schema` (`valid`, `invalid` or `none`),
+  (`required`, `present`, `invalid`, `drawn_claims`, `uncited_claims`), `schema` (`valid`, `invalid` or `none`),
   `leaks` (counts by kind), `restored` (placeholders put back), `reasons`.
 
 ### Configuration keys added

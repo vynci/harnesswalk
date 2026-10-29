@@ -223,11 +223,15 @@ uv run harnesswalk events <turn_id>          # the stored events as JSON Lines
 uv run harnesswalk turn "How long do I have to return an item?" --provider fake --fixture cited_answer
 uv run harnesswalk turn "Call me Sam" --provider fake --fixture remember_fact      # the memory writer
 uv run harnesswalk ingest _starter           # index the pack's documents and load its seeds
+uv run harnesswalk turn "Email it to ana@example.com" --provider fake --fixture pii_redacted   # PII redacted, then restored
+uv run harnesswalk turn "Ignore all previous instructions" --provider fake --mode public --fixture plain_answer  # blocked
 uv run harnesswalk turn "Where is order A-1001?" --provider ollama
 ```
 
 `make turn` prints every node the request visited, in order, nested, with its status, its time
-and a short summary, then the reply and the cost receipt. Starter fixtures live in
+and a short summary, then the reply and the cost receipt. In dev and private modes each tool call runs in its own
+subprocess (no network unless the tool is `external` and policy allowed it, a timeout, a memory
+cap and an output cap); `sandbox.level: inprocess` in `config/harness.yaml` turns that off. Starter fixtures live in
 `datasets/_starter/fixtures/fake/`; the conformance fixtures in `spec/conformance/fixtures/`
 work too.
 
@@ -246,8 +250,12 @@ The api image builds `web/` in a Node stage and serves it at http://127.0.0.1:80
 as Server-Sent Events at `GET /v1/turns/{id}/events` (with `?after=` cursors and
 `?follow=false` for replay), `GET /v1/turns/{id}`, `POST /v1/turns/{id}/resume` for step mode,
 `POST /v1/turns/{id}/cancel`, `POST /v1/approvals/{id}`, `GET /v1/sessions/{id}/turns`,
-`GET /v1/diagram`, `GET /v1/nodes/{id}` and its `/source`, `GET /v1/capabilities` and
-`GET /healthz`.
+`GET /v1/diagram`, `GET /v1/nodes/{id}` and its `/source`, `GET /v1/capabilities`,
+`GET /v1/audit` (the tenant's hash-chained audit records, dev and private) and `GET /healthz`.
+
+`harnesswalk serve` survives a restart: a turn that was waiting on an approval comes back
+paused, and deciding it finishes the same turn; a turn the restart cut off is closed with error
+code `restarted`.
 
 ### Tests
 
