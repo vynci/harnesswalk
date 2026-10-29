@@ -27,9 +27,12 @@ CONFIG_FOR = {
 
 
 def _source(h: Harness, node: dict[str, Any]) -> dict[str, Any]:
-    path = h.settings.root / node["source_hint"]
-    content = path.read_text(encoding="utf-8") if path.exists() else ""
-    return {"path": node["source_hint"], "language": "python", "content": content}
+    """The `source` field of `GET /v1/nodes/{id}`: the same file, under the same containment
+    check, as the code peek (`node_source`). A hint outside the package reads as empty."""
+    peek = node_source(h, node["id"])
+    if peek is None:
+        return {"path": node.get("source_hint"), "language": "text", "content": ""}
+    return {"path": peek["path"], "language": peek["language"], "content": peek["source"]}
 
 
 SOURCE_CAP_BYTES = 200 * 1024

@@ -320,7 +320,18 @@ async def test_node_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
             patched = {**nodes, "policy": {**nodes["policy"], "source_hint": hint}}
             monkeypatch.setattr(inspectors.diagram, "nodes_by_id", lambda p=patched: p)
             assert (await c.get("/v1/nodes/policy/source")).status_code == 404, hint
+            # The inspector's own `source` field goes through the same check (P3 review).
+            body = (await c.get("/v1/nodes/policy")).json()
+            assert body["source"]["content"] == "", hint
+            assert body["inspector"]["type"] == "config"
+            code_node = {**patched, "loop": {**nodes["loop"], "source_hint": hint}}
+            monkeypatch.setattr(inspectors.diagram, "nodes_by_id", lambda p=code_node: p)
+            body = (await c.get("/v1/nodes/loop")).json()
+            assert body["source"]["content"] == "" and body["inspector"]["content"] == "", hint
         monkeypatch.undo()
+        body = (await c.get("/v1/nodes/policy")).json()
+        assert body["source"]["path"] == "harnesswalk/control/policy.py"
+        assert body["source"]["content"] == text
 
         monkeypatch.setattr(inspectors, "SOURCE_CAP_BYTES", 300)
         cut = (await c.get("/v1/nodes/policy/source")).json()
