@@ -143,8 +143,8 @@ data: {"schema_version":"0.1.0","event_id":"evt_approval_pause_037","seq":37,...
 
 ```
 
-Errors (before the stream starts, as JSON): `400` (a cursor that is not an integer), `401`,
-`404`.
+Errors (before the stream starts, as JSON): `400` (a cursor, query or `Last-Event-ID`, that is
+not an integer; an empty `Last-Event-ID` counts as absent), `401`, `404`.
 
 ## `GET /v1/turns/{turn_id}`
 

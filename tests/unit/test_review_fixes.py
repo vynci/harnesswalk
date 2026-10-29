@@ -239,3 +239,19 @@ async def test_a_cursor_past_the_end_still_closes_at_turn_end(tmp_path: Path) ->
         return [e async for e in h.tracer.subscribe("t1", turn_id, 10000) if e is not None]
 
     assert await asyncio.wait_for(read(), 3) == []
+
+
+@pytest.mark.anyio
+async def test_a_malformed_last_event_id_is_400(tmp_path: Path) -> None:
+    h = Harness(settings(tmp_path, "plain_answer"))
+    async with client(h) as c:
+        r = await c.post("/v1/turns", json={"message": "What are your support hours?"})
+        turn_id, url = r.json()["turn_id"], r.json()["events_url"]
+        await h.gateway.wait(turn_id, 5)
+        for bad in ("--1", "x", "1.5", "7 8", "+-3"):
+            r = await c.get(url, headers={"Last-Event-ID": bad})
+            assert r.status_code == 400, bad
+            assert r.json()["error"]["code"] == "invalid_request"
+        assert parse_sse((await c.get(url, headers={"Last-Event-ID": " 3 "})).text)[0]["seq"] == 4
+        assert parse_sse((await c.get(url, headers={"Last-Event-ID": "-1"})).text)[0]["seq"] == 0
+        assert parse_sse((await c.get(url, headers={"Last-Event-ID": ""})).text)[0]["seq"] == 0
