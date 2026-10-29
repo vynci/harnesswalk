@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,6 +25,7 @@ export function ApprovalCard({
   onDecide: (d: 'approve' | 'deny') => Promise<void>
 }) {
   const [sending, setSending] = useState<'approve' | 'deny' | null>(null)
+  const headingId = useId()
   const decided = approval.decision !== undefined
   const now = useNow(!decided)
   const expiresAt = approval.expires_at ? Date.parse(approval.expires_at) : NaN
@@ -44,12 +45,12 @@ export function ApprovalCard({
   return (
     <section
       className="rounded-lg border-2 border-[var(--state-waiting)] bg-card p-3 shadow-sm"
-      aria-label="Approval needed"
+      aria-labelledby={headingId}
       data-testid="approval-card"
     >
       <header className="flex items-center gap-2">
         <ShieldAlert className="size-4 text-state-waiting" aria-hidden />
-        <h3 className="text-sm font-semibold">{decided ? 'Approval decided' : 'Approval needed'}</h3>
+        <h3 id={headingId} className="text-sm font-semibold">{decided ? 'Approval decided' : 'Approval needed'}</h3>
         <Badge variant="outline" className="ml-auto font-mono text-[11px]" data-testid="approval-action-class">
           {approval.action_class || 'unknown'}
         </Badge>
