@@ -52,7 +52,7 @@ export function InspectorDrawer() {
 
   return (
     <aside
-      className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[460px] flex-col border-l bg-background shadow-xl"
+      className="flex h-full w-full min-w-0 flex-col bg-background"
       aria-label={`Inspector: ${node.label}`}
       data-testid="inspector"
       onKeyDown={(e) => {
@@ -63,7 +63,7 @@ export function InspectorDrawer() {
       <header className="flex flex-col gap-2 border-b p-4" style={{ borderTop: '3px solid var(--plane-stroke)' }}>
         <div className="flex items-start gap-2">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold" data-testid="inspector-title">
+            <h2 className="text-base font-medium" data-testid="inspector-title">
               {node.label}
             </h2>
             <p className="text-xs text-muted-foreground">
@@ -73,7 +73,7 @@ export function InspectorDrawer() {
           </div>
           <span className="ml-auto flex shrink-0 items-center gap-1">
             <Kbd aria-hidden>Esc</Kbd>
-            <Button ref={closeRef} size="icon" variant="ghost" className="size-8" onClick={() => selectNode(null)} aria-label="Close inspector" aria-keyshortcuts="Escape">
+            <Button ref={closeRef} size="icon-sm" variant="ghost" onClick={() => selectNode(null)} aria-label="Close inspector" aria-keyshortcuts="Escape">
               <X />
             </Button>
           </span>
