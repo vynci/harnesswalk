@@ -60,7 +60,7 @@ def node_source(h: Harness, node_id: str) -> dict[str, Any] | None:
     if not hint:
         return None
     root = h.settings.root.resolve()
-    package = root / "harnesswalk"
+    package = (root / "harnesswalk").resolve()  # the package itself may be a link
     path = (root / hint).resolve()
     if not path.is_relative_to(package) or not path.is_file():
         return None
@@ -73,7 +73,7 @@ def node_source(h: Harness, node_id: str) -> dict[str, Any] | None:
     language = LANGUAGES.get(path.suffix, "text")
     return {
         "node_id": node_id,
-        "path": path.relative_to(root).as_posix(),
+        "path": "harnesswalk/" + path.relative_to(package).as_posix(),
         "language": language,
         "line_count": len(text.splitlines()),
         "source": shown,

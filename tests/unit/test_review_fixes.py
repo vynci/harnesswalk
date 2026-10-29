@@ -370,3 +370,28 @@ async def test_a_malformed_fixture_is_400_and_capabilities_lists_only_valid_name
         fixtures = (await c.get("/v1/capabilities")).json()["fixtures"]
     assert {"broken", "broken_lines", "plain_answer"} <= set(fixtures)
     assert "bad name" not in fixtures and ".hidden" not in fixtures
+
+
+# -- code peek --------------------------------------------------------------------------------
+
+
+def test_code_peek_works_when_the_package_directory_is_a_link(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from harnesswalk import inspectors
+
+    (tmp_path / "harnesswalk").symlink_to(ROOT / "harnesswalk", target_is_directory=True)
+    (tmp_path / "secret.txt").write_text("not code", "utf-8")
+    h: Any = SimpleNamespace(settings=SimpleNamespace(root=tmp_path))
+    peek = inspectors.node_source(h, "policy")
+    assert peek is not None and peek["path"] == "harnesswalk/control/policy.py"
+    assert peek["source"] == (ROOT / "harnesswalk/control/policy.py").read_text("utf-8")
+    # Resolving the package root does not open anything outside it.
+    (tmp_path / "harnesswalk_link").symlink_to(tmp_path / "secret.txt")
+    nodes = inspectors.diagram.nodes_by_id()
+    for hint in ("secret.txt", "harnesswalk/../secret.txt", "harnesswalk_link"):
+        patched = {**nodes, "policy": {**nodes["policy"], "source_hint": hint}}
+        monkeypatch.setattr(inspectors.diagram, "nodes_by_id", lambda p=patched: p)
+        assert inspectors.node_source(h, "policy") is None, hint

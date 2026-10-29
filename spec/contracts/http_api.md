@@ -358,8 +358,9 @@ Response `200`:
 ```
 
 - `path` is relative to the repository root. Only regular files under the `harnesswalk/` package
-  are served, after resolving links and `..`; anything else, and a node whose file does not exist
-  yet, is `404 source_not_found`.
+  are served, after resolving links and `..` in both the file and the package directory (so a
+  package installed as a link still has a code peek); anything else, and a node whose file does
+  not exist yet, is `404 source_not_found`.
 - `source` is capped at 200 KiB of UTF-8; a longer file is cut at a line end and has
   `truncated: true`. `line_count` counts the whole file.
 - `language` comes from the extension (`python`, `yaml`, `markdown`, `json`, else `text`).
