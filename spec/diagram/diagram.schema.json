@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiharness.vynci.dev/spec/0.1/diagram.schema.json",
+  "title": "harnesswalk canonical diagram",
+  "description": "The canonical diagram of the harness. Implementations derive the served diagram from their registered nodes and MUST NOT introduce node or edge ids that are absent here. Referential rules that JSON Schema cannot express (parents exist, edge endpoints exist, walk_order covers every simple node) are listed in spec/harness.md and checked by tests/spec/test_diagram.py.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["spec_version", "groups", "nodes", "edges", "walk_order", "paths"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "spec_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "title": { "type": "string" },
+    "groups": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": { "$ref": "#/$defs/group" }
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "edges": {
+      "description": "Ordered. Renderers draw edges in this order; simple edges come before expert edges.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" }
+    },
+    "walk_order": {
+      "description": "The teaching order: every simple-view node once, in the order a request with a destructive tool call meets them, then the post-turn and ops nodes. Lessons and the default step-mode tour follow it.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/id" },
+      "uniqueItems": true
+    },
+    "paths": {
+      "description": "Expected simple-view node paths (the node_id of each node_enter, simple nodes only, in order) for canonical requests. paths.plain_answer is the sequence a plain request visits.",
+      "type": "object",
+      "required": ["plain_answer"],
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "items": { "$ref": "#/$defs/id" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "order"],
+      "properties": {
+        "id": { "enum": ["control", "context", "execution", "ops"] },
+        "label": { "type": "string", "minLength": 1 },
+        "order": { "type": "integer", "minimum": 1 },
+        "description": { "type": "string" }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "group", "label", "kind", "view", "lesson", "source_hint"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "group": { "enum": ["control", "context", "execution", "ops"] },
+        "label": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "kind": {
+          "description": "Decides what the inspector shows: code shows source, config shows the config file, prompt shows the prompt or skill text, store shows records, queue shows pending items, model shows models and the routing decision.",
+          "enum": ["code", "config", "prompt", "store", "queue", "model"]
+        },
+        "view": { "enum": ["simple", "expert"] },
+        "parent": {
+          "description": "Required for expert nodes: the simple-view node that contains this one. Absent on simple nodes.",
+          "$ref": "#/$defs/id"
+        },
+        "lesson": { "type": "string", "minLength": 40 },
+        "source_hint": {
+          "description": "Planned module path in the reference implementation, relative to the repo root.",
+          "type": "string",
+          "pattern": "^harness/[a-z0-9_/]+\\.py$"
+        },
+        "artifact_hint": {
+          "description": "Optional path of the non-code artifact behind the node (config file, prompt, skills, dataset file). <pack> stands for the active dataset pack.",
+          "type": "string"
+        },
+        "can_disable": {
+          "description": "True when the UI may switch the node off to demonstrate the failure it prevents. Only honoured in dev and private modes.",
+          "type": "boolean"
+        },
+        "layout": {
+          "description": "Optional fixed position. Absent means auto-layout (P2).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y"],
+          "properties": { "x": { "type": "number" }, "y": { "type": "number" } }
+        }
+      },
+      "if": { "properties": { "view": { "const": "expert" } } },
+      "then": { "required": ["parent"] },
+      "else": { "not": { "required": ["parent"] } }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "from", "to", "label", "kind", "view"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,127}$" },
+        "from": { "$ref": "#/$defs/id" },
+        "to": { "$ref": "#/$defs/id" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 48 },
+        "kind": { "enum": ["request", "data", "control", "telemetry", "release"] },
+        "view": { "enum": ["simple", "expert"] },
+        "refines": {
+          "description": "Expert edges only: the simple edge this one details. In expert view the renderer hides a simple edge once any edge refines it.",
+          "type": "string"
+        }
+      },
+      "if": { "properties": { "view": { "const": "simple" } } },
+      "then": { "not": { "required": ["refines"] } }
+    }
+  }
+}

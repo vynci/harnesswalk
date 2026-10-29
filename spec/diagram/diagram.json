@@ -1,0 +1,725 @@
+{
+  "$schema": "./diagram.schema.json",
+  "spec_version": "0.1.0",
+  "title": "harnesswalk reference harness",
+  "groups": [
+    {
+      "id": "control",
+      "label": "Control plane",
+      "order": 1,
+      "description": "Who is asking, what they may do, who must approve, and the permanent record of consequential actions."
+    },
+    {
+      "id": "context",
+      "label": "Context plane",
+      "order": 2,
+      "description": "What the model sees: the assembled context, the stores it is drawn from, and the single gated path that writes memory."
+    },
+    {
+      "id": "execution",
+      "label": "Execution plane",
+      "order": 3,
+      "description": "The loop that plans and acts, the models it calls, the tools it runs, and the checks on what it says."
+    },
+    {
+      "id": "ops",
+      "label": "LLM Ops",
+      "order": 4,
+      "description": "Outside the runtime: traces and cost, evaluation, and the release of versioned artifacts back into the harness."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "gateway",
+      "group": "control",
+      "label": "Gateway",
+      "kind": "code",
+      "view": "simple",
+      "lesson": "The front door. Every request arrives here, whatever the channel, and leaves here as a reply. The gateway decides who is asking and for which tenant, applies rate limits, and turns the channel's message into one internal shape. Without it every other node would have to know about HTTP, sessions and identity, and tenant isolation would depend on each of them getting it right.",
+      "source_hint": "harness/control/gateway.py"
+    },
+    {
+      "id": "input_guardrails",
+      "group": "control",
+      "label": "Input guardrails",
+      "kind": "code",
+      "view": "simple",
+      "lesson": "Deterministic checks that run before the model sees anything: size limits, PII redaction and prompt-injection heuristics. They are plain code on purpose, because a check that lives in a prompt can be talked out of. Turn this node off and send a message containing an email address: you will see it reach the model and the trace untouched.",
+      "source_hint": "harness/control/input_guardrails.py",
+      "can_disable": true
+    },
+    {
+      "id": "policy",
+      "group": "control",
+      "label": "Policy",
+      "kind": "config",
+      "view": "simple",
+      "lesson": "The rules that decide whether a tool call may run. Every tool has an action class (read, write, destructive, external) and every mode has an allowlist. Policy answers allow, deny or needs approval, and it is evaluated on every single call. A line in the system prompt saying \"never cancel orders\" is advice; this node is the control.",
+      "source_hint": "harness/control/policy.py",
+      "artifact_hint": "config/policy.yaml",
+      "can_disable": true
+    },
+    {
+      "id": "approval",
+      "group": "control",
+      "label": "Approval",
+      "kind": "queue",
+      "view": "simple",
+      "lesson": "Where risky actions wait for a human. When policy says needs approval, the loop checkpoints, the exact action is shown as a card in the chat, and nothing runs until someone approves or denies. The diagram shows this node as waiting, which is the only time a request pauses on its own.",
+      "source_hint": "harness/control/approval.py"
+    },
+    {
+      "id": "audit",
+      "group": "control",
+      "label": "Audit",
+      "kind": "store",
+      "view": "simple",
+      "lesson": "An append-only record of decisions with consequences: who asked, what ran, who approved it and when. It is not the trace. The trace is for debugging and is sampled and pruned; the audit log is for accountability and is kept. Read-only lookups go to the trace only, which is why this node stays dark on a plain question.",
+      "source_hint": "harness/control/audit.py"
+    },
+    {
+      "id": "context_builder",
+      "group": "context",
+      "label": "Context builder",
+      "kind": "code",
+      "view": "simple",
+      "lesson": "Assembles what the model will see, inside a token budget. Each slice (system prompt, skills index, session, facts, episodes, documents) has its own budget and tier: always included, retrieved, or fetched on demand. Stable content goes first so prompt caching works. Open it to see the assembled context and a budget bar per slice.",
+      "source_hint": "harness/context/builder.py",
+      "artifact_hint": "config/context.yaml"
+    },
+    {
+      "id": "memory",
+      "group": "context",
+      "label": "Memory",
+      "kind": "store",
+      "view": "simple",
+      "lesson": "The stores the context builder reads from, shown as one group. They share a retrieval interface but differ in what they hold, how they rank, and how they are written. Expand it in the expert view to see the five stores: procedural, session, semantic, episodic and knowledge.",
+      "source_hint": "harness/context/stores/__init__.py"
+    },
+    {
+      "id": "procedural",
+      "group": "context",
+      "label": "Procedural",
+      "kind": "prompt",
+      "view": "expert",
+      "parent": "memory",
+      "lesson": "How the agent should behave: the system prompt (skill zero) and the skills, each a short markdown file. This is text that carries intent, not code that enforces it. Edit a skill while the agent is idle and the change is saved as a new artifact version you can diff and roll back.",
+      "source_hint": "harness/context/stores/procedural.py",
+      "artifact_hint": "datasets/<pack>/skills/"
+    },
+    {
+      "id": "session",
+      "group": "context",
+      "label": "Session",
+      "kind": "store",
+      "view": "expert",
+      "parent": "memory",
+      "lesson": "The conversation so far: recent turns verbatim and a running summary of older ones, plus the loop's checkpoints. When the history outgrows its budget, old turns are compacted into the summary with pointers back to the originals.",
+      "source_hint": "harness/context/stores/session.py"
+    },
+    {
+      "id": "semantic",
+      "group": "context",
+      "label": "Semantic",
+      "kind": "store",
+      "view": "expert",
+      "parent": "memory",
+      "lesson": "Durable facts, such as \"the customer prefers email\". Retrieval favours precision: entity match first, then similarity. Facts only arrive through the memory writer, never directly from the model.",
+      "source_hint": "harness/context/stores/semantic.py",
+      "artifact_hint": "datasets/<pack>/facts.jsonl"
+    },
+    {
+      "id": "episodic",
+      "group": "context",
+      "label": "Episodic",
+      "kind": "store",
+      "view": "expert",
+      "parent": "memory",
+      "lesson": "Dated events, such as \"order A-1001 was refunded on 3 October\". Retrieval mixes recency with relevance, so last week's event can outrank a closer match from last year.",
+      "source_hint": "harness/context/stores/episodic.py",
+      "artifact_hint": "datasets/<pack>/episodes.jsonl"
+    },
+    {
+      "id": "knowledge",
+      "group": "context",
+      "label": "Knowledge",
+      "kind": "store",
+      "view": "expert",
+      "parent": "memory",
+      "lesson": "Documents for retrieval-augmented generation: chunked, embedded, searched with keywords and vectors together, then reranked. Answers built from these chunks must cite them, which the output guardrails check.",
+      "source_hint": "harness/context/stores/knowledge.py",
+      "artifact_hint": "datasets/<pack>/docs/"
+    },
+    {
+      "id": "memory_writer",
+      "group": "context",
+      "label": "Memory writer",
+      "kind": "code",
+      "view": "simple",
+      "lesson": "The only way anything is written into semantic or episodic memory. The loop and the eval diagnosis propose memories; the writer gates them (human review, an eval check, or auto-approve in private mode when enabled), versions them and scopes them to one tenant. Without a gate, one bad turn can poison every later one.",
+      "source_hint": "harness/context/memory_writer.py",
+      "can_disable": true
+    },
+    {
+      "id": "loop",
+      "group": "execution",
+      "label": "Loop",
+      "kind": "code",
+      "view": "simple",
+      "lesson": "Plan, act, observe, adjust. The loop calls the model, runs the tools it asks for, feeds the results back, and repeats until there is an answer or an exit condition fires: max steps, token or dollar budget, wall-clock timeout, the same call repeated, or a human interrupt. It checkpoints after every step so a paused or crashed turn can resume.",
+      "source_hint": "harness/execution/loop.py"
+    },
+    {
+      "id": "model_layer",
+      "group": "execution",
+      "label": "Model layer",
+      "kind": "model",
+      "view": "simple",
+      "lesson": "One interface in front of every model. It picks a model for the step (the router), calls the provider, falls back on errors or rate limits, and returns structured output. Swap the provider from local to hosted and nothing else in the harness changes.",
+      "source_hint": "harness/execution/model_layer.py",
+      "artifact_hint": "config/models.yaml"
+    },
+    {
+      "id": "router",
+      "group": "execution",
+      "label": "Router",
+      "kind": "config",
+      "view": "expert",
+      "parent": "model_layer",
+      "lesson": "Rules that choose a model by step, risk, cost and modality: a small model for lookups, a larger one for synthesis, a vision model for images. Routing is rules first; a model may only choose among options the rules allow.",
+      "source_hint": "harness/execution/router.py",
+      "artifact_hint": "config/models.yaml"
+    },
+    {
+      "id": "providers",
+      "group": "execution",
+      "label": "Providers",
+      "kind": "model",
+      "view": "expert",
+      "parent": "model_layer",
+      "lesson": "One adapter per provider behind the same call shape: fake (scripted, for tests), ollama (local), and hosted APIs. The fake provider replays a fixture, so tests and conformance runs are deterministic and free.",
+      "source_hint": "harness/execution/providers/__init__.py"
+    },
+    {
+      "id": "tools",
+      "group": "execution",
+      "label": "Tools",
+      "kind": "code",
+      "view": "simple",
+      "lesson": "Functions the model can ask to run, each with a typed schema. Every call is checked by policy before it runs and executes with a timeout. The node shows two sub-states, policy check then execute, so you can see a call that was stopped before it did anything.",
+      "source_hint": "harness/execution/tools.py"
+    },
+    {
+      "id": "registry",
+      "group": "execution",
+      "label": "Registry",
+      "kind": "config",
+      "view": "expert",
+      "parent": "tools",
+      "lesson": "The list of tools the agent may know about: local functions from the dataset pack and, later, MCP servers. Each entry has a name, a JSON schema for its arguments, an action class and a timeout.",
+      "source_hint": "harness/execution/registry.py",
+      "artifact_hint": "datasets/<pack>/tools.yaml"
+    },
+    {
+      "id": "sandbox",
+      "group": "execution",
+      "label": "Sandbox",
+      "kind": "code",
+      "view": "expert",
+      "parent": "tools",
+      "lesson": "Where a tool call actually executes: isolated, time-limited, and idempotent where it has side effects. In public mode only pure dataset functions and knowledge search are allowed here.",
+      "source_hint": "harness/execution/sandbox.py"
+    },
+    {
+      "id": "output_guardrails",
+      "group": "execution",
+      "label": "Output guardrails",
+      "kind": "code",
+      "view": "simple",
+      "lesson": "Checks on the answer before it leaves: schema validation, content checks, and citations required when the answer draws on knowledge documents. Like input guardrails, these are code, not instructions to the model.",
+      "source_hint": "harness/execution/output_guardrails.py",
+      "can_disable": true
+    },
+    {
+      "id": "trace",
+      "group": "ops",
+      "label": "Trace",
+      "kind": "store",
+      "view": "simple",
+      "lesson": "Every event of every turn, in order, under one trace id: the assembled context, prompt versions, each tool call with its inputs and outputs, tokens, cost and latency. The diagram you are looking at is drawn from the same events, so replaying a trace replays the animation.",
+      "source_hint": "harness/ops/trace.py"
+    },
+    {
+      "id": "cost",
+      "group": "ops",
+      "label": "Cost",
+      "kind": "store",
+      "view": "expert",
+      "parent": "trace",
+      "lesson": "Tokens and dollars per turn, per node and per tenant, plus latency per step. Each turn ends with a cost receipt. Budgets in policy and the loop are enforced from these numbers.",
+      "source_hint": "harness/ops/cost.py"
+    },
+    {
+      "id": "eval",
+      "group": "ops",
+      "label": "Eval",
+      "kind": "code",
+      "view": "simple",
+      "lesson": "How you know a change made things better. Offline evals replay a golden set in CI; online evals judge a sample of live turns and collect thumbs; diagnose maps a failure to the layer that caused it, so the fix goes to the right place.",
+      "source_hint": "harness/ops/eval/__init__.py"
+    },
+    {
+      "id": "online_eval",
+      "group": "ops",
+      "label": "Online eval",
+      "kind": "code",
+      "view": "expert",
+      "parent": "eval",
+      "lesson": "A judge model scores a sample of live turns, alongside user thumbs and task-success signals. It catches drift that no golden set anticipated.",
+      "source_hint": "harness/ops/eval/online.py"
+    },
+    {
+      "id": "offline_eval",
+      "group": "ops",
+      "label": "Offline eval",
+      "kind": "code",
+      "view": "expert",
+      "parent": "eval",
+      "lesson": "The golden set for each dataset pack, replayed whenever a prompt, skill, tool or model changes. Deterministic checks (expected node path, required citation) run without a model; judged checks run on a sample.",
+      "source_hint": "harness/ops/eval/offline.py",
+      "artifact_hint": "datasets/<pack>/golden.jsonl"
+    },
+    {
+      "id": "diagnose",
+      "group": "ops",
+      "label": "Diagnose",
+      "kind": "code",
+      "view": "expert",
+      "parent": "eval",
+      "lesson": "Walks a failed trace and names the layer at fault: context, prompt, memory, tool or model. Its output is a regression case for the golden set and, where it fits, a proposed fact or skill for the memory writer.",
+      "source_hint": "harness/ops/eval/diagnose.py"
+    },
+    {
+      "id": "release",
+      "group": "ops",
+      "label": "Release",
+      "kind": "code",
+      "view": "simple",
+      "lesson": "Everything the harness loads is a versioned artifact: prompts, skills, policy, tool definitions, model config. A release passes the eval gate, ships, and can be rolled back by version. Editing a skill in the UI creates a new version here.",
+      "source_hint": "harness/ops/release.py"
+    },
+    {
+      "id": "artifacts",
+      "group": "ops",
+      "label": "Artifacts",
+      "kind": "store",
+      "view": "expert",
+      "parent": "release",
+      "lesson": "The versioned files themselves, with history and diffs. Git-backed in v1: each release is a commit, each rollback a checkout.",
+      "source_hint": "harness/ops/artifacts.py"
+    }
+  ],
+  "edges": [
+    {
+      "id": "gateway_to_input_guardrails",
+      "from": "gateway",
+      "to": "input_guardrails",
+      "label": "message",
+      "kind": "request",
+      "view": "simple"
+    },
+    {
+      "id": "gateway_to_policy",
+      "from": "gateway",
+      "to": "policy",
+      "label": "identity + tenant",
+      "kind": "control",
+      "view": "simple"
+    },
+    {
+      "id": "input_guardrails_to_context_builder",
+      "from": "input_guardrails",
+      "to": "context_builder",
+      "label": "clean input",
+      "kind": "request",
+      "view": "simple"
+    },
+    {
+      "id": "memory_to_context_builder",
+      "from": "memory",
+      "to": "context_builder",
+      "label": "retrieve + rank, within budget",
+      "kind": "data",
+      "view": "simple"
+    },
+    {
+      "id": "context_builder_to_loop",
+      "from": "context_builder",
+      "to": "loop",
+      "label": "assembled context",
+      "kind": "request",
+      "view": "simple"
+    },
+    {
+      "id": "loop_to_model_layer",
+      "from": "loop",
+      "to": "model_layer",
+      "label": "inference",
+      "kind": "request",
+      "view": "simple"
+    },
+    {
+      "id": "model_layer_to_loop",
+      "from": "model_layer",
+      "to": "loop",
+      "label": "completion",
+      "kind": "data",
+      "view": "simple"
+    },
+    {
+      "id": "loop_to_tools",
+      "from": "loop",
+      "to": "tools",
+      "label": "tool call",
+      "kind": "request",
+      "view": "simple"
+    },
+    {
+      "id": "tools_to_policy",
+      "from": "tools",
+      "to": "policy",
+      "label": "policy check per call",
+      "kind": "control",
+      "view": "simple"
+    },
+    {
+      "id": "policy_to_audit",
+      "from": "policy",
+      "to": "audit",
+      "label": "record decision",
+      "kind": "data",
+      "view": "simple"
+    },
+    {
+      "id": "policy_to_approval",
+      "from": "policy",
+      "to": "approval",
+      "label": "needs approval",
+      "kind": "control",
+      "view": "simple"
+    },
+    {
+      "id": "approval_to_audit",
+      "from": "approval",
+      "to": "audit",
+      "label": "record decision",
+      "kind": "data",
+      "view": "simple"
+    },
+    {
+      "id": "approval_to_tools",
+      "from": "approval",
+      "to": "tools",
+      "label": "approve / deny, resume",
+      "kind": "control",
+      "view": "simple"
+    },
+    {
+      "id": "tools_to_loop",
+      "from": "tools",
+      "to": "loop",
+      "label": "observation",
+      "kind": "data",
+      "view": "simple"
+    },
+    {
+      "id": "loop_to_output_guardrails",
+      "from": "loop",
+      "to": "output_guardrails",
+      "label": "final answer",
+      "kind": "request",
+      "view": "simple"
+    },
+    {
+      "id": "output_guardrails_to_gateway",
+      "from": "output_guardrails",
+      "to": "gateway",
+      "label": "reply via channel",
+      "kind": "request",
+      "view": "simple"
+    },
+    {
+      "id": "loop_to_memory",
+      "from": "loop",
+      "to": "memory",
+      "label": "checkpoint per step",
+      "kind": "data",
+      "view": "simple"
+    },
+    {
+      "id": "loop_to_memory_writer",
+      "from": "loop",
+      "to": "memory_writer",
+      "label": "proposed memories",
+      "kind": "data",
+      "view": "simple"
+    },
+    {
+      "id": "memory_writer_to_memory",
+      "from": "memory_writer",
+      "to": "memory",
+      "label": "gated writes",
+      "kind": "data",
+      "view": "simple"
+    },
+    {
+      "id": "loop_to_trace",
+      "from": "loop",
+      "to": "trace",
+      "label": "telemetry",
+      "kind": "telemetry",
+      "view": "simple"
+    },
+    {
+      "id": "trace_to_eval",
+      "from": "trace",
+      "to": "eval",
+      "label": "sample + feedback",
+      "kind": "telemetry",
+      "view": "simple"
+    },
+    {
+      "id": "eval_to_memory_writer",
+      "from": "eval",
+      "to": "memory_writer",
+      "label": "proposed fixes, facts and skills",
+      "kind": "data",
+      "view": "simple"
+    },
+    {
+      "id": "eval_to_release",
+      "from": "eval",
+      "to": "release",
+      "label": "eval gate",
+      "kind": "release",
+      "view": "simple"
+    },
+    {
+      "id": "release_to_memory",
+      "from": "release",
+      "to": "memory",
+      "label": "loaded on release",
+      "kind": "release",
+      "view": "simple"
+    },
+    {
+      "id": "procedural_to_context_builder",
+      "from": "procedural",
+      "to": "context_builder",
+      "label": "always: system prompt + skills index",
+      "kind": "data",
+      "view": "expert",
+      "refines": "memory_to_context_builder"
+    },
+    {
+      "id": "session_to_context_builder",
+      "from": "session",
+      "to": "context_builder",
+      "label": "recent turns + summary",
+      "kind": "data",
+      "view": "expert",
+      "refines": "memory_to_context_builder"
+    },
+    {
+      "id": "semantic_to_context_builder",
+      "from": "semantic",
+      "to": "context_builder",
+      "label": "facts, entity match",
+      "kind": "data",
+      "view": "expert",
+      "refines": "memory_to_context_builder"
+    },
+    {
+      "id": "episodic_to_context_builder",
+      "from": "episodic",
+      "to": "context_builder",
+      "label": "events, recency + relevance",
+      "kind": "data",
+      "view": "expert",
+      "refines": "memory_to_context_builder"
+    },
+    {
+      "id": "knowledge_to_context_builder",
+      "from": "knowledge",
+      "to": "context_builder",
+      "label": "chunks, hybrid search + rerank",
+      "kind": "data",
+      "view": "expert",
+      "refines": "memory_to_context_builder"
+    },
+    {
+      "id": "router_to_providers",
+      "from": "router",
+      "to": "providers",
+      "label": "chosen model",
+      "kind": "control",
+      "view": "expert"
+    },
+    {
+      "id": "registry_to_sandbox",
+      "from": "registry",
+      "to": "sandbox",
+      "label": "execute",
+      "kind": "request",
+      "view": "expert"
+    },
+    {
+      "id": "loop_to_session",
+      "from": "loop",
+      "to": "session",
+      "label": "checkpoint per step",
+      "kind": "data",
+      "view": "expert",
+      "refines": "loop_to_memory"
+    },
+    {
+      "id": "memory_writer_to_semantic",
+      "from": "memory_writer",
+      "to": "semantic",
+      "label": "gated writes",
+      "kind": "data",
+      "view": "expert",
+      "refines": "memory_writer_to_memory"
+    },
+    {
+      "id": "memory_writer_to_episodic",
+      "from": "memory_writer",
+      "to": "episodic",
+      "label": "gated writes",
+      "kind": "data",
+      "view": "expert",
+      "refines": "memory_writer_to_memory"
+    },
+    {
+      "id": "trace_to_cost",
+      "from": "trace",
+      "to": "cost",
+      "label": "tokens, usd, latency",
+      "kind": "telemetry",
+      "view": "expert"
+    },
+    {
+      "id": "trace_to_online_eval",
+      "from": "trace",
+      "to": "online_eval",
+      "label": "sample + feedback",
+      "kind": "telemetry",
+      "view": "expert",
+      "refines": "trace_to_eval"
+    },
+    {
+      "id": "online_eval_to_diagnose",
+      "from": "online_eval",
+      "to": "diagnose",
+      "label": "failed cases",
+      "kind": "data",
+      "view": "expert"
+    },
+    {
+      "id": "diagnose_to_offline_eval",
+      "from": "diagnose",
+      "to": "offline_eval",
+      "label": "add regression case",
+      "kind": "data",
+      "view": "expert"
+    },
+    {
+      "id": "offline_eval_to_release",
+      "from": "offline_eval",
+      "to": "release",
+      "label": "eval gate",
+      "kind": "release",
+      "view": "expert",
+      "refines": "eval_to_release"
+    },
+    {
+      "id": "diagnose_to_memory_writer",
+      "from": "diagnose",
+      "to": "memory_writer",
+      "label": "proposed fixes, facts and skills",
+      "kind": "data",
+      "view": "expert",
+      "refines": "eval_to_memory_writer"
+    },
+    {
+      "id": "artifacts_to_procedural",
+      "from": "artifacts",
+      "to": "procedural",
+      "label": "loaded on release",
+      "kind": "release",
+      "view": "expert",
+      "refines": "release_to_memory"
+    }
+  ],
+  "walk_order": [
+    "gateway",
+    "input_guardrails",
+    "context_builder",
+    "memory",
+    "loop",
+    "model_layer",
+    "tools",
+    "policy",
+    "approval",
+    "audit",
+    "output_guardrails",
+    "memory_writer",
+    "trace",
+    "eval",
+    "release"
+  ],
+  "paths": {
+    "plain_answer": [
+      "gateway",
+      "input_guardrails",
+      "context_builder",
+      "memory",
+      "loop",
+      "model_layer",
+      "output_guardrails",
+      "gateway",
+      "trace"
+    ],
+    "tool_call": [
+      "gateway",
+      "input_guardrails",
+      "context_builder",
+      "memory",
+      "loop",
+      "model_layer",
+      "tools",
+      "policy",
+      "model_layer",
+      "output_guardrails",
+      "gateway",
+      "trace"
+    ],
+    "approval_pause": [
+      "gateway",
+      "input_guardrails",
+      "context_builder",
+      "memory",
+      "loop",
+      "model_layer",
+      "tools",
+      "policy",
+      "audit",
+      "approval",
+      "audit",
+      "model_layer",
+      "output_guardrails",
+      "gateway",
+      "trace"
+    ]
+  }
+}
