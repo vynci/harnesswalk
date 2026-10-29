@@ -81,6 +81,7 @@ async def test_check_emits_and_disabled_is_skipped() -> None:
         "action_class": "read",
         "decision": "allow",
         "rule": "read.allow",
+        "why": "rule read.allow (modes dev, public; classes read) allows read calls",
     }
     ctx.disabled_nodes = frozenset({"policy"})
     async with node(ctx, "tools"):

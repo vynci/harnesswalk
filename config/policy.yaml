@@ -7,16 +7,29 @@ agent:
   allow_tools: [calculator, read_skill, lookup_order, cancel_order]
 
 roles:
-  user: { allow_action_classes: [read, write, destructive, external] }
+  user: { allow_action_classes: [read, write, destructive, external, memory.write] }
 
 rules:
   - { id: dev.read.allow,          modes: [dev, private, public], action_classes: [read], decision: allow }
   - { id: dev.write.allow,         modes: [dev, private], action_classes: [write], decision: allow }
   - { id: dev.destructive.approve, modes: [dev, private], action_classes: [destructive], decision: needs_approval }
   - { id: external.approve,        modes: [dev, private], action_classes: [external], decision: needs_approval }
+  - { id: memory.write.allow,      modes: [dev, private], action_classes: [memory.write], decision: allow }
   - { id: public.deny_rest,        modes: [public], decision: deny }
+
+# Per-tenant budgets (P3). A missing key is no limit; tenants.<id> merges over default.
+budgets:
+  default:
+    tokens_per_turn: 16000
+    tokens_per_hour: 200000
+    usd_per_turn: 0.05
+    usd_per_hour: 1.0
+    tool_calls_per_turn: 12
+    tool_calls_per_hour: 300
+  tenants: {}
 
 approval:
   timeout_s: 900
+  sweep_s: 30                   # the expiry sweeper's period
   deciders: [session_owner]
   show_args: true
