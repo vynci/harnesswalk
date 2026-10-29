@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react'
-import { Eye, History, Info, OctagonX, Play, RefreshCcw, TriangleAlert } from 'lucide-react'
+import { useMemo, useState, type ComponentProps, type ReactElement } from 'react'
+import { Eye, Info, MessagesSquare, OctagonX, Play, RefreshCcw, Route, TriangleAlert } from 'lucide-react'
+import { Hint } from '@/components/hint'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
 import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
 import {
@@ -88,23 +90,28 @@ function noticeFor(exit: TurnState['exit'] | null | undefined, state?: TurnState
   }
 }
 
-/** A system notice (blocked, limit, error, cancelled) as a bordered Marker. */
+/** A system notice (blocked, limit, error, cancelled) as a bordered Marker; tone on the icon. */
 function SystemNotice({ notice }: { notice: Notice }) {
   const Icon = notice.tone === 'error' ? OctagonX : notice.tone === 'warn' ? TriangleAlert : Info
+  const tone = notice.tone === 'error' ? 'text-destructive' : notice.tone === 'warn' ? 'text-state-waiting' : undefined
   return (
-    <Marker
-      variant="border"
-      role="status"
-      className={notice.tone === 'error' ? 'text-xs text-destructive' : notice.tone === 'warn' ? 'text-xs text-state-waiting' : 'text-xs'}
-      data-testid="system-notice"
-      data-tone={notice.tone}
-      data-reason={notice.reason}
-    >
-      <MarkerIcon>
-        <Icon className="size-3.5" />
+    <Marker variant="border" role="status" data-testid="system-notice" data-tone={notice.tone} data-reason={notice.reason}>
+      <MarkerIcon className={tone}>
+        <Icon />
       </MarkerIcon>
-      <MarkerContent className="text-muted-foreground">{notice.text}</MarkerContent>
+      <MarkerContent className={notice.tone === 'error' ? 'text-destructive' : undefined}>{notice.text}</MarkerContent>
     </Marker>
+  )
+}
+
+/** A Message action: a ghost icon button with a tooltip (Replay now; P4 adds Good and Bad). */
+function MessageAction({ label, children, ...props }: { label: string; children: ReactElement } & Omit<ComponentProps<typeof Button>, 'children'>) {
+  return (
+    <Hint label={label} side="top">
+      <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={label} {...props}>
+        {children}
+      </Button>
+    </Hint>
   )
 }
 
@@ -140,108 +147,101 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
   const shownReply = canReveal && !reveal ? masked : reply
 
   return (
-    <div className="flex flex-col gap-3" data-testid="chat-turn" data-turn-id={turn.turnId} data-phase={phase}>
-      <Marker variant="separator" className="text-[11px]">
+    <div className="flex flex-col gap-4" data-testid="chat-turn" data-turn-id={turn.turnId} data-phase={phase}>
+      <Marker variant="separator" className="text-xs">
         <MarkerContent>
           Turn {index + 1}
           {started && Number.isFinite(started.getTime()) ? ` · ${started.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
         </MarkerContent>
       </Marker>
       <Message align="end">
-        <MessageContent>
-          <Bubble variant="default" align="end">
+        <MessageContent className="gap-1.5">
+          <Bubble variant="muted" align="end">
             <BubbleContent data-testid="user-message">
-              {turn.userText ?? <span className="italic opacity-80">Message sent from another browser</span>}
+              {turn.userText ?? <span className="text-muted-foreground italic">Message sent from another browser</span>}
             </BubbleContent>
           </Bubble>
+          {redacted && (
+            <p className="max-w-[80%] self-end text-right text-xs text-muted-foreground" data-testid="model-saw">
+              <span className="font-medium">The model saw: </span>
+              {splitPlaceholders(seen!).map((part, i) =>
+                part.placeholder ? (
+                  <mark key={i} className="rounded-md bg-state-waiting/15 px-1 font-mono text-foreground" data-testid="placeholder">
+                    {part.text}
+                  </mark>
+                ) : (
+                  <span key={i}>{part.text}</span>
+                ),
+              )}
+            </p>
+          )}
+          {input && (input.action !== 'pass' || Object.keys(input.redactions).length > 0 || input.warnings.length > 0 || (input.injectionScore ?? 0) > 0 || dev) && (
+            <InputGuardBadges facts={input} />
+          )}
         </MessageContent>
       </Message>
-      {redacted && (
-        <p className="-mt-1 ml-auto max-w-[85%] text-right text-[11px] text-muted-foreground" data-testid="model-saw">
-          <span className="font-medium">The model saw: </span>
-          {splitPlaceholders(seen!).map((part, i) =>
-            part.placeholder ? (
-              <mark key={i} className="rounded-sm bg-state-waiting/15 px-0.5 font-mono text-foreground ring-1 ring-state-waiting/40 ring-inset" data-testid="placeholder">
-                {part.text}
-              </mark>
-            ) : (
-              <span key={i}>{part.text}</span>
-            ),
+      <Message align="start">
+        <MessageContent className="gap-3">
+          {state && <ToolTrace events={state.events} turnOver={finished} />}
+          {turn.reconnected && state?.phase === 'paused' && state.paused?.reason === 'approval' && (
+            <Marker variant="border" role="status" data-testid="reattached-notice">
+              <MarkerIcon className="text-state-waiting">
+                <RefreshCcw />
+              </MarkerIcon>
+              <MarkerContent>
+                The event stream dropped and came back, and this turn is still waiting for your decision. A pending approval survives a restart of the harness.
+              </MarkerContent>
+            </Marker>
           )}
-        </p>
-      )}
-      {input && (input.action !== 'pass' || Object.keys(input.redactions).length > 0 || input.warnings.length > 0 || (input.injectionScore ?? 0) > 0 || dev) && (
-        <InputGuardBadges facts={input} />
-      )}
-      {state && <ToolTrace events={state.events} turnOver={finished} />}
-      {turn.reconnected && state?.phase === 'paused' && state.paused?.reason === 'approval' && (
-        <Marker variant="border" role="status" className="text-xs text-state-waiting" data-testid="reattached-notice">
-          <MarkerIcon>
-            <RefreshCcw className="size-3.5" />
-          </MarkerIcon>
-          <MarkerContent className="text-muted-foreground">
-            The event stream dropped and came back, and this turn is still waiting for your decision. A pending approval survives a restart of the harness.
-          </MarkerContent>
-        </Marker>
-      )}
-      {state?.approval && <ApprovalCard approval={state.approval} interactive={live && !replaying && phase === 'paused'} onDecide={decide} />}
-      {live && !replaying && paused?.reason === 'breakpoint' && (
-        <StepControls nodeId={paused.nodeId} nodeLabel={pausedLabel} seq={paused.seq} onResume={resume} />
-      )}
-      {working && (
-        <Marker role="status" className="text-xs" data-testid="assistant-working">
-          <MarkerIcon>
-            <Spinner role={undefined} aria-hidden className="size-3.5 motion-reduce:animate-none" />
-          </MarkerIcon>
-          <MarkerContent className="shimmer">{paused ? 'Waiting…' : 'Walking the harness…'}</MarkerContent>
-        </Marker>
-      )}
-      {reply && (
-        <Message align="start">
-          <MessageContent>
-            <Bubble variant="muted">
-              <BubbleContent
-                className="whitespace-pre-wrap"
-                data-testid="assistant-message"
-                data-masked={canReveal && !reveal ? 'true' : 'false'}
-                aria-live={live ? 'polite' : undefined}
-              >
-                {finished ? <ReplyText text={shownReply} citations={citations} onOpen={(c) => openDoc(c.doc, c.chunk)} /> : reply}
-              </BubbleContent>
-            </Bubble>
-            {finished && output && <OutputGuardBadges facts={output} />}
-            {canReveal && finished && (
-              <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground" data-testid="reveal-toggle">
-                <Switch size="sm" checked={reveal} onCheckedChange={setReveal} aria-label="Show the reply with your values restored (dev mode)" />
-                <Eye className="size-3" aria-hidden />
-                Show restored values (dev only)
-              </label>
-            )}
-            <Sources citations={finished ? citations : []} onOpen={(c) => openDoc(c.doc, c.chunk)} />
-            {streaming && (
-              <MessageFooter>
-                <span className="shimmer" role="status">
-                  Streaming the reply…
-                </span>
-              </MessageFooter>
-            )}
-          </MessageContent>
-        </Message>
-      )}
-      {state && finished && <MemoryTrace events={state.events} />}
-      {notice && <SystemNotice notice={notice} />}
-      {finished && !replaying && (
-        <Button
-          variant="ghost"
-          size="xs"
-          className="mr-auto text-muted-foreground"
-          onClick={() => void enterReplay(turn.turnId)}
-          aria-label="Replay this turn on the diagram"
-          data-testid="replay-button"
-        >
-          <Play aria-hidden /> Replay
-        </Button>
-      )}
+          {state?.approval && <ApprovalCard approval={state.approval} interactive={live && !replaying && phase === 'paused'} onDecide={decide} />}
+          {live && !replaying && paused?.reason === 'breakpoint' && (
+            <StepControls nodeId={paused.nodeId} nodeLabel={pausedLabel} seq={paused.seq} onResume={resume} />
+          )}
+          {working && (
+            <Marker role="status" data-testid="assistant-working">
+              <MarkerIcon>
+                <Spinner role={undefined} aria-hidden className="motion-reduce:animate-none" />
+              </MarkerIcon>
+              <MarkerContent className="shimmer motion-reduce:shimmer-none">{paused ? 'Waiting…' : 'Walking the harness…'}</MarkerContent>
+            </Marker>
+          )}
+          {reply && (
+            <div
+              className="text-sm leading-relaxed whitespace-pre-wrap"
+              data-testid="assistant-message"
+              data-masked={canReveal && !reveal ? 'true' : 'false'}
+              aria-live={live ? 'polite' : undefined}
+            >
+              {finished ? <ReplyText text={shownReply} citations={citations} onOpen={(c) => openDoc(c.doc, c.chunk)} /> : reply}
+            </div>
+          )}
+          {reply && finished && output && <OutputGuardBadges facts={output} />}
+          {reply && canReveal && finished && (
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="reveal-toggle">
+              <Switch size="sm" checked={reveal} onCheckedChange={setReveal} aria-label="Show the reply with your values restored (dev mode)" />
+              <Eye className="size-3.5" aria-hidden />
+              Show restored values (dev only)
+            </label>
+          )}
+          {reply && <Sources citations={finished ? citations : []} onOpen={(c) => openDoc(c.doc, c.chunk)} />}
+          {state && finished && <MemoryTrace events={state.events} />}
+          {notice && <SystemNotice notice={notice} />}
+          {streaming && (
+            <MessageFooter className="px-0">
+              <span className="shimmer motion-reduce:shimmer-none" role="status">
+                Streaming the reply…
+              </span>
+            </MessageFooter>
+          )}
+          {finished && !replaying && (
+            <MessageFooter className="-ml-1.5 px-0" data-testid="message-actions">
+              <MessageAction label="Replay this turn on the diagram" onClick={() => void enterReplay(turn.turnId)} data-testid="replay-button">
+                <Play />
+              </MessageAction>
+            </MessageFooter>
+          )}
+        </MessageContent>
+      </Message>
     </div>
   )
 }
@@ -267,37 +267,43 @@ export function ChatPanel() {
     return i >= 0 ? order.slice(0, i + 1) : order
   }, [order, replay])
 
+  const suggestions = visible.length === 0 && (
+    <div className="-mx-3 flex scroll-fade-x no-scrollbar gap-2 overflow-x-auto px-3" role="group" aria-label="Try these">
+      {TRY_THESE.map((t) => (
+        <Button key={t} type="button" variant="outline" size="sm" className="shrink-0" onClick={() => void send(t)} disabled={busy || sending} data-testid="try-prompt">
+          {t}
+        </Button>
+      ))}
+    </div>
+  )
+
   return (
     <section className="flex h-full min-h-0 flex-col" aria-label="Chat">
-      <div className="flex items-center gap-2 border-b px-3 py-2">
-        <History className="size-4 text-muted-foreground" aria-hidden />
-        <h2 className="text-sm font-semibold">Chat</h2>
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b px-4">
+        <MessagesSquare className="size-4 text-muted-foreground" aria-hidden />
+        <h2 className="text-sm font-medium">Chat</h2>
         <span className="text-xs text-muted-foreground">{order.length ? `${order.length} turn${order.length === 1 ? '' : 's'}` : 'new session'}</span>
         {replay && (
-          <Button variant="outline" size="sm" className="ml-auto h-7" onClick={exitReplay} aria-label="Leave replay and return to live">
+          <Button variant="outline" size="sm" className="ml-auto" onClick={exitReplay} aria-label="Leave replay and return to live">
             Back to live
           </Button>
         )}
       </div>
       {visible.length === 0 ? (
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-          <div className="mx-auto mt-6 max-w-sm text-center text-sm text-muted-foreground">
-            <p>Send a message and watch it walk through the harness on the right.</p>
-            <p className="mt-4 text-xs font-medium tracking-wide uppercase">Try these</p>
-            <div className="mt-2 flex flex-col gap-2">
-              {TRY_THESE.map((t) => (
-                <Button key={t} variant="outline" size="sm" onClick={() => void send(t)} disabled={busy || sending} data-testid="try-prompt">
-                  {t}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </div>
+        <Empty className="min-h-0 p-8">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Route />
+            </EmptyMedia>
+            <EmptyTitle className="text-base">Walk the harness</EmptyTitle>
+            <EmptyDescription>Send a message and watch it walk through the harness on the right, one node at a time.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <MessageScrollerProvider autoScroll defaultScrollPosition="end">
           <MessageScroller className="min-h-0 flex-1">
             <MessageScrollerViewport aria-label="Messages">
-              <MessageScrollerContent className="gap-5 px-3 py-3">
+              <MessageScrollerContent className="gap-6 px-4 py-4">
                 {visible.map((id, index) => {
                   const turn = turns[id]!
                   const isReplayed = replay?.turnId === id
@@ -321,6 +327,7 @@ export function ChatPanel() {
         maxChars={capabilities?.limits.max_message_chars ?? 4000}
         onSend={send}
         onStop={stop}
+        suggestions={suggestions}
       />
     </section>
   )
