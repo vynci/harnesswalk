@@ -66,7 +66,7 @@ router:
   rules:
     - { id: vision,  when: { modality: image },  use: [hosted-vision] }
     - { id: lookup,  when: { step: first, risk: low }, use: [local-small, local-8b] }
-    - { id: default, when: {},                   use: [local-8b, hosted-small] }
+    - { id: default, when: {},                   use: [local-8b, hosted-sonnet, hosted-haiku] }
 ```
 
 | Key | Meaning |

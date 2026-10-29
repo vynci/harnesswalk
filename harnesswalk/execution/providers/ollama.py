@@ -11,7 +11,7 @@ from harnesswalk.execution.providers import (
     ProviderResponse,
     ProviderUsage,
 )
-from harnesswalk.execution.providers._http import post_json
+from harnesswalk.execution.providers._http import get_ok, post_json
 from harnesswalk.types import Message, ToolCall
 
 
@@ -46,6 +46,9 @@ class OllamaProvider:
     def from_settings(cls, settings: Any) -> OllamaProvider:
         cfg = settings.get("models.providers.ollama")
         return cls(cfg["base_url"], float(cfg.get("timeout_s", 120)))
+
+    async def health(self) -> bool:
+        return await get_ok(f"{self.base_url}/api/tags", transport=self.transport)
 
     async def complete(self, request: ProviderRequest) -> ProviderResponse:
         body: dict[str, Any] = {

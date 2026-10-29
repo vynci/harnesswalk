@@ -7,11 +7,16 @@ For each call: ask the router for a model (`router` child span), call that provi
 assign `call_<n>` ids to tool calls that lack one, and price the usage from config/models.yaml.
 The exit summary says which provider and model answered and whether it was a fallback; the
 exit carries the call's `cost`.
+
+P3: a retryable failure marks the provider unhealthy for the router (passive health). The
+cascade (`router.cascade`, off by default) retries a low-confidence answer from a local model on
+the next hosted alternative; confidence is a deterministic signal, see `confidence()`.
 """
 
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -39,6 +44,7 @@ class ModelRequest:
     modality: str = "text"
     output_schema: dict[str, Any] | None = None
     max_output_tokens: int | None = None
+    cost: str = "normal"  # low once the turn has spent most of its dollar budget
 
 
 @dataclass
@@ -50,6 +56,24 @@ class ModelResponse:
     model: str
     fallback: bool
     usage: Usage = field(default_factory=Usage)
+    cascade: str | None = None  # why a later alias answered: low_confidence
+
+
+HEDGES = re.compile(
+    r"\b(i('m| am) not (sure|certain)|i don'?t know|i cannot (tell|determine)|unclear to me)\b",
+    re.IGNORECASE,
+)
+
+
+def confidence(text: str | None, calls: list[ToolCall], finish: str, offered: set[str]) -> float:
+    """A deterministic confidence signal for the cascade: 0, 0.5 or 1."""
+    if finish == "length" or (not (text or "").strip() and not calls):
+        return 0.0
+    if any(c.name not in offered for c in calls):
+        return 0.0
+    if text and HEDGES.search(text):
+        return 0.5
+    return 1.0
 
 
 def price(model_cfg: dict[str, Any], input_tokens: int, output_tokens: int) -> tuple[float, bool]:
@@ -70,6 +94,9 @@ class ModelLayer:
         timeout_s: float = 60.0,
         max_output_tokens: int = 1024,
         capture_content: bool = True,
+        health: Any = None,
+        cascade: dict[str, Any] | None = None,
+        tight_fraction: float = 0.75,
     ) -> None:
         self.providers = providers
         self.router = router
@@ -78,13 +105,16 @@ class ModelLayer:
         self.max_output_tokens = max_output_tokens
         self.capture_content = capture_content
         self.last_route: dict[str, dict[str, Any]] = {}  # tenant -> last routing decision
+        self.health = health
+        self.cascade = cascade or {}
+        self.tight = tight_fraction
 
     def router_for(self, ctx: TurnContext) -> Router:
         """The router for this turn: narrowed to the turn's own providers when it picked one."""
         if ctx.providers is None:
             return self.router
-        chosen = ctx.providers
-        return self.router.restricted(lambda p: p in chosen)
+        chosen, health = ctx.providers, self.health
+        return self.router.restricted(lambda p: p in chosen and (health is None or health.ok(p)))
 
     async def complete(
         self, ctx: TurnContext, request: ModelRequest, api_key: str | None = None
@@ -100,6 +130,8 @@ class ModelLayer:
                     modality=request.modality,
                     tools_enabled=bool(request.tools),
                     mode=ctx.mode,
+                    cost=request.cost,
+                    hint=ctx.model_hint,
                 ),
             )
             routed = {"rule": route.rule, "model": route.model, "alts": route.alternatives}
@@ -118,6 +150,8 @@ class ModelLayer:
             )
             if response.usage.cached_tokens:
                 span.set(cached_tokens=response.usage.cached_tokens)
+            if response.cascade:
+                span.set(cascade=response.cascade)
             if self.capture_content:
                 span.detail = {
                     "route": routed,
@@ -133,6 +167,10 @@ class ModelLayer:
     def _price_known(self, alias: str) -> bool:
         return price(self.models.get(alias, {}), 0, 0)[1]
 
+    def _is_local(self, alias: str) -> bool:
+        local = self.cascade.get("local_providers", ["ollama", "fake"])
+        return self.models[alias]["provider"] in local
+
     async def _call_with_fallback(
         self, ctx: TurnContext, request: ModelRequest, route: Any, api_key: str | None
     ) -> ModelResponse:
@@ -140,8 +178,12 @@ class ModelLayer:
         # A BYO key belongs to the provider of the routed model; fallbacks never see it.
         key_provider = self.models[route.model]["provider"]
         last_error: ProviderError | None = None
+        offered = {t.name for t in request.tools}
+        low_confidence: ModelResponse | None = None
         for attempt, alias in enumerate(candidates, start=1):
             cfg = self.models[alias]
+            if low_confidence is not None and self._is_local(alias):
+                continue  # the cascade only climbs to a hosted model
             provider = (ctx.providers or self.providers)[cfg["provider"]]
             preq = ProviderRequest(
                 model=cfg.get("name", alias),
@@ -150,7 +192,10 @@ class ModelLayer:
                 max_output_tokens=request.max_output_tokens or self.max_output_tokens,
                 output_schema=request.output_schema,
                 api_key=api_key if cfg["provider"] == key_provider else None,
-                turn=TurnRef(ctx.tenant_id, ctx.session_id, ctx.turn_id, ctx.turn_index),
+                turn=TurnRef(
+                    ctx.tenant_id, ctx.session_id, ctx.turn_id, ctx.turn_index, ctx.model_calls
+                ),
+                params=cfg.get("params"),
             )
             try:
                 async with node(ctx, "providers") as pspan:
@@ -165,15 +210,16 @@ class ModelLayer:
                 last_error = exc
                 if not exc.retryable:
                     raise
+                if self.health is not None:
+                    self.health.mark_failed(cfg["provider"], exc.code)
                 continue
             calls = []
+            issued = ctx.calls_issued
             for call in result.tool_calls:
-                ctx.calls_issued += 1
-                calls.append(
-                    ToolCall(call.call_id or f"call_{ctx.calls_issued}", call.name, call.arguments)
-                )
+                issued += 1
+                calls.append(ToolCall(call.call_id or f"call_{issued}", call.name, call.arguments))
             usd, _ = price(cfg, result.usage.input_tokens, result.usage.output_tokens)
-            return ModelResponse(
+            response = ModelResponse(
                 text=result.text,
                 tool_calls=calls,
                 finish_reason=result.finish_reason,
@@ -187,5 +233,24 @@ class ModelLayer:
                     usd,
                 ),
             )
+            if low_confidence is not None:
+                response.usage.add(low_confidence.usage)  # both calls were paid for
+                response.cascade = "low_confidence"
+            elif (
+                self.cascade.get("enabled")
+                and self._is_local(alias)
+                and confidence(result.text, calls, result.finish_reason, offered)
+                < float(self.cascade.get("min_confidence", 0.5))
+                and any(not self._is_local(a) for a in candidates[attempt:])
+            ):
+                low_confidence = response
+                continue
+            ctx.calls_issued = issued
+            ctx.model_calls += 1
+            return response
+        if low_confidence is not None:  # no hosted model answered: keep the local answer
+            ctx.calls_issued += len(low_confidence.tool_calls)
+            ctx.model_calls += 1
+            return low_confidence
         assert last_error is not None
         raise last_error

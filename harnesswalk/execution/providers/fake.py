@@ -146,6 +146,8 @@ class FakeProvider:
             seen = self._turn_of.setdefault(session_key, {})
             index = seen.setdefault(turn.turn_id, len(seen))
         k = self._calls.get(turn.turn_id, 0)
+        if turn.call_index is not None:  # the model layer's count survives a restart
+            k = turn.call_index
         self._calls[turn.turn_id] = k + 1
         if index >= len(turns) or k >= len(turns[index]["responses"]):
             raise ProviderError(
@@ -175,6 +177,14 @@ class FakeProvider:
                 usage.get("cached_tokens", 0),
             ),
         )
+
+    def resume_turn(self, tenant_id: str, session_id: str, turn_id: str, index: int) -> None:
+        """A turn re-attached after a restart keeps its place on a per-turn fixture."""
+        if self.relative_turns:
+            self._turn_of.setdefault(f"{tenant_id}/{session_id}", {})[turn_id] = index
+
+    async def health(self) -> bool:
+        return True
 
     def _check_expect(self, expect: dict[str, Any], request: ProviderRequest) -> None:
         last = request.messages[-1] if request.messages else None

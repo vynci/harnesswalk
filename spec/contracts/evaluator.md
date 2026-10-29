@@ -79,6 +79,6 @@ Edges: `trace_to_eval`, `eval_to_release`, `eval_to_memory_writer`, and expert r
 | Key | Default | Meaning |
 |---|---|---|
 | `eval.online.sample_rate` | `0.05` | |
-| `eval.online.judge_model` | `hosted-small` | Router alias |
+| `eval.online.judge_model` | `hosted-haiku` | Router alias |
 | `eval.gate.max_judged_drop` | `0.05` | |
 | `eval.suites` | `datasets/*/golden.jsonl` | |
