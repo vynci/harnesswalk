@@ -127,7 +127,15 @@ def _read_yaml(root: Path, artifact: str, versions: dict[str, str]) -> dict:
 def _normalize_profile(profile: dict) -> dict:
     """Map a conformance profile (spec/conformance/profile.yaml) onto the settings shape."""
     out: dict[str, Any] = {}
-    for key in ("mode", "loop", "approval", "input_guardrails", "output_guardrails"):
+    for key in (
+        "mode",
+        "loop",
+        "approval",
+        "input_guardrails",
+        "output_guardrails",
+        "stores",
+        "memory_writer",
+    ):
         if key in profile:
             out[key] = profile[key]
     if "models" in profile:

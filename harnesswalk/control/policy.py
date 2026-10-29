@@ -23,7 +23,7 @@ from typing import Any
 
 from harnesswalk.execution.registry import ToolSpec
 from harnesswalk.nodes import node, register
-from harnesswalk.types import ConfigError, ToolCall, TurnContext
+from harnesswalk.types import ACTION_CLASSES, ConfigError, ToolCall, TurnContext
 
 register("policy", __name__)
 
@@ -74,9 +74,7 @@ class Policy:
         for role in roles or ["user"]:
             role_cfg = self.roles.get(role)
             classes = role_cfg.get("allow_action_classes") if role_cfg else None
-            allowed |= set(
-                classes if classes is not None else ["read", "write", "destructive", "external"]
-            )
+            allowed |= set(classes if classes is not None else list(ACTION_CLASSES))
         if spec.action_class not in allowed:
             return self._make(
                 "deny", "roles", spec, f"no role of this user allows {spec.action_class}"

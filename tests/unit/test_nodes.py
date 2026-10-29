@@ -15,7 +15,7 @@ from harnesswalk.nodes import (
 )
 from tests.spec.support import ROOT, load_json
 
-STUBS = {"semantic", "episodic", "knowledge", "memory_writer", "eval", "release"}
+STUBS = {"eval", "release"}
 NOT_REGISTERED = {"online_eval", "offline_eval", "diagnose", "artifacts"}
 
 
@@ -38,7 +38,7 @@ def test_generated_diagram_matches_the_file() -> None:
     assert all({"implemented", "stub", "disabled"} <= set(n) for n in got["nodes"])
 
 
-def test_registered_set_is_what_p1_promises() -> None:
+def test_registered_set_is_what_p3_promises() -> None:
     regs = load_components()
     every = set(diagram.nodes_by_id())
     assert set(regs) == every - NOT_REGISTERED
