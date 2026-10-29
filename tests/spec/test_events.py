@@ -96,3 +96,25 @@ def test_stream_rules_catch_bad_nesting() -> None:
     for i, e in enumerate(events):
         e["seq"] = i
     assert check_stream(events)
+
+
+def test_message_delta_is_a_valid_optional_event() -> None:
+    event = _base(type="message_delta", status="active", summary={"delta": "Hello", "index": 0})
+    assert list(event_validator().iter_errors(event)) == []
+
+
+@pytest.mark.parametrize(
+    "event",
+    [
+        _base(type="message_delta", status="active", node_id="loop",
+              summary={"delta": "x", "index": 0}),
+        _base(type="message_delta", status="active", summary={"delta": "x"}),
+        _base(type="message_delta", status="active", summary={"delta": 3, "index": 0}),
+        _base(type="message_delta", status="done", summary={"delta": "x", "index": 0}),
+        _base(type="message_delta", status="active", node_id=None,
+              summary={"delta": "x", "index": 0}),
+    ],
+    ids=["not-gateway", "no-index", "delta-not-string", "not-active", "no-node"],
+)  # fmt: skip
+def test_schema_rejects_bad_message_delta(event: dict) -> None:
+    assert list(event_validator().iter_errors(event)), event

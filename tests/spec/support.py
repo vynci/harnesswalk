@@ -25,6 +25,7 @@ POINT_TYPES = {
     "memory_proposed",
     "memory_written",
     "artifact_released",
+    "message_delta",
     "node_paused",
     "node_resumed",
 }

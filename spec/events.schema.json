@@ -62,6 +62,7 @@
         "memory_proposed",
         "memory_written",
         "artifact_released",
+        "message_delta",
         "error"
       ]
     },
@@ -222,6 +223,23 @@
           "node_id": { "const": "release" },
           "status": { "const": "done" },
           "summary": { "required": ["artifact", "version"] }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "message_delta" } } },
+      "then": {
+        "required": ["node_id", "summary"],
+        "properties": {
+          "node_id": { "const": "gateway" },
+          "status": { "const": "active" },
+          "summary": {
+            "required": ["delta", "index"],
+            "properties": {
+              "delta": { "type": "string" },
+              "index": { "type": "integer", "minimum": 0 }
+            }
+          }
         }
       }
     },

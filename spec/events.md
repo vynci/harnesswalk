@@ -25,8 +25,8 @@ events correctly and any UI built on harnesswalk can draw your harness.
    MAY emit events for expert nodes. An expert node MUST only be entered while its `parent` is
    open. A UI in the simple view rolls an expert node's events up to its parent.
 7. **Point events.** `approval_requested`, `approval_decided`, `memory_proposed`,
-   `memory_written`, `artifact_released`, `node_paused` and `node_resumed` MUST be emitted while
-   their `node_id` is open.
+   `memory_written`, `artifact_released`, `message_delta`, `node_paused` and `node_resumed` MUST
+   be emitted while their `node_id` is open.
 8. **Pausing.** `node_paused` is allowed only for two reasons: `breakpoint` (step mode) and
    `approval`. Every `node_paused` MUST be followed by a `node_resumed` for the same node before
    that node closes, unless the turn ends in error or cancellation.
@@ -88,6 +88,7 @@ events correctly and any UI built on harnesswalk can draw your harness.
 | `memory_proposed` | `memory_writer` | `waiting` | A memory proposal awaits its gate |
 | `memory_written` | `memory_writer` | `done` | A proposal passed the gate and was written |
 | `artifact_released` | `release` | `done` | A new artifact version is live |
+| `message_delta` | `gateway` | `active` | Optional. One chunk of the reply text, emitted inside the `phase: reply` gateway span |
 | `error` | optional | `error` | Failure. With `node_id` it closes that node's span; without, it is a turn-level failure followed by `turn_end` with status `error` |
 
 ## 4. Error codes
@@ -186,6 +187,22 @@ Values are small: counts, ids, enums, short previews. Implementations MAY add ke
 | `memory_proposed` | `proposal_id` (required), `store` (required), `gate` (`review`, `eval`, `auto`), `preview`, `source` (`loop`, `diagnose`) |
 | `memory_written` | `proposal_id` (required), `store` (required), `record_id` (required), `version` |
 | `artifact_released` | `artifact` (required), `version` (required), `previous_version`, `gate` |
+| `message_delta` | `delta` (required, string), `index` (required, int from 0) |
+
+### 6.1 Streaming the reply (`message_delta`)
+
+`message_delta` lets a channel render the reply while it is produced. It is optional: an
+implementation MAY emit it and the conformance suite never requires it, so a consumer MUST NOT
+depend on it to get the reply (the full text is always in `turn_end.summary.reply`).
+
+- It MUST only be emitted while the `gateway` span entered with `phase: reply` is open, after
+  output guardrails have passed the text, so a streamed chunk is never one the guardrails would
+  have blocked.
+- `summary.index` starts at 0 and increases by 1 per delta within the turn. Concatenating every
+  `summary.delta` in `index` order MUST give exactly `turn_end.summary.reply` (before its 16 KiB
+  truncation).
+- Each delta is subject to rule 12: a chunk SHOULD serialize to at most 2 KiB.
+- It carries no `cost`; the model layer already reported it.
 
 ## 7. Transport
 
