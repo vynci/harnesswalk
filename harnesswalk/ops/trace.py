@@ -147,6 +147,19 @@ class Tracer:
         )
         return row is not None
 
+    def turn_ended(self, tenant_id: str, turn_id: str) -> bool:
+        """Whether the turn's turn_end is stored (or buffered while the store is down)."""
+        if any(
+            e["type"] == "turn_end" and e["tenant_id"] == tenant_id and e["turn_id"] == turn_id
+            for e in self._buffer
+        ):
+            return True
+        row = self.db.one(
+            "SELECT 1 FROM events WHERE tenant_id = ? AND turn_id = ? AND type = 'turn_end'",
+            (tenant_id, turn_id),
+        )
+        return row is not None
+
     def get_detail(self, tenant_id: str, detail_ref: str) -> Any:
         trace_id, _, event_id = detail_ref.removeprefix("trace://").partition("/")
         row = self.db.one(
@@ -187,7 +200,9 @@ class Tracer:
     ) -> AsyncIterator[Event | None]:
         """Stored events with seq > after_seq, then live ones, until turn_end.
 
-        Yields None when nothing happened for `keepalive_s` (the SSE layer sends a comment).
+        The stream closes at turn_end even when the cursor is past it (turn_end itself is then
+        not sent). Yields None when nothing happened for `keepalive_s` (the SSE layer sends a
+        comment).
         """
         queue: asyncio.Queue[Event] = asyncio.Queue()
         self._live.setdefault(turn_id, []).append(queue)
@@ -198,16 +213,19 @@ class Tracer:
                 yield event
                 if event["type"] == "turn_end":
                     return
+            if self.turn_ended(tenant_id, turn_id):  # it ended at or before the cursor
+                return
             while True:
                 try:
                     event = await asyncio.wait_for(queue.get(), keepalive_s)
                 except TimeoutError:
                     yield None
                     continue
-                if event["tenant_id"] != tenant_id or event["seq"] <= last:
+                if event["tenant_id"] != tenant_id:
                     continue
-                last = event["seq"]
-                yield event
+                if event["seq"] > last:
+                    last = event["seq"]
+                    yield event
                 if event["type"] == "turn_end":
                     return
         finally:

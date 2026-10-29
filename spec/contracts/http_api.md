@@ -128,7 +128,8 @@ Query `?after=<seq>&follow=<bool>`.
   browser that reconnects to the same URL with `Last-Event-ID` never sees an event twice.
   Without any, the stream starts at `seq` 0; `after=-1` means the same.
 - `follow` (default `true`): for a running turn the server sends stored events, then live events
-  as they happen, and closes the stream after `turn_end`. With `follow=false` it sends what is
+  as they happen, and closes the stream after `turn_end`. A cursor past `turn_end` still closes
+  the stream when the turn ends, without sending anything. With `follow=false` it sends what is
   stored and closes, running or not.
 - For a finished turn it sends the stored events and closes. This is also how replay works in
   the UI.

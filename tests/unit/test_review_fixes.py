@@ -210,3 +210,32 @@ async def test_a_post_body_must_be_declared_json(tmp_path: Path) -> None:
         r = await c.post("/v1/turns", json={"message": "hi", "step": True})
         assert (await c.post(f"/v1/turns/{r.json()['turn_id']}/cancel")).status_code == 202
         await h.gateway.wait(r.json()["turn_id"], 5)
+
+
+# -- the event stream -------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_a_cursor_past_the_end_still_closes_at_turn_end(tmp_path: Path) -> None:
+    h = Harness(settings(tmp_path, "plain_answer"))
+    async with client(h) as c:
+        r = await c.post(
+            "/v1/turns", json={"message": "What are your support hours?", "step": True}
+        )
+        turn_id, url = r.json()["turn_id"], r.json()["events_url"]
+        await until(c, turn_id, "status", "paused")
+
+        async def release() -> None:
+            await asyncio.sleep(0.05)
+            await c.post(f"/v1/turns/{turn_id}/resume", json={"mode": "continue"})
+
+        task = asyncio.create_task(release())
+        r = await asyncio.wait_for(c.get(url, params={"after": 10000}), 3)
+        await task
+        assert r.status_code == 200 and parse_sse(r.text) == []
+
+    # The turn already ended when a live reader subscribes past its end: it closes too.
+    async def read() -> list:
+        return [e async for e in h.tracer.subscribe("t1", turn_id, 10000) if e is not None]
+
+    assert await asyncio.wait_for(read(), 3) == []
