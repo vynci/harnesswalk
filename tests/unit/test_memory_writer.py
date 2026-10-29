@@ -299,3 +299,12 @@ async def test_blocked_turns_never_reach_the_writer(tmp_path: Path) -> None:
     )
     events = await run_turn(h, "this is far too long")
     assert not exits(events, "memory_writer")
+
+
+def test_the_writer_redacts_with_the_input_guardrails_detector(tmp_path: Path) -> None:
+    """Integration seam: one detector, the pack's national id patterns included."""
+    h = harness(tmp_path, profile=None)
+    assert h.memory_writer.pii is h.input_guardrails.pii
+    text, counts = redact("my SIN is 046 454 286, ssn 123-45-6789", h.memory_writer.pii)
+    assert "046 454 286" not in text and "123-45-6789" not in text
+    assert counts.get("national_id") == 2

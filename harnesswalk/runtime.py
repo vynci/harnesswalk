@@ -33,7 +33,6 @@ from harnesswalk.control.audit import AuditLog
 from harnesswalk.control.budgets import Budgets
 from harnesswalk.control.gateway import Gateway
 from harnesswalk.control.input_guardrails import InputGuardrails
-from harnesswalk.control.pii import PiiDetector
 from harnesswalk.control.policy import Policy
 from harnesswalk.events import EventBus
 from harnesswalk.execution.builtin_tools import CALCULATOR, read_skill_tool
@@ -152,6 +151,10 @@ class Harness:
             knowledge=self.knowledge if "knowledge" in enabled else None,
             top_k=s.get("context.retrieval.top_k", {}),
         )
+        # One PII detector (the pack's patterns included) for the input guardrails and the
+        # memory writer, so a proposal is redacted exactly as a message is.
+        guard_cfg = self._input_guardrails_config()
+        self.input_guardrails = InputGuardrails(guard_cfg, mode, classifier=self._classify)
         self.memory_writer = MemoryWriter(
             s.get("memory_writer", {}),
             self.memory_db,
@@ -159,7 +162,7 @@ class Harness:
             self.episodic,
             self.policy,
             episodes_enabled="episodic" in enabled,
-            pii=PiiDetector(self._input_guardrails_config().get("pii", {})),
+            pii=self.input_guardrails.pii,
         )
         self.ingest_report: dict[str, Any] | None = None
         if bool(s.get("stores.ingest_on_start", True)):
@@ -172,8 +175,6 @@ class Harness:
             s.get("context", {}), self.memory, self.session, summarizer=self._summarize
         )
         self.loop = Loop(self.model_layer, self.tools, self.session, s.get("loop.notices", {}))
-        guard_cfg = self._input_guardrails_config()
-        self.input_guardrails = InputGuardrails(guard_cfg, mode, classifier=self._classify)
         self.output_guardrails = OutputGuardrails(
             s.get("output_guardrails", {}), mode, pii_cfg=guard_cfg.get("pii", {})
         )
