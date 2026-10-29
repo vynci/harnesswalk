@@ -60,3 +60,41 @@ def noisy(arguments):
 
 def crash(arguments):
     raise ValueError("bad input")
+
+
+def change_outside(arguments):
+    """Every way to change a file but open(): each must be refused outside the work dir."""
+    path, failures = arguments["path"], []
+    attempts = {
+        "truncate": lambda: os.truncate(path, 0),
+        "chmod": lambda: os.chmod(path, 0o600),
+        "rename": lambda: os.rename(path, path + ".moved"),
+        "remove": lambda: os.remove(path),
+        "utime": lambda: os.utime(path, (0, 0)),
+        "symlink": lambda: os.symlink("/etc/hosts", path + ".link"),
+        "mkdir": lambda: os.mkdir(path + ".dir"),
+    }
+    for name, attempt in attempts.items():
+        try:
+            attempt()
+            failures.append(name)
+        except PermissionError:
+            pass
+    os.symlink(path, "inside_link")  # a link inside pointing out: writing through it is refused
+    try:
+        with open("inside_link", "w") as f:
+            f.write("escaped")
+        failures.append("write-through-link")
+    except PermissionError:
+        pass
+    return "refused all" if not failures else "allowed " + ",".join(failures)
+
+
+def raw_fork(arguments):
+    import _posixsubprocess  # noqa: F401  # fork_exec raises no audit event of its own
+
+    return "imported"
+
+
+def fork(arguments):
+    return str(os.fork())

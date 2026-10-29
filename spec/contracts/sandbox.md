@@ -89,6 +89,12 @@ A subprocess call:
   is two layers: a Python audit hook in the child that refuses sockets, process spawning,
   `ctypes` loading and file writes outside the work directory, and, where available, an OS
   jail (`sandbox-exec` with a deny-network profile on macOS, `unshare --net` on Linux).
+- (P3 integration, additive) changes no file outside its work directory: the hook also
+  refuses truncate, rename, remove, rmdir, mkdir, chmod, chown, utime and links outside it,
+  any of them with a `dir_fd`, and importing `_posixsubprocess` or `_ctypes`; the child sets
+  `RLIMIT_NPROC` to 0 so a spawn the hook cannot see fails; and on macOS the jail also denies
+  every file write outside the work directory, network allowed or not. Reads are not walled
+  yet (a Linux mount or landlock wall over the data directory and `/proc` is P6).
 
 | Key | Default | Meaning |
 |---|---|---|

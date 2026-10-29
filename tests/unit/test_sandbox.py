@@ -2,12 +2,14 @@
 
 import asyncio
 import socket
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from harnesswalk.execution.registry import ToolSpec
-from harnesswalk.execution.sandbox import Sandbox
+from harnesswalk.execution.sandbox import Sandbox, jail_prefix, os_jail
 from harnesswalk.types import ToolCall
 from tests.unit.support import exits, harness, make_ctx, run_turn
 
@@ -100,6 +102,36 @@ async def test_writes_stay_in_the_turn_directory_and_no_processes(
     assert str((tmp_path / "work").resolve()) in inside.content
     spawned = await run(sandbox, probe("spawn"))
     assert spawned.outcome == "error" and "not allowed" in spawned.content
+
+
+@pytest.mark.anyio
+async def test_no_file_change_outside_and_no_raw_process_modules(
+    sandbox: Sandbox, tmp_path: Path
+) -> None:
+    """P3 review: the hook covered open() only; rename, truncate, chmod... and the raw
+    `_posixsubprocess.fork_exec` (which raises no audit event) went through."""
+    victim = tmp_path / "audit.db"
+    victim.write_text("rows", "utf-8")
+    changed = await run(sandbox, probe("change_outside"), {"path": str(victim)})
+    assert (changed.outcome, changed.content) == ("ok", "refused all")
+    assert victim.read_text("utf-8") == "rows" and oct(victim.stat().st_mode)[-3:] != "600"
+    raw = await run(sandbox, probe("raw_fork"))
+    assert raw.outcome == "error" and "_posixsubprocess" in raw.content
+    forked = await run(sandbox, probe("fork"))
+    assert forked.outcome == "error"
+
+
+@pytest.mark.skipif(sys.platform != "darwin" or not os_jail(), reason="sandbox-exec only")
+def test_the_macos_jail_walls_off_writes_outside_the_work_dir(tmp_path: Path) -> None:
+    """The second wall, without the hook: a plain child under the jail cannot write outside."""
+    work = (tmp_path / "work").resolve()
+    work.mkdir()
+    outside = tmp_path.resolve() / "outside.txt"
+    script = f"open({str(work / 'in.txt')!r}, 'w').write('ok'); open({str(outside)!r}, 'w')"
+    cmd = [*jail_prefix(os_jail(), work, network=False), sys.executable, "-c", script]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+    assert (work / "in.txt").read_text() == "ok"
+    assert proc.returncode != 0 and not outside.exists()
 
 
 @pytest.mark.anyio

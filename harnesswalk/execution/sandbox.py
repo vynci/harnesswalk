@@ -12,8 +12,9 @@ Two levels:
   process group, a wall-clock timeout, an output cap, a memory cap and resource limits. No
   network unless the tool's class is `external` and policy allowed the call: a Python audit
   hook in the child refuses sockets, process spawning and writes outside the work directory,
-  and an OS jail adds a second wall where one exists (`sandbox-exec` on macOS, `unshare` on
-  Linux).
+  and an OS jail adds a second wall where one exists: `sandbox-exec` on macOS cuts the
+  network and every file write outside the work directory (P3 review); `unshare` on Linux
+  cuts the network.
 
 Side-effecting calls are keyed by `sha256(tenant_id, turn_id, call_id)` so a resumed turn never
 repeats a side effect in this process.
@@ -45,6 +46,23 @@ register("sandbox", __name__)
 
 LEVELS = ("inprocess", "subprocess")
 MACOS_PROFILE = "(version 1)(allow default)(deny network*)"
+# The macOS jail of a child: no file writes outside the work directory (passed as the WORK
+# parameter, so no path is ever quoted into the profile), and no network unless allowed.
+MACOS_WRITE_WALL = (
+    '(deny file-write*)(allow file-write* (subpath (param "WORK"))'
+    ' (literal "/dev/null") (literal "/dev/zero") (regex #"^/dev/fd/")'
+    ' (literal "/dev/dtracehelper"))'
+)
+
+
+def jail_prefix(base: list[str], workdir: Path, network: bool) -> list[str]:
+    """The jail command for one child. On macOS the profile adds the write wall."""
+    if base[0] == "sandbox-exec":
+        profile = "(version 1)(allow default)" + ("" if network else "(deny network*)")
+        return ["sandbox-exec", "-D", f"WORK={workdir}", "-p", profile + MACOS_WRITE_WALL]
+    return [] if network else base
+
+
 SAFE_NAME = re.compile(r"[^A-Za-z0-9_.-]")
 ENVELOPE_BYTES = 4096  # room for the JSON around the content
 STDERR_CAP = 16 * 1024
@@ -159,7 +177,8 @@ class Sandbox:
         workdir = self.turn_dir(ctx)
         workdir.mkdir(parents=True, exist_ok=True)
         timeout_s = self.timeout_ms(spec) / 1000
-        jail = None if network or not self.use_jail else os_jail()
+        base_jail = os_jail() if self.use_jail else None
+        jail = jail_prefix(base_jail, workdir.resolve(), network) if base_jail else None
         cmd = [
             *(jail or []),
             sys.executable,
