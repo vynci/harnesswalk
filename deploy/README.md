@@ -1,7 +1,9 @@
 # deploy
 
-Docker Compose for the learner path. The API image is built from `deploy/api.Dockerfile` (uv,
-non-root user, `harnesswalk serve`). Image tags are pinned: `pgvector/pgvector:0.8.7-pg17` and
+Docker Compose for the learner path. The API image is built from `deploy/api.Dockerfile` in two
+stages: a `node:24` stage builds `web/` with pnpm when it has a `package.json` (and is skipped
+while `web/` is a placeholder), then the uv stage copies `web/dist` in, so the api serves the
+web app at `/` (non-root user, `harnesswalk serve`). Image tags are pinned: `pgvector/pgvector:0.8.7-pg17` and
 `ollama/ollama:0.40.8`. The public sandbox deployment arrives in P6.
 
 ## Profiles
@@ -22,7 +24,8 @@ empty Ollama; pull the model once with
 `docker compose -f deploy/docker-compose.yml exec ollama ollama pull llama3.1:8b`. To try the
 stack without a model, set `HARNESSWALK_PROVIDER=fake` and `HARNESSWALK_FIXTURE=plain_answer`.
 
-Without Docker, `make run` starts the same API from the working tree.
+Without Docker, `make run` starts the same API from the working tree, and serves `web/dist`
+when `make web-build` has built it.
 
 On macOS, Ollama in a container cannot use the GPU. Running Ollama natively and pointing
 `HARNESSWALK_OLLAMA_URL` at `http://host.docker.internal:11434` with the `homelab` profile is

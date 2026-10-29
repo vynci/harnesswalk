@@ -52,11 +52,12 @@ Modules that are not nodes:
 | (root) | `diagram.py` | Loads `spec/diagram/diagram.json`, the only source of node and edge ids |
 | (root) | `types.py` | Shared records from `spec/contracts/README.md` |
 | (root) | `runtime.py` | Builds every component from the settings and wires them together |
-| (root) | `inspectors.py` | What `GET /v1/nodes/{id}` shows per node kind |
+| (root) | `inspectors.py` | What `GET /v1/nodes/{id}` shows per node kind, and the code peek of `GET /v1/nodes/{id}/source` |
+| (root) | `turns.py` | Turn summaries read off the stored events: `GET /v1/turns/{id}` and `GET /v1/sessions/{id}/turns` |
 | (root) | `paths.py` | Where `config/`, `spec/` and `datasets/` live (`HARNESSWALK_ROOT`) |
-| (root) | `__main__.py` | The `harnesswalk` command: `serve`, `turn`, `events` |
+| (root) | `__main__.py` | The `harnesswalk` command: `serve`, `turn`, `events`, `turns` |
 | `config` | `loader.py` | Loads `config/*.yaml` and profiles through release, applies env and overrides |
-| `control` | `http_api.py` | The FastAPI app for `spec/contracts/http_api.md` |
+| `control` | `http_api.py` | The FastAPI app for `spec/contracts/http_api.md`, plus the built web app (`web/dist`) and dev-mode CORS |
 | `context` | `tokens.py` | The `chars_div_4` token estimator |
 | `execution` | `builtin_tools.py` | `calculator` and `read_skill` |
 | `execution` | `providers/_http.py` | One POST with errors mapped to codes, shared by the HTTP adapters |
