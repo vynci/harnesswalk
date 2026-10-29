@@ -9,7 +9,8 @@
     <script>
       // Apply the saved theme before first paint so there is no flash.
       try {
-        var t = localStorage.getItem('harnesswalk.theme')
+        // Stored as JSON by src/state/persist.ts, so the value is '"dark"', not 'dark'.
+        var t = JSON.parse(localStorage.getItem('harnesswalk.theme') || 'null')
         var dark = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
         document.documentElement.classList.toggle('dark', dark)
       } catch (e) {}

@@ -283,3 +283,12 @@ test('a node switched off in the inspector is marked off next turn, then skipped
   await expect(status(page)).toHaveAttribute('data-phase', 'done')
   await expect(node(page, 'output_guardrails')).toHaveAttribute('data-state', 'skipped')
 })
+
+test('a saved theme applies before the app script runs, so there is no flash', async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem('harnesswalk.theme', JSON.stringify('dark')))
+  await page.route('**/assets/*.js', (route) => route.abort()) // the inline script alone
+  await page.reload()
+  await expect(page.locator('html')).toHaveClass(/\bdark\b/)
+  await page.unroute('**/assets/*.js')
+  await page.evaluate(() => localStorage.removeItem('harnesswalk.theme'))
+})
