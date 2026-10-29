@@ -152,7 +152,9 @@ def check_stream(events: list[dict]) -> list[str]:
             else:
                 stack.pop()
                 if node_id in paused:
-                    problems.append(f"seq {i}: {node_id} closed while paused")
+                    # Allowed only when the turn fails or is cancelled (events.md rule 8).
+                    if e["type"] != "error":
+                        problems.append(f"seq {i}: {node_id} closed while paused")
                     paused.discard(node_id)
         elif e["type"] in POINT_TYPES:
             if node_id not in stack:

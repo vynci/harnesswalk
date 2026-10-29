@@ -3,9 +3,13 @@
 A black-box test that any harnesswalk implementation, in any language, can run. If your harness
 passes it, the harnesswalk UI can drive it and the lessons apply to it.
 
-Status: P0 ships the protocol, the cases and the fixtures. The runner arrives in P1. Until then
-`make conformance` checks that the cases, fixtures and profile are well formed and that the
-recorded example streams in `spec/examples/` satisfy the matching cases.
+Status: the protocol, cases and fixtures are from P0; the reference runner is
+`tests/conformance/runner.py` (P1). `make conformance` starts the reference harness once per
+case on a loopback port with the `fake` provider, drives it over HTTP, and prints one line per
+case. It also checks that the cases, fixtures and profile are well formed and that the recorded
+example streams in `spec/examples/` satisfy the matching cases. The runner imports nothing from
+the harness except to start it, so pointing it at another implementation means replacing
+`LiveHarness` with a process that serves the same API.
 
 ## Files
 
