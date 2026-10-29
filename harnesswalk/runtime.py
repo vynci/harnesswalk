@@ -116,6 +116,7 @@ class Harness:
         self.gateway = Gateway(self)
         self._turn_providers: dict[str, ModelProvider] = {}  # built on demand for a turn
         self._turn_fakes: dict[str, FakeProvider] = {}  # fixture name -> provider
+        self._startup_fake: FakeProvider | None = None  # `provider: fake` on another server
 
     def _register_tools(self) -> None:
         s = self.settings
@@ -161,7 +162,10 @@ class Harness:
         """The providers one turn may use when it picked a provider or a fixture.
 
         A fixture loads its own fake provider, cached per fixture and counting turns per
-        session on that fixture (http_api.md). Raises ConfigError for an unknown fixture.
+        session on that fixture (http_api.md). `provider: fake` without a fixture runs the
+        start-up fixture with the plain rule (turn `n` of the session reads `turns[n]`), the
+        same as on a server started with the fake provider. Raises ConfigError for an unknown
+        fixture.
         """
         if fixture is not None:
             fake = self._turn_fakes.get(fixture)
@@ -173,7 +177,11 @@ class Harness:
         if provider in self.providers:
             return {provider: self.providers[provider]}
         if provider == "fake":
-            return self.turn_providers(None, self.settings.fixture() or "plain_answer")
+            if self._startup_fake is None:
+                name = self.settings.fixture() or "plain_answer"
+                loaded = load_fixture(find_fixture(name, fixture_dirs(self.settings)))
+                self._startup_fake = FakeProvider(loaded)
+            return {"fake": self._startup_fake}
         if provider not in self._turn_providers:
             self._turn_providers[provider] = build_provider(provider, self.settings)
         return {provider: self._turn_providers[provider]}

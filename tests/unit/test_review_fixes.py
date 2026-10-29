@@ -9,10 +9,11 @@ from typing import Any
 import httpx
 import pytest
 
+from harnesswalk.config.loader import load_settings
 from harnesswalk.control.approval import ApprovalAlreadyDecided
 from harnesswalk.control.http_api import create_app
 from harnesswalk.runtime import Harness
-from tests.spec.support import check_stream
+from tests.spec.support import ROOT, check_stream
 from tests.unit.support import settings, write_fixture
 
 
@@ -316,3 +317,35 @@ async def test_api_paths_and_asset_misses_never_fall_back_to_the_app(tmp_path: P
         assert r.status_code == 404 and "harnesswalk</title>" not in r.text
         assert (await c.get("/assets/app.js")).status_code == 200
         assert "<title>harnesswalk</title>" in (await c.get("/sessions/sess_1")).text
+
+
+# -- per-turn fixtures ------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_provider_fake_on_another_server_keeps_the_start_up_fixture_plain_rule(
+    tmp_path: Path,
+) -> None:
+    s = load_settings(
+        ROOT, mode="dev", provider="ollama", fixture="two_turns", data_dir=tmp_path, env={}
+    )
+    h = Harness(s)
+    assert "fake" not in h.providers
+    async with client(h) as c:
+        # Turn 0 runs on a per-turn fixture; turn 1 asks only for the fake provider.
+        r = await c.post("/v1/turns", json={"message": "Hello there", "fixture": "plain_answer"})
+        first = r.json()
+        await h.gateway.wait(first["turn_id"], 5)
+        r = await c.post(
+            "/v1/turns",
+            json={
+                "message": "Where is A-1002?",
+                "session_id": first["session_id"],
+                "provider": "fake",
+            },
+        )
+        await h.gateway.wait(r.json()["turn_id"], 5)
+        end = h.tracer.get_turn("t1", r.json()["turn_id"])[-1]
+    # The start-up fixture keeps the plain rule: turn 1 of the session reads turns[1].
+    assert end["summary"]["exit"] == "answered"
+    assert "A-1002 is still processing" in end["summary"]["reply"]

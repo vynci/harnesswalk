@@ -100,7 +100,9 @@ without `can_disable` is `422 invalid_request`, as in P1.
 A per-turn fixture follows the fake provider's rule (`model_provider.md`), counted over the turns
 of the session that ran on that same fixture: the first turn on a fixture reads `turns[0]`,
 whatever the session's turn number. A fixture set at start-up (`HARNESSWALK_FIXTURE`) keeps the
-plain rule, turn `n` of the session reads `turns[n]`.
+plain rule, turn `n` of the session reads `turns[n]`. That includes `provider: fake` without a
+`fixture` on a server started with another provider: the turn runs the start-up fixture
+(`models.providers.fake.fixture`, `plain_answer` by default) with the plain rule.
 
 Response `202 Accepted`:
 
