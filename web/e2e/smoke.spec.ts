@@ -117,3 +117,10 @@ test('expert view expands children and the inspector shows lesson and code', asy
   await page.keyboard.press('Escape')
   await expect(inspector).toBeHidden()
 })
+
+test('a focused node opens its inspector with Enter', async ({ page }) => {
+  await page.locator('.react-flow__node-harness[data-id="loop"]').focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('inspector-title')).toHaveText('Loop')
+  await expect(page.getByRole('button', { name: 'Close inspector' })).toBeFocused()
+})
