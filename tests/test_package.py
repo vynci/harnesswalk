@@ -1,4 +1,4 @@
-"""The package skeleton imports and its entry point runs."""
+"""The package imports, its version is set, and the entry point prints help."""
 
 import importlib
 
@@ -18,6 +18,7 @@ def test_versions_are_set() -> None:
     assert harnesswalk.SPEC_VERSION == "0.1.0"
 
 
-def test_main_exits_zero(capsys) -> None:
-    assert main() == 0
-    assert "P0" in capsys.readouterr().out
+def test_main_without_a_command_prints_help(capsys) -> None:
+    assert main([]) == 0
+    out = capsys.readouterr().out
+    assert "serve" in out and "turn" in out and "events" in out
