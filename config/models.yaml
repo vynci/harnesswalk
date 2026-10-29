@@ -31,12 +31,13 @@ router:
   # hosted alias in the rule's list. See spec/contracts/router.md.
   cascade: { enabled: false, min_confidence: 0.5, local_providers: [ollama, fake] }
   rules:
+    # Public mode stays on local models until the hosted daily budget lands (P6). First, so no
+    # step rule (summarize, classify, judge) sends a public turn to a hosted model.
+    - { id: public,    when: { mode: public },     use: [local-8b, fake-small] }
     - { id: vision,    when: { modality: image },  use: [hosted-sonnet] }
     - { id: summarize, when: { step: summarize },  use: [local-small, local-8b, hosted-haiku, compat-default] }
     - { id: classify,  when: { step: classify },   use: [hosted-haiku, local-small] }
     - { id: judge,     when: { step: judge },      use: [hosted-haiku, local-8b] }
-    # Public mode stays on local models until the hosted daily budget lands (P6).
-    - { id: public,    when: { mode: public },     use: [local-8b, fake-small] }
     - { id: cheap,     when: { cost: low },        use: [local-8b, hosted-haiku, compat-default, fake-small], max_price_out_per_mtok: 1.0 }
     - { id: high_risk, when: { risk: high },       use: [hosted-sonnet, local-8b, hosted-haiku, compat-default, fake-small] }
     - { id: default,   when: {},                   use: [local-8b, hosted-sonnet, hosted-haiku, compat-default, fake-small] }

@@ -148,3 +148,15 @@ async def test_audit_export_pages_by_record_without_repeats(tmp_path: Path) -> N
         assert (await c.get("/v1/audit?since=2026-10-29T10:00:00")).status_code == 400
         assert (await c.get("/v1/audit?since=2026-10-29T10:00:00Z")).status_code == 200
         assert (await c.get("/v1/audit?after=aud_nope")).status_code == 400
+
+
+def test_public_turns_never_route_a_step_to_a_hosted_model() -> None:
+    from harnesswalk.config.loader import load_settings
+    from harnesswalk.execution.router import Router, RouteRequest
+    from tests.spec.support import ROOT
+
+    s = load_settings(ROOT, env={})
+    router = Router(s.get("models.router.rules"), s.get("models.models"), lambda p: True)
+    for kind in ("classify", "summarize", "first"):
+        assert router.route(RouteRequest(1, kind, mode="public")).rule == "public", kind
+    assert router.route(RouteRequest(1, "classify")).rule == "classify"
