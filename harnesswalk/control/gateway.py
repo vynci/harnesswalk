@@ -280,6 +280,8 @@ class Gateway:
         emit.turn_error(code, message)
         receipt = self.h.tracer.receipt(ctx.tenant_id, ctx.turn_id)
         exit_ = "cancelled" if code == "cancelled" else "error"
+        with contextlib.suppress(Exception):  # keep turn numbering gapless after a failure
+            self.h.session.append_turn(ctx, "gateway", None, "", exit_)
         emit.turn_end("error", {"exit": exit_, "reply": ""}, cost=receipt["total"])
 
     # -- controlling a turn -------------------------------------------------------------------
