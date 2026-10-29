@@ -3,7 +3,7 @@ import { formatMs, nodeStat } from '@/diagram/stats'
 import type { NodeRun } from '@/state/reducer'
 import { DataView, KeyValues } from './DataView'
 
-export function OverviewTab({ nodeId, run, info }: { nodeId: string; run?: NodeRun; info?: NodeInfo }) {
+export function OverviewTab({ run, info }: { run?: NodeRun; info?: NodeInfo }) {
   return (
     <div className="flex flex-col gap-4">
       <section className="flex flex-col gap-1.5" aria-label="This turn">
@@ -14,7 +14,7 @@ export function OverviewTab({ nodeId, run, info }: { nodeId: string; run?: NodeR
           <KeyValues
             value={{
               state: run.state,
-              stat: nodeStat(nodeId, run) ?? '·',
+              stat: nodeStat(run) ?? '·',
               entered: `${run.enters}×`,
               'last duration': formatMs(run.lastDurationMs) ?? '·',
               'total duration': formatMs(run.totalDurationMs) ?? '·',

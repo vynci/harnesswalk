@@ -269,8 +269,8 @@ export function reduceEvent(prev: TurnState, ev: HarnessEvent, edgeIndex?: EdgeI
         reason: str(summary.reason),
         expires_at: str(summary.expires_at),
       }
-      const run = nodeRun(s, 'approval')
-      run.state = 'waiting'
+      // The approval node is whatever node emitted the request (events.md), not a fixed id.
+      if (ev.node_id) nodeRun(s, ev.node_id).state = 'waiting'
       break
     }
     case 'approval_decided': {

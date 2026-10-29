@@ -4,7 +4,7 @@ import type { Diagram } from '@/api/types'
 import type { TurnState } from '@/state/reducer'
 import type { FlowEdgeType } from './FlowEdge'
 import type { HarnessFlowNode } from './HarnessNode'
-import type { DiagramLayout } from './layout'
+import { BADGE_NODE, type DiagramLayout } from './layout'
 import type { PlaneFlowNode } from './PlaneNode'
 import { memoryBadges, nodeStat } from './stats'
 
@@ -42,8 +42,8 @@ export function toFlow(
     const parent = l.parentId ? byId.get(l.parentId) : undefined
     // Badges stand in for the stores whenever the stores themselves are not drawn.
     const childIds = diagram.nodes.filter((n) => n.parent === l.id).map((n) => n.id)
-    const showBadges = l.id === 'memory' && !l.expanded && childIds.length > 0
-    const stat = nodeStat(l.id, run)
+    const showBadges = l.id === BADGE_NODE && !l.expanded && childIds.length > 0
+    const stat = nodeStat(run)
     return {
       id: l.id,
       type: 'harness',

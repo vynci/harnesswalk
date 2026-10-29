@@ -95,7 +95,7 @@ export function InspectorDrawer() {
         </TabsList>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <TabsContent value="overview">
-            <OverviewTab nodeId={node.id} run={turn.nodes[node.id]} info={info.data} />
+            <OverviewTab run={turn.nodes[node.id]} info={info.data} />
             {info.status === 'error' && <p className="mt-3 text-xs text-destructive">Could not load node details: {info.error}</p>}
           </TabsContent>
           {detailsLabel && info.data && (
