@@ -33,10 +33,19 @@ async function settle(page: Page) {
 }
 
 test('a finished turn', async ({ page, browser }) => {
-  await turn(page, 'tool_call', 'Where is order A-1001?')
+  // The Trailhead question: all five memory badges lit, and a reply that cites knowledge.
+  await turn(page, 'trailhead_return', 'Can I return order A-1003, the Trailhead backpack?')
   await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  await expect(page.getByTestId('badge-knowledge')).toHaveAttribute('data-lit', 'true')
   await settle(page)
   await page.screenshot({ path: out('turn-done') })
+
+  // citations.png: a citation chip opened the document reader at the cited chunk.
+  await page.getByTestId('citation-chip').first().click()
+  await expect(page.getByTestId('doc-reader').locator('[data-cited="true"]')).toBeVisible()
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: out('citations') })
+  await page.keyboard.press('Escape')
 
   // edges-before-after.png: the owner's screenshot of the old routing (edges-before.png, kept in
   // the repo) beside the same diagram now, at twice the pixel density for a fair comparison.
