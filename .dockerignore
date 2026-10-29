@@ -7,5 +7,10 @@ data
 deploy/data
 web/node_modules
 web/dist
+web/dist-mock
+web/dist-e2e
+web/test-results
+web/playwright-report
+web/blob-report
 # Every .env file, in any directory: web/.env.local would bake VITE_* values into the app.
 **/.env*
