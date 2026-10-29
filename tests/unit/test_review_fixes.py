@@ -12,7 +12,7 @@ from harnesswalk.control.approval import ApprovalAlreadyDecided
 from harnesswalk.control.http_api import create_app
 from harnesswalk.runtime import Harness
 from tests.spec.support import check_stream
-from tests.unit.support import settings
+from tests.unit.support import settings, write_fixture
 
 
 def client(h: Harness, tenant: str = "t1", app: Any = None) -> httpx.AsyncClient:
@@ -90,3 +90,31 @@ async def test_decide_then_cancel_does_not_run_the_tool(tmp_path: Path) -> None:
             "executed": False,
             "note": "approved, not run: the turn was cancelled",
         }
+
+
+@pytest.mark.anyio
+async def test_cancel_during_the_last_tool_call_makes_no_final_model_call(tmp_path: Path) -> None:
+    fx = tmp_path / "fx"
+    call = {"tool_calls": [{"name": "lookup_order", "arguments": {"order_id": "A-1001"}}]}
+    write_fixture(fx, "one_step", [[call, {"text": "a final call that must not happen"}]])
+    h = Harness(settings(tmp_path, "one_step", fixtures=fx, overrides={"loop.max_steps": 1}))
+    holder: dict[str, str] = {}
+
+    def on_event(event: dict) -> None:  # cancel while step max_steps runs its tool call
+        if event["type"] == "node_enter" and event["node_id"] == "tools":
+            h.gateway.cancel("t1", holder["turn_id"])
+
+    h.bus.subscribe(on_event)
+    async with client(h) as c:
+        r = await c.post("/v1/turns", json={"message": "Where is order A-1001?"})
+        holder["turn_id"] = turn_id = r.json()["turn_id"]
+        await h.gateway.wait(turn_id, 5)
+    events = h.tracer.get_turn("t1", turn_id)
+    assert check_stream(events) == []
+    enters = [e for e in events if e["type"] == "node_enter" and e["node_id"] == "model_layer"]
+    assert len(enters) == 1  # the step's call only; no tools-off final call after the cancel
+    loop_exit = [e for e in events if e["type"] == "node_exit" and e["node_id"] == "loop"]
+    assert loop_exit[0]["summary"]["exit_reason"] == "interrupted"
+    end = events[-1]
+    assert end["status"] == "done" and end["summary"]["exit"] == "cancelled"
+    assert end["summary"]["reply"] == "I stopped because the turn was interrupted."

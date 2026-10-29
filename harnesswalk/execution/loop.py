@@ -4,11 +4,11 @@ Contract: spec/contracts/loop.md. Node: `loop` (execution plane, kind code).
 
     step = 0
     loop:
+      exit "interrupted"   if someone interrupted the turn (checked first, so a cancel wins)
       exit "max_steps"     if step + 1 > max_steps
       exit "budget_tokens" if tokens used >= budget_tokens
       exit "budget_usd"    if budget_usd > 0 and dollars used >= budget_usd
       exit "timeout"       if active wall clock >= timeout_s (paused time excluded)
-      exit "interrupted"   if someone interrupted the turn
       step += 1
       ask the model layer (tools enabled)
       no tool calls -> exit "answer"
@@ -100,6 +100,9 @@ class Loop:
     def _exit_before_step(
         self, ctx: TurnContext, limits: Limits, step: int, usage: Usage
     ) -> str | None:
+        # A cancel wins over every limit, so it never leads to the tools-off final call.
+        if ctx.interrupted:
+            return "interrupted"
         if step + 1 > limits.max_steps:
             return "max_steps"
         if usage.tokens >= limits.budget_tokens:
@@ -108,8 +111,6 @@ class Loop:
             return "budget_usd"
         if ctx.active_seconds() >= limits.timeout_s:
             return "timeout"
-        if ctx.interrupted:
-            return "interrupted"
         return None
 
     async def _model(self, ctx, messages, tools, step, step_kind, api_key):
@@ -199,6 +200,8 @@ class Loop:
                     )
                 self._checkpoint(ctx, step, messages, usage)
 
+            if ctx.interrupted:  # never call the model again once the turn is cancelled
+                exit_reason = "interrupted"
             if exit_reason in ("max_steps", "stuck") and limits.final_call_on_exit:
                 response = await self._model(ctx, messages, [], step + 1, "final", api_key)
                 usage.add(response.usage)

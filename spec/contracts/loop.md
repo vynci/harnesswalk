@@ -50,6 +50,7 @@ record LoopResult {
 ```
 step = 0
 loop:
+  if interrupted: exit("interrupted")            // first: a cancel wins over every limit
   if step + 1 > limits.max_steps: exit("max_steps")
   if usage.tokens >= budget_tokens: exit("budget_tokens")
   if usage.usd >= budget_usd: exit("budget_usd")
@@ -66,7 +67,7 @@ loop:
 
 exit(reason, text?):
   if reason == "answer": answer = text
-  elif reason in ("max_steps", "stuck") and final_call_on_exit:
+  elif reason in ("max_steps", "stuck") and final_call_on_exit and not interrupted:
     answer = model_layer.complete(ctx, request(messages, tools = [], step + 1)).text
   else:
     answer = fixed notice for reason
@@ -83,6 +84,8 @@ exit(reason, text?):
   `max_steps` or `stuck` is not counted as a step.
 - MUST checkpoint to the `session` store after every step and before any approval pause.
 - MUST NOT call the model again after `budget_tokens`, `budget_usd`, `timeout` or `interrupted`.
+  A cancel is checked before every limit, so a cancel during the last step of `max_steps`
+  exits `interrupted` with its notice, never with the tools-off final call.
 - MUST execute tool calls only through `tools`, never directly.
 - A denied or failed tool call becomes an observation; it does not end the loop by itself.
 - Breakpoints: in step mode the loop's own span pauses like every other node (`node_paused`
