@@ -3,14 +3,18 @@
 Contract: spec/contracts/tool_registry.md. Node: `registry` (expert child of `tools`).
 
 Tools register at startup and the registry is read-only during a turn. Every tool declares an
-`action_class` (read, write, destructive, external) and a `timeout_ms`; registration without
-them fails. Tools come from two places in P1: built-ins in code (`builtin_tools.py`) and
-dataset `tools.yaml` files whose entries carry a lookup `table` (pure functions of the pack).
+`action_class` (read, write, destructive, external, memory.write) and a `timeout_ms`;
+registration without them fails. Tools come from built-ins in code (`builtin_tools.py`) and
+dataset `tools.yaml` files. A `tools.yaml` entry carries either a lookup `table` (a pure
+function of the pack) or an `entrypoint` (`module:function`, or `file.py:function` relative to
+the yaml file). Optional keys (P3): `sandbox` (`inprocess` or `subprocess`, overriding
+`sandbox.level`) and `audit.before` (a read tool whose result is the audit record's `before`).
 """
 
 from __future__ import annotations
 
-import json
+import importlib
+import importlib.util
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -21,6 +25,7 @@ import jsonschema
 import yaml
 
 from harnesswalk.execution.providers import ToolSchema
+from harnesswalk.execution.tool_impls import table_lookup
 from harnesswalk.nodes import node, register
 from harnesswalk.types import ACTION_CLASSES, ConfigError, TurnContext
 
@@ -41,22 +46,56 @@ class ToolSpec:
     idempotent: bool = True
     source: str = "local"  # local | mcp | dataset
     pure: bool = False
+    sandbox: str | None = None  # inprocess | subprocess; None means the sandbox.level default
+    entrypoint: str | None = None  # how a subprocess imports it: module:function or file.py:fn
+    entry_data: dict[str, Any] | None = field(default=None, repr=False)  # passed as `data`
+    audit_before: str | None = None  # read tool that snapshots the state before a write
 
     def schema(self) -> ToolSchema:
         return ToolSchema(self.name, self.description, self.parameters)
 
 
+TABLE_ENTRYPOINT = "harnesswalk.execution.tool_impls:table_lookup"
+
+
+def table_data(entry: dict[str, Any]) -> dict[str, Any]:
+    """What the table entrypoint needs: the key argument, the table and the miss result."""
+    return {
+        "key": entry["parameters"]["required"][0],
+        "table": entry.get("table", {}),
+        "missing": entry.get("missing", {"error": "not_found"}),
+    }
+
+
 def table_tool(entry: dict[str, Any]) -> ToolImpl:
     """A pure lookup: the first required argument is the key into `table`."""
-    key_name = entry["parameters"]["required"][0]
-    table = entry.get("table", {})
-    missing = entry.get("missing", {"error": "not_found"})
+    data = table_data(entry)
 
     def lookup(arguments: dict[str, Any]) -> str:
-        result = table.get(arguments[key_name], missing)
-        return json.dumps(result, sort_keys=True, separators=(",", ":"))
+        return table_lookup(arguments, data)
 
     return lookup
+
+
+def load_entrypoint(entrypoint: str, data: dict[str, Any] | None = None) -> ToolImpl:
+    """Import `module:function` or `path/file.py:function` (for the in-process level)."""
+    target, _, func = entrypoint.rpartition(":")
+    if not target or not func:
+        raise ConfigError(f"entrypoint {entrypoint!r} must be module:function or file.py:function")
+    if target.endswith(".py"):
+        spec = importlib.util.spec_from_file_location(Path(target).stem, target)
+        if spec is None or spec.loader is None:
+            raise ConfigError(f"entrypoint file {target} cannot be loaded")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    else:
+        module = importlib.import_module(target)
+    fn = getattr(module, func, None)
+    if not callable(fn):
+        raise ConfigError(f"entrypoint {entrypoint!r} is not a function")
+    if data is None:
+        return fn
+    return lambda arguments: fn(arguments, data)
 
 
 class ToolRegistry:
@@ -81,21 +120,48 @@ class ToolRegistry:
             for key in ("name", "description", "parameters", "action_class", "timeout_ms"):
                 if key not in entry:
                     raise ConfigError(f"{path}: tool {entry.get('name')} has no {key}")
-            if "table" not in entry:
-                raise ConfigError(f"{path}: tool {entry['name']} needs a lookup table in P1")
-            self.register(
-                ToolSpec(
-                    name=entry["name"],
-                    description=entry["description"],
-                    parameters=entry["parameters"],
-                    action_class=entry["action_class"],
-                    timeout_ms=entry["timeout_ms"],
+            audit_before = (entry.get("audit") or {}).get("before")
+            if entry.get("sandbox") not in (None, "inprocess", "subprocess"):
+                raise ConfigError(f"{path}: tool {entry['name']} has an unknown sandbox level")
+            common = {
+                "name": entry["name"],
+                "description": entry["description"],
+                "parameters": entry["parameters"],
+                "action_class": entry["action_class"],
+                "timeout_ms": entry["timeout_ms"],
+                "idempotent": entry.get("idempotent", True),
+                "source": "dataset",
+                "sandbox": entry.get("sandbox"),
+                "audit_before": audit_before,
+            }
+            if "table" in entry:
+                data = table_data(entry)
+                spec = ToolSpec(
+                    **common,
                     impl=table_tool(entry),
-                    idempotent=entry.get("idempotent", True),
-                    source="dataset",
                     pure=entry.get("pure", True),
+                    entrypoint=TABLE_ENTRYPOINT,
+                    entry_data=data,
                 )
-            )
+            elif "entrypoint" in entry:
+                entrypoint = entry["entrypoint"]
+                target, _, func = entrypoint.rpartition(":")
+                if target.endswith(".py") and not Path(target).is_absolute():
+                    entrypoint = f"{(path.parent / target).resolve()}:{func}"
+                data = entry.get("data")
+                spec = ToolSpec(
+                    **common,
+                    impl=load_entrypoint(entrypoint, data),
+                    pure=entry.get("pure", False),
+                    entrypoint=entrypoint,
+                    entry_data=data,
+                )
+            else:
+                raise ConfigError(f"{path}: tool {entry['name']} needs a table or an entrypoint")
+            self.register(spec)
+        for spec in self._tools.values():
+            if spec.audit_before and spec.audit_before not in self._tools:
+                raise ConfigError(f"tool {spec.name}: audit.before names unknown tool")
 
     def get(self, name: str) -> ToolSpec | None:
         return self._tools.get(name)

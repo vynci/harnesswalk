@@ -1,54 +1,20 @@
 """Built-in tools: a safe calculator, and `read_skill`, the on-demand tier of procedural memory.
 
 Both are `read` tools. The calculator parses arithmetic with `ast` and evaluates only numbers
-and arithmetic operators; it never calls `eval`.
+and arithmetic operators; it never calls `eval`. Its function lives in `tool_impls.py` so the
+subprocess sandbox can run it; `read_skill` reads harness memory and stays in-process.
 """
 
 from __future__ import annotations
 
-import ast
 import json
-import operator
 from collections.abc import Callable
 from typing import Any
 
 from harnesswalk.execution.registry import ToolSpec
+from harnesswalk.execution.tool_impls import calculator, evaluate
 
-_BINARY: dict[type, Callable[[Any, Any], Any]] = {
-    ast.Add: operator.add,
-    ast.Sub: operator.sub,
-    ast.Mult: operator.mul,
-    ast.Div: operator.truediv,
-    ast.FloorDiv: operator.floordiv,
-    ast.Mod: operator.mod,
-    ast.Pow: operator.pow,
-}
-_UNARY: dict[type, Callable[[Any], Any]] = {ast.UAdd: operator.pos, ast.USub: operator.neg}
-
-
-def evaluate(expression: str) -> float | int:
-    def walk(n: ast.AST) -> float | int:
-        if isinstance(n, ast.Constant) and type(n.value) in (int, float):
-            return n.value
-        if isinstance(n, ast.BinOp) and type(n.op) in _BINARY:
-            left, right = walk(n.left), walk(n.right)
-            if isinstance(n.op, ast.Pow) and abs(right) > 64:
-                raise ValueError("exponent too large")
-            return _BINARY[type(n.op)](left, right)
-        if isinstance(n, ast.UnaryOp) and type(n.op) in _UNARY:
-            return _UNARY[type(n.op)](walk(n.operand))
-        raise ValueError(f"unsupported expression element: {type(n).__name__}")
-
-    if len(expression) > 200:
-        raise ValueError("expression too long")
-    return walk(ast.parse(expression, mode="eval").body)
-
-
-def calculator(arguments: dict[str, Any]) -> str:
-    result = evaluate(arguments["expression"])
-    if isinstance(result, float) and result.is_integer():
-        result = int(result)
-    return json.dumps({"expression": arguments["expression"], "result": result})
+__all__ = ["CALCULATOR", "calculator", "evaluate", "read_skill_tool"]
 
 
 CALCULATOR = ToolSpec(
@@ -64,6 +30,7 @@ CALCULATOR = ToolSpec(
     timeout_ms=1000,
     impl=calculator,
     pure=True,
+    entrypoint="harnesswalk.execution.tool_impls:calculator",
 )
 
 
@@ -89,4 +56,5 @@ def read_skill_tool(skill_body: Callable[[str], str | None], names: list[str]) -
         timeout_ms=1000,
         impl=read_skill,
         pure=True,
+        sandbox="inprocess",  # it reads the harness's procedural store, so it stays in-process
     )
