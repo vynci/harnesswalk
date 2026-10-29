@@ -39,11 +39,12 @@ dev-mode CORS.
 ```
 
 - A resource of another tenant is `404`, never `403`, so ids cannot be probed.
-- A `POST` that takes a body (`/v1/turns`, `resume`, `approvals`) MUST send
+- Every `POST` (`/v1/turns`, `resume`, `cancel`, `approvals`) MUST send
   `Content-Type: application/json` (parameters such as `charset` are allowed); anything else,
-  or none, is `415 unsupported_media_type` before the body is read. A `text/plain` or form body
-  is a request a browser sends cross-site without a CORS preflight, so this keeps a foreign page
-  from starting turns. `cancel` takes no body and needs no content type.
+  or none, is `415 unsupported_media_type` before the body is read. A `text/plain` or form body,
+  or a POST with no body at all, is a request a browser sends cross-site without a CORS
+  preflight, so this keeps a foreign page from starting or stopping turns. `cancel` reads no
+  fields: its body may be empty or `{}`, but the content type is still required.
 
 | Status | When |
 |---|---|
@@ -196,7 +197,8 @@ Errors: `401`, `404`.
 
 ## `POST /v1/turns/{turn_id}/cancel`
 
-Stop a running or paused turn. No body.
+Stop a running or paused turn. The body is empty or `{}`, sent as `application/json` (see
+Conventions).
 
 Response `202`: `{ "turn_id": "...", "cancel_requested": true }`. The turn ends on its own; the
 client keeps reading the event stream until `turn_end` with `summary.exit: cancelled`, and the
@@ -218,7 +220,7 @@ model call whose response has no tool calls, the response is the answer, the loo
 The session records a cancelled turn like any other, so turn numbers stay gapless. Cancelling
 twice before the turn ends is `202` again.
 
-Errors: `401`, `404`, `409 turn_finished` when the turn already ended. The `409` body carries the
+Errors: `401`, `404`, `415`, `409 turn_finished` when the turn already ended. The `409` body carries the
 final state next to the error: `{ "error": {...}, "turn": <turn summary> }`. A turn this process
 is not running and that has no `turn_end` (cut off by a restart) is `409 turn_not_running`.
 

@@ -301,6 +301,9 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
     @app.post("/v1/turns/{turn_id}/cancel", status_code=202)
     async def cancel(request: Request, turn_id: str) -> JSONResponse:
         identity, _ = identities.resolve(request)
+        # Like every POST: a page on another origin cannot send this without a preflight, so it
+        # cannot stop a learner's turn. The body may be empty or `{}`.
+        await read_json(request)
         tenant = identity.tenant_id
         running = gateway.get(tenant, turn_id)
         if running is None or running.done.is_set():

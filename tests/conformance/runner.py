@@ -143,7 +143,7 @@ async def perform(
     elif "resume" in do:
         r = await client.post(f"/v1/turns/{turn_id}/resume", json={"mode": do["resume"]})
     elif do.get("cancel") is True:
-        r = await client.post(f"/v1/turns/{turn_id}/cancel")
+        r = await client.post(f"/v1/turns/{turn_id}/cancel", json={})
         if r.status_code != 202:
             raise AssertionError(f"cancel returned HTTP {r.status_code}: {r.text}")
         return

@@ -41,8 +41,8 @@ never imports the implementation.
    `GET /v1/turns/{turn_id}/events` until `turn_end`, with a 30 second limit per turn.
 4. **Act.** While reading, when an event matches an `actions[].when` matcher, perform its `do`:
    `approval: approve | deny` posts to `/v1/approvals/{summary.approval_id}`;
-   `resume: step | continue` posts to `/v1/turns/{turn_id}/resume`; `cancel: true` posts to
-   `/v1/turns/{turn_id}/cancel` and expects `202`. Each action fires once unless `repeat: true`.
+   `resume: step | continue` posts to `/v1/turns/{turn_id}/resume`; `cancel: true` posts `{}` as
+   `application/json` to `/v1/turns/{turn_id}/cancel` and expects `202`. Each action fires once unless `repeat: true`.
    Once a turn is cancelled no further action fires for it.
 5. **Assert**, in this order, and report the first failure per case:
    1. **Schema.** Every event validates against `spec/events.schema.json`.

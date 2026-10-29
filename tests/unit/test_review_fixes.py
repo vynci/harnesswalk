@@ -148,7 +148,7 @@ async def test_cancel_at_the_trace_breakpoint_keeps_the_stored_answer(tmp_path: 
         )
         turn_id = r.json()["turn_id"]
         await step_to(h, turn_id, "trace")
-        r = await c.post(f"/v1/turns/{turn_id}/cancel")
+        r = await c.post(f"/v1/turns/{turn_id}/cancel", json={})
         assert r.status_code == 202
         await h.gateway.wait(turn_id, 5)
         events = h.tracer.get_turn("t1", turn_id)
@@ -208,9 +208,16 @@ async def test_a_post_body_must_be_declared_json(tmp_path: Path) -> None:
         )
         assert r.status_code == 202
         await h.gateway.wait(r.json()["turn_id"], 5)
-        # Cancel takes no body, so it needs no content type.
+        # Cancel reads no fields, but still needs the content type (integration pass decision).
         r = await c.post("/v1/turns", json={"message": "hi", "step": True})
-        assert (await c.post(f"/v1/turns/{r.json()['turn_id']}/cancel")).status_code == 202
+        cancel = f"/v1/turns/{r.json()['turn_id']}/cancel"
+        assert (await c.post(cancel)).status_code == 415
+        assert (
+            await c.post(cancel, content="{}", headers={"Content-Type": "text/plain"})
+        ).status_code == 415
+        assert h.gateway.get("t1", r.json()["turn_id"]).ctx.interrupted is False
+        empty = await c.post(cancel, headers={"Content-Type": "application/json"})
+        assert empty.status_code == 202  # an empty body is fine
         await h.gateway.wait(r.json()["turn_id"], 5)
 
 

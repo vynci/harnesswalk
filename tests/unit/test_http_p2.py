@@ -126,8 +126,8 @@ async def test_cancel_while_paused_on_a_breakpoint(tmp_path: Path) -> None:
         assert paused["paused_at_node"] == "gateway" and paused["exit"] is None
         assert paused["reply"] is None and paused["ended_at"] is None
 
-        assert (await o.post(f"/v1/turns/{turn_id}/cancel")).status_code == 404
-        r = await c.post(f"/v1/turns/{turn_id}/cancel")
+        assert (await o.post(f"/v1/turns/{turn_id}/cancel", json={})).status_code == 404
+        r = await c.post(f"/v1/turns/{turn_id}/cancel", json={})
         assert r.status_code == 202 and r.json() == {"turn_id": turn_id, "cancel_requested": True}
         await h.gateway.wait(turn_id, 5)
 
@@ -142,11 +142,11 @@ async def test_cancel_while_paused_on_a_breakpoint(tmp_path: Path) -> None:
         assert not any(e["type"] == "node_resumed" for e in events)
 
         # Finished: 409 with the final state next to the error. Resume is 409 too.
-        again = await c.post(f"/v1/turns/{turn_id}/cancel")
+        again = await c.post(f"/v1/turns/{turn_id}/cancel", json={})
         assert again.status_code == 409 and again.json()["error"]["code"] == "turn_finished"
         assert again.json()["turn"]["exit"] == "cancelled"
         assert (await c.post(f"/v1/turns/{turn_id}/resume", json={})).status_code == 409
-        assert (await c.post("/v1/turns/turn_nope/cancel")).status_code == 404
+        assert (await c.post("/v1/turns/turn_nope/cancel", json={})).status_code == 404
 
         # The cancelled turn kept its number: the next turn of the session is turn 1.
         nxt = await c.post("/v1/turns", json={"message": "hi", "session_id": session})
@@ -164,7 +164,7 @@ async def test_cancel_while_waiting_for_approval(tmp_path: Path) -> None:
         paused = await until(c, turn_id, "paused_at_node", "approval")
         approval_id = paused["pending_approval_id"]
         assert paused["status"] == "paused" and approval_id.startswith("apr_")
-        assert (await c.post(f"/v1/turns/{turn_id}/cancel")).status_code == 202
+        assert (await c.post(f"/v1/turns/{turn_id}/cancel", json={})).status_code == 202
         await h.gateway.wait(turn_id, 5)
         events = h.tracer.get_turn("t1", turn_id)
         assert check_stream(events) == []
@@ -185,8 +185,10 @@ async def test_cancel_while_running_stops_at_the_next_step_boundary(tmp_path: Pa
         await asyncio.sleep(0.05)  # inside the model call
         running = (await c.get(f"/v1/turns/{turn_id}")).json()
         assert running["status"] == "running" and running["exit"] is None
-        assert (await c.post(f"/v1/turns/{turn_id}/cancel")).status_code == 202
-        assert (await c.post(f"/v1/turns/{turn_id}/cancel")).status_code == 202  # idempotent
+        assert (await c.post(f"/v1/turns/{turn_id}/cancel", json={})).status_code == 202
+        assert (
+            await c.post(f"/v1/turns/{turn_id}/cancel", json={})
+        ).status_code == 202  # idempotent
         await h.gateway.wait(turn_id, 5)
         events = h.tracer.get_turn("t1", turn_id)
         assert check_stream(events) == []
@@ -402,7 +404,7 @@ async def test_per_turn_fixture_and_step_options(tmp_path: Path) -> None:
             turn_id = r.json()["turn_id"]
             await until(c, turn_id, "status", "paused")
             assert h.tracer.get_turn("t1", turn_id)[0]["summary"]["step_mode"] is True
-            await c.post(f"/v1/turns/{turn_id}/cancel")
+            await c.post(f"/v1/turns/{turn_id}/cancel", json={})
             await h.gateway.wait(turn_id, 5)
 
         # `disable` merges with the P1 `options.disabled_nodes`.
