@@ -72,6 +72,11 @@ def iso(ts: float) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"
 
 
+def parse_iso(text: str) -> float:
+    """The Unix time of an RFC 3339 timestamp as `iso` writes it (or with an offset)."""
+    return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+
+
 @cache
 def _validator() -> jsonschema.Draft202012Validator:
     schema = json.loads((spec_dir() / "events.schema.json").read_text(encoding="utf-8"))
@@ -219,11 +224,54 @@ class TurnEmitter:
         self.paused_s = 0.0
         self.started = time.monotonic()
         self.ended = False
+        self.detached = False  # shutting down: drop every further event, recovery takes over
         self._last_ts = 0.0
+
+    @classmethod
+    def restore(
+        cls,
+        events: list[Event],
+        *,
+        bus: EventBus,
+        validate: bool = True,
+        detail_sink: DetailSink | None = None,
+    ) -> TurnEmitter:
+        """An emitter that continues a stored stream after a restart (approval_queue.md, P3).
+
+        `seq` goes on from the last stored event, `ts` never goes back, and every span that was
+        entered and not closed is open again, innermost last, with its start time taken from
+        its `node_enter` (so `duration_ms` includes the downtime, as paused time does).
+        """
+        first, last = events[0], events[-1]
+        emitter = cls(
+            trace_id=first["trace_id"],
+            turn_id=first["turn_id"],
+            session_id=first["session_id"],
+            tenant_id=first["tenant_id"],
+            bus=bus,
+            validate=validate,
+            detail_sink=detail_sink,
+        )
+        emitter.seq = last["seq"] + 1
+        emitter._last_ts = parse_iso(last["ts"])
+        now_wall, now_mono = time.time(), time.monotonic()
+        emitter.started = now_mono - (now_wall - parse_iso(first["ts"]))
+        stack: list[Span] = []
+        for event in events:
+            if event["type"] == "node_enter":
+                span = Span(event["node_id"], event["seq"])
+                span.started = now_mono - (now_wall - parse_iso(event["ts"]))
+                stack.append(span)
+            elif event["type"] in ("node_exit", "error") and event.get("node_id") and stack:
+                stack.pop().closed = True
+        emitter.stack = stack
+        return emitter
 
     # -- building ---------------------------------------------------------------------------
 
     def _emit(self, type_: str, status: str, **fields: Any) -> Event:
+        if self.detached:  # the process is stopping; the stored stream stays as it was
+            return {"type": type_, "status": status, "seq": self.seq}
         if self.ended:
             raise StreamError(f"{type_} after turn_end")
         if self.seq == 0 and type_ != "turn_start":

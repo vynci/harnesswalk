@@ -23,6 +23,8 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+import jsonschema
+
 from harnesswalk import diagram
 from harnesswalk.context.memory_writer import run_memory_writer
 from harnesswalk.context.stores.session import SessionForbidden
@@ -47,6 +49,7 @@ EXIT_FOR_REASON = {
     "budget_tokens": "limit",
     "budget_usd": "limit",
     "timeout": "limit",
+    "budget_tool_calls": "limit",
     "interrupted": "cancelled",
 }
 
@@ -73,6 +76,8 @@ class TurnRequest:
     api_key: str | None = field(default=None, repr=False)  # BYO key: this turn only
     provider: str | None = None  # dev mode only: run this turn on one provider
     fixture: str | None = None  # dev mode only: the fake provider's fixture for this turn
+    output_schema: dict[str, Any] | None = None  # a structured reply (output guardrails check it)
+    model: str | None = None  # dev mode only: a router alias hint
 
 
 @dataclass
@@ -84,6 +89,7 @@ class TurnState:
     reply: str = ""
     exit: str = ""
     replied: bool = False  # the reply phase closed: a cancel has nothing left to stop
+    cost: dict[str, Any] | None = None  # the receipt total, for the budget ledger
     recorded: bool = False  # the session holds this turn: a later failure must not rewrite it
     finished_at: float | None = None  # monotonic time the turn ended, for eviction
 
@@ -149,7 +155,17 @@ class Gateway:
             )
 
     def _validate_provider(self, req: TurnRequest) -> None:
-        """Per-turn `provider` and `fixture`: dev mode only (http_api.md, POST /v1/turns)."""
+        """Per-turn `provider`, `fixture` and `model`: dev mode only (http_api.md)."""
+        if req.model is not None:
+            if self.h.settings.mode != "dev":
+                raise GatewayError(400, "invalid_request", "model can only be chosen in dev mode")
+            if req.model not in self.h.settings.get("models.models", {}):
+                raise GatewayError(400, "invalid_request", f"unknown model alias {req.model!r}")
+        if req.output_schema is not None:
+            try:
+                jsonschema.Draft202012Validator.check_schema(req.output_schema)
+            except jsonschema.SchemaError as exc:
+                raise GatewayError(400, "invalid_request", "output_schema is not valid") from exc
         if req.provider is None and req.fixture is None:
             return
         if self.h.settings.mode != "dev":
@@ -232,6 +248,8 @@ class Gateway:
             identity=req.identity,
             disabled_nodes=frozenset(req.disabled_nodes),
             providers=turn_providers,
+            model_hint=req.model,
+            budget=self.h.budgets.for_turn(tenant),
         )
         state = TurnState(ctx=ctx, request=req)
         self.evict_finished()
@@ -250,6 +268,10 @@ class Gateway:
             start["provider"] = next(iter(turn_providers))
         if req.fixture is not None:
             start["fixture"] = req.fixture
+        if req.disabled_nodes:
+            start["disabled"] = list(req.disabled_nodes)
+        if req.model is not None:
+            start["model_hint"] = req.model
         emitter.turn_start(start)
         state.task = asyncio.create_task(self.run_turn(state, remaining))
         return state
@@ -259,7 +281,6 @@ class Gateway:
     async def run_turn(self, state: TurnState, rate_remaining: int | None = None) -> None:
         ctx, req, h = state.ctx, state.request, self.h
         emit = ctx.emit
-        exit_, steps, reply, user_text = "answered", 0, "", None
         try:
             async with node(ctx, "gateway") as span:
                 span.set(
@@ -271,80 +292,324 @@ class Gateway:
             emit.edge("gateway_to_input_guardrails")
             guard = await h.input_guardrails.run(ctx, req.message)
             if guard.action == "block":
-                exit_ = "blocked"
                 why = guard.reason or "it was blocked"
                 reply = f"I can't take this message: {why}. Please shorten or rephrase it."
-            else:
-                user_text = guard.text
-                notice = h.loop.notices.get("error", "Something went wrong.")
-                try:
-                    emit.edge("input_guardrails_to_context_builder")
-                    assembled = await h.context_builder.build(ctx, user_text)
-                    emit.edge("context_builder_to_loop")
-                    result = await h.loop.run(
-                        ctx,
-                        assembled.messages,
-                        h.tools.schemas(ctx.mode),
-                        Limits.from_config(h.settings.get("loop", {})),
-                        api_key=req.api_key,
-                    )
-                    answer, steps = result.answer.text, result.steps
-                    exit_ = EXIT_FOR_REASON[result.exit_reason]
-                except Exception:
-                    # A downstream node failed and closed its own span: answer with a notice.
-                    if emit.stack:
-                        raise
-                    answer, exit_ = notice, "error"
-                try:
-                    emit.edge("loop_to_output_guardrails")
-                    checked = await h.output_guardrails.run(ctx, answer)
-                    if checked.action == "block":
-                        exit_ = "blocked"
-                    reply = checked.text
-                except Exception:
-                    if emit.stack:
-                        raise
-                    reply, exit_ = notice, "error"
-                emit.edge("output_guardrails_to_gateway")
-
-            full_reply, reply = reply, cap_reply(reply)
-            async with node(ctx, "gateway") as span:
-                span.set(phase="reply", channel=req.channel, reply_chars=len(reply))
-                size = int(self.cfg.get("stream_reply_chars", 0))
-                if size > 0:
-                    for index, start in enumerate(range(0, len(reply), size)):
-                        emit.point(
-                            "message_delta",
-                            "gateway",
-                            "active",
-                            {"delta": reply[start : start + size], "index": index},
-                        )
-            state.replied = True
-            h.session.append_turn(ctx, "gateway", user_text, reply, exit_)
-            state.recorded = True
-            await run_memory_writer(ctx, [])
-            receipt = await run_trace_node(ctx, h.tracer)
-            emit.turn_end(
-                "done",
-                {"exit": exit_, "steps": steps, "reply": reply},
-                cost=receipt["total"],
-                # A truncated reply points at the full text in the trace (events.md rule 12).
-                detail={"reply": full_reply} if full_reply != reply else None,
-            )
+                await self._reply_and_close(state, reply, "blocked", 0, None)
+                return
+            user_text = guard.text
+            notice = h.loop.notices.get("error", "Something went wrong.")
+            chunks: list[dict[str, Any]] = []
+            try:
+                emit.edge("input_guardrails_to_context_builder")
+                assembled = await h.context_builder.build(ctx, user_text)
+                # The context builder lists the knowledge chunks it put in context (P3 seam).
+                chunks = list(getattr(assembled, "knowledge_chunks", None) or [])
+                emit.edge("context_builder_to_loop")
+                result = await h.loop.run(
+                    ctx,
+                    assembled.messages,
+                    h.tools.schemas(ctx.mode),
+                    Limits.from_config(h.settings.get("loop", {}), ctx.budget),
+                    api_key=req.api_key,
+                )
+                answer, steps = result.answer.text, result.steps
+                exit_ = EXIT_FOR_REASON[result.exit_reason]
+            except Exception:
+                # A downstream node failed and closed its own span: answer with a notice.
+                if emit.stack:
+                    raise
+                answer, exit_, steps = notice, "error", 0
+            await self._check_and_reply(state, answer, exit_, steps, user_text, chunks)
         except asyncio.CancelledError:
-            exit_ = "cancelled"
+            state.exit = "cancelled"
             self._close_after_failure(state, "cancelled", "The turn was cancelled.")
         except Exception as exc:  # anything unexpected still ends the turn properly
-            exit_ = "error"
+            state.exit = "error"
             self._close_after_failure(state, "internal", f"{type(exc).__name__}: {exc}")
         finally:
-            state.reply, state.exit = reply, exit_
-            req.api_key = None  # a BYO key lives for this turn only
-            self._open_sessions.pop(ctx.session_id, None)
-            state.finished_at = self._clock()
-            self._finished[ctx.turn_id] = state.finished_at
-            state.done.set()
-            self.evict_finished()
+            self._finish(state)
+
+    async def _check_and_reply(
+        self,
+        state: TurnState,
+        answer: str,
+        exit_: str,
+        steps: int,
+        user_text: str | None,
+        chunks: list[dict[str, Any]],
+    ) -> None:
+        """Output guardrails on the answer, then the reply. The tail every turn shares."""
+        ctx, h = state.ctx, self.h
+        notice = h.loop.notices.get("error", "Something went wrong.")
+        try:
+            ctx.emit.edge("loop_to_output_guardrails")
+            checked = await h.output_guardrails.run(
+                ctx, answer, state.request.output_schema, chunks
+            )
+            if checked.action == "block":
+                exit_ = "blocked"
+            reply = checked.text
+        except Exception:
+            if ctx.emit.stack:
+                raise
+            reply, exit_ = notice, "error"
+        ctx.emit.edge("output_guardrails_to_gateway")
+        await self._reply_and_close(state, reply, exit_, steps, user_text)
+
+    async def _reply_and_close(
+        self, state: TurnState, reply: str, exit_: str, steps: int, user_text: str | None
+    ) -> None:
+        """The reply span (with message_delta), the session record, memory writer, trace."""
+        ctx, h, emit = state.ctx, self.h, state.ctx.emit
+        req = state.request
+        state.exit = exit_
+        full_reply, reply = reply, cap_reply(reply)
+        async with node(ctx, "gateway") as span:
+            span.set(phase="reply", channel=req.channel, reply_chars=len(reply))
+            size = int(self.cfg.get("stream_reply_chars", 0))
+            if size > 0:
+                for index, start in enumerate(range(0, len(reply), size)):
+                    emit.point(
+                        "message_delta",
+                        "gateway",
+                        "active",
+                        {"delta": reply[start : start + size], "index": index},
+                    )
+        state.replied = True
+        state.reply = reply
+        # The session keeps what the model saw: placeholders, not the restored values.
+        stored = reply
+        vault = ctx.pii_vault
+        if vault is not None and len(vault):
+            stored = self._reredact(reply, vault)
+        h.session.append_turn(ctx, "gateway", user_text, stored, exit_)
+        state.recorded = True
+        await run_memory_writer(ctx, [])
+        receipt = await run_trace_node(ctx, h.tracer)
+        state.cost = receipt["total"]
+        emit.turn_end(
+            "done",
+            {"exit": exit_, "steps": steps, "reply": reply},
+            cost=receipt["total"],
+            # A truncated reply points at the full text in the trace (events.md rule 12).
+            detail={"reply": full_reply} if full_reply != reply else None,
+        )
+
+    @staticmethod
+    def _reredact(text: str, vault: Any) -> str:
+        for (_, value), token in vault.by_value.items():
+            text = text.replace(value, token)
+        return text
+
+    def _finish(self, state: TurnState) -> None:
+        """Bookkeeping when a turn's task ends, however it ended."""
+        ctx, req = state.ctx, state.request
+        req.api_key = None  # a BYO key lives for this turn only
+        ctx.pii_vault = None  # the placeholders' values live for this turn only
+        if not ctx.detached:
+            with contextlib.suppress(Exception):
+                cost = state.cost or self.h.tracer.receipt(ctx.tenant_id, ctx.turn_id)["total"]
+                calls = ctx.budget.tool_calls if ctx.budget is not None else 0
+                tokens = cost["input_tokens"] + cost["output_tokens"]
+                self.h.budgets.record(ctx.tenant_id, ctx.turn_id, tokens, cost["usd"], calls)
+        self.h.sandbox.end_turn(ctx)
+        self._open_sessions.pop(ctx.session_id, None)
+        state.finished_at = self._clock()
+        self._finished[ctx.turn_id] = state.finished_at
+        state.done.set()
+        self.evict_finished()
+
+    # -- recovery after a restart (approval_queue.md, P3 additions) ---------------------------
+
+    def recover(self) -> dict[str, list[str]]:
+        """Re-attach turns paused on an approval; close every other unfinished turn.
+
+        Runs once at start-up, on the event loop, before the server takes requests. Returns the
+        turn ids it resumed and closed, for the start-up log and the tests.
+        """
+        out: dict[str, list[str]] = {"resumed": [], "closed": []}
+        for tenant_id, turn_id in self.h.tracer.unfinished_turns():
+            if turn_id in self.turns:
+                continue
+            events = self.h.tracer.get_turn(tenant_id, turn_id)
+            if not events:
+                continue
+            try:
+                resumed = self._reattach(events)
+            except Exception:  # anything odd about the stored turn: close it instead
+                resumed = False
+            if resumed:
+                out["resumed"].append(turn_id)
+            else:
+                self._close_orphan(events)
+                out["closed"].append(turn_id)
+        return out
+
+    def _restored_ctx(self, events: list[dict[str, Any]], *, validate: bool = True) -> TurnContext:
+        start = events[0]
+        summary = start.get("summary") or {}
+        tenant, trace_id = start["tenant_id"], start["trace_id"]
+        capture = bool(self.h.settings.get("trace.capture_content", True))
+        emitter = TurnEmitter.restore(
+            events,
+            bus=self.h.bus,
+            validate=validate and bool(self.h.settings.get("trace.validate_events", True)),
+            detail_sink=(
+                (lambda event_id, rec: self.h.tracer.put_detail(tenant, trace_id, event_id, rec))
+                if capture
+                else None
+            ),
+        )
+        mode = self.h.settings.mode
+        identity = Identity(tenant, None, ["user"], anonymous=mode == "public")
+        ctx = TurnContext(
+            tenant_id=tenant,
+            session_id=start["session_id"],
+            turn_id=start["turn_id"],
+            trace_id=trace_id,
+            user_id=None,
+            mode=mode,  # type: ignore[arg-type]
+            emit=emitter,
+            turn_index=int(summary.get("turn_index") or 0),
+            identity=identity,
+            disabled_nodes=frozenset(summary.get("disabled") or []),
+            model_hint=summary.get("model_hint"),
+        )
+        model_exits = [
+            e for e in events if e["type"] == "node_exit" and e.get("node_id") == "model_layer"
+        ]
+        ctx.model_calls = len(model_exits)
+        ctx.calls_issued = sum(
+            int((e.get("summary") or {}).get("tool_calls", 0)) for e in model_exits
+        )
+        return ctx
+
+    def _reattach(self, events: list[dict[str, Any]]) -> bool:
+        from harnesswalk.turns import summarize
+
+        h = self.h
+        view = summarize(events)
+        if not view or view["paused_at_node"] != "approval" or not view["pending_approval_id"]:
+            return False
+        ctx = self._restored_ctx(events)
+        if [s.node_id for s in ctx.emit.stack] != ["loop", "tools", "approval"]:
+            return False
+        record = h.approvals.get(view["pending_approval_id"], ctx.tenant_id)
+        checkpoint = h.session.last_checkpoint(ctx.tenant_id, ctx.turn_id)
+        if not checkpoint or not checkpoint.get("pending_call"):
+            return False
+        summary = events[0].get("summary") or {}
+        provider, fixture = summary.get("provider"), summary.get("fixture")
+        if provider is not None or fixture is not None:
+            ctx.providers = h.turn_providers(provider, fixture)
+            fake = ctx.providers.get("fake")
+            if fixture is not None and fake is not None:
+                fake.resume_turn(  # type: ignore[attr-defined]
+                    ctx.tenant_id, ctx.session_id, ctx.turn_id, self._fixture_index(ctx, fixture)
+                )
+        ctx.budget = h.budgets.for_turn(ctx.tenant_id)
+        user_text = next(
+            (m["content"] for m in reversed(checkpoint["messages"]) if m["role"] == "user"), None
+        )
+        request = TurnRequest(
+            message=user_text or "",
+            identity=ctx.identity,  # type: ignore[arg-type]
+            session_id=ctx.session_id,
+            channel=summary.get("channel", "web"),
+            provider=provider,
+            fixture=fixture,
+        )
+        state = TurnState(ctx=ctx, request=request)
+        self.turns[ctx.turn_id] = state
+        self._open_sessions[ctx.session_id] = ctx.turn_id
+        state.task = asyncio.create_task(self._resume(state, record, checkpoint, user_text))
+        return True
+
+    def _fixture_index(self, ctx: TurnContext, fixture: str) -> int:
+        """Where this turn sits among the session's turns on the same per-turn fixture."""
+        index = 0
+        for turn_id in self.h.tracer.session_turn_ids(ctx.tenant_id, ctx.session_id, 200):
+            first = self.h.tracer.get_turn(ctx.tenant_id, turn_id, -1)[:1]
+            summary = (first[0].get("summary") or {}) if first else {}
+            if summary.get("fixture") == fixture and int(summary.get("turn_index") or 0) < (
+                ctx.turn_index
+            ):
+                index += 1
+        return index
+
+    async def _resume(
+        self,
+        state: TurnState,
+        record: dict[str, Any],
+        checkpoint: dict[str, Any],
+        user_text: str | None,
+    ) -> None:
+        """The rest of a turn re-attached after a restart, from the approval decision on."""
+        from harnesswalk.nodes import fail_span
+        from harnesswalk.types import ToolCall
+
+        ctx, h = state.ctx, self.h
+        notice = h.loop.notices.get("error", "Something went wrong.")
+        try:
+            loop_span, tools_span, approval_span = ctx.emit.stack
+            call = ToolCall(**checkpoint["pending_call"])
+            steps = int(checkpoint.get("step", 0))
+            try:
+                try:
+                    decided = await h.approvals.resume_wait(ctx, approval_span, record)
+                except BaseException as exc:
+                    fail_span(ctx, approval_span, exc)
+                    raise
+                ctx.emit.exit(approval_span)
+                try:
+                    observation = await h.tools.finish_after_approval(
+                        ctx, tools_span, call, decided
+                    )
+                except BaseException as exc:
+                    fail_span(ctx, tools_span, exc)
+                    raise
+                ctx.emit.edge("tools_to_loop")
+                limits = Limits.from_config(h.settings.get("loop", {}), ctx.budget)
+                result = await h.loop.resume(
+                    ctx, loop_span, checkpoint, observation, h.tools.schemas(ctx.mode), limits
+                )
+                answer, steps = result.answer.text, result.steps
+                exit_ = EXIT_FOR_REASON[result.exit_reason]
+            except Exception:
+                if ctx.emit.stack:
+                    raise
+                answer, exit_ = notice, "error"
+            await self._check_and_reply(state, answer, exit_, steps, user_text, [])
+        except asyncio.CancelledError:
+            state.exit = "cancelled"
+            self._close_after_failure(state, "cancelled", "The turn was cancelled.")
+        except Exception as exc:
+            state.exit = "error"
+            self._close_after_failure(state, "internal", f"{type(exc).__name__}: {exc}")
+        finally:
+            self._finish(state)
+
+    def _close_orphan(self, events: list[dict[str, Any]]) -> None:
+        """A turn the restart cut off: close its spans, end it, record it, expire approvals."""
+        ctx = self._restored_ctx(events)
+        emit = ctx.emit
+        message = "The harness restarted while this turn was running."
+        for span in reversed(list(emit.stack)):
+            emit.fail(span, "restarted", message)
+        emit.turn_error("restarted", message)
+        cost = Usage().cost()
+        with contextlib.suppress(Exception):
+            cost = self.h.tracer.receipt(ctx.tenant_id, ctx.turn_id)["total"]
+        if self.h.session.turn_at(ctx.tenant_id, ctx.session_id, ctx.turn_index) is None:
+            with contextlib.suppress(Exception):  # keeps turn_index unique after the restart
+                self.h.session.append_turn(ctx, "gateway", None, "", "error")
+        for record in self.h.approvals.for_turn(ctx.tenant_id, ctx.turn_id):
+            if record["status"] == "pending":
+                with contextlib.suppress(Exception):
+                    self.h.approvals.decide(
+                        record["approval_id"], ctx.tenant_id, "system", "expired", "restarted"
+                    )
+        emit.turn_end("error", {"exit": "error", "reply": ""}, cost=cost)
 
     def evict_finished(self) -> int:
         """Drop the state of finished turns past the TTL or over the cap. Returns how many."""
@@ -363,7 +628,7 @@ class Gateway:
     def _close_after_failure(self, state: TurnState, code: str, message: str) -> None:
         ctx = state.ctx
         emit = ctx.emit
-        if emit.ended:
+        if emit.ended or ctx.detached:  # a detached turn is left for recovery to finish
             return
         for span in reversed(list(emit.stack)):
             emit.fail(span, code, message)
@@ -436,8 +701,14 @@ class Gateway:
         return state
 
     async def shutdown(self) -> None:
+        """Stop every turn task. A turn waiting on an approval is detached, not cancelled: its
+        stream stays as stored and its record stays pending, so the next boot resumes it."""
+        waiting = self.h.approvals.waiting_turns()
         for state in list(self.turns.values()):  # a finishing turn may evict others
             if state.task and not state.task.done():
+                if state.ctx.turn_id in waiting:
+                    state.ctx.detached = True
+                    state.ctx.emit.detached = True
                 state.task.cancel()
                 with contextlib.suppress(asyncio.CancelledError, Exception):
                     await state.task

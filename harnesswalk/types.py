@@ -14,8 +14,8 @@ if TYPE_CHECKING:
     from harnesswalk.events import TurnEmitter
 
 Mode = Literal["dev", "public", "private"]
-ActionClass = Literal["read", "write", "destructive", "external"]
-ACTION_CLASSES = ("read", "write", "destructive", "external")
+ActionClass = Literal["read", "write", "destructive", "external", "memory.write"]
+ACTION_CLASSES = ("read", "write", "destructive", "external", "memory.write")
 
 
 class HarnessError(Exception):
@@ -43,6 +43,7 @@ class Observation:
     call_id: str
     outcome: Literal["ok", "denied", "error", "timeout"]
     content: str
+    limit: str | None = None  # a loop exit this observation forces (budget_tool_calls)
 
 
 @dataclass
@@ -143,6 +144,12 @@ class TurnContext:
     # Per-turn provider choice (dev mode, http_api.md `provider` and `fixture`): the only
     # providers this turn may use. None means the harness's configured providers.
     providers: dict[str, Any] | None = None
+    # This turn's PII placeholders (control/pii.py Vault). Memory only, never serialized.
+    pii_vault: Any = field(default=None, repr=False)
+    model_calls: int = 0  # completed model_layer calls this turn (the fake provider's cursor)
+    model_hint: str | None = None  # a router alias hint (dev mode, http_api.md P3)
+    budget: Any = None  # control/budgets.py TurnBudget: the tenant's limits and usage
+    detached: bool = False  # the process is shutting down and leaves this turn to recovery
 
     def __post_init__(self) -> None:
         if not self.tenant_id:

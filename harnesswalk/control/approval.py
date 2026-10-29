@@ -7,7 +7,11 @@ Inside the `approval` span: persist the request, let the loop checkpoint, emit
 `POST /v1/approvals/{id}` decides; expiry after `approval.timeout_s` counts as a deny with
 decision `expired`. A record is decided at most once.
 
-What P1 does not do yet (P3): resume a pending approval after a process restart.
+Restart (P3): the record, the checkpoint and the events up to `node_paused` are durable before
+the turn waits, so after a restart the gateway re-attaches the turn and calls `wait` again with
+the restored `approval` span (`resume_wait`). `sweep_expired` decides every pending record past
+`expires_at` as `expired` and wakes its waiter; the server runs it every `approval.sweep_s`.
+A graceful shutdown leaves a waiting record `pending` (the turn is detached, not cancelled).
 """
 
 from __future__ import annotations
@@ -20,7 +24,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from harnesswalk.adapters.storage.sqlite import Database
-from harnesswalk.events import TurnCancelled, iso, uuid7
+from harnesswalk.events import TurnCancelled, iso, parse_iso, uuid7
 from harnesswalk.nodes import node, register
 from harnesswalk.types import ToolCall, TurnContext
 
@@ -174,9 +178,7 @@ class ApprovalQueue:
             if before_pause:
                 before_pause()  # the loop checkpoints with the pending call
             # Wait from here on, so a decision that arrives right after the event is not lost.
-            waiter: asyncio.Future[ApprovalDecision] = asyncio.get_running_loop().create_future()
-            self._waiters[approval_id] = waiter
-            self._waiter_turns[approval_id] = ctx.turn_id
+            self._register(approval_id, ctx.turn_id)
             ctx.emit.point(
                 "approval_requested",
                 "approval",
@@ -196,37 +198,110 @@ class ApprovalQueue:
                 "waiting",
                 {"reason": "approval", "approval_id": approval_id},
             )
-            started = time.monotonic()
-            try:
-                decided = await asyncio.wait_for(asyncio.shield(waiter), self.timeout_s)
-            except TimeoutError:
-                with contextlib.suppress(ApprovalAlreadyDecided):  # a human may win the race
-                    self.decide(
-                        approval_id, ctx.tenant_id, "system", "expired", "approval timed out"
-                    )
-                decided = waiter.result()
-            except asyncio.CancelledError:
+            decided = await self.wait(ctx, span, approval_id, self.timeout_s)
+        return decided
+
+    async def wait(
+        self, ctx: TurnContext, span: Any, approval_id: str, timeout_s: float
+    ) -> ApprovalDecision:
+        """Wait for the decision inside the open `approval` span and report it.
+
+        The waiter must already be registered (`request` does it before the events; a resumed
+        turn does it through `resume_wait`). Emits `approval_decided` and `node_resumed` and
+        fills the span's exit summary; the caller closes the span.
+        """
+        waiter = self._waiters[approval_id]
+        started = time.monotonic()
+        try:
+            decided = await asyncio.wait_for(asyncio.shield(waiter), max(0.0, timeout_s))
+        except TimeoutError:
+            with contextlib.suppress(ApprovalAlreadyDecided):  # a human may win the race
+                self.decide(approval_id, ctx.tenant_id, "system", "expired", "approval timed out")
+            decided = waiter.result()
+        except asyncio.CancelledError:
+            if not ctx.detached:  # a shutdown leaves the record pending for the next boot
                 with contextlib.suppress(ApprovalAlreadyDecided):
                     self.decide(approval_id, ctx.tenant_id, "system", "expired", "turn cancelled")
-                raise
-            finally:
-                waited = time.monotonic() - started
-                ctx.emit.paused_s += waited
-                self._waiters.pop(approval_id, None)
-                self._waiter_turns.pop(approval_id, None)
-            point: dict[str, Any] = {"approval_id": approval_id, "decision": decided.decision}
-            if decided.decided_by:
-                point["decided_by"] = decided.decided_by
-            if decided.reason:
-                point["reason"] = decided.reason[:200]
-            ctx.emit.point("approval_decided", "approval", "done", point)
-            ctx.emit.point(
-                "node_resumed",
-                "approval",
-                "active",
-                {"reason": "approval", "approval_id": approval_id},
-            )
-            span.set(
-                approval_id=approval_id, decision=decided.decision, waited_ms=round(waited * 1000)
-            )
+            raise
+        finally:
+            waited = time.monotonic() - started
+            ctx.emit.paused_s += waited
+            self._waiters.pop(approval_id, None)
+            self._waiter_turns.pop(approval_id, None)
+        point: dict[str, Any] = {"approval_id": approval_id, "decision": decided.decision}
+        if decided.decided_by:
+            point["decided_by"] = decided.decided_by
+        if decided.reason:
+            point["reason"] = decided.reason[:200]
+        ctx.emit.point("approval_decided", "approval", "done", point)
+        ctx.emit.point(
+            "node_resumed",
+            "approval",
+            "active",
+            {"reason": "approval", "approval_id": approval_id},
+        )
+        span.set(approval_id=approval_id, decision=decided.decision, waited_ms=round(waited * 1000))
         return decided
+
+    def _register(self, approval_id: str, turn_id: str) -> asyncio.Future[ApprovalDecision]:
+        waiter: asyncio.Future[ApprovalDecision] = asyncio.get_running_loop().create_future()
+        self._waiters[approval_id] = waiter
+        self._waiter_turns[approval_id] = turn_id
+        return waiter
+
+    def waiting_turns(self) -> set[str]:
+        """Turns that wait on an approval in this process right now."""
+        return {t for a, t in self._waiter_turns.items() if not self._waiters[a].done()}
+
+    async def resume_wait(
+        self, ctx: TurnContext, span: Any, record: dict[str, Any]
+    ) -> ApprovalDecision:
+        """A turn re-attached after a restart: wait again on its persisted record.
+
+        A record that is no longer pending (expired by the sweeper meanwhile) resolves at once
+        with its decision. Otherwise the wait lasts until `expires_at`.
+        """
+        approval_id = record["approval_id"]
+        waiter = self._register(approval_id, ctx.turn_id)
+        status = record["status"]
+        if status != "pending":
+            decision = {"approved": "approve", "denied": "deny"}.get(status, "expired")
+            waiter.set_result(
+                ApprovalDecision(
+                    approval_id, decision, record.get("decided_by"), record.get("decision_reason")
+                )
+            )
+        left = parse_iso(record["expires_at"]) - time.time()
+        return await self.wait(ctx, span, approval_id, left)
+
+    def sweep_expired(self, now: float | None = None) -> int:
+        """Decide every pending record past `expires_at` as `expired`. Returns how many."""
+        stamp = iso(now if now is not None else time.time())
+        rows = self.db.query(
+            "SELECT approval_id, tenant_id FROM approvals WHERE status = 'pending'"
+            " AND expires_at < ?",
+            (stamp,),
+        )
+        expired = 0
+        for r in rows:
+            with contextlib.suppress(ApprovalAlreadyDecided, ApprovalNotFound):
+                self.decide(
+                    r["approval_id"], r["tenant_id"], "system", "expired", "approval expired"
+                )
+                expired += 1
+        return expired
+
+    def pending_all(self) -> list[dict[str, Any]]:
+        """Every pending record, any tenant. Recovery at boot only."""
+        rows = self.db.query(
+            "SELECT approval_id, tenant_id FROM approvals WHERE status = 'pending'"
+        )
+        return [self.get(r["approval_id"], r["tenant_id"]) for r in rows]
+
+    def for_turn(self, tenant_id: str, turn_id: str) -> list[dict[str, Any]]:
+        rows = self.db.query(
+            "SELECT approval_id FROM approvals WHERE tenant_id = ? AND turn_id = ?"
+            " ORDER BY requested_at",
+            (tenant_id, turn_id),
+        )
+        return [self.get(r["approval_id"], tenant_id) for r in rows]

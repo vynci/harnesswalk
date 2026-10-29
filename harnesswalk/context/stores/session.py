@@ -121,6 +121,14 @@ class SessionStore:
         )
         return int(row["n"]) if row else 0
 
+    def turn_at(self, tenant_id: str, session_id: str, turn_index: int) -> str | None:
+        """The turn id recorded at this index of the session, or None."""
+        row = self.db.one(
+            "SELECT turn_id FROM turns WHERE tenant_id = ? AND session_id = ? AND turn_index = ?",
+            (tenant_id, session_id, turn_index),
+        )
+        return row["turn_id"] if row else None
+
     def append_turn(
         self, ctx: TurnContext, writer: str, user: str | None, reply: str, exit_: str
     ) -> None:
