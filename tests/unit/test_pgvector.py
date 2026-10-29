@@ -20,7 +20,7 @@ pytestmark = pytest.mark.skipif(
 @pytest.fixture
 def pg():
     table = "hw_test_" + uuid.uuid4().hex[:8]
-    index = PgVectors(postgres_dsn(os.environ), table=table)
+    index = PgVectors(postgres_dsn(os.environ), table=table, space="test")
     yield index
     with index.conn.cursor() as cur:
         cur.execute(f"DROP TABLE IF EXISTS {table}")
@@ -62,4 +62,5 @@ async def test_a_turn_on_pgvector(tmp_path: Path) -> None:
         assert exits(events, "knowledge")[0]["summary"]["docs"] == ["returns_policy"]
         assert events[-1]["summary"]["citations"][0]["doc"] == "returns_policy"
     finally:
+        h.vectors.drop_space()
         await h.aclose()

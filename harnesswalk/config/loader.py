@@ -186,6 +186,8 @@ def load_settings(
     data["mode"] = mode
     if env.get("HARNESSWALK_DATASET"):
         data["dataset"] = env["HARNESSWALK_DATASET"]
+    if env.get("HARNESSWALK_VECTORS"):
+        set_dotted(data, "storage.vectors", env["HARNESSWALK_VECTORS"])
     if env.get("HARNESSWALK_OLLAMA_URL"):
         set_dotted(data, "models.providers.ollama.base_url", env["HARNESSWALK_OLLAMA_URL"])
     if fixture:
