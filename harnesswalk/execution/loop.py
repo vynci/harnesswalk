@@ -13,6 +13,7 @@ Contract: spec/contracts/loop.md. Node: `loop` (execution plane, kind code).
       ask the model layer (tools enabled)
       no tool calls -> exit "answer"
       for each tool call, in order:
+        exit "interrupted" if someone interrupted the turn meanwhile
         exit "stuck" if this exact (name, arguments) already ran stuck_repeats times
         run it through `tools` (policy, approval and sandbox happen in there)
       checkpoint the step to the session store
@@ -46,6 +47,11 @@ DEFAULT_NOTICES = {
     "interrupted": "I stopped because the turn was interrupted.",
     "max_steps": "I stopped after the maximum number of steps.",
     "stuck": "I stopped because I was repeating the same tool call.",
+}
+
+NOT_RUN = {
+    "stuck": "Not run: the same call was repeated without progress.",
+    "interrupted": "Not run: the turn was cancelled.",
 }
 
 
@@ -162,13 +168,16 @@ class Loop:
                     break
                 for i, call in enumerate(response.tool_calls):
                     key = call_key(call.name, call.arguments)
-                    if seen[key] >= limits.stuck_repeats:
+                    if ctx.interrupted:  # a cancel arrived during the model call
+                        exit_reason = "interrupted"
+                    elif seen[key] >= limits.stuck_repeats:
                         exit_reason = "stuck"
+                    if exit_reason:
                         for skipped in response.tool_calls[i:]:  # every call needs a result
                             messages.append(
                                 Message(
                                     "tool",
-                                    "Not run: the same call was repeated without progress.",
+                                    NOT_RUN[exit_reason],
                                     name=skipped.name,
                                     tool_call_id=skipped.call_id,
                                 )

@@ -102,17 +102,29 @@ class NotPaused(Exception):
     """resume was called while the turn is not at a breakpoint."""
 
 
+class TurnCancelled(asyncio.CancelledError):
+    """The caller cancelled the turn (POST /v1/turns/{id}/cancel) while it was paused.
+
+    Raised at a breakpoint or an approval wait. It is a CancelledError on purpose: no
+    `except Exception` on the way up can mistake it for a tool or provider failure, and every
+    span it crosses closes with `error` code `cancelled` (events.md rule 8).
+    """
+
+
 class Breakpoints:
-    """Step mode: pause after every node_enter until someone calls `resume`."""
+    """Step mode: pause after every node_enter until someone calls `resume` or `cancel`."""
 
     def __init__(self, enabled: bool) -> None:
         self.enabled = enabled
         self.paused_node: str | None = None
+        self.cancelled = False
         self._release = asyncio.Event()
 
     async def hit(self, emitter: TurnEmitter, node_id: str) -> None:
         if not self.enabled:
             return
+        if self.cancelled:  # cancelled while running: the next breakpoint stops the turn
+            raise TurnCancelled()
         emitter.point("node_paused", node_id, "waiting", {"reason": "breakpoint"})
         self.paused_node = node_id
         self._release.clear()
@@ -122,7 +134,17 @@ class Breakpoints:
         finally:
             emitter.paused_s += time.monotonic() - started
             self.paused_node = None
+        if self.cancelled:  # no node_resumed: the paused span closes with error instead
+            raise TurnCancelled()
         emitter.point("node_resumed", node_id, "active", {"reason": "breakpoint"})
+
+    def cancel(self) -> bool:
+        """Stop at the current breakpoint, or at the next one. True when it was paused."""
+        was_paused = self.paused_node is not None
+        self.cancelled = True
+        self.paused_node = None
+        self._release.set()
+        return was_paused
 
     def resume(self, mode: str) -> str:
         """Release the current breakpoint. `continue` clears all breakpoints for the turn."""
@@ -275,7 +297,9 @@ class TurnEmitter:
         except BaseException as exc:  # cancelled while paused: close this span first
             cancelled = isinstance(exc, asyncio.CancelledError)
             self.fail(
-                span, "cancelled" if cancelled else "internal", "The turn stopped while paused."
+                span,
+                "cancelled" if cancelled else "internal",
+                "The turn was cancelled." if cancelled else "The turn stopped while paused.",
             )
             raise
         return span

@@ -317,12 +317,22 @@ class Gateway:
                 409, "turn_not_paused", f"Turn {turn_id} is not at a breakpoint."
             ) from exc
 
-    def cancel(self, tenant_id: str, turn_id: str) -> None:
+    def cancel(self, tenant_id: str, turn_id: str) -> TurnState:
+        """Ask a turn to stop (http_api.md, cancel). Idempotent until the turn ends.
+
+        Running: the flag stops the loop at its next step boundary (exit `interrupted`, a
+        notice reply). Paused, or at the next breakpoint or approval: TurnCancelled closes
+        every open span with `error` `cancelled`. Either way the turn ends on its own task.
+        """
         state = self.get(tenant_id, turn_id)
         if state is None:
             raise GatewayError(404, "turn_not_found", f"No turn {turn_id} for this tenant.")
-        if state.task and not state.task.done():
-            state.task.cancel()
+        if state.done.is_set():
+            raise GatewayError(409, "turn_finished", f"Turn {turn_id} has already ended.")
+        state.ctx.interrupted = True
+        state.ctx.emit.breakpoints.cancel()
+        self.h.approvals.cancel_turn(turn_id)
+        return state
 
     async def wait(self, turn_id: str, timeout: float | None = None) -> TurnState:
         state = self.turns[turn_id]

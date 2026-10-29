@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from harnesswalk.adapters.storage.sqlite import Database
-from harnesswalk.events import iso, uuid7
+from harnesswalk.events import TurnCancelled, iso, uuid7
 from harnesswalk.nodes import node, register
 from harnesswalk.types import ToolCall, TurnContext
 
@@ -68,6 +68,7 @@ class ApprovalQueue:
         self.timeout_s = timeout_s
         self.show_args = show_args
         self._waiters: dict[str, asyncio.Future[ApprovalDecision]] = {}
+        self._waiter_turns: dict[str, str] = {}  # approval_id -> turn_id, for cancel
 
     def get(self, approval_id: str, tenant_id: str) -> dict[str, Any]:
         row = self.db.one(
@@ -113,6 +114,20 @@ class ApprovalQueue:
             "decided_at": decided_at,
         }
 
+    def cancel_turn(self, turn_id: str) -> int:
+        """Wake every approval this turn waits on with TurnCancelled. Returns how many.
+
+        The waiting span then records the approval as `expired` and closes with `error`
+        `cancelled` (approval_queue.md, "Turn cancelled while pending").
+        """
+        woken = 0
+        for approval_id, owner in list(self._waiter_turns.items()):
+            waiter = self._waiters.get(approval_id)
+            if owner == turn_id and waiter is not None and not waiter.done():
+                waiter.set_exception(TurnCancelled())
+                woken += 1
+        return woken
+
     async def request(
         self,
         ctx: TurnContext,
@@ -123,6 +138,8 @@ class ApprovalQueue:
         before_pause: Any = None,
     ) -> ApprovalDecision:
         async with node(ctx, "approval") as span:
+            if ctx.interrupted:  # cancelled on the way here: ask nobody, stop now
+                raise TurnCancelled()
             approval_id = "apr_" + uuid7().replace("-", "")[:20]
             now = time.time()
             expires_at = iso(now + self.timeout_s)
@@ -149,6 +166,7 @@ class ApprovalQueue:
             # Wait from here on, so a decision that arrives right after the event is not lost.
             waiter: asyncio.Future[ApprovalDecision] = asyncio.get_running_loop().create_future()
             self._waiters[approval_id] = waiter
+            self._waiter_turns[approval_id] = ctx.turn_id
             ctx.emit.point(
                 "approval_requested",
                 "approval",
@@ -185,6 +203,7 @@ class ApprovalQueue:
                 waited = time.monotonic() - started
                 ctx.emit.paused_s += waited
                 self._waiters.pop(approval_id, None)
+                self._waiter_turns.pop(approval_id, None)
             point: dict[str, Any] = {"approval_id": approval_id, "decision": decided.decision}
             if decided.decided_by:
                 point["decided_by"] = decided.decided_by
