@@ -282,7 +282,7 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
     @app.get("/v1/turns/{turn_id}")
     async def get_turn(request: Request, turn_id: str) -> JSONResponse:
         identity, _ = identities.resolve(request)
-        summary = turn_summary(harness, identity.tenant_id, turn_id)
+        summary = turn_summary(harness.tracer, harness.session, identity.tenant_id, turn_id)
         if summary is None:
             raise not_found(turn_id)
         return JSONResponse(summary)
@@ -293,7 +293,7 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
         tenant = identity.tenant_id
         running = gateway.get(tenant, turn_id)
         if running is None or running.done.is_set():
-            summary = turn_summary(harness, tenant, turn_id)
+            summary = turn_summary(harness.tracer, harness.session, tenant, turn_id)
             if summary is None:
                 raise not_found(turn_id)
             code, message = (
@@ -312,7 +312,9 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
             raise GatewayError(
                 400, "invalid_request", f"limit must be between 1 and {MAX_SESSION_TURNS}"
             )
-        turns = session_turns(harness, identity.tenant_id, session_id, limit)
+        turns = session_turns(
+            harness.tracer, harness.session, identity.tenant_id, session_id, limit
+        )
         if turns is None:
             raise GatewayError(
                 404, "session_not_found", f"No session {session_id} for this tenant."

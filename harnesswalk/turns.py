@@ -10,13 +10,11 @@ only thing taken from elsewhere is the user's message, which the stream never ca
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
+from harnesswalk.context.stores.session import SessionStore
 from harnesswalk.events import Event
-from harnesswalk.ops.trace import receipt_of
-
-if TYPE_CHECKING:
-    from harnesswalk.runtime import Harness
+from harnesswalk.ops.trace import Tracer, receipt_of
 
 MAX_SESSION_TURNS = 200
 
@@ -67,26 +65,28 @@ def summarize(events: list[Event], message: str | None = None) -> dict[str, Any]
     }
 
 
-def turn_summary(h: Harness, tenant_id: str, turn_id: str) -> dict[str, Any] | None:
+def turn_summary(
+    tracer: Tracer, session: SessionStore, tenant_id: str, turn_id: str
+) -> dict[str, Any] | None:
     """One turn of this tenant, or None (unknown, or another tenant's)."""
-    events = h.tracer.get_turn(tenant_id, turn_id)
+    events = tracer.get_turn(tenant_id, turn_id)
     if not events:
         return None
-    texts = h.session.user_texts(tenant_id, [turn_id])
+    texts = session.user_texts(tenant_id, [turn_id])
     return summarize(events, texts.get(turn_id))
 
 
 def session_turns(
-    h: Harness, tenant_id: str, session_id: str, limit: int = 50
+    tracer: Tracer, session: SessionStore, tenant_id: str, session_id: str, limit: int = 50
 ) -> list[dict[str, Any]] | None:
     """The session's turns, newest first. None when the session is not this tenant's."""
-    if h.session.owner(session_id) != tenant_id:
+    if session.owner(session_id) != tenant_id:
         return None
-    ids = h.tracer.session_turn_ids(tenant_id, session_id, max(1, min(limit, MAX_SESSION_TURNS)))
-    texts = h.session.user_texts(tenant_id, ids)
+    ids = tracer.session_turn_ids(tenant_id, session_id, max(1, min(limit, MAX_SESSION_TURNS)))
+    texts = session.user_texts(tenant_id, ids)
     out = []
     for turn_id in ids:
-        summary = summarize(h.tracer.get_turn(tenant_id, turn_id), texts.get(turn_id))
+        summary = summarize(tracer.get_turn(tenant_id, turn_id), texts.get(turn_id))
         if summary is not None:
             out.append(summary)
     return out
