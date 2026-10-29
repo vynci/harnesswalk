@@ -7,6 +7,7 @@ from its `source_hint`, and `recent` holds the caller's last exit summaries for 
 from __future__ import annotations
 
 import ast
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 from harnesswalk import diagram
@@ -146,12 +147,80 @@ def _inspector(h: Harness, tenant_id: str, node: dict[str, Any], recent: list[di
             return {"type": "store", "counts": h.session.count(tenant_id)}
         if node_id == "trace":
             return {"type": "store", "turns": h.tracer.list_turns(tenant_id, 5)}
+        if node_id in MEMORY_STORES or node_id == "memory":
+            return _memory_store(h, tenant_id, node_id)
         return {"type": "store", "counts": {}, "implemented": implemented(node_id)}
     last = h.context_builder.last.get(tenant_id) if node_id == "context_builder" else None
     out = {"type": "source", **_source(h, node), "last_summary": recent[0] if recent else None}
     if last is not None:
-        out["last_context"] = {"slices": last.slices, "used_tokens": last.used_tokens}
+        out["last_context"] = {
+            "slices": last.slices,
+            "used_tokens": last.used_tokens,
+            "citations": last.citations,
+        }
+    if node_id == "memory_writer":
+        w = h.memory_writer
+        out["last_writes"] = w.recent(tenant_id, 10)
+        out["pending"] = w.pending(tenant_id, 20)
+        out["settings"] = {
+            "enabled": w.enabled,
+            "gate": w.gate,
+            "gate_in_this_mode": w.gate_for(_view(tenant_id, h.settings.mode)),
+            "max_proposals_per_turn": w.max_per_turn,
+            "auto_episodes": w.auto_episodes,
+        }
     return out
+
+
+MEMORY_STORES = ("semantic", "episodic", "knowledge")
+
+
+def _view(tenant_id: str, mode: str = "dev") -> Any:
+    """The tenant scope a store read needs, outside a turn."""
+    return SimpleNamespace(
+        tenant_id=tenant_id, user_id=None, mode=mode, is_disabled=lambda _node: False
+    )
+
+
+def _memory_store(h: Harness, tenant_id: str, node_id: str) -> dict[str, Any]:
+    """Counts, the last records (tenant-scoped, pack seeds marked `scope: pack`), settings."""
+    view = _view(tenant_id, h.settings.mode)
+    enabled = node_id in h.memory.enabled() or node_id == "memory"
+    common = {"embedder": h.embedder.id, "vectors": h.vectors.backend, "enabled": enabled}
+    if node_id == "memory":
+        counts = {
+            **h.semantic.count(tenant_id),
+            **h.episodic.count(tenant_id),
+            **h.knowledge.count(tenant_id),
+        }
+        return {"type": "store", "counts": counts, "settings": {**common, "stores": [
+            "procedural", "session", *h.memory.enabled()]}}  # fmt: skip
+    if node_id == "semantic":
+        records = [f.to_dict() for f in h.semantic.list(view, 50)]
+        settings = {**common, "min_score": h.semantic.min_score}
+        return {"type": "store", "counts": h.semantic.count(tenant_id), "last_records": records,
+                "settings": settings}  # fmt: skip
+    if node_id == "episodic":
+        records = [e.to_dict() for e in h.episodic.list(view, 20)]
+        e = h.episodic
+        settings = {**common, "half_life_days": e.half_life_days, "min_relevance": e.min_relevance,
+                    "weights": {"relevance": e.w_rel, "recency": e.w_rec}}  # fmt: skip
+        return {"type": "store", "counts": e.count(tenant_id), "last_records": records,
+                "settings": settings}  # fmt: skip
+    k = h.knowledge
+    settings = {
+        **common,
+        "chunk_tokens": k.chunk_tokens,
+        "chunk_overlap": k.chunk_overlap,
+        "rrf_k": k.rrf_k,
+        "rerank_k": k.rerank_k,
+        "reranker": k.reranker,
+        "min_vector_score": k.min_vector_score,
+        "min_keyword_coverage": k.min_keyword_coverage,
+        "pack": h.pack,
+    }
+    return {"type": "store", "counts": k.count(tenant_id), "last_records": k.docs(view),
+            "settings": settings}  # fmt: skip
 
 
 def inspect_node(h: Harness, tenant_id: str, node_id: str, recent_n: int = 5) -> dict[str, Any]:
