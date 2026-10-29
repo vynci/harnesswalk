@@ -50,21 +50,21 @@ function description(call: ToolCallView, turnOver: boolean): string {
 function SandboxChip({ sandbox }: { sandbox: NonNullable<ToolCallView['sandbox']> }) {
   const parts = [
     sandbox.level,
-    sandbox.network && sandbox.network !== 'n/a' ? `network ${sandbox.network}` : null,
-    sandbox.jail && sandbox.jail !== 'none' ? `jail ${sandbox.jail}` : null,
+    sandbox.network === 'blocked' ? 'no net' : sandbox.network === 'allowed' ? 'net' : null,
+    sandbox.jail && sandbox.jail !== 'none' ? sandbox.jail : null,
   ].filter(Boolean)
   return (
     <Badge
       variant="outline"
-      className="shrink-0 gap-1 rounded-sm px-1 py-0 font-mono text-[10px] leading-4 font-normal text-muted-foreground"
+      className="min-w-0 shrink justify-start gap-1 rounded-sm px-1 py-0 font-mono text-[10px] leading-4 font-normal text-muted-foreground"
       title={`Sandbox level ${sandbox.level}, network ${sandbox.network ?? 'n/a'}, jail ${sandbox.jail ?? 'none'}`}
       data-testid="sandbox-chip"
       data-level={sandbox.level}
       data-network={sandbox.network}
       data-jail={sandbox.jail}
     >
-      <Box aria-hidden className="size-2.5" />
-      {parts.join(' · ')}
+      <Box aria-hidden className="size-2.5 shrink-0" />
+      <span className="truncate">{parts.join(' · ')}</span>
     </Badge>
   )
 }
@@ -79,7 +79,7 @@ function ToolLine({ call, turnOver }: { call: ToolCallView; turnOver: boolean })
         <Icon />
       </TraceIcon>
       <TraceTitle className="shrink-0">{turnOver && call.status === 'running' ? `Stopped before ${call.tool} finished` : title(call)}</TraceTitle>
-      <TraceDescription className="min-w-0 shrink truncate" title={call.why}>
+      <TraceDescription className="min-w-0 shrink-0 truncate" title={call.why}>
         {description(call, turnOver)}
       </TraceDescription>
       {call.sandbox && <SandboxChip sandbox={call.sandbox} />}

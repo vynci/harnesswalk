@@ -52,7 +52,7 @@ export function TurnStatusBar({ turn }: { turn: TurnState }) {
           )}
           {budget.budget && (
             <span
-              className={budget.budget.used >= budget.budget.limit ? 'text-state-waiting' : 'text-muted-foreground'}
+              className={`pointer-events-auto cursor-help ${budget.budget.used >= budget.budget.limit ? 'text-state-waiting' : 'text-muted-foreground'}`}
               title={budget.why}
               data-testid="turn-budget"
             >
@@ -60,7 +60,7 @@ export function TurnStatusBar({ turn }: { turn: TurnState }) {
             </span>
           )}
           {!budget.budget && budget.why && (
-            <span className="max-w-64 truncate text-muted-foreground" title={budget.why} data-testid="turn-why">
+            <span className="pointer-events-auto max-w-56 cursor-help truncate text-muted-foreground" title={budget.why} data-testid="turn-why">
               policy: {budget.why}
             </span>
           )}
