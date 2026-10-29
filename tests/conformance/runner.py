@@ -3,7 +3,8 @@
 For each case: start the reference harness in dev mode with the conformance profile, the fake
 provider and the case's fixture and config overrides, on a real loopback HTTP server in a
 background thread. Then talk to it only through the HTTP API: post each turn, read its SSE
-stream, perform the case's actions (approve, deny, resume) when their matchers fire, and assert
+stream, perform the case's actions (approve, deny, resume, cancel) when their matchers fire, and
+assert
 the stream: schema, stream rules, path, statuses, ordered events, absent events, cost, reply.
 
 No network beyond 127.0.0.1, no Docker, no model. Run the whole suite and print one line per
@@ -106,6 +107,7 @@ async def read_turn(
     """Read the SSE stream until turn_end, firing actions as their matchers fire."""
     events: list[dict[str, Any]] = []
     fired: set[int] = set()
+    cancelled = False  # a cancelled turn takes no further actions (README, Act)
     async with client.stream("GET", f"/v1/turns/{turn_id}/events") as response:
         if response.status_code != 200:
             raise AssertionError(f"events stream returned HTTP {response.status_code}")
@@ -120,10 +122,13 @@ async def read_turn(
             data = []
             events.append(event)
             for i, action in enumerate(actions):
+                if cancelled:
+                    break
                 if (i in fired and not action.get("repeat")) or not matches(action["when"], event):
                     continue
                 fired.add(i)
                 await perform(client, turn_id, action["do"], event)
+                cancelled = "cancel" in action["do"]
             if event["type"] == "turn_end":
                 break
     return events
@@ -137,8 +142,13 @@ async def perform(
         r = await client.post(f"/v1/approvals/{approval_id}", json={"decision": do["approval"]})
     elif "resume" in do:
         r = await client.post(f"/v1/turns/{turn_id}/resume", json={"mode": do["resume"]})
+    elif do.get("cancel") is True:
+        r = await client.post(f"/v1/turns/{turn_id}/cancel")
+        if r.status_code != 202:
+            raise AssertionError(f"cancel returned HTTP {r.status_code}: {r.text}")
+        return
     else:
-        raise AssertionError(f"action {do} is not supported over HTTP in P1")
+        raise AssertionError(f"action {do} is not supported over HTTP")
     if r.status_code != 200:
         raise AssertionError(f"action {do} returned HTTP {r.status_code}: {r.text}")
 

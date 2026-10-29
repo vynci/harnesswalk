@@ -1,0 +1,31 @@
+id: cancel_running
+title: A step-mode turn cancelled while paused stops at once and ends with exit cancelled
+spec_version: 0.1.0
+fixture: cancel_running
+turns:
+  - send:
+      message: Where is order A-1001?
+      options: { step_mode: true }
+    actions:
+      # Listed first, so on the tools pause the cancel fires and the resume below does not.
+      - when: { type: node_paused, node_id: tools, summary: { reason: breakpoint } }
+        do: { cancel: true }
+      - when: { type: node_paused, summary: { reason: breakpoint } }
+        do: { resume: step }
+        repeat: true
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, tools]
+      statuses: [done, done, done, done, error, done, error]
+      events:
+        - { type: turn_start, status: active, summary: { step_mode: true } }
+        - { type: node_exit, node_id: model_layer, summary: { finish_reason: tool_calls } }
+        - { type: node_enter, node_id: tools }
+        - { type: node_paused, node_id: tools, status: waiting, summary: { reason: breakpoint } }
+        - { type: error, node_id: tools, error: { code: cancelled } }
+        - { type: error, node_id: loop, error: { code: cancelled } }
+        - { type: turn_end, status: error, summary: { exit: cancelled } }
+      absent:
+        - { type: node_resumed, node_id: tools }
+        - { type: node_enter, node_id: policy }
+        - { type: node_enter, node_id: output_guardrails }
+      cost: { input_tokens: 905, output_tokens: 24 }

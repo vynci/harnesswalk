@@ -26,6 +26,7 @@ REQUIRED_CASES = {
     "loop_max_steps",
     "step_mode",
     "guardrail_block",
+    "cancel_running",
 }
 
 # Recorded example stream -> the case it must satisfy.
