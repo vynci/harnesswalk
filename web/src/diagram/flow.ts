@@ -1,16 +1,34 @@
 // Turn a computed layout plus the current turn state into React Flow nodes and edges.
-import { MarkerType } from '@xyflow/react'
 import type { Diagram } from '@/api/types'
 import type { TurnState } from '@/state/reducer'
 import type { FlowEdgeType } from './FlowEdge'
 import type { HarnessFlowNode } from './HarnessNode'
-import { BADGE_NODE, type DiagramLayout } from './layout'
+import { BADGE_NODE, type DiagramLayout, type VisibleEdge } from './layout'
+import { edgeColor } from './planes'
 import type { PlaneFlowNode } from './PlaneNode'
 import { memoryBadges, nodeStat } from './stats'
 
 export interface FlowOptions {
   disabled: ReadonlySet<string>
   onToggle: (id: string) => void
+  /** Simple view: draw the optional edges (LLM Ops and telemetry) instead of the bus. */
+  showOps?: boolean
+  /** A hovered node shows its optional edges. */
+  hovered?: string | null
+}
+
+/** Which laid-out edges are drawn, given the toggles, the hovered node and the active edge. */
+export function drawnEdges(lay: DiagramLayout, opts: Pick<FlowOptions, 'showOps' | 'hovered'>, activeEdge: string | null): VisibleEdge[] {
+  const shown = (e: VisibleEdge) =>
+    !e.optional ||
+    Boolean(opts.showOps) ||
+    (opts.hovered != null && (e.source === opts.hovered || e.target === opts.hovered)) ||
+    (activeEdge !== null && e.carries.includes(activeEdge))
+  const real = lay.edges.filter((e) => !e.bus && shown(e))
+  const realIds = new Set(real.map((e) => e.id))
+  // A bus stands in for its edges only while none of them is drawn.
+  const buses = lay.edges.filter((e) => e.bus && !opts.showOps && !e.carries.some((id) => realIds.has(id)))
+  return [...real, ...buses]
 }
 
 export function toFlow(
@@ -61,7 +79,7 @@ export function toFlow(
       height: l.height,
       style: { width: l.width, height: l.height },
       draggable: false,
-      ariaLabel: `${l.node.label}, ${state}${stat ? `, ${stat}` : ''}${l.node.implemented === false ? ', not implemented yet' : ''}${offText}. Press Enter to inspect.`,
+      ariaLabel: `${l.node.label}, ${l.node.kind}, ${state}${stat ? `, ${stat}` : ''}${l.node.implemented === false ? ', not implemented yet' : ''}${offText}. Press Enter to inspect.`,
       data: {
         node: l.node,
         state,
@@ -77,29 +95,30 @@ export function toFlow(
     }
   })
 
-  const pairs = new Set(lay.edges.map((e) => `${e.source}>${e.target}`))
-  const edges: FlowEdgeType[] = lay.edges.map((e) => {
-    const active = turn.activeEdge ? e.carries.includes(turn.activeEdge.id) : false
+  const activeId = turn.activeEdge?.id ?? null
+  const edges: FlowEdgeType[] = drawnEdges(lay, opts, activeId).map((e) => {
+    const active = activeId !== null && e.carries.includes(activeId)
     const visited = e.carries.some((id) => (turn.edges[id]?.count ?? 0) > 0)
-    const twin = pairs.has(`${e.target}>${e.source}`)
-    const color = active ? 'var(--state-active)' : visited ? 'var(--state-done)' : 'var(--xy-edge-stroke)'
+    const end = (id: string) => (byId.has(id) ? id : null)
     return {
       id: e.id,
       type: 'flow',
-      source: e.source,
-      target: e.target,
+      source: end(e.source) ?? e.target,
+      target: end(e.target) ?? e.source,
       sourceHandle: `s-${e.sourceSide}`,
       targetHandle: `t-${e.targetSide}`,
       zIndex: active ? 10 : 0,
       focusable: false,
       selectable: false,
-      markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color },
       data: {
-        kind: e.edge.kind,
-        label: e.edge.label,
+        kind: e.kind,
+        label: e.label,
         active,
         visited,
-        shift: twin ? (e.source < e.target ? -6 : 6) : 0,
+        points: e.points,
+        labelAt: e.labelAt,
+        color: edgeColor(e.kind, e.sourcePlane, e.reverse),
+        bus: e.bus,
       },
     }
   })
