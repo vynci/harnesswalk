@@ -141,9 +141,13 @@ class Policy:
         """The pure decision for a tool call. Same inputs and rules give the same answer."""
         return self.decide_class(roles, call.name, spec.action_class, budget)
 
-    def decide_memory_write(self, roles: list[str], store: str) -> Decision:
-        """The memory writer's gate (class `memory.write`), without a span. Pure."""
-        return self.decide_class(roles, store, "memory.write")
+    def decide_memory_write(self, roles: list[str], store: str = "") -> Decision:
+        """The memory writer's gate (class `memory.write`), without a span. Pure.
+
+        Matched as a `remember` call of the user's roles, so rules naming the tool or the roles
+        apply to the writer exactly as to the call (P3 review). `store` is for the reason only.
+        """
+        return self.decide_class(roles, "remember", "memory.write")
 
     async def check(self, ctx: TurnContext, call: ToolCall, spec: ToolSpec) -> Decision:
         async with node(ctx, "policy") as span:

@@ -176,24 +176,18 @@ def proposal_from_call(ctx: TurnContext, call: ToolCall) -> MemoryProposal | Non
 
 
 def policy_decision(policy: Any, ctx: TurnContext) -> tuple[str, str]:
-    """What policy says about a memory write in this mode: (decision, rule id).
+    """What policy says about a memory write for this user in this mode: (decision, rule id).
 
-    The same rules as tool calls (config/policy.yaml), matched on action class
-    `memory.write`; the first matching rule wins and no match is a deny.
+    Policy's own decision for class `memory.write` (`Policy.decide_memory_write`): the same
+    rules as tool calls, roles included; the first matching rule wins and no match is a deny.
     """
     if policy is None:
         return "allow", "none"
     if (not policy.enabled or ctx.is_disabled("policy")) and ctx.mode != "public":
         return "allow", "disabled"
-    for rule in policy.rules():
-        if rule.get("modes") and ctx.mode not in rule["modes"]:
-            continue
-        if rule.get("tools") and REMEMBER not in rule["tools"]:
-            continue
-        if rule.get("action_classes") and "memory.write" not in rule["action_classes"]:
-            continue
-        return rule["decision"], rule["id"]
-    return "deny", "default.deny"
+    roles = list(ctx.identity.roles) if getattr(ctx, "identity", None) else ["user"]
+    decision = policy.decide_memory_write(roles)
+    return decision.decision, decision.rule
 
 
 class MemoryWriter:

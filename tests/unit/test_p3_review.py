@@ -82,3 +82,20 @@ async def test_a_refused_request_or_a_byo_key_does_not_mark_the_provider_down() 
     assert health.report()["anthropic"] != "unhealthy"
     await layer.complete(make_ctx()[0], request)  # the server's key, provider down: marked
     assert health.report()["anthropic"] == "unhealthy"
+
+
+@pytest.mark.anyio
+async def test_the_writer_gate_is_policys_decision_with_roles(tmp_path: Path) -> None:
+    """The writer had its own matcher that skipped roles; it now asks Policy."""
+    from tests.unit.test_memory_writer import fact, writer
+
+    admins_only = {
+        "roles": {"user": {"allow_action_classes": ["read"]}},
+        "rules": [{"id": "admins.remember", "roles": ["admin"], "decision": "allow"}],
+    }
+    w = writer(tmp_path, policy=admins_only)
+    ctx, _ = make_ctx()
+    report = await w.run(ctx, [fact("preferred name", "Sam")])
+    assert (report.written, report.rejected) == (0, 1)
+    ctx.identity.roles = ["admin"]
+    assert w.policy.decide_memory_write(["admin"]).rule == "admins.remember"
