@@ -1,0 +1,8 @@
+fixture: pii_redacted
+description: The model only ever sees the placeholder for the customer's email, and echoes it.
+model: fake-small
+turns:
+  - responses:
+      - text: I will send the receipt for order A-1001 to [EMAIL_1] today.
+        usage: { input_tokens: 880, output_tokens: 18 }
+        expect: { last_message_role: user, last_message_contains: "[EMAIL_1]" }

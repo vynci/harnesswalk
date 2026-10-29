@@ -1,0 +1,16 @@
+id: pii_redacted
+title: An email in the prompt is redacted before the model and restored in the reply in dev
+spec_version: 0.1.0
+fixture: pii_redacted
+turns:
+  - send:
+      message: Please email the receipt for order A-1001 to ana.lopez@example.com.
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: node_exit, node_id: input_guardrails, summary: { action: redact, redactions: { email: 1 } } }
+        - { type: node_exit, node_id: output_guardrails, summary: { action: pass, restored: 1 } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      cost: { input_tokens: 880, output_tokens: 18 }
+      reply_contains: [ana.lopez@example.com]

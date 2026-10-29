@@ -1,0 +1,10 @@
+fixture: budget_limit
+description: Three tool calls in one step against a budget of two per turn.
+model: fake-small
+turns:
+  - responses:
+      - tool_calls:
+          - { call_id: call_1, name: lookup_order, arguments: { order_id: A-1001 } }
+          - { call_id: call_2, name: track_shipment, arguments: { shipment_id: S-1 } }
+          - { call_id: call_3, name: track_shipment, arguments: { shipment_id: S-2 } }
+        usage: { input_tokens: 930, output_tokens: 60 }

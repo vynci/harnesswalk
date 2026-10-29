@@ -1,0 +1,6 @@
+fixture: injection_blocked_public
+description: Never called; the input guardrails block the message first.
+model: fake-small
+turns:
+  - responses:
+      - text: This response is never read.

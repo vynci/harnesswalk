@@ -1,11 +1,13 @@
 """The conformance runner (spec/conformance/README.md, "Protocol").
 
-For each case: start the reference harness in dev mode with the conformance profile, the fake
-provider and the case's fixture and config overrides, on a real loopback HTTP server in a
-background thread. Then talk to it only through the HTTP API: post each turn, read its SSE
-stream, perform the case's actions (approve, deny, resume, cancel) when their matchers fire, and
-assert
-the stream: schema, stream rules, path, statuses, ordered events, absent events, cost, reply.
+For each case: start the reference harness in the case's mode (default dev) with the
+conformance profile, the fake provider and the case's fixture and config overrides, on a real
+loopback HTTP server in a background thread. A `two_process` case runs it as an OS process
+(`python -m harnesswalk serve`) instead, so a `restart` action can kill it with SIGKILL and
+start a new one on the same data directory. Then talk to it only through the HTTP API: post
+each turn, read its SSE stream, perform the case's actions (approve, deny, resume, cancel,
+restart) when their matchers fire, and assert the stream: schema, stream rules, path, statuses,
+ordered events, absent events, cost, reply, then the turn's HTTP checks.
 
 No network beyond 127.0.0.1, no Docker, no model. Run the whole suite and print one line per
 case with:
@@ -17,7 +19,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import signal
 import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -29,7 +34,14 @@ from typing import Any
 import httpx
 import uvicorn
 
-from tests.spec.support import ROOT, check_expectations, check_stream, load_yaml, matches
+from tests.spec.support import (
+    ROOT,
+    check_expectations,
+    check_stream,
+    load_yaml,
+    matches,
+    subset,
+)
 
 CONF = ROOT / "spec" / "conformance"
 PROFILE = CONF / "profile.yaml"
@@ -70,7 +82,7 @@ class LiveHarness:
             raise ValueError(f"case overrides keys outside the profile: {sorted(extra)}")
         settings = load_settings(
             ROOT,
-            mode="dev",
+            mode=case.get("mode", "dev"),
             provider="fake",
             fixture=case["fixture"],
             profile=PROFILE,
@@ -101,37 +113,180 @@ class LiveHarness:
         self.sock.close()
 
 
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+class LiveProcess:
+    """The reference harness as its own OS process, for `two_process` cases (P3)."""
+
+    def __init__(self, case: dict[str, Any], data_dir: Path) -> None:
+        overridable = set(load_yaml(PROFILE)["overridable"])
+        extra = set(case.get("config", {})) - overridable
+        if extra:
+            raise ValueError(f"case overrides keys outside the profile: {sorted(extra)}")
+        self.case = case
+        self.data_dir = data_dir
+        self.proc: subprocess.Popen | None = None
+        self.base_url = ""
+        self.harness = None  # nothing to read unused fixture responses from
+
+    def start(self) -> None:
+        port = _free_port()
+        cmd = [
+            sys.executable,
+            "-m",
+            "harnesswalk",
+            "serve",
+            "--provider",
+            "fake",
+            "--fixture",
+            self.case["fixture"],
+            "--profile",
+            str(PROFILE),
+            "--mode",
+            self.case.get("mode", "dev"),
+            "--port",
+            str(port),
+            "--log-level",
+            "warning",
+        ]
+        for key, value in self.case.get("config", {}).items():
+            cmd += ["--set", f"{key}={json.dumps(value)}"]
+        env = {
+            "PATH": os.environ.get("PATH", ""),
+            "HARNESSWALK_ROOT": str(ROOT),
+            "HARNESSWALK_DATA_DIR": str(self.data_dir),
+            "HARNESSWALK_WEB_DIST": str(self.data_dir / "no-web"),
+        }
+        log = open(self.data_dir / "server.log", "ab")  # noqa: SIM115 - lives with the process
+        self.proc = subprocess.Popen(cmd, env=env, stdout=log, stderr=log, cwd=str(ROOT))
+        self.base_url = f"http://127.0.0.1:{port}"
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            if self.proc.poll() is not None:
+                raise RuntimeError(f"harness process exited {self.proc.returncode}")
+            try:
+                if httpx.get(f"{self.base_url}/healthz", timeout=1).status_code == 200:
+                    return
+            except httpx.HTTPError:
+                pass
+            time.sleep(0.05)
+        raise RuntimeError("harness process did not start")
+
+    def kill(self) -> None:
+        if self.proc and self.proc.poll() is None:
+            self.proc.send_signal(signal.SIGKILL)  # a crash: no shutdown code runs
+            self.proc.wait(10)
+
+    def __enter__(self) -> LiveProcess:
+        self.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.kill()
+
+
+class Driver:
+    """The live harness and a client for it; a restart swaps both."""
+
+    def __init__(self, live: Any, headers: dict[str, str]) -> None:
+        self.live = live
+        self.headers = headers
+        self.client = self._client()
+
+    def _client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(
+            base_url=self.live.base_url, headers=self.headers, timeout=TURN_LIMIT_S
+        )
+
+    async def restart(self) -> None:
+        if not isinstance(self.live, LiveProcess):
+            raise AssertionError("restart needs a two_process case")
+        cookies = self.client.cookies
+        await self.client.aclose()
+        self.live.kill()
+        await asyncio.to_thread(self.live.start)
+        self.client = self._client()
+        self.client.cookies = cookies
+
+    async def aclose(self) -> None:
+        await self.client.aclose()
+
+
 async def read_turn(
-    client: httpx.AsyncClient, turn_id: str, actions: list[dict[str, Any]]
+    driver: Driver, turn_id: str, actions: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """Read the SSE stream until turn_end, firing actions as their matchers fire."""
+    """Read the SSE stream until turn_end, firing actions as their matchers fire.
+
+    After a `restart` action the stream is reopened on the new process with `?after=` the
+    last seq seen, and the remaining actions for the same event fire against it.
+    """
     events: list[dict[str, Any]] = []
     fired: set[int] = set()
     cancelled = False  # a cancelled turn takes no further actions (README, Act)
-    async with client.stream("GET", f"/v1/turns/{turn_id}/events") as response:
-        if response.status_code != 200:
-            raise AssertionError(f"events stream returned HTTP {response.status_code}")
-        data: list[str] = []
-        async for line in response.aiter_lines():
-            if line.startswith("data:"):
-                data.append(line[5:].strip())
-                continue
-            if line or not data:
-                continue
-            event = json.loads("\n".join(data))
-            data = []
-            events.append(event)
-            for i, action in enumerate(actions):
-                if cancelled:
-                    break
-                if (i in fired and not action.get("repeat")) or not matches(action["when"], event):
+    while True:
+        after = events[-1]["seq"] if events else None
+        url = f"/v1/turns/{turn_id}/events" + (f"?after={after}" if after is not None else "")
+        restarted = False
+        async with driver.client.stream("GET", url) as response:
+            if response.status_code != 200:
+                raise AssertionError(f"events stream returned HTTP {response.status_code}")
+            data: list[str] = []
+            async for line in response.aiter_lines():
+                if line.startswith("data:"):
+                    data.append(line[5:].strip())
                     continue
-                fired.add(i)
-                await perform(client, turn_id, action["do"], event)
-                cancelled = "cancel" in action["do"]
-            if event["type"] == "turn_end":
-                break
-    return events
+                if line or not data:
+                    continue
+                event = json.loads("\n".join(data))
+                data = []
+                events.append(event)
+                if not cancelled:
+                    did = await fire(driver, turn_id, actions, fired, event)
+                    restarted, cancelled = did == "restart", did == "cancel"
+                if event["type"] == "turn_end" or restarted:
+                    break
+        if not restarted:
+            return events
+        await check_after_restart(driver, turn_id, events[-1])
+        cancelled = await fire(driver, turn_id, actions, fired, events[-1]) == "cancel"
+
+
+async def fire(
+    driver: Driver,
+    turn_id: str,
+    actions: list[dict[str, Any]],
+    fired: set[int],
+    event: dict[str, Any],
+) -> str | None:
+    """Fire the actions this event matches, in order. Returns `restart` when one restarted the
+    harness (the rest wait for the new process) and `cancel` once the turn was cancelled."""
+    for i, action in enumerate(actions):
+        if (i in fired and not action.get("repeat")) or not matches(action["when"], event):
+            continue
+        fired.add(i)
+        if action["do"].get("restart"):
+            await driver.restart()
+            return "restart"
+        await perform(driver.client, turn_id, action["do"], event)
+        if "cancel" in action["do"]:
+            return "cancel"
+    return None
+
+
+async def check_after_restart(driver: Driver, turn_id: str, last: dict[str, Any]) -> None:
+    """The new process knows the turn: paused where it was, not done."""
+    r = await driver.client.get(f"/v1/turns/{turn_id}")
+    if r.status_code != 200:
+        raise AssertionError(f"after restart GET /v1/turns returned {r.status_code}")
+    summary = r.json()
+    if summary["status"] == "done":
+        raise AssertionError("after restart the turn was closed instead of resumed")
+    if last["type"] == "node_paused" and summary["paused_at_node"] != last["node_id"]:
+        raise AssertionError(f"after restart the turn is {summary['status']}, not paused")
 
 
 async def perform(
@@ -153,13 +308,11 @@ async def perform(
         raise AssertionError(f"action {do} returned HTTP {r.status_code}: {r.text}")
 
 
-async def _drive(live: LiveHarness, case: dict[str, Any], result: CaseResult) -> None:
+async def _drive(live: Any, case: dict[str, Any], result: CaseResult) -> None:
     tenant = load_yaml(PROFILE)["tenant_prefix"] + case["id"]
-    headers = {"X-Harnesswalk-Tenant": tenant}
-    async with httpx.AsyncClient(
-        base_url=live.base_url, headers=headers, timeout=TURN_LIMIT_S
-    ) as client:
-        health = (await client.get("/healthz")).json()
+    driver = Driver(live, {"X-Harnesswalk-Tenant": tenant})
+    try:
+        health = (await driver.client.get("/healthz")).json()
         if health.get("provider") != "fake" or health.get("fixture") != case["fixture"]:
             result.problems.append(f"healthz: {health}")
             return
@@ -170,7 +323,7 @@ async def _drive(live: LiveHarness, case: dict[str, Any], result: CaseResult) ->
                 body["options"] = turn["send"]["options"]
             if session_id:
                 body["session_id"] = session_id
-            r = await client.post("/v1/turns", json=body)
+            r = await driver.client.post("/v1/turns", json=body)
             if r.status_code != 202:
                 result.problems.append(
                     f"turn {n}: POST /v1/turns returned {r.status_code} {r.text}"
@@ -178,28 +331,42 @@ async def _drive(live: LiveHarness, case: dict[str, Any], result: CaseResult) ->
                 return
             session_id = r.json()["session_id"]
             events = await asyncio.wait_for(
-                read_turn(client, r.json()["turn_id"], turn.get("actions", [])), TURN_LIMIT_S
+                read_turn(driver, r.json()["turn_id"], turn.get("actions", [])), TURN_LIMIT_S
             )
             result.streams.append(events)
             for problem in check_stream(events) or check_expectations(turn["expect"], events):
                 result.problems.append(f"turn {n}: {problem}")
+            for check in turn.get("http", []):
+                got = await driver.client.get(check["get"])
+                if got.status_code != check.get("status", 200):
+                    result.problems.append(
+                        f"turn {n}: http {check['get']} returned {got.status_code}"
+                    )
+                elif "match" in check and not subset(check["match"], got.json()):
+                    result.problems.append(
+                        f"turn {n}: http {check['get']} does not match {check['match']}"
+                    )
+    finally:
+        await driver.aclose()
 
 
 def run_case(path: Path) -> CaseResult:
     case = load_yaml(path)
     result = CaseResult(case["id"])
+    live_cls = LiveProcess if case.get("two_process") else LiveHarness
     with (
         tempfile.TemporaryDirectory(prefix="harnesswalk-conf-") as tmp,
-        LiveHarness(case, Path(tmp)) as live,
+        live_cls(case, Path(tmp)) as live,
     ):
         try:
             asyncio.run(_drive(live, case, result))
-        except (AssertionError, TimeoutError) as exc:
+        except (AssertionError, TimeoutError, RuntimeError) as exc:
             result.problems.append(f"{type(exc).__name__}: {exc}")
-        fake = live.harness.providers["fake"]
-        unused = fake.unused()  # type: ignore[attr-defined]
-        if unused:
-            result.warnings.append(f"unused fixture responses: {', '.join(unused)}")
+        if live.harness is not None:
+            fake = live.harness.providers["fake"]
+            unused = fake.unused()  # type: ignore[attr-defined]
+            if unused:
+                result.warnings.append(f"unused fixture responses: {', '.join(unused)}")
     return result
 
 

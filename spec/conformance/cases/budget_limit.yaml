@@ -1,0 +1,22 @@
+id: budget_limit
+title: A tool-call budget of two per turn denies the third call and ends the turn on a limit
+spec_version: 0.1.0
+fixture: budget_limit
+config:
+  policy.budgets.default.tool_calls_per_turn: 2
+turns:
+  - send:
+      message: Where are order A-1001 and shipments S-1 and S-2?
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, tools, policy, tools, policy, tools, policy, audit, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: node_exit, node_id: tools, summary: { tool: lookup_order, outcome: ok, executed: true } }
+        - { type: node_exit, node_id: tools, summary: { tool: track_shipment, outcome: ok, executed: true } }
+        - { type: node_exit, node_id: policy, summary: { tool: track_shipment, decision: deny, rule: budget.tool_calls_per_turn, budget: { name: tool_calls_per_turn, limit: 2, used: 2 } } }
+        - { type: node_exit, node_id: audit, summary: { action: policy_decision, decision: deny } }
+        - { type: node_exit, node_id: tools, summary: { tool: track_shipment, outcome: denied, executed: false } }
+        - { type: node_exit, node_id: loop, summary: { exit_reason: budget_tool_calls, steps: 1, tool_calls: 3 } }
+        - { type: turn_end, status: done, summary: { exit: limit } }
+      cost: { input_tokens: 930, output_tokens: 60 }
+      reply_contains: [tool-call budget]

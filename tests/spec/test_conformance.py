@@ -27,6 +27,11 @@ REQUIRED_CASES = {
     "step_mode",
     "guardrail_block",
     "cancel_running",
+    "pii_redacted",
+    "injection_blocked_public",
+    "budget_limit",
+    "approval_resume_after_restart",
+    "audit_chain",
 }
 
 # Recorded example stream -> the case it must satisfy.
