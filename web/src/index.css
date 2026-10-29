@@ -239,6 +239,11 @@
   }
 }
 
+.hw-store-badge[data-state='skipped'] {
+  border-style: dashed;
+  opacity: 0.7;
+}
+
 .hw-store-badge[data-lit='true'] {
   background: var(--plane-stroke);
   color: var(--plane-fill);

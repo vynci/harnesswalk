@@ -114,7 +114,8 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
               key={b.id}
               className="hw-store-badge rounded border border-[var(--plane-stroke)]/40 px-1 text-[10px] leading-4 text-muted-foreground"
               data-testid={`badge-${b.id}`}
-              data-lit={b.state !== 'idle' ? 'true' : 'false'}
+              // A store that was skipped (a stub, or switched off) did no work: it stays unlit.
+              data-lit={b.state !== 'idle' && b.state !== 'skipped' ? 'true' : 'false'}
               data-state={b.state}
               title={`${b.label}: ${b.state}`}
             >
