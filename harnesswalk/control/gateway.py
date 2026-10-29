@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import re
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -29,6 +28,7 @@ from harnesswalk.context.stores.session import SessionForbidden
 from harnesswalk.events import Breakpoints, TurnEmitter, new_trace_id, uuid7
 from harnesswalk.execution.loop import Limits
 from harnesswalk.execution.providers import PROVIDER_NAMES
+from harnesswalk.execution.providers.fake import FIXTURE_NAME
 from harnesswalk.nodes import node, register
 from harnesswalk.ops.trace import run_trace_node
 from harnesswalk.types import ConfigError, Identity, TurnContext, Usage
@@ -48,7 +48,6 @@ EXIT_FOR_REASON = {
     "timeout": "limit",
     "interrupted": "cancelled",
 }
-FIXTURE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 
 class GatewayError(Exception):
@@ -145,7 +144,7 @@ class Gateway:
         if req.provider is not None and req.provider not in PROVIDER_NAMES:
             raise GatewayError(400, "invalid_request", f"unknown provider {req.provider!r}")
         if req.fixture is not None:
-            if not isinstance(req.fixture, str) or not FIXTURE_NAME.match(req.fixture):
+            if not isinstance(req.fixture, str) or not FIXTURE_NAME.fullmatch(req.fixture):
                 raise GatewayError(400, "invalid_request", "fixture is not a valid name")
             if req.provider not in (None, "fake"):
                 raise GatewayError(400, "invalid_request", "a fixture needs the fake provider")

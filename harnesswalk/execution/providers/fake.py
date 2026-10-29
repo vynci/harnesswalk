@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,9 @@ from harnesswalk.execution.providers import (
 from harnesswalk.paths import spec_dir
 from harnesswalk.types import ConfigError, ToolCall
 
+# A fixture name a turn may ask for (http_api.md), so it can never name a path.
+FIXTURE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
+
 
 @cache
 def _fixture_validator() -> jsonschema.Draft202012Validator:
@@ -42,12 +46,15 @@ def _fixture_validator() -> jsonschema.Draft202012Validator:
 
 
 def load_fixture(path: Path) -> dict[str, Any]:
-    text = path.read_text(encoding="utf-8")
-    if path.suffix == ".jsonl":
-        turns = [json.loads(line) for line in text.splitlines() if line.strip()]
-        fixture = {"fixture": path.stem, "turns": turns}
-    else:
-        fixture = yaml.safe_load(text)
+    try:
+        text = path.read_text(encoding="utf-8")
+        if path.suffix == ".jsonl":
+            turns = [json.loads(line) for line in text.splitlines() if line.strip()]
+            fixture = {"fixture": path.stem, "turns": turns}
+        else:
+            fixture = yaml.safe_load(text)
+    except (UnicodeDecodeError, json.JSONDecodeError, yaml.YAMLError) as exc:
+        raise ConfigError(f"fixture {path} cannot be parsed: {exc}") from exc
     errors = [e.message for e in _fixture_validator().iter_errors(fixture)]
     if errors:
         raise ConfigError(f"fixture {path} is invalid: {errors}")
@@ -79,13 +86,16 @@ def fixture_dirs(settings: Any) -> list[Path]:
 
 
 def list_fixtures(dirs: list[Path]) -> list[str]:
-    """Every fixture name `find_fixture` could load from these directories, sorted."""
+    """Every fixture name a turn could ask for from these directories, sorted.
+
+    Only names that pass FIXTURE_NAME, since a turn naming any other is a 400.
+    """
     names = {
         p.stem
         for directory in dirs
         if directory.is_dir()
         for p in directory.iterdir()
-        if p.suffix in (".yaml", ".jsonl") and p.is_file()
+        if p.suffix in (".yaml", ".jsonl") and p.is_file() and FIXTURE_NAME.fullmatch(p.stem)
     }
     return sorted(names)
 

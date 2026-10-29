@@ -93,8 +93,9 @@ wins. Mode checks:
 | `provider`, `fixture` | yes | `400 invalid_request` | `400 invalid_request` |
 | `disable` | yes | yes | `422 invalid_request` |
 
-An unknown provider, an unknown fixture, or a fixture with a provider other than `fake` is `400
-invalid_request`. A known provider that is not configured is `422 provider_not_configured`. A node
+An unknown provider, an unknown fixture, a fixture file that cannot be parsed, or a fixture with
+a provider other than `fake` is `400 invalid_request`. A fixture name is 1 to 64 letters, digits,
+`_` or `-`, starting with a letter or digit. A known provider that is not configured is `422 provider_not_configured`. A node
 without `can_disable` is `422 invalid_request`, as in P1.
 
 A per-turn fixture follows the fake provider's rule (`model_provider.md`), counted over the turns
@@ -396,7 +397,7 @@ Response `200`:
 | Field | Meaning |
 |---|---|
 | `providers` | Every known provider. `configured` is true when a turn could use it: the one selected at start-up, `fake` in dev mode, `ollama` with a base URL, a hosted provider only with `enabled: true` and its key or URL. `default` marks the provider the default route lands on. `models` are the chat model aliases of `config/models.yaml` for that provider |
-| `fixtures` | Fixture names the `fake` provider can load, dev mode only, else empty |
+| `fixtures` | Fixture names a turn may ask for (files the `fake` provider finds whose name is a valid fixture name), dev mode only, else empty |
 | `features.message_delta` | True when `gateway.stream_reply_chars` is above 0 |
 | `features.byo_key` | True in `public` and `private` mode (the `X-Harnesswalk-Provider-Key` header) |
 | `features.disable_nodes` | True outside `public` mode |

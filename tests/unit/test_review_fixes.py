@@ -349,3 +349,24 @@ async def test_provider_fake_on_another_server_keeps_the_start_up_fixture_plain_
     # The start-up fixture keeps the plain rule: turn 1 of the session reads turns[1].
     assert end["summary"]["exit"] == "answered"
     assert "A-1002 is still processing" in end["summary"]["reply"]
+
+
+@pytest.mark.anyio
+async def test_a_malformed_fixture_is_400_and_capabilities_lists_only_valid_names(
+    tmp_path: Path,
+) -> None:
+    fx = tmp_path / "fx"
+    fx.mkdir()
+    (fx / "broken.yaml").write_text("fixture: [unclosed\nturns: {", "utf-8")
+    (fx / "broken_lines.jsonl").write_text('{"responses": [\n', "utf-8")
+    (fx / "bad name.yaml").write_text("fixture: bad name\nturns: []\n", "utf-8")
+    (fx / ".hidden.yaml").write_text("fixture: .hidden\nturns: []\n", "utf-8")
+    h = Harness(settings(tmp_path, "plain_answer", fixtures=fx))
+    async with client(h) as c:
+        for name in ("broken", "broken_lines"):
+            r = await c.post("/v1/turns", json={"message": "hi", "fixture": name})
+            assert r.status_code == 400, name
+            assert r.json()["error"]["code"] == "invalid_request"
+        fixtures = (await c.get("/v1/capabilities")).json()["fixtures"]
+    assert {"broken", "broken_lines", "plain_answer"} <= set(fixtures)
+    assert "bad name" not in fixtures and ".hidden" not in fixtures
