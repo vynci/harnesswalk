@@ -125,7 +125,7 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
       </div>
       <CardDescription className={cn('mt-0.5 flex shrink-0 items-center gap-1 truncate', isChild ? 'text-xs leading-3.5' : 'text-xs leading-4')} data-testid={`stat-${node.id}`}>
         {notYet && (
-          <Badge variant="outline" className="h-4 border-dashed px-1.5 font-normal text-muted-foreground" title="Not implemented yet">
+          <Badge variant="outline" className="h-4 border-dashed border-current px-1.5 font-normal text-muted-foreground" title="Not implemented yet">
             not yet
           </Badge>
         )}
