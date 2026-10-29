@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS events (
     PRIMARY KEY (tenant_id, turn_id, seq)
 );
 CREATE INDEX IF NOT EXISTS events_by_node ON events (tenant_id, node_id, type);
+CREATE INDEX IF NOT EXISTS events_by_session ON events (tenant_id, session_id, type);
 CREATE TABLE IF NOT EXISTS details (
     tenant_id TEXT NOT NULL,
     trace_id TEXT NOT NULL,
@@ -170,6 +171,17 @@ class Tracer:
         )
         return [dict(r) for r in rows]
 
+    def session_turn_ids(self, tenant_id: str, session_id: str, limit: int = 50) -> list[str]:
+        """Turn ids of one session, newest first (by turn index, then start time)."""
+        rows = self.db.query(
+            "SELECT turn_id FROM events WHERE tenant_id = ? AND session_id = ?"
+            " AND type = 'turn_start'"
+            " ORDER BY CAST(json_extract(body, '$.summary.turn_index') AS INTEGER) DESC,"
+            " ts DESC, turn_id DESC LIMIT ?",
+            (tenant_id, session_id, limit),
+        )
+        return [r["turn_id"] for r in rows]
+
     async def subscribe(
         self, tenant_id: str, turn_id: str, after_seq: int = -1, keepalive_s: float = 15.0
     ) -> AsyncIterator[Event | None]:
@@ -210,38 +222,43 @@ class Tracer:
 
     def receipt(self, tenant_id: str, turn_id: str) -> dict[str, Any]:
         """Sum cost from node exits only, never from turn_end (tracer.md invariant)."""
-        total = Usage()
-        by_node: dict[str, dict[str, Any]] = {}
-        by_model: dict[str, dict[str, Any]] = {}
-        latency: dict[str, float] = {}
-        for event in self.get_turn(tenant_id, turn_id):
-            if event["type"] not in ("node_exit", "error") or "node_id" not in event:
-                continue
-            node_id = event["node_id"]
-            latency[node_id] = latency.get(node_id, 0.0) + event.get("duration_ms", 0.0)
-            cost = event.get("cost")
-            if not cost:
-                continue
-            usage = Usage(cost["input_tokens"], cost["output_tokens"], 0, cost["usd"])
-            total.add(usage)
-            node_usage = by_node.setdefault(node_id, Usage().cost())
-            for key in ("input_tokens", "output_tokens", "usd"):
-                node_usage[key] += cost[key]
-            model = event.get("summary", {}).get("model")
-            if model:
-                model_usage = by_model.setdefault(model, Usage().cost())
-                for key in ("input_tokens", "output_tokens", "usd"):
-                    model_usage[key] += cost[key]
-        return {
-            "turn_id": turn_id,
-            "total": total.cost(),
-            "by_node": by_node,
-            "by_model": by_model,
-            "latency_ms": {k: round(v, 3) for k, v in latency.items()},
-        }
+        return receipt_of(turn_id, self.get_turn(tenant_id, turn_id))
 
     def close(self) -> None:
         self.db.close()
+
+
+def receipt_of(turn_id: str, events: list[Event]) -> dict[str, Any]:
+    """The cost receipt of a list of events: node exits only, never turn_end."""
+    total = Usage()
+    by_node: dict[str, dict[str, Any]] = {}
+    by_model: dict[str, dict[str, Any]] = {}
+    latency: dict[str, float] = {}
+    for event in events:
+        if event["type"] not in ("node_exit", "error") or "node_id" not in event:
+            continue
+        node_id = event["node_id"]
+        latency[node_id] = latency.get(node_id, 0.0) + event.get("duration_ms", 0.0)
+        cost = event.get("cost")
+        if not cost:
+            continue
+        usage = Usage(cost["input_tokens"], cost["output_tokens"], 0, cost["usd"])
+        total.add(usage)
+        node_usage = by_node.setdefault(node_id, Usage().cost())
+        for key in ("input_tokens", "output_tokens", "usd"):
+            node_usage[key] += cost[key]
+        model = event.get("summary", {}).get("model")
+        if model:
+            model_usage = by_model.setdefault(model, Usage().cost())
+            for key in ("input_tokens", "output_tokens", "usd"):
+                model_usage[key] += cost[key]
+    return {
+        "turn_id": turn_id,
+        "total": total.cost(),
+        "by_node": by_node,
+        "by_model": by_model,
+        "latency_ms": {k: round(v, 3) for k, v in latency.items()},
+    }
 
 
 async def run_trace_node(ctx: TurnContext, tracer: Tracer) -> dict[str, Any]:

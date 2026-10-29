@@ -97,6 +97,22 @@ class SessionStore:
             raise SessionForbidden(session_id)
         return row["dataset"]
 
+    def owner(self, session_id: str) -> str | None:
+        """The tenant a session belongs to, or None when there is no such session."""
+        row = self.db.one("SELECT tenant_id FROM sessions WHERE session_id = ?", (session_id,))
+        return row["tenant_id"] if row else None
+
+    def user_texts(self, tenant_id: str, turn_ids: list[str]) -> dict[str, str | None]:
+        """The stored user text of finished turns (None for blocked or failed input)."""
+        if not turn_ids:
+            return {}
+        marks = ", ".join("?" for _ in turn_ids)
+        rows = self.db.query(
+            f"SELECT turn_id, user_text FROM turns WHERE tenant_id = ? AND turn_id IN ({marks})",
+            (tenant_id, *turn_ids),
+        )
+        return {r["turn_id"]: r["user_text"] for r in rows}
+
     def next_turn_index(self, tenant_id: str, session_id: str) -> int:
         row = self.db.one(
             "SELECT COALESCE(MAX(turn_index), -1) + 1 AS n FROM turns"
