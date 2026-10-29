@@ -39,6 +39,10 @@ events correctly and any UI built on harnesswalk can draw your harness.
 11. **Redaction.** `summary` MUST NOT contain secrets, provider keys, unredacted input rejected or
     redacted by guardrails, or full tool results. Full records go to the trace store and are
     referenced by `detail_ref`.
+    One exception (P3): when the PII restore rule is on for the mode
+    (`input_guardrails.pii.restore_modes`, default `dev` only), the reply in
+    `turn_end.summary.reply` and `message_delta` carries the user's own values put back in
+    place of their placeholders. Nothing else does, and never in `public` mode.
 12. **Size.** `summary` SHOULD serialize to at most 2 KiB. The single exception is
     `turn_end.summary.reply`, which carries the final reply text and MAY be up to 16 KiB; longer
     replies MUST be truncated there and referenced by `detail_ref`.
@@ -106,6 +110,7 @@ events correctly and any UI built on harnesswalk can draw your harness.
 | `tool_timeout` | tools | The sandbox timeout fired |
 | `store_unavailable` | memory, trace, audit | A store could not be reached |
 | `cancelled` | any | The caller cancelled the turn |
+| `restarted` | any | The harness restarted while the turn was running; recovery closed it (P3) |
 | `internal` | any | Anything else |
 
 A policy `deny`, a guardrail `block` and a loop exit on a limit are decisions, not errors. They
@@ -153,13 +158,13 @@ Values are small: counts, ids, enums, short previews. Implementations MAY add ke
 
 | Node | Summary keys |
 |---|---|
-| `turn_start` | `kind` (`chat`, `release`, `eval`, `replay`), `channel`, `mode`, `step_mode`, `message_chars` |
+| `turn_start` | `kind` (`chat`, `release`, `eval`, `replay`), `channel`, `mode`, `step_mode`, `message_chars`, `disabled` (node ids, P3, so a restart can restore them) |
 | `turn_end` | `exit` (`answered`, `blocked`, `limit`, `error`, `cancelled`), `steps`, `reply` |
 | `gateway` | `phase` (`receive`, `reply`), `channel`, `authenticated`, `rate_limit_remaining`, `reply_chars` |
-| `input_guardrails` | `action` (`pass`, `redact`, `block`), `checks`, `redactions` (counts by kind), `injection_score`, `reason` |
-| `policy` | `tool`, `action_class`, `decision` (`allow`, `deny`, `needs_approval`), `rule` |
+| `input_guardrails` | `action` (`pass`, `redact`, `block`), `checks`, `redactions` (counts by kind), `injection_score`, `injection_signals` (counts by category), `warnings`, `classifier_score`, `reason` |
+| `policy` | `tool`, `action_class`, `decision` (`allow`, `deny`, `needs_approval`), `rule`, `why`, `budget` (`name`, `limit`, `used`, when a budget decided) |
 | `approval` | `approval_id`, `decision`, `waited_ms` |
-| `audit` | `record_id`, `action` (`policy_decision`, `approval_decision`), `tool`, `decision`, `decided_by` |
+| `audit` | `record_id`, `action` (`policy_decision`, `approval_decision`, `tool_executed`, `memory_written`), `tool`, `decision`, `decided_by`, `executed`, `prev_hash`, `hash` |
 | `context_builder` | enter: `budget_tokens`. exit: `budget_tokens`, `used_tokens`, `slices` (tokens per slice), `compacted`, `stable_prefix_tokens` |
 | `memory` | `stores_queried`, `hits` (per store) |
 | `procedural` | `prompt_version`, `skills_indexed`, `tokens` |
@@ -167,14 +172,14 @@ Values are small: counts, ids, enums, short previews. Implementations MAY add ke
 | `semantic`, `episodic` | `hits`, `tokens` |
 | `knowledge` | `hits`, `top_score`, `tokens` |
 | `memory_writer` | `proposed`, `written`, `rejected`, `pending` |
-| `loop` | enter: `max_steps`, `budget_tokens`, `budget_usd`. exit: `steps`, `exit_reason` (`answer`, `max_steps`, `budget_tokens`, `budget_usd`, `timeout`, `stuck`, `interrupted`), `tool_calls` |
-| `model_layer` | enter: `step`. exit: `step`, `provider`, `model`, `finish_reason` (`stop`, `tool_calls`, `length`), `tool_calls`, `fallback`, `tools_enabled`, `cached_tokens` |
+| `loop` | enter: `max_steps`, `budget_tokens`, `budget_usd`. exit: `steps`, `exit_reason` (`answer`, `max_steps`, `budget_tokens`, `budget_usd`, `budget_tool_calls`, `timeout`, `stuck`, `interrupted`), `tool_calls`, `budget_source` |
+| `model_layer` | enter: `step`. exit: `step`, `provider`, `model`, `finish_reason` (`stop`, `tool_calls`, `length`), `tool_calls`, `fallback`, `tools_enabled`, `cached_tokens`, `cascade` |
 | `router` | `rule`, `model`, `alternatives` |
 | `providers` | `provider`, `model`, `attempt` |
 | `tools` | enter: `tool`, `call_id`. exit: `tool`, `call_id`, `outcome` (`ok`, `denied`, `error`, `timeout`), `executed` |
 | `registry` | `tool`, `found`, `action_class`, `timeout_ms` |
-| `sandbox` | `tool`, `call_id`, `executed`, `timeout_ms`, `result_chars` |
-| `output_guardrails` | `action` (`pass`, `repair`, `block`), `checks`, `citations` (`required`, `present`) |
+| `sandbox` | `tool`, `call_id`, `executed`, `timeout_ms`, `result_chars`, `level`, `network`, `jail`, `outcome` |
+| `output_guardrails` | `action` (`pass`, `repair`, `block`), `checks`, `citations` (`required`, `present`, `invalid`, `uncited_claims`), `schema`, `leaks`, `restored`, `reasons` |
 | `trace` | `events`, `persisted`, `store` |
 | `cost` | `input_tokens`, `output_tokens`, `usd` |
 | `eval`, `online_eval`, `offline_eval` | `suite`, `cases`, `passed`, `failed`, `judged` |

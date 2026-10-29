@@ -26,6 +26,12 @@ record AuditEntry {
   rule?: string
   approval_id?: string
   args_digest?: string                           // sha256 of the canonical arguments, not the arguments
+  approver?: string                              // P3: who decided an approval ("user:<id>" or "system")
+  executed?: bool                                // P3: whether the action ran
+  outcome?: string                               // P3: tool_executed: ok | error | timeout
+  before?: object                                // P3: writes: the state before (see below)
+  after?: object                                 // P3: writes: the state after
+  extra?: object
   turn_id: string
   trace_id: string
 }
@@ -76,3 +82,20 @@ record VerifyResult { ok: bool, records: int, first_bad_record?: string }
 | `audit.backend` | `sqlite` | `sqlite` or `postgres` |
 | `audit.retention_days` | `365` | Private mode; public mode follows the session TTL |
 | `audit.record_read_allows` | `false` | Debug switch: also audit `read` allows |
+
+## P3 additions
+
+- **One record per consequence.** Every tool call of a class other than `read` produces, in
+  order: `policy_decision` (before anything runs), `approval_decision` when it needed approval
+  (before it runs), and `tool_executed` after the sandbox ran it (`executed`, `outcome`,
+  `before`, `after`). A denied or unapproved call has `executed: false` on its last record.
+- **Before and after.** A tool MAY declare `audit: { before: <read tool> }` in `tools.yaml`;
+  the harness runs that read tool with the same arguments just before execution and records
+  its result as `before`, and the tool's own result as `after`. Both are JSON values when the
+  result parses, capped at 1 KiB each, and PII-redacted with typed placeholders.
+- **Chain.** Appends to one tenant are serialized (a write transaction), so `prev_hash` always
+  names the latest record of that tenant, across processes.
+- **Export.** `GET /v1/audit?since=<RFC 3339>&limit=<n>` (dev and private modes) returns the
+  caller's tenant's records in chain order with `verify` (see `http_api.md`).
+- The `audit` exit summary adds `prev_hash` and `hash` (first 12 hex characters each) and
+  `executed` for `tool_executed` records.

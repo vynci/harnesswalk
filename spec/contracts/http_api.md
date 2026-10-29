@@ -21,6 +21,7 @@ dev-mode CORS.
 | `GET /v1/nodes/{node_id}` | What an inspector shows | P1 |
 | `GET /v1/nodes/{node_id}/source` | Code peek | P2 |
 | `GET /v1/capabilities` | What this build can do | P2 |
+| `GET /v1/audit` | Audit export for the caller's tenant | P3 |
 | `GET /healthz` | Readiness | P1 |
 
 ## Conventions
@@ -50,6 +51,7 @@ dev-mode CORS.
 |---|---|
 | `400` | `invalid_request` (body or parameters) |
 | `401` | `unauthenticated` |
+| `403` | `forbidden_in_mode`: an endpoint this mode does not offer (P3: `GET /v1/audit` in public mode) |
 | `404` | Unknown id, or another tenant's |
 | `409` | Conflict: turn already running in the session, approval already decided, turn not paused, turn already finished |
 | `415` | `unsupported_media_type`: a body that is not declared `application/json` |
@@ -459,6 +461,45 @@ Restated from `events.md`, so a UI author finds them here:
   `summary.index` order.
 - `turn_end.summary` carries `reply`, `exit` and `steps`; the turn's total cost is the
   `turn_end.cost` field (rule 13), not a summary key.
+
+## `GET /v1/audit` (P3)
+
+Dev and private modes. Query `?since=<RFC 3339 timestamp>` (records with `ts` at or after it;
+default all), `?limit=<n>` (default 500, at most 5000).
+
+Response `200`:
+
+```json
+{
+  "tenant_id": "dev",
+  "verify": { "ok": true, "records": 3 },
+  "records": [
+    { "record_id": "aud_...", "tenant_id": "dev", "ts": "2026-10-29T14:10:41.475Z",
+      "entry": { "action": "policy_decision", "actor": "agent", "tool": "cancel_order",
+                 "action_class": "destructive", "decision": "needs_approval",
+                 "rule": "dev.destructive.approve", "args_digest": "...",
+                 "turn_id": "...", "trace_id": "..." },
+      "prev_hash": "000...", "hash": "..." }
+  ],
+  "next_since": null
+}
+```
+
+Records come oldest first, in chain order. `verify` walks the whole chain of the tenant, not
+only the page. `next_since` is the `ts` to ask for next when the page was full, else `null`.
+Errors: `400` (bad `since` or `limit`), `401`, `403 forbidden_in_mode` in public mode.
+
+## Per-turn options added in P3
+
+`POST /v1/turns` also takes `output_schema` (a JSON Schema; the answer must be JSON valid
+against it or the output guardrails block it) and, in dev mode, `model` (a model alias hint for
+the router, honoured only when the matched rule allows it).
+
+## Recovery after a restart (P3)
+
+`harnesswalk serve` recovers at start-up (`approval_queue.md`, P3 additions): turns paused on an
+approval are re-attached and wait again, other unfinished turns are closed with `error` code
+`restarted`. The P2 limits below about restarts no longer apply.
 
 ## Known limits
 

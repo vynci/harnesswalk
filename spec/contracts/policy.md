@@ -89,4 +89,43 @@ rules:
 | `agent.allow_tools` | Agent allowlist; tools outside it are denied before rules run (rule `agent.allowlist`) |
 | `rules` | Ordered rule list |
 | `roles.<role>.allow_action_classes` | User side of the intersection; default role `user` allows all classes |
-| `budgets.<tenant>.usd_per_day` | Read by the gateway and loop; listed here so all limits live in one file |
+| `budgets.default`, `budgets.tenants.<tenant>` | Per-tenant budgets (P3), see below |
+
+## P3 additions
+
+### Action classes
+
+`ActionClass = "read" | "write" | "destructive" | "external" | "memory.write"`. `memory.write`
+is the class of a write into `semantic` or `episodic` (the memory writer's gate, and any tool
+such as `remember` that proposes one). It is audited like `write`. Public mode treats it as
+non-risky for the start-up check; whether it persists is the memory writer's rule.
+
+### Explanations
+
+The `policy` exit summary carries `rule` and `why`: a short sentence naming the rule and the
+conditions that matched (modes, classes, tools), or the budget that was spent. It never
+contains prompt text or arguments.
+
+### Budgets
+
+```yaml
+budgets:
+  default:  { tokens_per_turn: 16000, tokens_per_hour: 200000, usd_per_turn: 0.05,
+              usd_per_hour: 1.0, tool_calls_per_turn: 12, tool_calls_per_hour: 300 }
+  tenants:
+    demo-tenant: { tool_calls_per_turn: 4 }
+```
+
+- A missing key means no limit. A tenant entry merges over `default`.
+- Usage per tenant is a rolling one-hour ledger written when each turn ends (tokens, dollars,
+  executed tool calls).
+- Tool calls: `policy.check` denies a call when the turn or the hour has used its tool-call
+  budget, with rule `budget.tool_calls_per_turn` or `budget.tool_calls_per_hour` and a
+  `budget` summary `{name, limit, used}`. The denial is audited, and the loop then exits with
+  `exit_reason: budget_tool_calls` (a limit exit: fixed notice, no further model call,
+  `turn_end.summary.exit: limit`).
+- Tokens and dollars: the loop's per-turn budget is the smallest of `loop.budget_*`, the
+  tenant's per-turn budget and what is left of its hourly budget. The loop exits with
+  `budget_tokens` or `budget_usd` as before; the loop exit summary names the source
+  (`budget_source`, for example `policy.budgets.tokens_per_hour`).
+- Budget state is an input to the decision like the call and the rules, so `check` stays pure.
