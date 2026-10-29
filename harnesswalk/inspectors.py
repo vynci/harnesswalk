@@ -8,8 +8,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-import yaml
-
 from harnesswalk import diagram
 from harnesswalk.nodes import implemented, registered
 from harnesswalk.ops import release
@@ -124,7 +122,3 @@ def inspect_node(h: Harness, tenant_id: str, node_id: str, recent_n: int = 5) ->
         "source": _source(h, node),
         "recent": recent,
     }
-
-
-def dump_yaml(data: Any) -> str:
-    return yaml.safe_dump(data, sort_keys=False)
