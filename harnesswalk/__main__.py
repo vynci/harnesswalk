@@ -1,8 +1,8 @@
-"""Entry point for ``python -m harness`` and the ``harnesswalk`` script."""
+"""Entry point for ``python -m harnesswalk`` and the ``harnesswalk`` script."""
 
 import sys
 
-from harness import SPEC_VERSION, __version__
+from harnesswalk import SPEC_VERSION, __version__
 
 
 def main() -> int:

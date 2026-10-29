@@ -8,7 +8,7 @@ are questions and corrections to `spec/`. Code contributions open with P1.
 - **Spec first.** A change in behaviour starts as a change to `spec/` (and to the conformance
   cases when it is observable). Code follows the spec, never the other way round.
 - **Framework-free core.** No agent framework (LangChain, LangGraph, agent SDKs) as a dependency
-  of the harness. Adapters that show how a framework plugs in live under `harness/adapters/` as
+  of the harness. Adapters that show how a framework plugs in live under `harnesswalk/adapters/` as
   examples, outside the core path.
 - **Small and readable.** Every node should be readable in one sitting. Prefer plain functions
   and explicit data over clever abstractions.

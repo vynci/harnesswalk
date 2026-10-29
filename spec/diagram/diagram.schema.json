@@ -77,7 +77,7 @@
         "source_hint": {
           "description": "Planned module path in the reference implementation, relative to the repo root.",
           "type": "string",
-          "pattern": "^harness/[a-z0-9_/]+\\.py$"
+          "pattern": "^harnesswalk/[a-z0-9_/]+\\.py$"
         },
         "artifact_hint": {
           "description": "Optional path of the non-code artifact behind the node (config file, prompt, skills, dataset file). <pack> stands for the active dataset pack.",

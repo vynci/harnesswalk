@@ -34,15 +34,15 @@ dev = [
 ]
 
 [project.scripts]
-harnesswalk = "harness.__main__:main"
+harnesswalk = "harnesswalk.__main__:main"
 
 [build-system]
 requires = ["uv_build>=0.9.0,<0.13"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-# The distribution is `harnesswalk`; the import package is `harness` (see harness/README.md).
-module-name = "harness"
+# The distribution and the import package are both `harnesswalk`.
+module-name = "harnesswalk"
 module-root = ""
 
 [tool.pytest.ini_options]

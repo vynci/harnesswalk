@@ -11,7 +11,7 @@ conformance: ## P0: validate cases and fixtures. P1: run the black-box suite aga
 	uv run pytest tests/spec -q
 
 run: ## P0: prints status. P1: starts the gateway
-	uv run python -m harness
+	uv run python -m harnesswalk
 
 lint: ## Ruff lint and format check
 	uv run ruff check .

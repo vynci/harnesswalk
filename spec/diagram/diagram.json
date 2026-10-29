@@ -36,7 +36,7 @@
       "kind": "code",
       "view": "simple",
       "lesson": "The front door. Every request arrives here, whatever the channel, and leaves here as a reply. The gateway decides who is asking and for which tenant, applies rate limits, and turns the channel's message into one internal shape. Without it every other node would have to know about HTTP, sessions and identity, and tenant isolation would depend on each of them getting it right.",
-      "source_hint": "harness/control/gateway.py"
+      "source_hint": "harnesswalk/control/gateway.py"
     },
     {
       "id": "input_guardrails",
@@ -45,7 +45,7 @@
       "kind": "code",
       "view": "simple",
       "lesson": "Deterministic checks that run before the model sees anything: size limits, PII redaction and prompt-injection heuristics. They are plain code on purpose, because a check that lives in a prompt can be talked out of. Turn this node off and send a message containing an email address: you will see it reach the model and the trace untouched.",
-      "source_hint": "harness/control/input_guardrails.py",
+      "source_hint": "harnesswalk/control/input_guardrails.py",
       "can_disable": true
     },
     {
@@ -55,7 +55,7 @@
       "kind": "config",
       "view": "simple",
       "lesson": "The rules that decide whether a tool call may run. Every tool has an action class (read, write, destructive, external) and every mode has an allowlist. Policy answers allow, deny or needs approval, and it is evaluated on every single call. A line in the system prompt saying \"never cancel orders\" is advice; this node is the control.",
-      "source_hint": "harness/control/policy.py",
+      "source_hint": "harnesswalk/control/policy.py",
       "artifact_hint": "config/policy.yaml",
       "can_disable": true
     },
@@ -66,7 +66,7 @@
       "kind": "queue",
       "view": "simple",
       "lesson": "Where risky actions wait for a human. When policy says needs approval, the loop checkpoints, the exact action is shown as a card in the chat, and nothing runs until someone approves or denies. The diagram shows this node as waiting, which is the only time a request pauses on its own.",
-      "source_hint": "harness/control/approval.py"
+      "source_hint": "harnesswalk/control/approval.py"
     },
     {
       "id": "audit",
@@ -75,7 +75,7 @@
       "kind": "store",
       "view": "simple",
       "lesson": "An append-only record of decisions with consequences: who asked, what ran, who approved it and when. It is not the trace. The trace is for debugging and is sampled and pruned; the audit log is for accountability and is kept. Read-only lookups go to the trace only, which is why this node stays dark on a plain question.",
-      "source_hint": "harness/control/audit.py"
+      "source_hint": "harnesswalk/control/audit.py"
     },
     {
       "id": "context_builder",
@@ -84,7 +84,7 @@
       "kind": "code",
       "view": "simple",
       "lesson": "Assembles what the model will see, inside a token budget. Each slice (system prompt, skills index, session, facts, episodes, documents) has its own budget and tier: always included, retrieved, or fetched on demand. Stable content goes first so prompt caching works. Open it to see the assembled context and a budget bar per slice.",
-      "source_hint": "harness/context/builder.py",
+      "source_hint": "harnesswalk/context/builder.py",
       "artifact_hint": "config/context.yaml"
     },
     {
@@ -94,7 +94,7 @@
       "kind": "store",
       "view": "simple",
       "lesson": "The stores the context builder reads from, shown as one group. They share a retrieval interface but differ in what they hold, how they rank, and how they are written. Expand it in the expert view to see the five stores: procedural, session, semantic, episodic and knowledge.",
-      "source_hint": "harness/context/stores/__init__.py"
+      "source_hint": "harnesswalk/context/stores/__init__.py"
     },
     {
       "id": "procedural",
@@ -104,7 +104,7 @@
       "view": "expert",
       "parent": "memory",
       "lesson": "How the agent should behave: the system prompt (skill zero) and the skills, each a short markdown file. This is text that carries intent, not code that enforces it. Edit a skill while the agent is idle and the change is saved as a new artifact version you can diff and roll back.",
-      "source_hint": "harness/context/stores/procedural.py",
+      "source_hint": "harnesswalk/context/stores/procedural.py",
       "artifact_hint": "datasets/<pack>/skills/"
     },
     {
@@ -115,7 +115,7 @@
       "view": "expert",
       "parent": "memory",
       "lesson": "The conversation so far: recent turns verbatim and a running summary of older ones, plus the loop's checkpoints. When the history outgrows its budget, old turns are compacted into the summary with pointers back to the originals.",
-      "source_hint": "harness/context/stores/session.py"
+      "source_hint": "harnesswalk/context/stores/session.py"
     },
     {
       "id": "semantic",
@@ -125,7 +125,7 @@
       "view": "expert",
       "parent": "memory",
       "lesson": "Durable facts, such as \"the customer prefers email\". Retrieval favours precision: entity match first, then similarity. Facts only arrive through the memory writer, never directly from the model.",
-      "source_hint": "harness/context/stores/semantic.py",
+      "source_hint": "harnesswalk/context/stores/semantic.py",
       "artifact_hint": "datasets/<pack>/facts.jsonl"
     },
     {
@@ -136,7 +136,7 @@
       "view": "expert",
       "parent": "memory",
       "lesson": "Dated events, such as \"order A-1001 was refunded on 3 October\". Retrieval mixes recency with relevance, so last week's event can outrank a closer match from last year.",
-      "source_hint": "harness/context/stores/episodic.py",
+      "source_hint": "harnesswalk/context/stores/episodic.py",
       "artifact_hint": "datasets/<pack>/episodes.jsonl"
     },
     {
@@ -147,7 +147,7 @@
       "view": "expert",
       "parent": "memory",
       "lesson": "Documents for retrieval-augmented generation: chunked, embedded, searched with keywords and vectors together, then reranked. Answers built from these chunks must cite them, which the output guardrails check.",
-      "source_hint": "harness/context/stores/knowledge.py",
+      "source_hint": "harnesswalk/context/stores/knowledge.py",
       "artifact_hint": "datasets/<pack>/docs/"
     },
     {
@@ -157,7 +157,7 @@
       "kind": "code",
       "view": "simple",
       "lesson": "The only way anything is written into semantic or episodic memory. The loop and the eval diagnosis propose memories; the writer gates them (human review, an eval check, or auto-approve in private mode when enabled), versions them and scopes them to one tenant. Without a gate, one bad turn can poison every later one.",
-      "source_hint": "harness/context/memory_writer.py",
+      "source_hint": "harnesswalk/context/memory_writer.py",
       "can_disable": true
     },
     {
@@ -167,7 +167,7 @@
       "kind": "code",
       "view": "simple",
       "lesson": "Plan, act, observe, adjust. The loop calls the model, runs the tools it asks for, feeds the results back, and repeats until there is an answer or an exit condition fires: max steps, token or dollar budget, wall-clock timeout, the same call repeated, or a human interrupt. It checkpoints after every step so a paused or crashed turn can resume.",
-      "source_hint": "harness/execution/loop.py"
+      "source_hint": "harnesswalk/execution/loop.py"
     },
     {
       "id": "model_layer",
@@ -176,7 +176,7 @@
       "kind": "model",
       "view": "simple",
       "lesson": "One interface in front of every model. It picks a model for the step (the router), calls the provider, falls back on errors or rate limits, and returns structured output. Swap the provider from local to hosted and nothing else in the harness changes.",
-      "source_hint": "harness/execution/model_layer.py",
+      "source_hint": "harnesswalk/execution/model_layer.py",
       "artifact_hint": "config/models.yaml"
     },
     {
@@ -187,7 +187,7 @@
       "view": "expert",
       "parent": "model_layer",
       "lesson": "Rules that choose a model by step, risk, cost and modality: a small model for lookups, a larger one for synthesis, a vision model for images. Routing is rules first; a model may only choose among options the rules allow.",
-      "source_hint": "harness/execution/router.py",
+      "source_hint": "harnesswalk/execution/router.py",
       "artifact_hint": "config/models.yaml"
     },
     {
@@ -198,7 +198,7 @@
       "view": "expert",
       "parent": "model_layer",
       "lesson": "One adapter per provider behind the same call shape: fake (scripted, for tests), ollama (local), and hosted APIs. The fake provider replays a fixture, so tests and conformance runs are deterministic and free.",
-      "source_hint": "harness/execution/providers/__init__.py"
+      "source_hint": "harnesswalk/execution/providers/__init__.py"
     },
     {
       "id": "tools",
@@ -207,7 +207,7 @@
       "kind": "code",
       "view": "simple",
       "lesson": "Functions the model can ask to run, each with a typed schema. Every call is checked by policy before it runs and executes with a timeout. The node shows two sub-states, policy check then execute, so you can see a call that was stopped before it did anything.",
-      "source_hint": "harness/execution/tools.py"
+      "source_hint": "harnesswalk/execution/tools.py"
     },
     {
       "id": "registry",
@@ -217,7 +217,7 @@
       "view": "expert",
       "parent": "tools",
       "lesson": "The list of tools the agent may know about: local functions from the dataset pack and, later, MCP servers. Each entry has a name, a JSON schema for its arguments, an action class and a timeout.",
-      "source_hint": "harness/execution/registry.py",
+      "source_hint": "harnesswalk/execution/registry.py",
       "artifact_hint": "datasets/<pack>/tools.yaml"
     },
     {
@@ -228,7 +228,7 @@
       "view": "expert",
       "parent": "tools",
       "lesson": "Where a tool call actually executes: isolated, time-limited, and idempotent where it has side effects. In public mode only pure dataset functions and knowledge search are allowed here.",
-      "source_hint": "harness/execution/sandbox.py"
+      "source_hint": "harnesswalk/execution/sandbox.py"
     },
     {
       "id": "output_guardrails",
@@ -237,7 +237,7 @@
       "kind": "code",
       "view": "simple",
       "lesson": "Checks on the answer before it leaves: schema validation, content checks, and citations required when the answer draws on knowledge documents. Like input guardrails, these are code, not instructions to the model.",
-      "source_hint": "harness/execution/output_guardrails.py",
+      "source_hint": "harnesswalk/execution/output_guardrails.py",
       "can_disable": true
     },
     {
@@ -247,7 +247,7 @@
       "kind": "store",
       "view": "simple",
       "lesson": "Every event of every turn, in order, under one trace id: the assembled context, prompt versions, each tool call with its inputs and outputs, tokens, cost and latency. The diagram you are looking at is drawn from the same events, so replaying a trace replays the animation.",
-      "source_hint": "harness/ops/trace.py"
+      "source_hint": "harnesswalk/ops/trace.py"
     },
     {
       "id": "cost",
@@ -257,7 +257,7 @@
       "view": "expert",
       "parent": "trace",
       "lesson": "Tokens and dollars per turn, per node and per tenant, plus latency per step. Each turn ends with a cost receipt. Budgets in policy and the loop are enforced from these numbers.",
-      "source_hint": "harness/ops/cost.py"
+      "source_hint": "harnesswalk/ops/cost.py"
     },
     {
       "id": "eval",
@@ -266,7 +266,7 @@
       "kind": "code",
       "view": "simple",
       "lesson": "How you know a change made things better. Offline evals replay a golden set in CI; online evals judge a sample of live turns and collect thumbs; diagnose maps a failure to the layer that caused it, so the fix goes to the right place.",
-      "source_hint": "harness/ops/eval/__init__.py"
+      "source_hint": "harnesswalk/ops/eval/__init__.py"
     },
     {
       "id": "online_eval",
@@ -276,7 +276,7 @@
       "view": "expert",
       "parent": "eval",
       "lesson": "A judge model scores a sample of live turns, alongside user thumbs and task-success signals. It catches drift that no golden set anticipated.",
-      "source_hint": "harness/ops/eval/online.py"
+      "source_hint": "harnesswalk/ops/eval/online.py"
     },
     {
       "id": "offline_eval",
@@ -286,7 +286,7 @@
       "view": "expert",
       "parent": "eval",
       "lesson": "The golden set for each dataset pack, replayed whenever a prompt, skill, tool or model changes. Deterministic checks (expected node path, required citation) run without a model; judged checks run on a sample.",
-      "source_hint": "harness/ops/eval/offline.py",
+      "source_hint": "harnesswalk/ops/eval/offline.py",
       "artifact_hint": "datasets/<pack>/golden.jsonl"
     },
     {
@@ -297,7 +297,7 @@
       "view": "expert",
       "parent": "eval",
       "lesson": "Walks a failed trace and names the layer at fault: context, prompt, memory, tool or model. Its output is a regression case for the golden set and, where it fits, a proposed fact or skill for the memory writer.",
-      "source_hint": "harness/ops/eval/diagnose.py"
+      "source_hint": "harnesswalk/ops/eval/diagnose.py"
     },
     {
       "id": "release",
@@ -306,7 +306,7 @@
       "kind": "code",
       "view": "simple",
       "lesson": "Everything the harness loads is a versioned artifact: prompts, skills, policy, tool definitions, model config. A release passes the eval gate, ships, and can be rolled back by version. Editing a skill in the UI creates a new version here.",
-      "source_hint": "harness/ops/release.py"
+      "source_hint": "harnesswalk/ops/release.py"
     },
     {
       "id": "artifacts",
@@ -316,7 +316,7 @@
       "view": "expert",
       "parent": "release",
       "lesson": "The versioned files themselves, with history and diffs. Git-backed in v1: each release is a commit, each rollback a checkout.",
-      "source_hint": "harness/ops/artifacts.py"
+      "source_hint": "harnesswalk/ops/artifacts.py"
     }
   ],
   "edges": [

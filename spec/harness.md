@@ -3,7 +3,7 @@
 Spec version: **0.1.0** (draft, P0). Status: normative for P1 onward.
 
 This document describes what a harnesswalk harness is, independent of language. The reference
-implementation lives in `harness/` (Python). Any other implementation that passes the
+implementation lives in `harnesswalk/` (Python). Any other implementation that passes the
 conformance suite in `spec/conformance/` is a harnesswalk harness and can drive the same diagram
 and UI.
 

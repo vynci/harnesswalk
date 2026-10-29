@@ -175,7 +175,7 @@ Response `200`:
     "content": "version: 1\nrules:\n  - ...",
     "editable": true
   },
-  "source": { "path": "harness/control/policy.py", "language": "python", "content": "..." },
+  "source": { "path": "harnesswalk/control/policy.py", "language": "python", "content": "..." },
   "recent": [ { "turn_id": "turn_approval_pause", "status": "done", "summary": { "decision": "needs_approval" } } ]
 }
 ```

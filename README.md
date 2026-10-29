@@ -146,7 +146,7 @@ The contract is in [`spec/`](spec/), written before the code:
 | [spec/contracts/](spec/contracts/) | One interface per component, plus the HTTP API |
 | [spec/conformance/](spec/conformance/) | Black-box cases any implementation can run |
 
-The reference implementation will be Python (FastAPI) in [`harness/`](harness/), with a
+The reference implementation will be Python (FastAPI) in [`harnesswalk/`](harnesswalk/), with a
 TypeScript web UI in [`web/`](web/). A TypeScript harness port is planned to prove the spec.
 
 ## Try it (today)
@@ -163,7 +163,7 @@ make lint
 
 ```
 spec/       the language-agnostic contract
-harness/    reference implementation (Python), skeleton only
+harnesswalk/ reference implementation (Python), skeleton only
 web/        chat and diagram UI (P2)
 datasets/   five starter packs (P5)
 lessons/    one chapter per node (P5)

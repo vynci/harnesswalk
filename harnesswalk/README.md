@@ -1,7 +1,7 @@
-# harness (reference implementation)
+# harnesswalk (reference implementation)
 
-The Python reference implementation of the spec in `../spec/`. The distribution is named
-`harnesswalk`; the import package is `harness`. P0 ships the package skeleton only. Modules
+The Python reference implementation of the spec in `../spec/`. The distribution and the import
+package are both named `harnesswalk`. P0 ships the package skeleton only. Modules
 below are planned, each mapped to the node id it registers under. The same mapping is the
 `source_hint` of each node in `spec/diagram/diagram.json`, and `GET /v1/nodes/{id}` serves that
 file as the node's code peek.

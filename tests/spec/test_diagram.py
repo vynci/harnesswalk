@@ -80,7 +80,7 @@ def test_paths_use_simple_nodes() -> None:
 def test_source_hints_point_into_planned_packages() -> None:
     for n in diagram()["nodes"]:
         package = n["source_hint"].split("/")[1]
-        assert (ROOT / "harness" / package / "__init__.py").exists(), n["id"]
+        assert (ROOT / "harnesswalk" / package / "__init__.py").exists(), n["id"]
 
 
 def test_event_schema_node_ids_match_diagram() -> None:

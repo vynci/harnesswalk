@@ -39,7 +39,7 @@ def test_lessons_follow_walk_order() -> None:
 
 
 def test_harness_readme_maps_every_node() -> None:
-    text = (ROOT / "harness" / "README.md").read_text(encoding="utf-8")
+    text = (ROOT / "harnesswalk" / "README.md").read_text(encoding="utf-8")
     mapped = set(re.findall(r"\| `([a-z_]+)` \| `[a-z_]+\.md`", text))
     assert mapped == {n["id"] for n in diagram()["nodes"]}
 
