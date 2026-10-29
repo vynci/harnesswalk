@@ -3,7 +3,10 @@
 Docker Compose for the learner path. The API image is built from `deploy/api.Dockerfile` in two
 stages: a `node:24` stage builds `web/` with pnpm when it has a `package.json` (and is skipped
 while `web/` is a placeholder), then the uv stage copies `web/dist` in, so the api serves the
-web app at `/` (non-root user, `harnesswalk serve`). Image tags are pinned: `pgvector/pgvector:0.8.7-pg17` and
+web app at `/` (non-root user, `harnesswalk serve`). pnpm is pinned (the `packageManager` field
+of `web/package.json`, else the `PNPM_VERSION` build argument), corepack never prompts, the
+stage fails when the build leaves no `dist/index.html`, and `.dockerignore` keeps every `.env`
+file out of the build, so local `VITE_*` values never ship. Image tags are pinned: `pgvector/pgvector:0.8.7-pg17` and
 `ollama/ollama:0.40.8`. The public sandbox deployment arrives in P6.
 
 ## Profiles
