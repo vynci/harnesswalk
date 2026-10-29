@@ -59,7 +59,7 @@ record ApprovalDecision { approval_id: string, decision: "approve" | "deny" | "e
 |---|---|
 | Unknown `approval_id` or other tenant | `404` |
 | Already decided | `409` |
-| Turn cancelled while pending | Record becomes `expired`; the span closes with `error` `cancelled` |
+| Turn cancelled while pending | Record becomes `expired` at once (decided by `system`), so a later decision is `409`; the span closes with `error` `cancelled` |
 | Process restart while pending | Pending record and checkpoint survive; a later decision resumes the turn |
 
 ## Events

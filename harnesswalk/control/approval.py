@@ -94,15 +94,7 @@ class ApprovalQueue:
         record = self.get(approval_id, tenant_id)  # raises ApprovalNotFound for other tenants
         if record["status"] != "pending":
             raise ApprovalAlreadyDecided(approval_id)
-        status = {"approve": "approved", "deny": "denied", "expired": "expired"}[decision]
-        decided_at = iso(time.time())
-        cursor = self.db.execute(
-            "UPDATE approvals SET status = ?, decided_by = ?, decided_at = ?, decision_reason = ?"
-            " WHERE approval_id = ? AND status = 'pending'",
-            (status, decider, decided_at, reason, approval_id),
-        )
-        if cursor.rowcount == 0:  # someone decided between the read and the write
-            raise ApprovalAlreadyDecided(approval_id)
+        decided_at = self._record(approval_id, decision, decider, reason)
         waiter = self._waiters.get(approval_id)
         if waiter and not waiter.done():
             waiter.set_result(ApprovalDecision(approval_id, decision, decider, reason))
@@ -114,16 +106,34 @@ class ApprovalQueue:
             "decided_at": decided_at,
         }
 
-    def cancel_turn(self, turn_id: str) -> int:
-        """Wake every approval this turn waits on with TurnCancelled. Returns how many.
+    def _record(self, approval_id: str, decision: str, decider: str, reason: str | None) -> str:
+        """Write the decision once. Raises ApprovalAlreadyDecided when it is not pending."""
+        status = {"approve": "approved", "deny": "denied", "expired": "expired"}[decision]
+        decided_at = iso(time.time())
+        cursor = self.db.execute(
+            "UPDATE approvals SET status = ?, decided_by = ?, decided_at = ?, decision_reason = ?"
+            " WHERE approval_id = ? AND status = 'pending'",
+            (status, decider, decided_at, reason, approval_id),
+        )
+        if cursor.rowcount == 0:  # someone decided between the read and the write
+            raise ApprovalAlreadyDecided(approval_id)
+        return decided_at
 
-        The waiting span then records the approval as `expired` and closes with `error`
-        `cancelled` (approval_queue.md, "Turn cancelled while pending").
+    def cancel_turn(self, turn_id: str) -> int:
+        """Expire every approval this turn waits on, then wake it with TurnCancelled.
+
+        The record becomes `expired` (decided by `system`) right here, before the turn's task
+        runs again, so a human decision that arrives after the cancel is a 409 and never
+        leaves an `approved` record on a cancelled turn. The waiting span then closes with
+        `error` `cancelled` (approval_queue.md, "Turn cancelled while pending"). Returns how
+        many approvals were woken.
         """
         woken = 0
         for approval_id, owner in list(self._waiter_turns.items()):
             waiter = self._waiters.get(approval_id)
             if owner == turn_id and waiter is not None and not waiter.done():
+                with contextlib.suppress(ApprovalAlreadyDecided):
+                    self._record(approval_id, "expired", "system", "turn cancelled")
                 waiter.set_exception(TurnCancelled())
                 woken += 1
         return woken
