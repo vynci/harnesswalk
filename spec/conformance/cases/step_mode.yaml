@@ -1,0 +1,40 @@
+id: step_mode
+title: Step mode pauses on every node and the turn advances one resume at a time
+spec_version: 0.1.0
+fixture: step_mode
+turns:
+  - send:
+      message: What are your support hours?
+      options: { step_mode: true }
+    actions:
+      - when: { type: node_paused, summary: { reason: breakpoint } }
+        do: { resume: step }
+        repeat: true
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: turn_start, status: active, summary: { step_mode: true } }
+        - { type: node_enter, node_id: gateway }
+        - { type: node_paused, node_id: gateway, status: waiting, summary: { reason: breakpoint } }
+        - { type: node_resumed, node_id: gateway, status: active }
+        - { type: node_exit, node_id: gateway, summary: { phase: receive } }
+        - { type: node_enter, node_id: input_guardrails }
+        - { type: node_paused, node_id: input_guardrails, summary: { reason: breakpoint } }
+        - { type: node_resumed, node_id: input_guardrails }
+        - { type: node_enter, node_id: loop }
+        - { type: node_paused, node_id: loop, summary: { reason: breakpoint } }
+        - { type: node_resumed, node_id: loop }
+        - { type: node_enter, node_id: model_layer }
+        - { type: node_paused, node_id: model_layer, summary: { reason: breakpoint } }
+        - { type: node_resumed, node_id: model_layer }
+        - { type: node_exit, node_id: loop, summary: { exit_reason: answer, steps: 1 } }
+        - { type: node_enter, node_id: trace }
+        - { type: node_paused, node_id: trace, summary: { reason: breakpoint } }
+        - { type: node_resumed, node_id: trace }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      absent:
+        - { type: node_paused, summary: { reason: approval } }
+        - { type: node_enter, node_id: tools }
+      cost: { input_tokens: 622, output_tokens: 17 }
+      reply_contains: [9am to 5pm]

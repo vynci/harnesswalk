@@ -53,3 +53,4 @@ overridable:
   - loop.stuck_repeats
   - loop.final_call_on_exit
   - approval.timeout_s
+  - input_guardrails.size.max_chars

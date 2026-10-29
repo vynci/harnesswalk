@@ -1,0 +1,9 @@
+fixture: step_mode
+description: A plain question answered from the system prompt, walked one node at a time in step
+  mode.
+model: fake-small
+turns:
+  - responses:
+      - text: Our support team is available 9am to 5pm Eastern, Monday to Friday.
+        usage: { input_tokens: 622, output_tokens: 17 }
+        expect: { tools_enabled: true, last_message_role: user }

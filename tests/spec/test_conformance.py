@@ -24,6 +24,8 @@ REQUIRED_CASES = {
     "approval_approve",
     "approval_deny",
     "loop_max_steps",
+    "step_mode",
+    "guardrail_block",
 }
 
 # Recorded example stream -> the case it must satisfy.

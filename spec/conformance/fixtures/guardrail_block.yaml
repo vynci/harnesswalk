@@ -1,0 +1,7 @@
+fixture: guardrail_block
+description: The input guardrails block the message, so the model is never called. The one
+  scripted response exists only because a fixture needs one; it must stay unused.
+model: fake-small
+turns:
+  - responses:
+      - text: This response must never be used, because the input is blocked before the model.

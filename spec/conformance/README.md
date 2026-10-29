@@ -80,6 +80,8 @@ model would say. The fake provider fixes what the model says.
 | `approval_approve` | `approval_approve` | A destructive tool is audited, pauses for approval, resumes on approve, then runs |
 | `approval_deny` | `approval_deny` | The same call is denied: it never executes and the model is told why |
 | `loop_max_steps` | `loop_max_steps` | `loop.max_steps: 3` stops a tool-happy model, then one tools-off call answers |
+| `step_mode` | `step_mode` | With `options.step_mode` every node pauses on a breakpoint after its enter and resumes on `resume: step` |
+| `guardrail_block` | `guardrail_block` | An oversized input is blocked by `input_guardrails`; no context, loop or model call; `exit: blocked` |
 
 ## Adding a case
 

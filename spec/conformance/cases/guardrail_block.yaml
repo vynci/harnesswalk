@@ -1,0 +1,25 @@
+id: guardrail_block
+title: Input guardrails block an oversized message before any model call
+spec_version: 0.1.0
+fixture: guardrail_block
+config:
+  input_guardrails.size.max_chars: 200
+turns:
+  - send:
+      message: >-
+        Hello, I have a question about my order, but first here is some background that goes on
+        for far too long. It keeps going, line after line, with nothing the support assistant
+        needs, until it is longer than the two hundred characters this case allows.
+    expect:
+      path: [gateway, input_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: node_exit, node_id: input_guardrails, status: done, summary: { action: block } }
+        - { type: node_exit, node_id: gateway, summary: { phase: reply } }
+        - { type: turn_end, status: done, summary: { exit: blocked } }
+      absent:
+        - { type: node_enter, node_id: context_builder }
+        - { type: node_enter, node_id: loop }
+        - { type: node_enter, node_id: model_layer }
+        - { type: node_enter, node_id: memory }
+      cost: { input_tokens: 0, output_tokens: 0 }
