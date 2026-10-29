@@ -49,7 +49,7 @@ from harnesswalk.turns import MAX_SESSION_TURNS, session_turns, turn_summary
 from harnesswalk.types import Identity
 
 TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
-CURSOR = re.compile(r"-?\d{1,18}")  # an event seq, for Last-Event-ID
+CURSOR = re.compile(r"-?\d{1,18}")  # an event seq: ?after=, ?after_seq= and Last-Event-ID
 SESSION_COOKIE = "harnesswalk_session"
 TENANT_COOKIE = "harnesswalk_tenant"
 DEV_ORIGINS = ["http://127.0.0.1:5173", "http://localhost:5173"]  # the Vite dev server
@@ -336,21 +336,28 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
     async def turn_events(
         request: Request,
         turn_id: str,
-        after: int | None = None,
-        after_seq: int | None = None,
+        after: str | None = None,
+        after_seq: str | None = None,
         follow: bool = True,
     ) -> Response:
         identity, _ = identities.resolve(request)
         tenant = identity.tenant_id
-        last = request.headers.get("last-event-id", "").strip()
-        if last and not CURSOR.fullmatch(last):
-            raise GatewayError(400, "invalid_request", "Last-Event-ID must be an integer")
+        # Every cursor follows one rule, at most 18 digits, so it always fits SQLite's integer.
+        cursors: list[int] = []
+        for name, raw in (
+            ("after", after),
+            ("after_seq", after_seq),
+            ("Last-Event-ID", request.headers.get("last-event-id")),
+        ):
+            raw = (raw or "").strip()
+            if not raw:
+                continue
+            if not CURSOR.fullmatch(raw):
+                raise GatewayError(400, "invalid_request", f"{name} must be an integer seq")
+            cursors.append(int(raw))
         running = gateway.get(tenant, turn_id)
         if running is None and not harness.tracer.turn_exists(tenant, turn_id):
             raise not_found(turn_id)
-        cursors = [c for c in (after, after_seq) if c is not None]
-        if last:
-            cursors.append(int(last))
         # The largest cursor wins: a browser reconnecting to the same `?after=` URL sends
         # Last-Event-ID too, and must not get the events between the two again.
         start = max([-1, *cursors])
