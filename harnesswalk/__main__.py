@@ -17,10 +17,11 @@ from typing import Any
 from harnesswalk import SPEC_VERSION, __version__
 
 SUMMARY_KEYS = (
-    "phase", "action", "decision", "rule", "used_tokens", "compacted", "step", "provider", "model",
-    "finish_reason", "tool_calls", "fallback", "tools_enabled", "tool", "outcome", "executed",
-    "exit_reason", "steps", "reply_chars", "events", "persisted", "approval_id", "record_id",
-    "prompt_version", "skills_indexed", "turns", "tokens", "hits", "input_tokens", "output_tokens",
+    "phase", "action", "tool", "decision", "rule", "used_tokens", "compacted", "exit_reason",
+    "steps", "step", "provider", "model", "finish_reason", "tool_calls", "fallback",
+    "tools_enabled", "outcome", "executed", "reply_chars", "events", "persisted", "approval_id",
+    "record_id", "prompt_version", "skills_indexed", "turns", "hits", "tokens", "input_tokens",
+    "output_tokens",
 )  # fmt: skip
 
 
