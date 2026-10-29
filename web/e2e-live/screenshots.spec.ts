@@ -88,6 +88,17 @@ test('the approval card', async ({ page }) => {
   await page.screenshot({ path: out('approval-card') })
 })
 
+test('the chat panel', async ({ page }) => {
+  // chat.png: the AI Elements look: muted user bubble, a tool line opened to its details, the
+  // reply without a bubble, the Replay action and the composer with the plus and arrow-up send.
+  await turn(page, 'tool_call', 'Where is order A-1001?')
+  await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  await page.getByTestId('tool-line').last().click()
+  await expect(page.getByTestId('tool-details')).toBeVisible()
+  await settle(page)
+  await page.getByRole('region', { name: 'Chat' }).screenshot({ path: out('chat') })
+})
+
 test('the inspector code tab', async ({ page }) => {
   await turn(page, 'tool_call', 'Where is order A-1001?')
   await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')

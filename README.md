@@ -183,7 +183,9 @@ answers with a real local model instead.
   marks `cancel_order` as destructive, the turn pauses on the Approval node, and a card in the
   chat waits for your Approve or Deny.
 
-![The approval card: the turn waits on the Approval node until a human decides](docs/screenshots/approval-card.png)
+![The approval: the tool line waits and a Run cancel_order? prompt asks for Deny or Approve while the turn waits on the Approval node](docs/screenshots/approval-card.png)
+
+![The chat: a muted question bubble, a tool line opened to its policy and sandbox, the reply, the Replay action, and the message input with its plus and arrow-up send](docs/screenshots/chat.png)
 
 - **Memory and citations (P3).** Pick `trailhead_return` and ask "Can I return order A-1003,
   the Trailhead backpack?". All five memory badges light (procedural, session, a seed fact and
