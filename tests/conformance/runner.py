@@ -1,6 +1,7 @@
 """The conformance runner (spec/conformance/README.md, "Protocol").
 
-For each case: start the reference harness in dev mode with the conformance profile, the fake
+For each case: start the reference harness in the case's mode (dev unless the case says
+otherwise) with the conformance profile, the fake
 provider and the case's fixture and config overrides, on a real loopback HTTP server in a
 background thread. Then talk to it only through the HTTP API: post each turn, read its SSE
 stream, perform the case's actions (approve, deny, resume, cancel) when their matchers fire, and
@@ -70,7 +71,7 @@ class LiveHarness:
             raise ValueError(f"case overrides keys outside the profile: {sorted(extra)}")
         settings = load_settings(
             ROOT,
-            mode="dev",
+            mode=case.get("mode", "dev"),
             provider="fake",
             fixture=case["fixture"],
             profile=PROFILE,

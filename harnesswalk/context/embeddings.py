@@ -9,10 +9,10 @@ Config `stores.embeddings` (spec/contracts/store.md):
 vector. Texts that share words get a high cosine, texts that share none get about zero. No
 network, no model, deterministic: the conformance suite and every unit test use it. `ollama`
 calls `POST /api/embed` on the configured Ollama for real semantic vectors. `auto` picks
-`fake` when the harness runs on the fake provider, else `ollama` when a quick probe finds it with
-the model pulled, else `fake` with a warning (the summaries name the embedder, so nothing is hidden). The process
-variable `HARNESSWALK_EMBEDDINGS` (`fake` or `ollama`) overrides the config; the test suite
-sets it to `fake`.
+`fake` when the harness runs on the fake provider, else `ollama` when a quick probe finds it
+with the model pulled, else `fake` with a warning (the summaries name the embedder, so nothing
+is hidden). The process variable `HARNESSWALK_EMBEDDINGS` (`fake` or `ollama`) overrides the
+config; the test suite sets it to `fake`.
 
 Vectors are stored with the embedder's id (`fake:256`, `ollama:nomic-embed-text`), and a
 search only compares vectors of the same id, so switching embedders never mixes spaces.

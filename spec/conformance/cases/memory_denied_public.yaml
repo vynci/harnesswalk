@@ -1,0 +1,18 @@
+id: memory_denied_public
+title: In public mode a memory is proposed but never written
+spec_version: 0.1.0
+mode: public
+fixture: memory_denied_public
+turns:
+  - send:
+      message: Please remember that my preferred name is Sam.
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, tools, policy, audit, model_layer, output_guardrails, gateway, memory_writer, trace]
+      statuses: done
+      events:
+        - { type: node_exit, node_id: policy, summary: { tool: remember, action_class: memory.write, decision: allow } }
+        - { type: memory_proposed, node_id: memory_writer, status: waiting, summary: { store: semantic, gate: session } }
+        - { type: node_exit, node_id: memory_writer, status: done, summary: { proposed: 1, written: 0, rejected: 1, pending: 0 } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      absent:
+        - { type: memory_written }

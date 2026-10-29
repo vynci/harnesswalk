@@ -1,0 +1,23 @@
+id: knowledge_cited
+title: An answer drawn from knowledge cites the retrieved chunk with [n]
+spec_version: 0.1.0
+fixture: knowledge_cited
+config:
+  context.stores: [procedural, session, knowledge]
+turns:
+  - send:
+      message: How many days do I have to return an item?
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: node_exit, node_id: knowledge, status: done, summary: { docs: [returns_policy] } }
+        - { type: node_exit, node_id: context_builder, summary: { citations: 1 } }
+        - type: turn_end
+          status: done
+          summary:
+            exit: answered
+            citations: [{ n: 1, doc: returns_policy, chunk: 0, citation: "Returns policy, Return window" }]
+      absent:
+        - { type: node_enter, node_id: memory_writer }
+      reply_contains: ["[1]", 30 days]

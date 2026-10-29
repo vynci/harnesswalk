@@ -1,0 +1,8 @@
+fixture: knowledge_cited
+description: The model answers from the retrieved knowledge chunk and cites it as [1].
+model: fake-small
+turns:
+  - responses:
+      - text: You can return an unused item within 30 days of delivery [1].
+        usage: { input_tokens: 240, output_tokens: 16 }
+        expect: { last_message_role: user, last_message_contains: return an item }
