@@ -111,4 +111,4 @@ Edges: `memory_to_context_builder` and its expert refinements `<kind>_to_context
 | `stores.knowledge.rerank_k` | `20` | Candidates per list, and passed to the reranker |
 | `stores.knowledge.reranker` | `none` | `none`, or a reranker registered by name (`cross_encoder` and `model` are reserved names; none ships) |
 | `stores.knowledge.min_vector_score` | `0.45` | A chunk found only by vector search needs this cosine |
-| `stores.knowledge.min_keyword_coverage` | `0.5` | A keyword hit needs this share of the query's words, and at least two of them |
+| `stores.knowledge.min_keyword_coverage` | `0.25` | A keyword hit needs this share of the query's words, and at least two of them |

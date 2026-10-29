@@ -134,7 +134,7 @@ class KnowledgeStore:
         self.rrf_k = int(cfg.get("rrf_k", 60))
         self.rerank_k = int(cfg.get("rerank_k", 20))
         self.min_vector_score = float(cfg.get("min_vector_score", 0.45))
-        self.min_keyword_coverage = float(cfg.get("min_keyword_coverage", 0.5))
+        self.min_keyword_coverage = float(cfg.get("min_keyword_coverage", 0.25))
         self.reranker = cfg.get("reranker", "none")
         if self.reranker != "none" and self.reranker not in RERANKERS:
             raise ConfigError(

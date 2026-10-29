@@ -38,7 +38,7 @@ stores:
     rerank_k: 20                    # candidates per list, and passed to the reranker
     reranker: none                  # none, or a name registered with register_reranker()
     min_vector_score: 0.45          # a chunk found only by vector search needs this cosine
-    min_keyword_coverage: 0.5       # a keyword hit needs this share of the query's words (and two)
+    min_keyword_coverage: 0.25      # a keyword hit needs this share of the query's words (and two)
 
 memory_writer:
   enabled: true
