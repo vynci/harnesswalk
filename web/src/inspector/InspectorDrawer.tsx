@@ -71,17 +71,12 @@ export function InspectorDrawer() {
               {parent ? ` · inside ${parent.label}` : ''} · <code className="font-mono">{node.id}</code>
             </p>
           </div>
-          <Hint
-            label={
-              <>
-                Close <Kbd>Esc</Kbd>
-              </>
-            }
-          >
-            <Button ref={closeRef} size="icon" variant="ghost" className="ml-auto size-8 shrink-0" onClick={() => selectNode(null)} aria-label="Close inspector" aria-keyshortcuts="Escape">
+          <span className="ml-auto flex shrink-0 items-center gap-1">
+            <Kbd aria-hidden>Esc</Kbd>
+            <Button ref={closeRef} size="icon" variant="ghost" className="size-8" onClick={() => selectNode(null)} aria-label="Close inspector" aria-keyshortcuts="Escape">
               <X />
             </Button>
-          </Hint>
+          </span>
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Hint label={KIND_HINT[node.kind]}>

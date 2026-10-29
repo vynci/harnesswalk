@@ -200,7 +200,7 @@ src/diagram    layout, React Flow nodes and edges, stats and memory badges
 src/chat       chat panel, composer, approval card, step controls, tool calls (Tool, Sources)
 src/inspector  node drawer: overview, config or prompt or records, code, events (Trace)
 src/components shadcn/ui in ui/, plus hint, code and prose
-src/lib, hooks  cn() and the shiki highlighter, from the shadcn CLI
+src/lib, hooks cn() and the shiki highlighter, from the shadcn CLI
 src/replay     replay bar
 src/mock       in-browser mock API over spec/examples
 src/app        shell, header, bootstrap
