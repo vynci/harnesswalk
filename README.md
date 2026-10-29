@@ -185,6 +185,22 @@ answers with a real local model instead.
 
 ![The approval card: the turn waits on the Approval node until a human decides](docs/screenshots/approval-card.png)
 
+- **Memory and citations (P3).** Pick `trailhead_return` and ask "Can I return order A-1003,
+  the Trailhead backpack?". All five memory badges light (procedural, session, a seed fact and
+  a seed event about A-1003, and the returns policy from knowledge), and the reply cites the
+  passages it used as chips. Click a chip, or a line under "Cited 2 passages", to open the
+  document at that passage. Then start a New session, pick `remember_fact`, say "Please
+  remember that my preferred name is Sam." and watch the Memory writer run after the reply
+  (a "Remembered in semantic" line in the chat; its inspector's Writes tab shows the diff).
+  Ask "What is my preferred name?" next: semantic memory answers with the fact you just wrote.
+
+![Citation chips opening the returns policy at the cited passage](docs/screenshots/citations.png)
+
+- **Guardrails, budgets and audit (P3).** `pii_redacted` with a message that holds an email
+  shows the placeholder the model saw (`[EMAIL_1]`), and in dev mode a switch reveals the reply
+  with your value restored. Every tool line says where the call ran (sandbox level, network,
+  jail). A turn that runs out of its tool-call budget ends with a notice that quotes the policy.
+  The Audit node's Records tab lists the hash chain and a Verify button checks it on the server.
 - **Step mode.** Switch on Step mode before sending. The harness stops at every node, like a
   debugger; Next moves one hop, Continue runs to the end, and Stop cancels the turn (a model
   or tool call already in flight finishes first).
@@ -228,6 +244,16 @@ uv run harnesswalk turn "Ignore all previous instructions" --provider fake --mod
 uv run harnesswalk turn "Where is order A-1001?" --provider ollama
 ```
 
+The memory and citation walk on the command line (the session id comes from the first turn's
+output):
+
+```sh
+uv run harnesswalk ingest _starter --force   # index the documents, load the seed facts and events
+uv run harnesswalk turn "Can I return order A-1003, the Trailhead backpack?" --provider fake --fixture trailhead_return
+uv run harnesswalk turn "Please remember that my preferred name is Sam." --provider fake --fixture remember_fact
+uv run harnesswalk turn "What is my preferred name?" --provider fake --fixture remember_fact --session <session_id>
+```
+
 `make turn` prints every node the request visited, in order, nested, with its status, its time
 and a short summary, then the reply and the cost receipt. In dev and private modes each tool call runs in its own
 subprocess (no network unless the tool is `external` and policy allowed it, a timeout, a memory
@@ -244,6 +270,20 @@ make up                                      # docker compose: api (with the web
 The api image builds `web/` in a Node stage and serves it at http://127.0.0.1:8000. See
 [deploy/README.md](deploy/README.md) for the profiles and for running it without a model.
 
+**Vectors in Postgres.** SQLite holds the vectors by default, so nothing above needs Docker.
+To keep the semantic, episodic and knowledge vectors in pgvector instead, start only the
+compose Postgres and point the harness at it:
+
+```sh
+docker compose -f deploy/docker-compose.yml --profile dev up -d postgres
+HARNESSWALK_VECTORS=pgvector make run PROVIDER=fake   # POSTGRES_* or HARNESSWALK_DATABASE_URL pick the server
+docker compose -f deploy/docker-compose.yml --profile dev down
+```
+
+The connection comes from `HARNESSWALK_DATABASE_URL`, else from `POSTGRES_HOST`, `POSTGRES_PORT`,
+`POSTGRES_USER`, `POSTGRES_DB` and `POSTGRES_PASSWORD` (the compose defaults work as they are).
+`make up` runs the whole stack with pgvector already on.
+
 ### The API
 
 [`spec/contracts/http_api.md`](spec/contracts/http_api.md): `POST /v1/turns`, the event stream
@@ -251,7 +291,9 @@ as Server-Sent Events at `GET /v1/turns/{id}/events` (with `?after=` cursors and
 `?follow=false` for replay), `GET /v1/turns/{id}`, `POST /v1/turns/{id}/resume` for step mode,
 `POST /v1/turns/{id}/cancel`, `POST /v1/approvals/{id}`, `GET /v1/sessions/{id}/turns`,
 `GET /v1/diagram`, `GET /v1/nodes/{id}` and its `/source`, `GET /v1/capabilities`,
-`GET /v1/audit` (the tenant's hash-chained audit records, dev and private) and `GET /healthz`.
+`GET /v1/audit` (the tenant's hash-chained audit records, dev and private), the context plane's
+`GET /v1/knowledge/docs[/{id}]` and `GET|POST /v1/memory/proposals[/{id}]` (the review gate), and
+`GET /healthz`.
 
 `harnesswalk serve` survives a restart: a turn that was waiting on an approval comes back
 paused, and deciding it finishes the same turn; a turn the restart cut off is closed with error
@@ -269,7 +311,9 @@ make e2e           # Playwright in Chromium against a real API with the fake pro
 
 `make e2e` builds the app, starts `harnesswalk serve --provider fake` on a scratch port
 (`E2E_PORT`, default 8765) with its stores in a temporary directory, drives the UI through the
-conformance fixtures, and stops the server. `make web-e2e-mock` runs the smoke tests against the
+conformance fixtures and the P3 walks (citations, memory write and review, PII, budgets, audit,
+step mode through the stores, and an approval that survives a restart, on a second server it
+starts and kills itself), and stops the servers. `make web-e2e-mock` runs the smoke tests against the
 mock build, and `make screenshots` recaptures the pictures above.
 
 ## Repository layout

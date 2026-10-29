@@ -29,7 +29,7 @@ P2 (web UI) is built: the chat and the live diagram in `web/`, served by the API
 step mode, approval cards, Stop, replay, history, the inspector with a code peek, and a mock mode
 for working on the UI alone. The API gained cancel, turn summaries, cursor replay, the session
 turn list, the code peek and capabilities. Playwright drives the UI against the real API with
-the fake provider in CI (`make e2e`). Next: P3, the full planes.
+the fake provider in CI (`make e2e`).
 
 P3 context plane (branch `p3-context`): `semantic`, `episodic` and `knowledge` are real stores
 (SQLite by default, vectors in pgvector behind `storage.vectors`), with local embeddings, hybrid
@@ -37,3 +37,30 @@ keyword and vector retrieval fused by reciprocal rank, and citations `[n]` the r
 into `turn_end.summary.citations`. `memory_writer` is the single gated write path (the
 `remember` tool, one episode per turn, gates by mode: dev and private auto, public never).
 `harnesswalk ingest <pack>` indexes a pack's documents and loads its seeds.
+
+P3 control plane (branch `p3-control`): input guardrails redact PII to placeholders and score
+prompt injection; output guardrails check schema, citations and PII leaks and restore
+placeholders in dev; policy explains every decision (`why`) and enforces per-tenant budgets;
+approvals survive a restart; audit is a hash chain per tenant exported at `GET /v1/audit`; tool
+calls run in a subprocess sandbox with an OS jail; the router picks models by step, risk and
+cost.
+
+**P3 is done** (integration pass, 2026-10-29). Both planes are merged on `main` and drawn in the
+web UI: citation chips that open the document at the cited chunk, the memory writer's writes as
+diffs with Accept and Reject for the review gate, store inspectors with scope tags and the
+knowledge document list, the context builder's budget per slice, guardrail badges and the
+placeholder reveal, policy `why` and budget use on the node and in the status bar, sandbox
+level, network and jail on every tool line, the audit chain with Verify, and notices for limits
+and restarts. The integration review hardened the sandbox (no file change outside the work
+directory, no raw spawns, a macOS write wall), kept public mode to pure tools, stopped a
+caller's key from marking a provider down, routed the writer's gate through policy with roles,
+audited memory writes, and paged the audit export by record. Gate met: the e-commerce cancel
+pauses for approval (and survives a restart), and the starter pack's Trailhead question cites
+the returns policy. The finance pack arrives with the other packs in P5. Next: P4, ops.
+
+Deferred from P3 (owner phase): read walls in the sandbox (Linux mount or landlock over the
+data directory and `/proc`, P6); turn ownership so a second process on the same data directory
+is never mistaken for a crashed one (P4); retrieved memory sent as untrusted data rather than
+system text, and injection scoring of proposals (P4); TTL cleanup of public proposals (P6); a
+resumed turn keeping its output schema, BYO key and pre-pause proposals (P4, with checkpoints);
+budget ledger charged per call rather than per turn (P6).

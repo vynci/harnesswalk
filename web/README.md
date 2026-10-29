@@ -29,7 +29,9 @@ pnpm build
 
 ```sh
 pnpm test          # Vitest: reducer, layout, edge routes, colour contrast, memory badges, stream client,
-                   # the inspector's Trace status per event, tool calls read from the stream
+                   # the inspector's Trace status per event, tool calls read from the stream,
+                   # turn facts (guardrails, budgets, citations, memory, placeholders), payload
+                   # shapes, and the drift rule (no node id literals in src/)
 pnpm test:e2e      # Playwright smoke tests against a mock build (Chromium only)
 pnpm lint          # ESLint, then tsc -b
 pnpm test:e2e:live # Playwright against the real API with the fake provider, see below
@@ -46,7 +48,14 @@ the tests cover the production path: static files, the session cookie and the SS
 straight from uvicorn. It drives the conformance fixtures (`tool_call`, `approval_approve`,
 `approval_deny`, `step_mode`, `cancel_running`, `guardrail_block`) through the header menu, plus
 reconnect, reload, history, replay, New session and the inspector, and fails a test when any
-event breaks `spec/events.schema.json`. Playwright stops the server when the run ends.
+event breaks `spec/events.schema.json`. `e2e-live/p3.spec.ts` walks Phase 3: citations
+(`trailhead_return`), memory write and read-back (`remember_fact`), PII (`pii_redacted`), a
+tool-call budget (`three_lookups` as tenant `e2e-budget`, sent with `X-Harnesswalk-Tenant`), the
+audit chain, step mode through the stores and the writer, and dev turn options. Two tests start
+a harness of their own (`e2e-live/helpers.ts`, ports `HARNESSWALK_E2E_PORT` + 1 and + 2): one
+SIGKILLs and restarts it to show an approval that survives a restart and a turn closed
+`restarted`, the other holds proposals at the review gate (`e2e-live/profile-review.yaml`). The
+suite's server runs with `e2e-live/profile.yaml`, which only adds the budget tenant. Playwright stops the server when the run ends.
 `HARNESSWALK_SCREENSHOTS=1` (`make screenshots`) also writes `docs/screenshots/*.png`; the
 side-by-side `edges-before-after.png` puts the kept `edges-before.png` (the old routing, from the
 owner's feedback) beside a fresh capture.
@@ -134,9 +143,12 @@ of the diagram tokens in both themes.
 | Header | Select (provider, fixture), Switch (step mode), Toggle Group (Simple/Expert, theme), Dropdown Menu (session: new, copy id), Badge (mode), Tooltip on every unlabelled control |
 | Notices | Sonner toasts (errors carry `role="alert"`), plus a toast when the event stream drops and when it reconnects |
 | Chat transcript | Message Scroller (auto-scroll, scroll-to-latest button), Message and Bubble (user, assistant), Marker (turn dividers, the shimmering "walking the harness" state, system notices for blocked, limit, error, cancelled), Spinner |
-| Tool calls in the chat | Trace (one line per call: running, waiting for approval, ran, denied, failed) opening to a Code Block; Sources (Trace) waits for the P3 citations |
+| Tool calls in the chat | Trace (one line per call: running, waiting for approval, ran, denied, failed) opening to a Code Block, with a Badge for the sandbox level, network and jail; a Memory Trace line per `remember` proposal (written, waiting, rejected) |
+| Citations and guardrails | Sources (Trace) listing `turn_end.summary.citations`, `[n]` chips in the reply, a Dialog reading the document at the cited chunk (`GET /v1/knowledge/docs/{doc}`); Badges for input guardrails (redactions, injection score, warnings) and output guardrails (citations, restored); placeholders as `mark`, a Switch revealing the restored reply (dev only) |
+| Composer options (dev) | Collapsible with a Textarea for `output_schema` and a Select for the model hint |
 | Approval | Card with an Alert (why it needs a person), the arguments in a Code Block, Buttons and the countdown |
 | Step controls, composer | Button Group (Next, Continue); Textarea, Button and Kbd (Enter, Shift+Enter) |
+| Inspector, P3 payloads | Picked by payload shape (`src/inspector/shapes.ts`), never node id: the audit chain as a list with prev and hash, a Verify Button and the `/v1/audit` link; store records with a scope Badge; the knowledge document list as a Table opening the reader; memory writes as Cards with a diff, pending proposals with Accept and Reject (`POST /v1/memory/proposals/{id}`, hidden when `features.memory_review` is false); the context builder's budget as Progress bars per slice, with trimmed, degraded and citations |
 | Inspector | A docked panel (not a modal Sheet, so step mode keeps it open) with Tabs and Scroll Area; Badge (kind, view); Events as a Trace (running, pending, error per event, opening to the event JSON in a Code Block); Code and config in a Code Block with line numbers; prompts in `Prose`; records in a Table; Switch (disable next turn); Kbd (Esc) |
 | Diagram | Nodes are Cards (CardTitle, CardDescription) with Badges for the kind chip, store badges and the off and not-yet tags; the legend is a Card with Badge rows and a Switch; the turn status bar is a Card. The canvas, edges and layout stay React Flow |
 | Replay bar | Card, Button Group (previous, play, next), Slider, Tooltip with Kbd |
@@ -172,6 +184,10 @@ The expert view always draws every edge.
 
 ## How the diagram stays in step with the spec
 
+- The UI never names a node id outside the memory badge node: `src/test/drift.test.ts` fails
+  on a node id string literal in `src/` beyond a short, explained list of homonyms (`approval` the pause reason, `release` the edge kind, `session`
+  the storage key). Turn facts, inspector views and stats are found by summary keys and payload
+  shapes.
 - The UI never hard-codes nodes or edges. It draws whatever `GET /v1/diagram` returns, and the
   API generates that from its node registry merged with `spec/diagram/diagram.json`.
 - Layout is computed from the diagram: `layout` hints when a node has them (`layout.expert` in
@@ -195,9 +211,11 @@ The expert view always draws every edge.
 
 ```
 src/api        types, HTTP client, SSE stream client, schema validator
-src/state      the reducer (events to state), the Zustand store, persistence
+src/state      the reducer (events to state), turn facts read from summary keys, the Zustand
+               store, persistence
 src/diagram    layout, React Flow nodes and edges, stats and memory badges
-src/chat       chat panel, composer, approval card, step controls, tool calls (Tool, Sources)
+src/chat       chat panel, composer, approval card, step controls, tool calls, citations and
+               the document reader, guardrail badges
 src/inspector  node drawer: overview, config or prompt or records, code, events (Trace)
 src/components shadcn/ui in ui/, plus hint, code and prose
 src/lib, hooks cn() and the shiki highlighter, from the shadcn CLI
