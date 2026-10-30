@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Badge } from '@/components/ui/badge'
@@ -7,7 +7,9 @@ import { Kbd } from '@/components/ui/kbd'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { opsRole, type OpsRole } from '@/diagram/opsRoles'
 import { KIND_HINT, KIND_ICON, planeStyle } from '@/diagram/planes'
+import { nodeArtifacts } from '@/state/ops'
 import { useDisplayTurn } from '@/state/hooks'
 import { useApp } from '@/state/store'
 import { CodeView } from './CodeView'
@@ -16,6 +18,23 @@ import { detailsTabLabel } from './labels'
 import { EventsTab } from './EventsTab'
 import { OverviewTab } from './OverviewTab'
 import { useNodeData } from './useNodeData'
+import { ArtifactEditor } from './ArtifactEditor'
+import { useArtifacts } from './useOps'
+
+// The LLM Ops panels, each its own chunk, picked by the node's role in the diagram.
+const EvalPanel = lazy(() => import('./EvalPanel').then((m) => ({ default: m.EvalPanel })))
+const ReleasePanel = lazy(() => import('./ReleasePanel').then((m) => ({ default: m.ReleasePanel })))
+const TracePanel = lazy(() => import('./TracePanel').then((m) => ({ default: m.TracePanel })))
+
+const OPS_TAB: Record<OpsRole, string> = { evals: 'Runs', releases: 'Releases', traces: 'Turns' }
+
+function OpsPanel({ role }: { role: OpsRole }) {
+  return (
+    <Suspense fallback={<p className="text-xs text-muted-foreground">Loading…</p>}>
+      {role === 'evals' ? <EvalPanel /> : role === 'releases' ? <ReleasePanel /> : <TracePanel />}
+    </Suspense>
+  )
+}
 
 export function InspectorDrawer() {
   const nodeId = useApp((s) => s.selectedNode)
@@ -27,7 +46,10 @@ export function InspectorDrawer() {
   const toggleDisabled = useApp((s) => s.toggleDisabled)
   const turn = useDisplayTurn()
   const { info, source } = useNodeData(nodeId)
-  const [tab, setTab] = useState('overview')
+  const { artifacts } = useArtifacts()
+  // The tab the reader picked; a node with an LLM Ops panel opens on it.
+  const [pick, setPick] = useState<{ node: string | null; tab: string }>({ node: null, tab: 'overview' })
+  const role = opsRole(diagram, nodeId)
   const closeRef = useRef<HTMLButtonElement>(null)
 
   const node = diagram?.nodes.find((n) => n.id === nodeId)
@@ -42,7 +64,14 @@ export function InspectorDrawer() {
   }, [nodeId])
 
   const detailsLabel = info.data ? detailsTabLabel(info.data.inspector) : null
-  const activeTab = tab === 'details' && !detailsLabel ? 'overview' : tab
+  // A YAML artifact behind a node whose inspector is not the config itself (the context
+  // builder, the model layer) gets a Config tab of its own.
+  const yamlArtifact =
+    node && info.data && info.data.inspector.type !== 'config' && info.data.inspector.type !== 'prompt' ? nodeArtifacts(node, artifacts)[0] : undefined
+  const tab = pick.node === nodeId ? pick.tab : role ? 'ops' : pick.tab === 'ops' || pick.tab === 'config' ? 'overview' : pick.tab
+  const activeTab =
+    (tab === 'details' && !detailsLabel) || (tab === 'ops' && !role) || (tab === 'config' && !yamlArtifact) ? 'overview' : tab
+  const setTab = (t: string) => setPick({ node: nodeId, tab: t })
   if (!nodeId || !node) return null
   const parent = node.parent ? diagram?.nodes.find((n) => n.id === node.parent) : undefined
   const group = diagram?.groups.find((g) => g.id === node.group)
@@ -102,7 +131,9 @@ export function InspectorDrawer() {
       <Tabs value={activeTab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
         <TabsList className="mx-4 mt-3">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          {role && <TabsTrigger value="ops">{OPS_TAB[role]}</TabsTrigger>}
           {detailsLabel && <TabsTrigger value="details">{detailsLabel}</TabsTrigger>}
+          {yamlArtifact && <TabsTrigger value="config">Config</TabsTrigger>}
           <TabsTrigger value="code">Code</TabsTrigger>
           <TabsTrigger value="events">Events{events.length ? ` (${events.length})` : ''}</TabsTrigger>
         </TabsList>
@@ -118,7 +149,28 @@ export function InspectorDrawer() {
           <TabsContent value="details" className="min-h-0">
             <ScrollArea className="h-full">
               <div className="p-4">
-                <DetailsTab info={info.data} />
+                <DetailsTab info={info.data} node={node} artifacts={artifacts} />
+              </div>
+            </ScrollArea>
+          </TabsContent>
+        )}
+        {role && (
+          <TabsContent value="ops" className="min-h-0">
+            <ScrollArea className="h-full">
+              <div className="p-4">
+                <OpsPanel role={role} />
+              </div>
+            </ScrollArea>
+          </TabsContent>
+        )}
+        {yamlArtifact && (
+          <TabsContent value="config" className="min-h-0">
+            <ScrollArea className="h-full">
+              <div className="flex flex-col gap-2 p-4">
+                <p className="text-xs text-muted-foreground">
+                  {node.artifact_hint ? <code className="font-mono">{node.artifact_hint}</code> : null} · the working set, shipped by a release
+                </p>
+                <ArtifactEditor artifact={yamlArtifact} language="yaml" />
               </div>
             </ScrollArea>
           </TabsContent>

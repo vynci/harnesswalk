@@ -15,6 +15,7 @@ import type {
   TurnSummary,
 } from '@/api/types'
 import { EXAMPLE_MESSAGES, EXAMPLE_NAMES, EXAMPLES, servedDiagram, type ExampleName } from './examples'
+import { MockEvalEventSource, MockOps } from './ops'
 import { repoFile, repoFilesUnder, sourceFor } from './repo'
 
 export interface MockOptions {
@@ -47,6 +48,8 @@ interface MockTurn {
   sources: Set<MockEventSource>
   disabled: Set<string>
   deltasSent: boolean
+  /** Step-over: the next breakpoints on expert children are skipped. */
+  stepOver?: boolean
 }
 
 const TENANT = 'dev'
@@ -149,10 +152,67 @@ export class MockServer {
   readonly diagram: Diagram = servedDiagram()
   private turns = new Map<string, MockTurn>()
   private counter = 0
+  readonly ops: MockOps
 
   constructor(opts: MockOptions = {}) {
     this.opts = { stepMs: opts.stepMs ?? 140, seed: opts.seed ?? true, messageDelta: opts.messageDelta ?? true }
-    if (this.opts.seed) this.seedHistory()
+    // P4: the LLM Ops nodes are served by the ops half of the mock.
+    for (const n of this.diagram.nodes) if (n.group === 'ops') n.implemented = true
+    this.ops = new MockOps({
+      stepMs: this.opts.stepMs,
+      diagram: this.diagram,
+      turns: () => [...this.turns.values()],
+      anyRunning: () => [...this.turns.values()].some((t) => t.status !== 'done'),
+      addFinishedTurn: (example, message, sessionId, reply) => this.addFinishedTurn(example, message, sessionId, reply),
+    })
+    if (this.opts.seed) {
+      this.seedHistory()
+      this.ops.seed(EXAMPLES.plain_answer[0]!.turn_id)
+    }
+  }
+
+  /** A finished turn played instantly from a recorded stream (an eval case), with fresh ids. */
+  private addFinishedTurn(example: ExampleName, message: string, sessionId: string, reply?: string): string {
+    const turnNo = ++this.counter
+    const id = `turn_${String(turnNo).padStart(3, '0')}_${hex(6)}`
+    const traceId = hex(32)
+    const start = Date.now()
+    const events = EXAMPLES[example].map((e, seq) => {
+      const t = toTemplate(e)
+      if (t.type === 'turn_end' && reply !== undefined) t.summary = { ...t.summary, reply }
+      return {
+        ...t,
+        event_id: `evt_${id}_${String(seq).padStart(3, '0')}`,
+        seq,
+        ts: new Date(start + (Date.parse(e.ts) - Date.parse(EXAMPLES[example][0]!.ts))).toISOString(),
+        trace_id: traceId,
+        turn_id: id,
+        session_id: sessionId,
+        tenant_id: TENANT,
+      } as HarnessEvent
+    })
+    const end = events[events.length - 1]!
+    this.turns.set(id, {
+      id,
+      message,
+      sessionId,
+      traceId,
+      tenantId: TENANT,
+      createdAt: start,
+      events,
+      queue: [],
+      denyQueue: null,
+      status: 'done',
+      exit: (end.summary?.exit as TurnSummary['exit']) ?? 'answered',
+      reply: (end.summary?.reply as string | undefined) ?? null,
+      stepping: false,
+      waiting: null,
+      timer: null,
+      sources: new Set(),
+      disabled: new Set(),
+      deltasSent: true,
+    })
+    return id
   }
 
   /** The user messages behind the seeded turns, so the chat can show both sides. */
@@ -224,11 +284,11 @@ export class MockServer {
     if ((m = p.match(/^\/v1\/turns\/([^/]+)$/)) && method === 'GET') {
       const turn = this.turns.get(decodeURIComponent(m[1]!))
       const index = turn ? [...this.turns.values()].filter((t) => t.sessionId === turn.sessionId && t.createdAt <= turn.createdAt).length - 1 : 0
-      return turn ? json(200, summarize(turn, index)) : apiError(404, 'turn_not_found', 'No such turn for this tenant.')
+      return turn ? json(200, { ...summarize(turn, index), ...this.ops.turnExtras(turn.id) }) : apiError(404, 'turn_not_found', 'No such turn for this tenant.')
     }
     if ((m = p.match(/^\/v1\/turns\/([^/]+)\/cancel$/)) && method === 'POST') return this.cancel(decodeURIComponent(m[1]!))
     if ((m = p.match(/^\/v1\/turns\/([^/]+)\/resume$/)) && method === 'POST') {
-      return this.resume(decodeURIComponent(m[1]!), body.mode === 'continue' ? 'continue' : 'step')
+      return this.resume(decodeURIComponent(m[1]!), body.mode === 'continue' ? 'continue' : body.mode === 'step_over' ? 'step_over' : 'step')
     }
     if ((m = p.match(/^\/v1\/approvals\/([^/]+)$/)) && method === 'POST') {
       return this.decide(decodeURIComponent(m[1]!), body.decision, body.reason)
@@ -254,6 +314,9 @@ export class MockServer {
     if (method === 'GET' && p === '/v1/memory/proposals') return json(200, { proposals: [] })
     if ((m = p.match(/^\/v1\/memory\/proposals\/([^/]+)$/)) && method === 'POST') return apiError(404, 'proposal_not_found', 'The mock has no proposals.')
     if (method === 'GET' && p === '/v1/audit') return json(200, { tenant_id: 'dev', verify: { ok: true, records: 0 }, records: [], next_since: null })
+    // P4: evals, artifacts, releases, feedback and the trace query.
+    const ops = this.ops.handle(method, url, body)
+    if (ops) return ops
     return apiError(404, 'not_found', `No route ${method} ${p} in the mock.`)
   }
 
@@ -267,8 +330,22 @@ export class MockServer {
         { name: 'ollama', configured: false, default: false, models: ['llama3.1:8b'] },
       ],
       fixtures: [...EXAMPLE_NAMES],
-      features: { step_mode: true, approvals: true, message_delta: this.opts.messageDelta, cancel: true, byo_key: false, disable_nodes: true, knowledge: true, memory_review: true },
+      features: {
+        step_mode: true,
+        approvals: true,
+        message_delta: this.opts.messageDelta,
+        cancel: true,
+        byo_key: false,
+        disable_nodes: true,
+        knowledge: true,
+        memory_review: true,
+        evals: true,
+        release: true,
+        artifact_edit: true,
+        feedback: true,
+      },
       limits: { max_message_chars: 4000, max_steps: 8, session_ttl_seconds: null },
+      release: this.ops.releaseState(),
     }
   }
 
@@ -389,7 +466,14 @@ export class MockServer {
       return
     }
     const ev = this.emit(turn, next)
+    // Step-over runs on through expert children and stops at the next simple-view node.
+    const expert = ev.type === 'node_enter' && this.diagram.nodes.find((n) => n.id === ev.node_id)?.view === 'expert'
+    if (ev.type === 'node_enter' && turn.stepping && turn.stepOver && expert) {
+      this.schedule(turn)
+      return
+    }
     if (ev.type === 'node_enter' && turn.stepping) {
+      turn.stepOver = false
       this.emit(turn, { schema_version: '0.1.0', type: 'node_paused', node_id: ev.node_id, status: 'waiting', summary: { reason: 'breakpoint' } })
       turn.waiting = { kind: 'breakpoint', nodeId: ev.node_id! }
       turn.status = 'paused'
@@ -418,12 +502,13 @@ export class MockServer {
     for (const s of [...turn.sources]) s.serverClose(false)
   }
 
-  private resume(turnId: string, mode: 'step' | 'continue'): Response {
+  private resume(turnId: string, mode: 'step' | 'continue' | 'step_over'): Response {
     const turn = this.turns.get(turnId)
     if (!turn) return apiError(404, 'turn_not_found', 'No such turn for this tenant.')
     if (turn.waiting?.kind !== 'breakpoint') return apiError(409, 'turn_not_paused', 'The turn is not at a breakpoint.')
     const nodeId = turn.waiting.nodeId
     if (mode === 'continue') turn.stepping = false
+    turn.stepOver = mode === 'step_over'
     turn.waiting = null
     turn.status = 'running'
     this.emit(turn, { schema_version: '0.1.0', type: 'node_resumed', node_id: nodeId, status: 'active', summary: { reason: 'breakpoint' } })
@@ -518,17 +603,21 @@ export class MockServer {
     const node = this.diagram.nodes.find((n) => n.id === nodeId)!
     switch (node.kind) {
       case 'config': {
+        // The served working set (P4): what the harness loads in dev.
+        const kind = { policy: 'policy', router: 'models', registry: 'tools' }[nodeId as string]
+        const art = kind ? this.ops.current(kind, kind) : undefined
         const path = { policy: 'config/policy.yaml', router: 'config/models.yaml', registry: 'datasets/_starter/tools.yaml' }[nodeId as string] ?? null
-        const content = path ? repoFile(path) : undefined
-        return { type: 'config', path, version: path ? `${nodeId}@1` : null, format: 'yaml', content: content ?? null, editable: false }
+        const content = art?.body ?? (path ? repoFile(path) : undefined)
+        return { type: 'config', path, version: art ? `${art.name}@${art.version}` : null, format: 'yaml', content: content ?? null, editable: true }
       }
       case 'prompt': {
-        const items = [{ name: 'system_prompt', version: 'system_prompt@1', content: repoFile('datasets/_starter/system_prompt.md') ?? '' }]
+        const prompt = this.ops.current('prompt', 'system_prompt')
+        const items = [{ name: 'system_prompt', version: `system_prompt@${prompt?.version ?? 1}`, content: prompt?.body ?? '' }]
         for (const skill of ['order_status', 'returns']) {
-          const content = repoFile(`datasets/_starter/skills/${skill}.md`)
-          if (content) items.push({ name: skill, version: `${skill}@1`, content })
+          const art = this.ops.current('skill', skill)
+          if (art) items.push({ name: skill, version: `${skill}@${art.version}`, content: art.body })
         }
-        return { type: 'prompt', items, editable: false }
+        return { type: 'prompt', items, editable: true }
       }
       case 'queue':
         return {
@@ -593,9 +682,10 @@ export class MockServer {
 }
 
 function boundEventSource(server: MockServer): EventSourceCtor {
-  return class extends MockEventSource {
+  // One constructor for both streams: a turn's events, or an eval run's progress (P4).
+  return class {
     constructor(url: string) {
-      super(server, url)
+      return /\/v1\/evals\/runs\/[^/]+\/events/.test(url) ? new MockEvalEventSource(server.ops, url) : new MockEventSource(server, url)
     }
   } as unknown as EventSourceCtor
 }

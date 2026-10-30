@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { Progress } from '@/components/ui/progress'
 import type { TurnState } from '@/state/reducer'
+import { useApp } from '@/state/store'
 import { budgetFacts, type BudgetFacts } from '@/state/turnFacts'
 import { formatMs, formatTokens } from './stats'
 
@@ -67,6 +68,7 @@ export function TurnStatusBar({ turn }: { turn: TurnState }) {
   const tokens = turn.cost.input_tokens + turn.cost.output_tokens
   const budget = useMemo(() => budgetFacts(turn.events), [turn.events])
   const rows = budgetRows(turn, budget)
+  const release = useApp((s) => s.capabilities?.release)
   // Only the phase is announced. The counters change on every event, and a live region over
   // them would read each one out.
   const announce = [
@@ -121,6 +123,20 @@ export function TurnStatusBar({ turn }: { turn: TurnState }) {
           <span className="text-muted-foreground tabular-nums">{turn.events.length} events</span>
           {rows.length > 0 && <BudgetHover rows={rows} why={budget.why} />}
         </>
+      )}
+      {release && (
+        <span
+          className={release.working_set_dirty ? 'text-state-waiting' : 'text-muted-foreground'}
+          title={
+            release.working_set_dirty
+              ? `The working set has edits that no release holds yet${release.active_release_id ? ` (active: ${release.active_release_id})` : ''}`
+              : 'Turns use this release'
+          }
+          data-testid="release-status"
+          data-dirty={release.working_set_dirty ? 'true' : 'false'}
+        >
+          {release.working_set_dirty ? 'working set (unreleased changes)' : release.active_release_id ? `release ${release.active_release_id}` : 'no release'}
+        </span>
       )}
     </Card>
   )
