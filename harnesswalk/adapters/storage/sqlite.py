@@ -41,6 +41,11 @@ class Database:
         with self._lock:
             return self._conn.execute(sql, params)
 
+    def executescript(self, script: str) -> None:
+        """More tables in a file another store created (the trace file's ops events, P4)."""
+        with self._lock:
+            self._conn.executescript(script)
+
     def executemany(self, sql: str, rows: Iterable[Sequence[Any]]) -> None:
         with self._lock:
             self._conn.executemany(sql, rows)
