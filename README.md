@@ -2,13 +2,35 @@
 
 **Walk through an AI harness, one node at a time.**
 
-Status: **pre-alpha, P2 web UI.** The harness runs: a request walks the gateway, guardrails,
+Status: **pre-alpha, P4 LLM Ops done.** The harness runs: a request walks the gateway, guardrails,
 context builder, memory, loop, model layer, tools, policy, approval, audit and trace, and every
 step is an event you can stream, store and replay. The web UI shows it: a chat beside a live
 diagram, step mode, approvals, replay and a code peek per node. See
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ![A finished turn: the chat on the left, every node it visited lit on the diagram](docs/screenshots/turn-done.png)
+
+## Quickstart
+
+No model key needed: the fake provider replays scripted turns, so the whole walk runs offline.
+You need [uv](https://docs.astral.sh/uv/) and Node 24 with pnpm 10 (`corepack enable`), or Docker.
+
+```sh
+git clone https://github.com/vynci/harnesswalk.git && cd harnesswalk
+make setup && make web-build && make run PROVIDER=fake
+```
+
+Open http://127.0.0.1:8000, pick a fixture in the header (try `trailhead_return`), and send a
+message. The request walks the diagram node by node; click any node to see its code, config and
+events.
+
+Other ways to run it:
+
+```sh
+HARNESSWALK_PROVIDER=fake make up          # Docker: api + web, postgres (pgvector) and ollama
+ollama pull llama3.1:8b && make run        # a real local model instead of the fake provider
+uv run harnesswalk turn "Where is order A-1001?" --provider fake --fixture tool_call   # no browser
+```
 
 ## What this is
 
