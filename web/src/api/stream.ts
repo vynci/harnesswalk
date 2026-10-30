@@ -8,13 +8,15 @@
 // - Drops any event at or below the cursor, so a replayed overlap is harmless.
 // - Closes itself on turn_end, and after the replay when follow=false.
 import { eventsPath, type EventSourceLike, type Transport } from './client'
-import { EVENT_TYPES, type EvalStreamEvent, type HarnessEvent } from './types'
+import { EVENT_TYPES, type EvalStreamEvent, type HarnessEvent, type OpsEvent } from './types'
 
 export type StreamEnd = 'turn_end' | 'replayed' | 'closed' | 'failed'
 
 export interface StreamOptions {
   after?: number
   follow?: boolean
+  /** Another path serving a turn's stream (an eval case's `events_url`); default the turn's own. */
+  path?: string
   /** Returns a list of problems, or null when the event is valid. Dev only. */
   validate?: (ev: unknown) => string[] | null
   maxRetries?: number
@@ -31,6 +33,14 @@ export interface StreamHandlers {
 export interface TurnStream {
   close: () => void
   readonly cursor: number
+}
+
+/** The turn's own events path, or another path serving the same SSE format, with the cursor. */
+function streamPath(turnId: string, path: string | undefined, q: { after?: number; follow?: boolean }): string {
+  if (!path) return eventsPath(turnId, q)
+  const own = eventsPath(turnId, q)
+  const qs = own.includes('?') ? own.slice(own.indexOf('?') + 1) : ''
+  return qs ? `${path}${path.includes('?') ? '&' : '?'}${qs}` : path
 }
 
 export function openTurnStream(
@@ -85,7 +95,7 @@ export function openTurnStream(
   const connect = () => {
     if (ended) return
     handlers.onStatus?.(retries === 0 ? 'connecting' : 'reconnecting')
-    const url = `${t.baseUrl}${eventsPath(turnId, { after: cursor >= 0 ? cursor : undefined, follow })}`
+    const url = `${t.baseUrl}${streamPath(turnId, opts.path, { after: cursor >= 0 ? cursor : undefined, follow })}`
     const source = new t.EventSource(url, { withCredentials: true })
     es = source
     for (const type of EVENT_TYPES) source.addEventListener(type, onMessage)
@@ -125,13 +135,14 @@ export function loadTurnEvents(
   t: Transport,
   turnId: string,
   validate?: StreamOptions['validate'],
+  path?: string,
 ): Promise<HarnessEvent[]> {
   return new Promise((resolve, reject) => {
     const events: HarnessEvent[] = []
     openTurnStream(
       t,
       turnId,
-      { follow: false, validate },
+      { follow: false, validate, path },
       {
         onEvent: (ev) => events.push(ev),
         onEnd: (why) => {
@@ -179,4 +190,48 @@ export function openEvalStream(
   source.onmessage = onMessage
   source.onerror = () => finish('lost')
   return { close: () => finish('closed') }
+}
+
+export const OPS_EVENT_TYPES = ['eval_run_started', 'eval_case_finished', 'eval_run_finished', 'feedback_recorded', 'artifact_changed', 'artifact_released'] as const
+
+/**
+ * GET /v1/events: every ops event of the tenant (feedback, artifact changes, releases, eval run
+ * progress), from whichever process wrote it. The browser's EventSource reconnects by itself
+ * with Last-Event-ID, which the server honours, so a drop loses nothing; events at or below the
+ * last cursor are dropped in case one is sent twice. Open while the page is.
+ */
+export function openOpsStream(
+  t: Transport,
+  handlers: { onEvent: (ev: OpsEvent) => void; onStatus?: (open: boolean) => void },
+): { close: () => void } {
+  let closed = false
+  let cursor = -1
+  const source = new t.EventSource(`${t.baseUrl}/v1/events`, { withCredentials: true })
+  const onMessage = (msg: MessageEvent) => {
+    if (closed || typeof msg.data !== 'string') return
+    let ev: OpsEvent
+    try {
+      ev = JSON.parse(msg.data) as OpsEvent
+    } catch {
+      return
+    }
+    const at = typeof ev.cursor === 'number' ? ev.cursor : Number(msg.lastEventId)
+    if (Number.isFinite(at)) {
+      if (at <= cursor) return
+      cursor = at
+    }
+    handlers.onEvent(ev)
+  }
+  for (const type of OPS_EVENT_TYPES) source.addEventListener(type, onMessage)
+  source.onmessage = onMessage
+  source.onopen = () => handlers.onStatus?.(true)
+  source.onerror = () => {
+    if (!closed) handlers.onStatus?.(false)
+  }
+  return {
+    close: () => {
+      closed = true
+      source.close()
+    },
+  }
 }

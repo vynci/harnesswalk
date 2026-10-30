@@ -320,8 +320,13 @@ export function ChatPanel() {
         <MessagesSquare className="size-4 text-muted-foreground" aria-hidden />
         <h2 className="text-sm font-medium">Chat</h2>
         <span className="text-xs text-muted-foreground">{order.length ? `${order.length} turn${order.length === 1 ? '' : 's'}` : 'new session'}</span>
+        {replay?.label && (
+          <span className="min-w-0 truncate text-xs text-muted-foreground" data-testid="replay-label">
+            Replaying {replay.label} on the diagram
+          </span>
+        )}
         {replay && (
-          <Button variant="outline" size="sm" className="ml-auto" onClick={exitReplay} aria-label="Leave replay and return to live">
+          <Button variant="outline" size="sm" className="ml-auto shrink-0" onClick={exitReplay} aria-label="Leave replay and return to live">
             Back to live
           </Button>
         )}

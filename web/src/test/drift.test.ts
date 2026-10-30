@@ -20,7 +20,8 @@ const ALLOWED: Record<string, string> = {
   'diagram/Legend.tsx:release': 'the edge kind release',
   'api/types.ts:release': 'the edge kind release',
   'diagram/opsRoles.ts:release': 'the edge kind release, which finds the LLM Ops roles',
-  'api/client.ts:artifacts': 'the list key of GET /v1/artifacts (phase-4 CONTRACT.md)',
+  'api/types.ts:eval': 'the trace query kind eval (GET /v1/trace/turns?kind=eval)',
+  'inspector/TracePanel.tsx:eval': 'the trace query kind eval',
   'chat/ToolTrace.tsx:sandbox': 'a field of ToolCallView',
 }
 

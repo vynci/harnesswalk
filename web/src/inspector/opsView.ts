@@ -8,12 +8,23 @@ export function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`
 }
 
-/** The Test Results headline: "Ran 12 cases, 3 failed" (or "Running 4 of 12 cases"). */
-export function runHeadline(run: Pick<EvalRunSummary, 'status' | 'totals'>, done?: number): string {
+/**
+ * The Test Results headline: "Ran 12 cases, 3 failed" (or "Running 4 of 12 cases"). The API's
+ * `totals.failed` counts failed and error cases together; `errors` says how many of them errored,
+ * so the headline reads "3 failed (1 error)".
+ */
+export function runHeadline(run: Pick<EvalRunSummary, 'status' | 'totals'>, done?: number, errors = 0): string {
   const t = run.totals
   if (run.status === 'running') return `Running ${done ?? t.passed + t.failed + t.skipped} of ${plural(t.cases, 'case')}`
-  if (run.status === 'error') return `Run failed after ${plural(t.passed + t.failed + t.skipped, 'case')}`
-  return `Ran ${plural(t.cases, 'case')}, ${t.failed ? `${t.failed} failed` : t.skipped ? 'none failed' : 'all passed'}`
+  if (run.status === 'error') return `Run stopped after ${plural(t.passed + t.failed + t.skipped, 'case')}`
+  const failed = t.failed ? `${t.failed} failed${errors ? ` (${plural(errors, 'error')})` : ''}` : t.skipped ? 'none failed' : 'all passed'
+  return `Ran ${plural(t.cases, 'case')}, ${failed}`
+}
+
+/** What a regression is, for the badge's hint and the run detail. */
+export function regressionText(n: number, previousRunId: string | null | undefined): string {
+  const what = n === 1 ? 'a case that failed or errored in this run' : 'cases that failed or errored in this run'
+  return `${plural(n, 'regression')}: ${what} and passed in ${previousRunId ?? 'the previous run'}`
 }
 
 /** "golden · fake-small", the short name of a run. */

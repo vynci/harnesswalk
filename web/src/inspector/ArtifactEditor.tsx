@@ -4,7 +4,7 @@
 // turn runs (the API would answer 409 turn_running).
 import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import { GitCompareArrows, Pencil } from 'lucide-react'
-import type { ArtifactRef, ArtifactSaved } from '@/api/types'
+import type { ArtifactSaved } from '@/api/types'
 import { Code } from '@/components/code'
 import { DiffView } from '@/components/diff-view'
 import { Hint } from '@/components/hint'
@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Trace, TraceCollapsible, TraceCollapsibleContent, TraceCollapsibleTrigger, TraceDescription, TraceIcon, TraceLine, TraceTitle } from '@/components/ui/trace'
 import { diffLines, diffStats, parseUnifiedDiff } from '@/lib/diff'
-import { artifactLabel, editBlockReason } from '@/state/ops'
+import { artifactLabel, editBlockReason, type EditableArtifact } from '@/state/ops'
 import { selectTurnRunning, useApp } from '@/state/store'
 import { yamlProblem } from './opsView'
 
@@ -21,11 +21,14 @@ export type ArtifactLanguage = 'markdown' | 'yaml'
 
 export function ArtifactEditor({
   artifact,
+  stamp,
   language,
   body,
   renderBody,
 }: {
-  artifact: ArtifactRef
+  artifact: EditableArtifact
+  /** The content stamp the harness reports (`returns@b0e44e5b`): the same text again after a rollback. */
+  stamp?: string
   language: ArtifactLanguage
   /** The body as the inspector already has it; fetched from the API when absent. */
   body?: string
@@ -94,7 +97,15 @@ export function ArtifactEditor({
         <span className="text-xs text-muted-foreground tabular-nums" data-testid="artifact-version">
           v{Math.max(saved?.version ?? 0, artifact.version)}
           {artifact.updated_by ? ` · ${artifact.updated_by}` : ''}
+          {typeof artifact.served_version === 'number' && artifact.served_version !== artifact.version ? ` · turns use v${artifact.served_version}` : ''}
         </span>
+        {stamp && (
+          <Hint label="The content stamp turns record (procedural prompt_version): a rollback brings the old stamp back">
+            <code className="min-w-0 truncate font-mono text-xs text-muted-foreground" tabIndex={0} data-testid="artifact-stamp">
+              {stamp}
+            </code>
+          </Hint>
+        )}
         {!draft && (
           <Hint label={blocked ?? `Edit ${label}: Save makes a new working-set version`}>
             <Button

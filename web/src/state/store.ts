@@ -2,7 +2,7 @@
 // the API, the stream client, the chat, replay and the view toggles.
 import { create } from 'zustand'
 import { ApiError, createApi, type Api, type ResumeMode, type Transport } from '@/api/client'
-import { loadTurnEvents, openEvalStream, openTurnStream, type TurnStream } from '@/api/stream'
+import { loadTurnEvents, openEvalStream, openOpsStream, openTurnStream, type TurnStream } from '@/api/stream'
 import type {
   ArtifactSaved,
   Capabilities,
@@ -10,7 +10,8 @@ import type {
   EvalRunSummary,
   FeedbackRating,
   HarnessEvent,
-  ReleaseSummary,
+  OpsEvent,
+  ReleaseDetail,
   StartEvalRequest,
   TurnFeedback,
   TurnSummary,
@@ -54,6 +55,17 @@ export interface ReplayState {
   events: HarnessEvent[]
   cursor: number
   playing: boolean
+  /** A turn from outside this chat (an eval case), named for the chat header. */
+  label?: string
+}
+
+/** An eval run seen on the tenant's ops stream, started here or anywhere else (the CLI). */
+export interface OpsRun {
+  runId: string
+  suite: string
+  pack: string
+  done: number
+  total: number | null
 }
 
 export type Theme = 'light' | 'dark' | 'system'
@@ -105,6 +117,12 @@ export interface AppState {
   liveEval: LiveEval | null
   /** P4: the newest eval run, for the regression badge on the diagram. */
   latestEval: EvalRunSummary | null
+  /** P4: the tenant's ops stream (GET /v1/events) is open, so it is the source of the markers. */
+  opsLive: boolean
+  /** P4: an eval run in progress anywhere for this tenant, from the ops stream. */
+  opsRun: OpsRun | null
+  /** P4: the node an ops event just touched (eval, release), for a short pulse on the diagram. */
+  opsPulse: { nodeId: string; at: number } | null
 
   boot: (t: Transport, opts?: { mock?: boolean; validate?: AppState['validate']; seedMessages?: Record<string, string>; sessionId?: string }) => Promise<void>
   send: (text: string) => Promise<void>
@@ -112,7 +130,7 @@ export interface AppState {
   resume: (mode: ResumeMode) => Promise<void>
   decide: (decision: 'approve' | 'deny') => Promise<void>
   newSession: () => void
-  enterReplay: (turnId: string) => Promise<void>
+  enterReplay: (turnId: string, from?: { eventsUrl: string; label: string }) => Promise<void>
   exitReplay: () => void
   setCursor: (cursor: number) => void
   stepReplay: (delta: number) => void
@@ -138,7 +156,7 @@ export interface AppState {
   startEval: (req: StartEvalRequest) => Promise<string | null>
   saveArtifact: (kind: string, name: string, body: string, note?: string) => Promise<ArtifactSaved | null>
   restoreArtifact: (kind: string, name: string, version: number) => Promise<boolean>
-  createRelease: (note?: string) => Promise<ReleaseSummary | null>
+  createRelease: (note?: string) => Promise<ReleaseDetail | null>
   rollback: (releaseId: string) => Promise<boolean>
   sendFeedback: (turnId: string, rating: FeedbackRating, note?: string) => Promise<boolean>
 }
@@ -163,6 +181,7 @@ export function parseOutputSchema(text: string): { schema?: Record<string, unkno
 
 let stream: TurnStream | null = null
 let evalStream: { close: () => void } | null = null
+let opsStream: { close: () => void } | null = null
 let noticeId = 0
 
 /**
@@ -257,23 +276,80 @@ export const useApp = create<AppState>()((set, get) => {
     }
   }
 
-  /**
-   * The session listing may not carry P4's `feedback` and `scores` (the contract adds them to
-   * GET /v1/turns/{id}); read those turns one by one, newest first, so the Good and Bad buttons
-   * show what was pressed before the reload.
-   */
-  const hydrateFeedback = async (list: TurnSummary[]) => {
-    const { api, capabilities } = get()
-    if (!api || !capabilities?.features.feedback) return
-    const missing = list.filter((t) => t.status === 'done' && !('feedback' in t)).slice(-20).reverse()
-    for (const t of missing) await refreshSummary(t.turn_id)
-  }
-
   const addMark = (mark: OpsMark) => {
     const s = get()
+    // One marker per change: the ops stream and this browser's own response both report it.
+    if (mark.key && s.marks.some((m) => m.key === mark.key)) return
     const marks = [...s.marks, mark]
     set({ marks })
     save('marks', { sessionId: s.sessionId, marks: marks.slice(-50) })
+  }
+
+  // The node an ops event names (`node_id`), so the diagram shows where it happened.
+  const pulse = (nodeId: string | undefined) => {
+    if (!nodeId) return
+    const at = Date.now()
+    set({ opsPulse: { nodeId, at } })
+    setTimeout(() => get().opsPulse?.at === at && set({ opsPulse: null }), 1500)
+  }
+
+  /**
+   * One ops event from GET /v1/events: whoever made the change (this browser, another one, the
+   * CLI), the chat gets its marker, the inspector and the status bar read again, and the
+   * diagram's eval and release nodes show it.
+   */
+  const onOpsEvent = (ev: OpsEvent) => {
+    const summary = ev.summary ?? {}
+    const bump = () => set((s) => ({ inspectorVersion: s.inspectorVersion + 1 }))
+    if (ev.type === 'artifact_changed') {
+      const kind = String(summary.kind ?? '')
+      const name = String(summary.name ?? '')
+      const version = Number(summary.version)
+      if (kind && name && Number.isFinite(version)) addMark(savedMark({ kind, name, version }, afterTurn(), ev.ts))
+      pulse(ev.node_id)
+      bump()
+      void get().refreshCapabilities()
+    } else if (ev.type === 'artifact_released') {
+      const releaseId = String(summary.release_id ?? '')
+      const rollbackOf = typeof summary.rollback_of === 'string' ? summary.rollback_of : null
+      const before = typeof summary.previous_active === 'string' ? summary.previous_active : null
+      const previous = rollbackOf ?? before
+      if (releaseId) {
+        addMark(releaseMark(releaseId, previous, rollbackOf !== null, afterTurn(), ev.ts, ev.event_id))
+        setActiveRelease(releaseId)
+      }
+      pulse(ev.node_id)
+      bump()
+      void get().refreshCapabilities()
+    } else if (ev.type === 'feedback_recorded') {
+      // Feedback from another tab or browser on a turn of this chat.
+      if (ev.turn_id && get().turns[ev.turn_id]) void refreshSummary(ev.turn_id)
+    } else if (ev.type === 'eval_run_started') {
+      const runId = String(summary.run_id ?? ev.run_id ?? '')
+      if (runId) set({ opsRun: { runId, suite: String(summary.suite ?? ''), pack: String(summary.pack ?? ''), done: 0, total: typeof summary.total === 'number' ? summary.total : null } })
+      pulse(ev.node_id)
+      bump()
+    } else if (ev.type === 'eval_case_finished') {
+      const runId = String(summary.run_id ?? '')
+      set((s) => (s.opsRun && s.opsRun.runId === runId ? { opsRun: { ...s.opsRun, done: s.opsRun.done + 1 } } : {}))
+    } else if (ev.type === 'eval_run_finished') {
+      set({ opsRun: null })
+      pulse(ev.node_id)
+      bump()
+      void get().refreshLatestEval()
+    }
+  }
+
+  const openOps = () => {
+    const { api, mock } = get()
+    if (!api || opsStream) return
+    opsStream = openOpsStream(api.transport, {
+      onEvent: onOpsEvent,
+      onStatus: (open) => {
+        if (mock && !open) return
+        set({ opsLive: open })
+      },
+    })
   }
 
   /** Record the release this browser just made active, so a refresh does not mark it twice. */
@@ -312,7 +388,6 @@ export const useApp = create<AppState>()((set, get) => {
       ),
       order: oldestFirst.map((t) => t.turn_id),
     })
-    void hydrateFeedback(oldestFirst)
     // A turn that is still running (a reload mid-turn) is picked up from the start of its stream.
     const running = oldestFirst.find((t) => t.status !== 'done')
     if (running) {
@@ -368,6 +443,9 @@ export const useApp = create<AppState>()((set, get) => {
     marks: [],
     liveEval: null,
     latestEval: null,
+    opsLive: false,
+    opsRun: null,
+    opsPulse: null,
 
     async boot(t, opts = {}) {
       const api = createApi(t)
@@ -380,6 +458,7 @@ export const useApp = create<AppState>()((set, get) => {
         const [capabilities, diagram] = await Promise.all([api.capabilities(), api.diagram()])
         set({ capabilities, diagram, edgeIndex: buildEdgeIndex(diagram.edges), ready: true, bootError: null })
         if (capabilities.features.evals) void get().refreshLatestEval()
+        if (capabilities.features.release || capabilities.features.evals || capabilities.features.feedback) openOps()
         if (sessionId) await loadHistory(sessionId)
       } catch (err) {
         set({ bootError: describe(err), ready: false })
@@ -473,7 +552,7 @@ export const useApp = create<AppState>()((set, get) => {
       set({ sessionId: null, turns: {}, order: [], liveTurnId: null, replay: null, connection: 'idle', marks: [] })
     },
 
-    async enterReplay(turnId) {
+    async enterReplay(turnId, from) {
       const { api, turns, validate, liveTurnId } = get()
       if (!api) return
       const turn = turns[turnId]
@@ -482,7 +561,8 @@ export const useApp = create<AppState>()((set, get) => {
       let events = live && (live.phase === 'done' || live.phase === 'error') ? live.events : null
       if (!events) {
         try {
-          events = await loadTurnEvents(api.transport, turnId, validate)
+          // An eval case turn lives in its run's scratch tenant: its stream is the case's events_url.
+          events = await loadTurnEvents(api.transport, turnId, validate, from?.eventsUrl)
         } catch (err) {
           get().notify('error', `Could not load the turn: ${describe(err)}`)
           return
@@ -494,7 +574,7 @@ export const useApp = create<AppState>()((set, get) => {
         const loaded = reduceEvents(events, get().edgeIndex)
         updateTurn(turnId, (t) => ({ ...t, state: loaded }))
       }
-      set({ replay: { turnId, events, cursor: events.length - 1, playing: false } })
+      set({ replay: { turnId, events, cursor: events.length - 1, playing: false, ...(from ? { label: from.label } : {}) } })
     },
 
     exitReplay() {
@@ -610,8 +690,8 @@ export const useApp = create<AppState>()((set, get) => {
         const capabilities = await api.capabilities()
         set({ capabilities })
         const now = capabilities.release?.active_release_id ?? null
-        // A release this browser did not make: its own actions set the active id first.
-        if (now && before && now !== before) addMark(releaseMark(now, before, false, afterTurn()))
+        // Without the ops stream (an older API), a release made elsewhere shows up here first.
+        if (!get().opsLive && now && before && now !== before) addMark(releaseMark(now, before, false, afterTurn()))
       } catch {
         // Keep the capabilities we have.
       }
@@ -682,7 +762,8 @@ export const useApp = create<AppState>()((set, get) => {
       try {
         const saved = await api.saveArtifact(kind, name, body, note)
         get().notify('info', `${artifactLabel(saved.kind, saved.name)} v${saved.version} saved to the working set.`)
-        addMark(savedMark(saved, afterTurn()))
+        // With the ops stream open, its artifact_changed event places the marker.
+        if (!get().opsLive && !saved.unchanged) addMark(savedMark(saved, afterTurn()))
         set((s) => ({ inspectorVersion: s.inspectorVersion + 1 }))
         void get().refreshCapabilities()
         return saved
@@ -716,7 +797,7 @@ export const useApp = create<AppState>()((set, get) => {
       try {
         const release = await api.createRelease(note)
         get().notify('info', `Release ${release.release_id} created and active.`)
-        addMark(releaseMark(release.release_id, previous, false, afterTurn()))
+        if (!get().opsLive) addMark(releaseMark(release.release_id, previous, false, afterTurn()))
         setActiveRelease(release.release_id)
         set((s) => ({ inspectorVersion: s.inspectorVersion + 1 }))
         await get().refreshCapabilities()
@@ -734,7 +815,7 @@ export const useApp = create<AppState>()((set, get) => {
       try {
         await api.rollback(releaseId)
         get().notify('info', `Rolled back: release ${releaseId} is active and the working set matches it.`)
-        addMark(releaseMark(releaseId, previous, true, afterTurn()))
+        if (!get().opsLive) addMark(releaseMark(releaseId, previous, true, afterTurn()))
         setActiveRelease(releaseId)
         set((s) => ({ inspectorVersion: s.inspectorVersion + 1 }))
         await get().refreshCapabilities()

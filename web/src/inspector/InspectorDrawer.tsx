@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { opsRole, type OpsRole } from '@/diagram/opsRoles'
 import { KIND_HINT, KIND_ICON, planeStyle } from '@/diagram/planes'
-import { nodeArtifacts } from '@/state/ops'
+import { inspectorArtifact } from '@/state/ops'
 import { useDisplayTurn } from '@/state/hooks'
 import { useApp } from '@/state/store'
 import { CodeView } from './CodeView'
@@ -67,7 +67,7 @@ export function InspectorDrawer() {
   // A YAML artifact behind a node whose inspector is not the config itself (the context
   // builder, the model layer) gets a Config tab of its own.
   const yamlArtifact =
-    node && info.data && info.data.inspector.type !== 'config' && info.data.inspector.type !== 'prompt' ? nodeArtifacts(node, artifacts)[0] : undefined
+    info.data && info.data.inspector.type !== 'config' && info.data.inspector.type !== 'prompt' ? inspectorArtifact(info.data.inspector.artifact, artifacts) : undefined
   const tab = pick.node === nodeId ? pick.tab : role ? 'ops' : pick.tab === 'ops' || pick.tab === 'config' ? 'overview' : pick.tab
   const activeTab =
     (tab === 'details' && !detailsLabel) || (tab === 'ops' && !role) || (tab === 'config' && !yamlArtifact) ? 'overview' : tab
@@ -149,7 +149,7 @@ export function InspectorDrawer() {
           <TabsContent value="details" className="min-h-0">
             <ScrollArea className="h-full">
               <div className="p-4">
-                <DetailsTab info={info.data} node={node} artifacts={artifacts} />
+                <DetailsTab info={info.data} artifacts={artifacts} />
               </div>
             </ScrollArea>
           </TabsContent>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EvalCase } from '@/api/types'
-import { byScorer, receiptLine, runHeadline, runName, showValue, sortCases, yamlProblem } from './opsView'
+import { byScorer, receiptLine, regressionText, runHeadline, runName, showValue, sortCases, yamlProblem } from './opsView'
 
 const kase = (id: string, status: EvalCase['status'], scores: EvalCase['scores'], regression = false): EvalCase => ({
   case_id: id,
@@ -20,6 +20,8 @@ describe('eval panel text', () => {
     expect(runHeadline({ status: 'done', totals: { cases: 1, passed: 1, failed: 0, skipped: 0 } })).toBe('Ran 1 case, all passed')
     expect(runHeadline({ status: 'done', totals: { cases: 12, passed: 9, failed: 0, skipped: 3 } })).toBe('Ran 12 cases, none failed')
     expect(runHeadline({ status: 'running', totals: { cases: 12, passed: 0, failed: 0, skipped: 0 } }, 4)).toBe('Running 4 of 12 cases')
+    expect(runHeadline({ status: 'done', totals: { cases: 16, passed: 15, failed: 1, skipped: 0 } }, undefined, 1)).toBe('Ran 16 cases, 1 failed (1 error)')
+    expect(regressionText(1, 'run_0001')).toBe('1 regression: a case that failed or errored in this run and passed in run_0001')
     expect(runName({ suite: 'golden', pack: '_starter', model: null })).toBe('Golden · _starter')
   })
 

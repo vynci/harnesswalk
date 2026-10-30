@@ -26,7 +26,7 @@ describe('store: LLM Ops actions', () => {
   it('reads the release state, the latest eval run and the feedback of past turns at boot', async () => {
     await boot()
     const s = useApp.getState()
-    expect(s.capabilities?.release).toEqual({ active_release_id: 'r1', working_set_dirty: false })
+    expect(s.capabilities?.release).toEqual({ active_release_id: 'r1', working_set_dirty: false, use_working_set: true })
     await until(() => useApp.getState().latestEval !== null)
     expect(useApp.getState().latestEval?.regressions).toBe(0)
     // The session listing has no feedback field, so each finished turn is read once.
@@ -71,7 +71,7 @@ describe('store: LLM Ops actions', () => {
     await useApp.getState().saveArtifact('prompt', 'system_prompt', body + '\nBe kind.\n')
     const r2 = await useApp.getState().createRelease('kinder')
     expect(r2?.release_id).toBe('r2')
-    expect(useApp.getState().capabilities?.release).toEqual({ active_release_id: 'r2', working_set_dirty: false })
+    expect(useApp.getState().capabilities?.release).toEqual({ active_release_id: 'r2', working_set_dirty: false, use_working_set: true })
     expect(useApp.getState().marks.at(-1)).toMatchObject({ kind: 'released', text: 'Release r2 active', restore: { type: 'rollback', releaseId: 'r1' } })
     expect(await useApp.getState().rollback('r1')).toBe(true)
     expect(useApp.getState().capabilities?.release?.active_release_id).toBe('r1')

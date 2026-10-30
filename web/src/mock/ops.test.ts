@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { createApi } from '@/api/client'
-import { openEvalStream } from '@/api/stream'
-import type { EvalStreamEvent } from '@/api/types'
+import { loadTurnEvents, openEvalStream, openOpsStream } from '@/api/stream'
+import type { EvalStreamEvent, OpsEvent } from '@/api/types'
 import { parseUnifiedDiff } from '@/lib/diff'
 import { MockServer } from './server'
 
-// The ops half of the mock follows phase-4 CONTRACT.md, so the UI's tests and the mock e2e walk
+// The ops half of the mock follows the real API's shapes (http_api.md, P4 additions), so the UI's tests and the mock e2e walk
 // the gate: edit a skill, run golden, see the regression; release, roll back, see the old version.
 function setup() {
   const server = new MockServer({ stepMs: 0 })
@@ -23,10 +23,10 @@ async function finished(api: ReturnType<typeof setup>['api'], runId: string) {
 
 describe('mock ops: artifacts, evals and releases', () => {
   it('walks the gate: a changed skill makes golden cases regress, a rollback restores the old version', async () => {
-    const { api } = setup()
+    const { server, api } = setup()
     let caps = await api.capabilities()
     expect(caps.features.evals && caps.features.release && caps.features.artifact_edit && caps.features.feedback).toBe(true)
-    expect(caps.release).toEqual({ active_release_id: 'r1', working_set_dirty: false })
+    expect(caps.release).toEqual({ active_release_id: 'r1', working_set_dirty: false, use_working_set: true })
 
     const [seeded] = await api.evalRuns()
     expect(seeded).toMatchObject({ suite: 'golden', status: 'done', regressions: 0, totals: { cases: 12, passed: 9, failed: 0, skipped: 3 } })
@@ -52,21 +52,30 @@ describe('mock ops: artifacts, evals and releases', () => {
     expect(shipped.scores.tool_calls).toMatchObject({ pass: false, value: 'none' })
     expect(shipped.previous_status).toBe('passed')
     expect(shipped.actual?.path).not.toContain('tools')
-    // The case's turn is stored, so the UI can open it in replay.
-    expect((await api.turn(shipped.turn_id!)).status).toBe('done')
+    // The case turn lives in the run's scratch tenant, as on the real API: GET /v1/turns/{id}
+    // answers 404 and the case's events_url serves its stream.
+    await expect(api.turn(shipped.turn_id!)).rejects.toMatchObject({ status: 404 })
+    expect(shipped.events_url).toBe(`/v1/evals/runs/${run_id}/cases/${shipped.case_id}/events`)
+    const replayed = await loadTurnEvents(server.transport(), shipped.turn_id!, undefined, shipped.events_url!)
+    expect(replayed[replayed.length - 1]!.type).toBe('turn_end')
 
     const r2 = await api.createRelease('find_order experiment')
     expect(r2).toMatchObject({ release_id: 'r2', active: true, note: 'find_order experiment' })
     const detail = await api.release('r2')
     expect(detail.diff_from_previous).toEqual([expect.objectContaining({ kind: 'skill', name: 'order_status', from_version: 1, to_version: 2 })])
-    expect((await api.releases()).map((r) => [r.release_id, r.active])).toEqual([
+    const list = await api.releaseList()
+    expect(list.verify.ok).toBe(true)
+    expect(r2.prev_hash).toBe(list.releases[1]!.hash)
+    expect(list.releases.map((r) => [r.release_id, r.active])).toEqual([
       ['r2', true],
       ['r1', false],
     ])
 
-    await api.rollback('r1')
+    const back = await api.rollback('r1')
+    expect(back).toMatchObject({ release_id: 'r1', rollback_of: 'r2', active_release_id: 'r1', working_set_dirty: false })
+    expect(back.reset).toEqual([expect.objectContaining({ kind: 'skill', name: 'order_status', restored_version: 1 })])
     caps = await api.capabilities()
-    expect(caps.release).toEqual({ active_release_id: 'r1', working_set_dirty: false })
+    expect(caps.release).toEqual({ active_release_id: 'r1', working_set_dirty: false, use_working_set: true })
     const restored = await api.artifact('skill', 'order_status')
     expect(restored.version).toBe(3)
     expect(restored.body).toContain('lookup_order')
@@ -95,6 +104,32 @@ describe('mock ops: artifacts, evals and releases', () => {
   })
 })
 
+describe('mock ops: the tenant ops stream', () => {
+  it('carries artifact edits, releases, rollbacks, feedback and eval progress, from now on', async () => {
+    const { server, api } = setup()
+    const seen: OpsEvent[] = []
+    const stream = openOpsStream(server.transport(), { onEvent: (ev) => seen.push(ev) })
+    await new Promise((r) => setTimeout(r, 5))
+    const skill = await api.artifact('skill', 'returns')
+    await api.saveArtifact('skill', 'returns', skill.body + 'More.\n')
+    await api.createRelease('more')
+    await api.rollback('r1')
+    await api.feedback('turn_tool_call', 'good')
+    const { run_id } = await api.startEval({ pack: '_starter', suite: 'golden' })
+    await finished(api, run_id)
+    stream.close()
+    const types = seen.map((e) => e.type)
+    expect(types.slice(0, 4)).toEqual(['artifact_changed', 'artifact_released', 'artifact_released', 'feedback_recorded'])
+    expect(types[4]).toBe('eval_run_started')
+    expect(types[types.length - 1]).toBe('eval_run_finished')
+    expect(seen[1]!.summary).toMatchObject({ release_id: 'r2', previous_active: 'r1' })
+    expect(seen[2]!.summary).toMatchObject({ release_id: 'r1', rollback_of: 'r2' })
+    expect(seen[3]).toMatchObject({ turn_id: 'turn_tool_call', stream: 'ops' })
+    const cursors = seen.map((e) => e.cursor!)
+    expect(cursors).toEqual(cursors.map((_, i) => cursors[0]! + i))
+  })
+})
+
 describe('mock ops: feedback, scores and the trace query', () => {
   it('stores feedback on a turn, and the seeded turn carries a judge score', async () => {
     const { api } = setup()
@@ -113,7 +148,7 @@ describe('mock ops: feedback, scores and the trace query', () => {
     expect(tools.turns.map((t) => t.turn_id).sort()).toEqual(['turn_approval_pause', 'turn_tool_call'])
     const page = await api.traceTurns({ limit: 1 })
     expect(page.turns).toHaveLength(1)
-    expect(page.next).toBe(page.turns[0]!.turn_id)
+    expect(page.next_after).toBe(page.turns[0]!.turn_id)
     const receipt = await api.receipt('turn_tool_call')
     expect(receipt.total).toEqual({ input_tokens: 1917, output_tokens: 45, usd: 0 })
     expect(receipt.by_node.model_layer).toEqual(receipt.total)

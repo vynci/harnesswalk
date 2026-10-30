@@ -23,7 +23,7 @@ import {
 import { formatMs } from '@/diagram/stats'
 import { evalBlockReason } from '@/state/ops'
 import { useApp } from '@/state/store'
-import { byScorer, plural, runHeadline, runName, showValue, sortCases } from './opsView'
+import { byScorer, plural, regressionText, runHeadline, runName, showValue, sortCases } from './opsView'
 import { useArtifacts, useLoad } from './useOps'
 
 const DEFAULT_MODEL = '__default__'
@@ -53,13 +53,16 @@ function RunForm({ defaultPack, onStart }: { defaultPack: string; onStart: () =>
   const [suite, setSuite] = useState<EvalSuite>('golden')
   const [model, setModel] = useState(DEFAULT_MODEL)
   const blocked = evalBlockReason(capabilities)
+  // The judge suite needs a judge model the API has configured (features.judge).
+  const judge = capabilities?.features.judge === true
   const models = (capabilities?.providers ?? []).filter((p) => p.configured).flatMap((p) => p.models.map((m) => ({ provider: p.name, model: m })))
   const packValue = pack ?? defaultPack
   const busy = !!liveEval
   const run = () => {
     if (blocked || busy || !packValue.trim()) return
     onStart()
-    void startEval({ pack: packValue.trim(), suite, ...(model !== DEFAULT_MODEL ? { model } : {}) })
+    const pick = judge ? suite : 'golden'
+    void startEval({ pack: packValue.trim(), suite: pick, ...(pick === 'judge' && model !== DEFAULT_MODEL ? { model } : {}) })
   }
   return (
     <form
@@ -74,36 +77,50 @@ function RunForm({ defaultPack, onStart }: { defaultPack: string; onStart: () =>
         Pack
         <Input value={packValue} onChange={(e) => setPack(e.target.value)} className="h-7 w-28 font-mono text-xs" aria-label="Pack" data-testid="eval-pack" />
       </label>
-      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-        <span id="eval-suite-label">Suite</span>
-        <ToggleGroup type="single" variant="outline" size="sm" value={suite} onValueChange={(v) => v && setSuite(v as EvalSuite)} aria-labelledby="eval-suite-label">
-          <ToggleGroupItem value="golden">golden</ToggleGroupItem>
-          <ToggleGroupItem value="judge">judge</ToggleGroupItem>
-        </ToggleGroup>
-      </div>
-      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        Model
-        <Select value={model} onValueChange={setModel}>
-          <SelectTrigger size="sm" className="w-32" aria-label="Model">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={DEFAULT_MODEL}>configured</SelectItem>
-            {models.map((m) => (
-              <SelectItem key={`${m.provider}/${m.model}`} value={m.model}>
-                {m.model}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </label>
-      <Hint label={blocked ?? (suite === 'golden' ? 'Replay every golden case on the fake provider and score it' : 'Score answers with the judge model (needs one configured)')}>
+      {judge ? (
+        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+          <span id="eval-suite-label">Suite</span>
+          <ToggleGroup type="single" variant="outline" size="sm" value={suite} onValueChange={(v) => v && setSuite(v as EvalSuite)} aria-labelledby="eval-suite-label">
+            <ToggleGroupItem value="golden">golden</ToggleGroupItem>
+            <ToggleGroupItem value="judge" data-testid="eval-suite-judge">
+              judge
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+      ) : (
+        <p className="flex flex-col gap-1 text-xs text-muted-foreground">
+          <span>Suite</span>
+          <span className="flex h-7 items-center text-foreground" data-testid="eval-suite-golden">
+            golden
+          </span>
+        </p>
+      )}
+      {judge && suite === 'judge' && (
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Answer with
+          <Select value={model} onValueChange={setModel}>
+            <SelectTrigger size="sm" className="w-32" aria-label="Model that answers the cases">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={DEFAULT_MODEL}>the fixtures</SelectItem>
+              {models.map((m) => (
+                <SelectItem key={`${m.provider}/${m.model}`} value={m.model}>
+                  {m.model}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
+      )}
+      <Hint label={blocked ?? (suite === 'golden' || !judge ? 'Replay every golden case on the fake provider and score it' : 'Score the answers with the judge model')}>
         <Button type="submit" size="sm" className="ml-auto" aria-disabled={blocked || busy ? true : undefined} data-testid="eval-run-button">
           {busy ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden /> : <Play aria-hidden />}
           {busy ? 'Running…' : 'Run'}
         </Button>
       </Hint>
       {blocked && <p className="basis-full text-xs text-muted-foreground">{blocked}</p>}
+      {!blocked && !judge && <p className="basis-full text-xs text-muted-foreground">The judge suite needs a judge model (evals.judge.model); this API has none, so only golden runs here.</p>}
     </form>
   )
 }
@@ -161,8 +178,15 @@ function CaseDetail({ c }: { c: EvalCase }) {
           ))}
         </ul>
       )}
-      {c.turn_id && (
-        <Button size="xs" variant="outline" className="self-start" onClick={() => void enterReplay(c.turn_id!)} data-testid="eval-case-replay">
+      {c.error && <p className="text-xs break-words text-destructive">Error {c.error.code}: {c.error.message}</p>}
+      {c.turn_id && c.events_url && (
+        <Button
+          size="xs"
+          variant="outline"
+          className="self-start"
+          onClick={() => void enterReplay(c.turn_id!, { eventsUrl: c.events_url!, label: `Eval case ${c.case_id}` })}
+          data-testid="eval-case-replay"
+        >
           <Play aria-hidden /> Open the turn in replay
         </Button>
       )}
@@ -183,7 +207,9 @@ function CaseLine({ c }: { c: EvalCase }) {
         </Badge>
       )}
       <TraceDescription>
-        {c.status === 'skipped' ? 'skipped' : c.previous_status && c.previous_status !== c.status ? `was ${c.previous_status}` : ''}
+        {c.status === 'skipped'
+          ? 'skipped'
+          : [c.status === 'error' ? 'error, counted as failed' : '', c.previous_status && c.previous_status !== c.status ? `was ${c.previous_status}` : ''].filter(Boolean).join(', ')}
       </TraceDescription>
     </TraceLine>
   )
@@ -248,14 +274,17 @@ function RunDetail({ runId }: { runId: string }) {
   const api = useApp((s) => s.api)
   const version = useApp((s) => s.inspectorVersion)
   const liveEval = useApp((s) => s.liveEval)
+  const opsRun = useApp((s) => s.opsRun)
   const live = liveEval?.runId === runId
-  const run = useLoad(api ? `run:${runId}:${version}:${live ? liveEval.done : 'x'}` : null, () => api!.evalRun(runId))
+  const done = live ? liveEval.done : opsRun?.runId === runId ? opsRun.done : undefined
+  const run = useLoad(api ? `run:${runId}:${version}:${done ?? 'x'}` : null, () => api!.evalRun(runId))
   const [group, setGroup] = useState<'case' | 'scorer'>('case')
   const [open, setOpen] = useState<boolean | undefined>(undefined)
   if (run.status === 'error') return <p className="text-xs text-destructive">Could not load the run: {run.error}</p>
   if (!run.data) return <p className="text-xs text-muted-foreground">Loading the run…</p>
   const r = run.data
   const failing = r.totals.failed > 0
+  const errors = r.cases.filter((c) => c.status === 'error').length
   return (
     <section className="flex flex-col gap-3" aria-label={`Eval run ${r.run_id}`} data-testid="eval-run-detail" data-run={r.run_id} data-status={r.status}>
       <Trace>
@@ -265,9 +294,9 @@ function RunDetail({ runId }: { runId: string }) {
               <TraceIcon>
                 <FlaskConical />
               </TraceIcon>
-              <TraceTitle>{runHeadline(r, live ? liveEval.done : undefined)}</TraceTitle>
+              <TraceTitle>{runHeadline(r, done, errors)}</TraceTitle>
               {r.regressions > 0 && (
-                <Badge variant="destructive" className="h-5 shrink-0 font-normal">
+                <Badge variant="destructive" className="h-5 shrink-0 font-normal" title={regressionText(r.regressions, r.previous_run_id)}>
                   {plural(r.regressions, 'regression')}
                 </Badge>
               )}
@@ -278,7 +307,7 @@ function RunDetail({ runId }: { runId: string }) {
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span>{runName(r)}</span>
               <span className="tabular-nums">
-                {r.totals.passed} passed, {r.totals.failed} failed, {r.totals.skipped} skipped
+                {r.totals.passed} passed, {r.totals.failed} failed{errors ? ` (${errors} with an error)` : ''}, {r.totals.skipped} skipped
               </span>
               {r.previous_run_id && <span>compared with {r.previous_run_id}</span>}
               <ToggleGroup type="single" size="sm" value={group} onValueChange={(v) => v && setGroup(v as 'case' | 'scorer')} aria-label="Group results" className="ml-auto">
@@ -290,6 +319,12 @@ function RunDetail({ runId }: { runId: string }) {
                 </ToggleGroupItem>
               </ToggleGroup>
             </div>
+            {r.regressions > 0 && (
+              <p className="text-xs text-muted-foreground" data-testid="eval-regression-note">
+                {regressionText(r.regressions, r.previous_run_id)}. Failed counts errors too.
+              </p>
+            )}
+            {r.error && <p className="text-xs text-destructive">The run stopped: {r.error.message}</p>}
             {r.cases.length === 0 ? <p className="text-xs">No case has finished yet.</p> : group === 'case' ? <ByCase cases={r.cases} /> : <ByScorer cases={r.cases} />}
           </TraceCollapsibleContent>
         </TraceCollapsible>
@@ -304,28 +339,32 @@ export function EvalPanel() {
   const on = useApp((s) => s.capabilities?.features.evals === true)
   const version = useApp((s) => s.inspectorVersion)
   const liveEval = useApp((s) => s.liveEval)
+  const opsRun = useApp((s) => s.opsRun)
   const { pack: artifactsPack } = useArtifacts()
   const runs = useLoad(api && on ? `runs:${version}` : null, () => api!.evalRuns({ limit: 10 }))
   const [chosen, setChosen] = useState<string | null>(null)
   if (!on) return <p className="text-xs text-muted-foreground">This API does not run evals yet (no features.evals in its capabilities).</p>
   const list = runs.data ?? []
   // A run started here is shown as it goes; otherwise the newest, unless the reader picked one.
-  const selected = liveEval?.runId ?? (chosen && list.some((r) => r.run_id === chosen) ? chosen : list[0]?.run_id) ?? null
+  const selected = liveEval?.runId ?? opsRun?.runId ?? (chosen && list.some((r) => r.run_id === chosen) ? chosen : list[0]?.run_id) ?? null
+  // A run another browser or the CLI started, heard on the tenant's ops stream.
+  const progress = liveEval ?? opsRun
   return (
     <div className="flex flex-col gap-4" data-testid="eval-panel">
       <RunForm defaultPack={list[0]?.pack ?? artifactsPack ?? ''} onStart={() => setChosen(null)} />
-      {liveEval && (
+      {progress && (
         <Trace role="status" aria-live="polite">
           <TraceLine status="running" data-testid="eval-progress">
             <TraceIcon>
               <LoaderCircle className="animate-spin motion-reduce:animate-none" />
             </TraceIcon>
             <TraceTitle>
-              Running the {liveEval.suite} suite on {liveEval.pack}
+              Running the {progress.suite} suite on {progress.pack}
+              {!liveEval ? ' (started elsewhere)' : ''}
             </TraceTitle>
             <TraceDescription>
-              {liveEval.done}
-              {liveEval.total ? ` of ${liveEval.total}` : ''} cases done
+              {progress.done}
+              {progress.total ? ` of ${progress.total}` : ''} cases done
             </TraceDescription>
           </TraceLine>
         </Trace>

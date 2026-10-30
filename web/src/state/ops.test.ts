@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ArtifactRef, Capabilities } from '@/api/types'
-import { artifactLabel, editBlockReason, hintKind, nodeArtifacts, promptItemArtifact, releaseMark, savedMark } from './ops'
+import { artifactLabel, editBlockReason, inspectorArtifact, releaseMark, savedMark } from './ops'
 
 const caps = (over: Partial<Capabilities> = {}, features: Partial<Capabilities['features']> = {}): Capabilities => ({
   mode: 'dev',
@@ -39,16 +39,11 @@ describe('ops helpers', () => {
     expect(editBlockReason(caps(), true)).toMatch(/turn is running/)
   })
 
-  it('finds a node artifacts by its kind and artifact hint', () => {
-    expect(hintKind('config/policy.yaml')).toBe('policy')
-    expect(hintKind('datasets/<pack>/tools.yaml')).toBe('tools')
-    expect(hintKind('datasets/<pack>/skills/')).toBeNull()
-    expect(nodeArtifacts({ kind: 'prompt', artifact_hint: 'datasets/<pack>/skills/' }, LIST).map((a) => a.name)).toEqual(['system_prompt', 'order_status', 'returns'])
-    expect(nodeArtifacts({ kind: 'config', artifact_hint: 'config/policy.yaml' }, LIST).map((a) => a.kind)).toEqual(['policy'])
-    expect(nodeArtifacts({ kind: 'model', artifact_hint: 'config/models.yaml' }, LIST).map((a) => a.kind)).toEqual(['models'])
-    expect(nodeArtifacts({ kind: 'code', artifact_hint: undefined }, LIST)).toEqual([])
-    expect(promptItemArtifact('system_prompt', 0, LIST)?.kind).toBe('prompt')
-    expect(promptItemArtifact('order_status', 1, LIST)?.version).toBe(2)
-    expect(promptItemArtifact('missing', 2, LIST)).toBeUndefined()
+  it('takes the artifact the inspector names, with the listing metadata', () => {
+    expect(inspectorArtifact({ kind: 'skill', name: 'order_status', version: 1, url: '/v1/artifacts/skill/order_status' }, LIST)).toEqual({ kind: 'skill', name: 'order_status', version: 2 })
+    const listed = [{ ...ref('policy', 'policy', 3), updated_by: 'user:dev', served_version: 3 }]
+    expect(inspectorArtifact({ kind: 'policy', name: 'policy', version: 3, url: '/v1/artifacts/policy/policy' }, listed)).toEqual({ kind: 'policy', name: 'policy', version: 3, updated_by: 'user:dev', served_version: 3 })
+    expect(inspectorArtifact(null, LIST)).toBeUndefined()
+    expect(inspectorArtifact(undefined, LIST)).toBeUndefined()
   })
 })

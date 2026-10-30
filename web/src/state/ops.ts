@@ -1,11 +1,13 @@
 // Pure helpers for the LLM Ops state: the chat markers for working-set saves and releases, why an
-// edit is blocked right now, and how a node's artifacts are found (by the spec's artifact hint and
-// the API's listing, never by node id).
-import type { ArtifactRef, Capabilities, DiagramNode } from '@/api/types'
+// edit is blocked right now, and the artifact an inspector edits (the API's `inspector.artifact`,
+// never guessed from the node).
+import type { ArtifactRef, Capabilities, InspectorArtifact } from '@/api/types'
 
 /** A marker in the chat timeline: a save to the working set, or a release becoming active. */
 export interface OpsMark {
   id: string
+  /** The change it stands for, so a change reported twice gets one marker. */
+  key?: string
   kind: 'saved' | 'released' | 'rolled_back'
   text: string
   /** The turn the marker follows; null before the first turn. */
@@ -29,6 +31,7 @@ export function artifactLabel(kind: string, name: string): string {
 export function savedMark(a: { kind: string; name: string; version: number }, afterTurnId: string | null, at = new Date().toISOString()): OpsMark {
   return {
     id: `mark_saved_${a.kind}_${a.name}_${a.version}_${at}`,
+    key: `saved:${a.kind}/${a.name}@${a.version}`,
     kind: 'saved',
     text: `${artifactLabel(a.kind, a.name)} v${a.version} saved`,
     afterTurnId,
@@ -37,9 +40,17 @@ export function savedMark(a: { kind: string; name: string; version: number }, af
   }
 }
 
-export function releaseMark(releaseId: string, previous: string | null, rolledBack: boolean, afterTurnId: string | null, at = new Date().toISOString()): OpsMark {
+export function releaseMark(
+  releaseId: string,
+  previous: string | null,
+  rolledBack: boolean,
+  afterTurnId: string | null,
+  at = new Date().toISOString(),
+  key?: string,
+): OpsMark {
   return {
     id: `mark_release_${releaseId}_${at}`,
+    ...(key ? { key: `release:${key}` } : {}),
     kind: rolledBack ? 'rolled_back' : 'released',
     text: rolledBack ? `Rolled back: release ${releaseId} active` : `Release ${releaseId} active`,
     afterTurnId,
@@ -73,29 +84,28 @@ export function evalBlockReason(capabilities: Capabilities | null): string | nul
   return null
 }
 
-const PROMPT_KINDS = new Set(['prompt', 'skill'])
-
-/** The YAML artifact kind a node's `artifact_hint` names: `config/policy.yaml` is kind policy. */
-export function hintKind(hint: string | undefined): string | null {
-  const m = hint ? /([A-Za-z0-9_-]+)\.ya?ml$/.exec(hint) : null
-  return m ? m[1]! : null
-}
-
-/** The working-set artifacts a node shows: the prompt and skills for a prompt node, else the YAML its hint names. */
-export function nodeArtifacts(node: Pick<DiagramNode, 'kind' | 'artifact_hint'>, list: ArtifactRef[]): ArtifactRef[] {
-  if (node.kind === 'prompt') return list.filter((a) => PROMPT_KINDS.has(a.kind))
-  const kind = hintKind(node.artifact_hint)
-  return kind ? list.filter((a) => a.kind === kind) : []
+/** An artifact an inspector can edit: the API's `inspector.artifact`, with the listing's metadata when known. */
+export interface EditableArtifact {
+  kind: string
+  name: string
+  version: number
+  updated_by?: string
+  served_version?: number | null
 }
 
 /**
- * The artifact behind one item of a prompt inspector. http_api.md lists the system prompt first,
- * then the skills: the first item is the pack's prompt artifact, the others the skill of their name.
+ * The artifact behind an inspector, as the API names it (`inspector.artifact` on a config
+ * inspector, on each prompt item, and on code or model nodes whose settings are a config
+ * artifact), with who changed it last from GET /v1/artifacts. Never guessed from the node.
  */
-export function promptItemArtifact(itemName: string, index: number, list: ArtifactRef[]): ArtifactRef | undefined {
-  if (index === 0) {
-    const prompts = list.filter((a) => a.kind === 'prompt')
-    return prompts.length === 1 ? prompts[0] : prompts.find((a) => a.name === itemName)
+export function inspectorArtifact(ref: InspectorArtifact | null | undefined, list: ArtifactRef[]): EditableArtifact | undefined {
+  if (!ref || typeof ref !== 'object' || typeof ref.kind !== 'string' || typeof ref.name !== 'string') return undefined
+  const listed = list.find((a) => a.kind === ref.kind && a.name === ref.name)
+  return {
+    kind: ref.kind,
+    name: ref.name,
+    version: Math.max(ref.version ?? 0, listed?.version ?? 0),
+    ...(listed?.updated_by ? { updated_by: listed.updated_by } : {}),
+    ...(listed && listed.served_version !== undefined ? { served_version: listed.served_version } : {}),
   }
-  return list.find((a) => a.kind === 'skill' && a.name === itemName)
 }

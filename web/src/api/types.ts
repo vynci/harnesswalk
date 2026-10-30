@@ -160,9 +160,13 @@ export interface Capabilities {
     artifact_edit?: boolean
     /** P4: Good and Bad feedback on a turn. */
     feedback?: boolean
+    /** P4: a judge model is configured, so the judge suite can run. */
+    judge?: boolean
+    /** P4: resume with mode step_over. */
+    step_over?: boolean
   }
   /** P4: which release serves turns, and whether the working set has unreleased edits. */
-  release?: { active_release_id: string | null; working_set_dirty: boolean }
+  release?: ReleaseState
   limits: {
     max_message_chars: number
     max_steps: number
@@ -196,6 +200,8 @@ export interface TurnSummary {
   scores?: Record<string, number> | null
   /** P4: the loop checkpoint; `restored` after a restart resumed the turn from it. */
   checkpoint?: { step: number; at: string; restored: boolean } | null
+  /** P4: what the turn ran on (`turn_start.summary.release`). */
+  release?: { release_id: string | null; working_set: boolean; artifacts_hash: string } | null
 }
 
 export type FeedbackRating = 'good' | 'bad'
@@ -204,6 +210,12 @@ export interface TurnFeedback {
   rating: FeedbackRating
   note?: string | null
   at?: string
+}
+
+/** POST /v1/turns/{id}/feedback: the stored record. */
+export interface FeedbackRecord extends TurnFeedback {
+  turn_id: string
+  by?: string
 }
 
 export interface StartTurnRequest {
@@ -228,7 +240,17 @@ export interface StartTurnResponse {
 
 export interface NodeInspector {
   type: 'source' | 'config' | 'prompt' | 'store' | 'queue' | 'model'
+  /** P4: the release artifact this inspector shows, to edit with PUT /v1/artifacts/{kind}/{name}. */
+  artifact?: InspectorArtifact | null
   [key: string]: unknown
+}
+
+/** `inspector.artifact` (http_api.md, GET /v1/nodes/{id}): which working-set artifact a node shows. */
+export interface InspectorArtifact {
+  kind: string
+  name: string
+  version: number
+  url: string
 }
 
 export interface NodeInfo {
@@ -329,7 +351,7 @@ export interface AuditExport {
   next_since: string | null
 }
 
-// ---------- LLM Ops (P4, phase-4 CONTRACT.md) ----------
+// ---------- LLM Ops (P4, spec/contracts/http_api.md "P4 additions") ----------
 
 export type EvalSuite = 'golden' | 'judge'
 export type EvalCaseStatus = 'passed' | 'failed' | 'skipped' | 'error'
@@ -337,22 +359,33 @@ export type EvalCaseStatus = 'passed' | 'failed' | 'skipped' | 'error'
 export interface EvalTotals {
   cases: number
   passed: number
+  /** Failed and error cases together (http_api.md). */
   failed: number
   skipped: number
 }
 
 export interface EvalRunSummary {
   run_id: string
+  tenant_id?: string
   pack: string
   suite: EvalSuite
   model: string | null
+  judge_model?: string | null
   started_at: string
   ended_at: string | null
   status: 'running' | 'done' | 'error'
+  error?: { code: string; message: string }
   totals: EvalTotals
-  /** How many cases failed now and passed in `previous_run_id`. */
+  /** How many cases failed or errored now and passed in `previous_run_id`. */
   regressions: number
+  regression_cases?: string[]
   previous_run_id: string | null
+  /** What was under test. */
+  release_id?: string | null
+  working_set?: boolean
+  artifacts_hash?: string
+  cost?: Cost
+  diff?: { fixed: string[]; regressed: string[]; new: string[]; removed: string[] }
 }
 
 export interface EvalScore {
@@ -368,10 +401,14 @@ export interface EvalCase {
   /** By scorer name: path, citations, tool_calls, schema, pii_leak, answer_match, faithfulness, relevance. */
   scores: Record<string, EvalScore>
   expected: Record<string, unknown> | null
-  actual: { reply: string | null; path: string[]; citations: unknown[]; tool_calls: unknown[] } | null
+  actual: { reply: string | null; path: string[]; citations: unknown[]; tool_calls: unknown[]; exit?: string } | null
   turn_id: string | null
+  /** The case turn's stored stream (it lives in the run's scratch tenant, not the caller's). */
+  events_url?: string | null
   previous_status: EvalCaseStatus | null
   regression: boolean
+  error?: { code: string; message: string }
+  detail?: string
 }
 
 export interface EvalRunDetail extends EvalRunSummary {
@@ -385,32 +422,67 @@ export interface StartEvalRequest {
   cases?: string[]
 }
 
+export interface ReleaseState {
+  active_release_id: string | null
+  working_set_dirty: boolean
+  use_working_set?: boolean
+}
+
 export interface ArtifactRef {
-  /** prompt, skill, policy, context, models or tools (phase-4 CONTRACT.md). */
+  /** prompt, skill, policy, context, models or tools (http_api.md). */
   kind: string
   name: string
   version: number
   hash: string
   updated_at?: string
   updated_by?: string
+  note?: string | null
+  deleted?: boolean
+  /** The version turns are served (the active release's, or the working set's in dev). */
+  served_version?: number | null
+}
+
+export interface ArtifactList {
+  pack: string
+  artifacts: ArtifactRef[]
+  release: ReleaseState
 }
 
 export interface Artifact extends ArtifactRef {
   body: string
+  path?: string
+  latest_version?: number
+  history?: ArtifactRef[]
 }
 
 /** PUT /v1/artifacts/{kind}/{name}: the new working-set version and a unified diff against the one before. */
 export interface ArtifactSaved extends Artifact {
   diff: string
+  previous_version: number | null
+  /** The same body again: no new version. */
+  unchanged?: boolean
+  /** The harness reloaded, so the next turn uses it. */
+  applied?: boolean
+  release?: ReleaseState
 }
 
 export interface ReleaseSummary {
   release_id: string
+  pack?: string
   created_at: string
+  created_by?: string
   note: string | null
   hash: string
+  prev_hash: string
   active: boolean
   artifacts: { kind: string; name: string; version: number; hash: string }[]
+}
+
+export interface ReleaseList extends ReleaseState {
+  pack: string
+  releases: ReleaseSummary[]
+  verify: { ok: boolean; releases: number; broken_at?: string; artifact?: string }
+  activations?: { release_id: string; at: string; by: string; rollback_of: string | null }[]
 }
 
 export interface ReleaseDiff {
@@ -422,13 +494,22 @@ export interface ReleaseDiff {
 }
 
 export interface ReleaseDetail extends ReleaseSummary {
+  previous_release_id?: string | null
   diff_from_previous: ReleaseDiff[]
+}
+
+/** POST /v1/releases/{id}/rollback. */
+export interface RollbackResult extends ReleaseDetail, ReleaseState {
+  rollback_of: string | null
+  reset: { kind: string; name: string; from_version: number; to_version: number; restored_version?: number; deleted?: boolean }[]
 }
 
 export interface TraceQuery {
   session?: string
   node?: string
   status?: string
+  /** chat, or eval for the case turns of the caller's eval runs. */
+  kind?: 'chat' | 'eval'
   since?: string
   until?: string
   limit?: number
@@ -438,6 +519,7 @@ export interface TraceQuery {
 /** One row of GET /v1/trace/turns: the turn with its receipt totals (tracer.md TurnSummary plus receipts). */
 export interface TraceTurn {
   turn_id: string
+  tenant_id?: string
   session_id: string
   trace_id?: string
   started_at: string
@@ -447,8 +529,19 @@ export interface TraceTurn {
   cost?: Cost | null
   steps?: number | null
   duration_ms?: number | null
-  /** The nodes visited, in order. */
+  /** The simple-view nodes visited, in order. */
   path?: string[]
+  kind?: 'chat' | 'eval' | string
+  channel?: string | null
+  /** Eval case turns: the run, the case and the stream to replay. */
+  run_id?: string
+  case_id?: string | null
+  events_url?: string | null
+}
+
+export interface TraceTurnPage {
+  turns: TraceTurn[]
+  next_after: string | null
 }
 
 /** GET /v1/trace/turns/{id}/receipt, as tracer.md's Receipt. */
@@ -458,16 +551,36 @@ export interface Receipt {
   by_node: Record<string, Cost>
   by_model: Record<string, Cost>
   latency_ms: Record<string, number>
+  nodes?: Record<string, { ms: number; count: number; input_tokens: number; output_tokens: number; usd: number }>
+  calls?: { seq: number; step: number; provider: string; model: string; input_tokens: number; output_tokens: number; usd: number; ms: number; fallback?: boolean }[]
+  scores?: Record<string, Record<string, number>> | null
+  feedback?: TurnFeedback | null
+}
+
+export type OpsEventType = 'eval_run_started' | 'eval_case_finished' | 'eval_run_finished' | 'feedback_recorded' | 'artifact_changed' | 'artifact_released'
+
+/** An ops event (events.md section 10): on an eval run's stream, or on GET /v1/events. */
+export interface OpsEvent {
+  type: OpsEventType
+  event_id?: string
+  seq?: number
+  ts?: string
+  trace_id?: string
+  tenant_id?: string
+  turn_id?: string | null
+  session_id?: string | null
+  node_id?: string
+  status?: string
+  summary?: Summary
+  /** Added by GET /v1/evals/runs/{id}/events. */
+  run_id?: string
+  /** Added by GET /v1/events: the cursor over the tenant's ops events, and the stream. */
+  cursor?: number
+  stream?: string
 }
 
 /** A point event on the eval run stream (GET /v1/evals/runs/{id}/events). */
-export interface EvalStreamEvent {
-  type: 'eval_run_started' | 'eval_case_finished' | 'eval_run_finished'
-  run_id?: string
-  turn_id?: null
-  tenant_id?: string
-  summary?: Summary
-}
+export type EvalStreamEvent = OpsEvent & { type: 'eval_run_started' | 'eval_case_finished' | 'eval_run_finished' }
 
 export interface ApiErrorBody {
   error: { code: string; message: string }

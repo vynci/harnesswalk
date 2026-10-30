@@ -1,5 +1,6 @@
-// The Trace node's panel: query the stored turns (session, node, status, since), each with its
-// receipt totals; a turn opens to its per-node receipt (tokens, ms, cost) and to replay.
+// The Trace node's panel: query the stored turns (kind, session, node, status, since), each with
+// its receipt totals; a turn opens to its per-node receipt (tokens, ms, cost), its model calls and
+// replay. Eval case turns (kind eval) replay from their case's events_url.
 import { useState } from 'react'
 import { Play, Receipt as ReceiptIcon, Search } from 'lucide-react'
 import type { TraceQuery, TraceTurn } from '@/api/types'
@@ -30,6 +31,10 @@ const SINCE: { value: string; label: string; ms: number | null }[] = [
   { value: '1d', label: 'last day', ms: 86_400_000 },
 ]
 const STATUSES = ['running', 'paused', 'done']
+const KINDS: { value: string; label: string }[] = [
+  { value: 'chat', label: 'chat turns' },
+  { value: 'eval', label: 'eval case turns' },
+]
 
 
 function when(iso: string): string {
@@ -96,6 +101,17 @@ function ReceiptView({ turnId }: { turnId: string }) {
           ))}
         </ul>
       )}
+      {(r.calls ?? []).length > 0 && (
+        <ul className="flex flex-col gap-0.5 text-xs" aria-label="Model calls" data-testid="receipt-calls">
+          {r.calls!.map((c) => (
+            <li key={c.seq} className="tabular-nums">
+              Step {c.step}: <span className="font-mono text-foreground">{c.model}</span> on {c.provider}, {c.input_tokens} in, {c.output_tokens} out, {usd(c)}
+              {formatMs(c.ms) ? `, ${formatMs(c.ms)}` : ''}
+              {c.fallback ? ', fallback' : ''}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
@@ -107,9 +123,9 @@ export function TracePanel() {
   const sessionId = useApp((s) => s.sessionId)
   const version = useApp((s) => s.inspectorVersion)
   const enterReplay = useApp((s) => s.enterReplay)
-  const [form, setForm] = useState({ session: sessionId ?? '', node: ANY, status: ANY, since: ANY })
-  const [query, setQuery] = useState<TraceQuery>(() => ({ ...(sessionId ? { session: sessionId } : {}), limit: 20 }))
-  const [pages, setPages] = useState<{ after: string; turns: TraceTurn[]; next: string | null }[]>([])
+  const [form, setForm] = useState({ kind: 'chat', session: sessionId ?? '', node: ANY, status: ANY, since: ANY })
+  const [query, setQuery] = useState<TraceQuery>(() => ({ kind: 'chat', ...(sessionId ? { session: sessionId } : {}), limit: 20 }))
+  const [pages, setPages] = useState<{ after: string; turns: TraceTurn[]; next_after: string | null }[]>([])
   const key = api ? `trace:${JSON.stringify(query)}:${version}` : null
   const first = useLoad(key, () => api!.traceTurns(query))
   const label = (id: string) => diagram?.nodes.find((n) => n.id === id)?.label ?? id
@@ -118,6 +134,7 @@ export function TracePanel() {
     const since = SINCE.find((s) => s.value === form.since)?.ms
     setPages([])
     setQuery({
+      kind: form.kind === 'eval' ? 'eval' : 'chat',
       ...(form.session.trim() ? { session: form.session.trim() } : {}),
       ...(form.node !== ANY ? { node: form.node } : {}),
       ...(form.status !== ANY ? { status: form.status } : {}),
@@ -125,7 +142,7 @@ export function TracePanel() {
       limit: 20,
     })
   }
-  const next = pages.length ? pages[pages.length - 1]!.next : (first.data?.next ?? null)
+  const next = pages.length ? pages[pages.length - 1]!.next_after : (first.data?.next_after ?? null)
   const more = async () => {
     if (!api || !next) return
     const page = await api.traceTurns({ ...query, after: next })
@@ -143,7 +160,22 @@ export function TracePanel() {
           search()
         }}
       >
-        <label className="col-span-2 flex flex-col gap-1 text-xs text-muted-foreground">
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Kind
+          <Select value={form.kind} onValueChange={(kind) => setForm({ ...form, kind, ...(kind === 'eval' ? { session: '' } : {}) })}>
+            <SelectTrigger size="sm" aria-label="Kind" data-testid="trace-kind">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {KINDS.map((k) => (
+                <SelectItem key={k.value} value={k.value}>
+                  {k.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Session
           <Input value={form.session} onChange={(e) => setForm({ ...form, session: e.target.value })} placeholder="any session" className="h-7 font-mono text-xs" data-testid="trace-session" />
         </label>
@@ -213,16 +245,26 @@ export function TracePanel() {
                     <ReceiptIcon />
                   </TraceIcon>
                   <TraceTitle className="shrink-0">
+                    {t.case_id ? `${t.case_id}: ` : ''}
                     {t.exit ?? t.status} · {when(t.started_at)}
                   </TraceTitle>
                   <TraceDescription className="min-w-0 shrink truncate">{receiptLine(t)}</TraceDescription>
                 </TraceLine>
               </TraceCollapsibleTrigger>
               <TraceCollapsibleContent className="flex flex-col gap-3">
-                <p className="font-mono text-xs break-all">{t.turn_id}</p>
+                <p className="font-mono text-xs break-all">
+                  {t.turn_id}
+                  {t.run_id ? ` · ${t.run_id}` : ''}
+                </p>
                 {t.path && t.path.length > 0 && <p className="text-xs leading-relaxed">{t.path.map(label).join(' → ')}</p>}
                 <ReceiptView turnId={t.turn_id} />
-                <Button size="xs" variant="outline" className="self-start" onClick={() => void enterReplay(t.turn_id)} data-testid="trace-replay">
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="self-start"
+                  onClick={() => void enterReplay(t.turn_id, t.events_url ? { eventsUrl: t.events_url, label: `Eval case ${t.case_id ?? t.turn_id}` } : undefined)}
+                  data-testid="trace-replay"
+                >
                   <Play aria-hidden /> Open in replay
                 </Button>
               </TraceCollapsibleContent>

@@ -3,19 +3,20 @@
 import type {
   ApiErrorBody,
   Artifact,
-  ArtifactRef,
+  ArtifactList,
   ArtifactSaved,
   AuditExport,
   EvalRunDetail,
   EvalRunSummary,
   FeedbackRating,
+  FeedbackRecord,
   Receipt,
   ReleaseDetail,
-  ReleaseSummary,
+  ReleaseList,
+  RollbackResult,
   StartEvalRequest,
   TraceQuery,
-  TraceTurn,
-  TurnFeedback,
+  TraceTurnPage,
   Capabilities,
   Diagram,
   KnowledgeDoc,
@@ -80,21 +81,6 @@ export function eventsPath(turnId: string, q: StreamQuery = {}): string {
   if (q.follow === false) params.set('follow', 'false')
   const qs = params.toString()
   return `/v1/turns/${encodeURIComponent(turnId)}/events${qs ? `?${qs}` : ''}`
-}
-
-/**
- * A list response: the contract names the items but not the envelope, so take a bare array or
- * the array under `key` (`{runs: [...]}`), and the paging cursor when there is one.
- */
-export function listOf<T>(data: unknown, key: string): { items: T[]; next: string | null; pack?: string } {
-  if (Array.isArray(data)) return { items: data as T[], next: null }
-  if (data && typeof data === 'object') {
-    const o = data as Record<string, unknown>
-    const items = Array.isArray(o[key]) ? (o[key] as T[]) : []
-    const next = typeof o.next_after === 'string' ? o.next_after : typeof o.next === 'string' ? o.next : null
-    return { items, next, ...(typeof o.pack === 'string' ? { pack: o.pack } : {}) }
-  }
-  return { items: [], next: null }
 }
 
 function query(params: Record<string, string | number | undefined | null>): string {
@@ -162,31 +148,26 @@ export function createApi(t: Transport) {
       ),
     audit: (limit = 200) => call<AuditExport>('GET', `/v1/audit?limit=${limit}`),
     eventsUrl: (turnId: string, q?: StreamQuery) => `${t.baseUrl}${eventsPath(turnId, q)}`,
-    // P4: LLM Ops (phase-4 CONTRACT.md).
+    // P4: LLM Ops (spec/contracts/http_api.md, "P4 additions").
     feedback: (turnId: string, rating: FeedbackRating, note?: string) =>
-      call<TurnFeedback>('POST', `/v1/turns/${encodeURIComponent(turnId)}/feedback`, note ? { rating, note } : { rating }),
-    startEval: (req: StartEvalRequest) => call<{ run_id: string }>('POST', '/v1/evals/runs', req),
-    evalRuns: async (q: { pack?: string; limit?: number } = {}) =>
-      listOf<EvalRunSummary>(await call<unknown>('GET', `/v1/evals/runs${query(q)}`), 'runs').items,
+      call<FeedbackRecord>('POST', `/v1/turns/${encodeURIComponent(turnId)}/feedback`, note ? { rating, note } : { rating }),
+    startEval: (req: StartEvalRequest) => call<{ run_id: string; events_url: string }>('POST', '/v1/evals/runs', req),
+    evalRuns: async (q: { pack?: string; limit?: number } = {}) => (await call<{ runs: EvalRunSummary[] }>('GET', `/v1/evals/runs${query(q)}`)).runs,
     evalRun: (runId: string) => call<EvalRunDetail>('GET', `/v1/evals/runs/${encodeURIComponent(runId)}`),
     evalRunEventsUrl: (runId: string) => `${t.baseUrl}/v1/evals/runs/${encodeURIComponent(runId)}/events`,
-    artifacts: async (pack?: string) => {
-      const out = listOf<ArtifactRef>(await call<unknown>('GET', `/v1/artifacts${query({ pack })}`), 'artifacts')
-      return { pack: out.pack ?? null, artifacts: out.items }
-    },
+    artifacts: (pack?: string) => call<ArtifactList>('GET', `/v1/artifacts${query({ pack })}`),
     artifact: (kind: string, name: string, version?: number) =>
       call<Artifact>('GET', `/v1/artifacts/${encodeURIComponent(kind)}/${encodeURIComponent(name)}${query({ version })}`),
     saveArtifact: (kind: string, name: string, body: string, note?: string) =>
       call<ArtifactSaved>('PUT', `/v1/artifacts/${encodeURIComponent(kind)}/${encodeURIComponent(name)}`, note ? { body, note } : { body }),
-    releases: async (pack?: string) => listOf<ReleaseSummary>(await call<unknown>('GET', `/v1/releases${query({ pack })}`), 'releases').items,
+    releaseList: (pack?: string) => call<ReleaseList>('GET', `/v1/releases${query({ pack })}`),
     release: (releaseId: string) => call<ReleaseDetail>('GET', `/v1/releases/${encodeURIComponent(releaseId)}`),
-    createRelease: (note?: string) => call<ReleaseSummary>('POST', '/v1/releases', note ? { note } : {}),
-    rollback: (releaseId: string) => call<ReleaseSummary | undefined>('POST', `/v1/releases/${encodeURIComponent(releaseId)}/rollback`, {}),
-    traceTurns: async (q: TraceQuery = {}) => {
-      const out = listOf<TraceTurn>(await call<unknown>('GET', `/v1/trace/turns${query({ ...q })}`), 'turns')
-      return { turns: out.items, next: out.next }
-    },
+    createRelease: (note?: string) => call<ReleaseDetail>('POST', '/v1/releases', note ? { note } : {}),
+    rollback: (releaseId: string) => call<RollbackResult>('POST', `/v1/releases/${encodeURIComponent(releaseId)}/rollback`, {}),
+    traceTurns: (q: TraceQuery = {}) => call<TraceTurnPage>('GET', `/v1/trace/turns${query({ ...q })}`),
     receipt: (turnId: string) => call<Receipt>('GET', `/v1/trace/turns/${encodeURIComponent(turnId)}/receipt`),
+    /** GET /v1/events: every ops event of the tenant, live (SSE). */
+    opsEventsUrl: () => `${t.baseUrl}/v1/events`,
   }
 }
 

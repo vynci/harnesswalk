@@ -15,7 +15,7 @@ import type {
   TurnSummary,
 } from '@/api/types'
 import { EXAMPLE_MESSAGES, EXAMPLE_NAMES, EXAMPLES, servedDiagram, type ExampleName } from './examples'
-import { MockEvalEventSource, MockOps } from './ops'
+import { MockEvalEventSource, MockOps, MockOpsEventSource } from './ops'
 import { repoFile, repoFilesUnder, sourceFor } from './repo'
 
 export interface MockOptions {
@@ -282,7 +282,9 @@ export class MockServer {
     if (method === 'GET' && p === '/v1/diagram') return json(200, this.diagram)
     if (method === 'POST' && p === '/v1/turns') return this.startTurn(body as unknown as StartTurnRequest)
     if ((m = p.match(/^\/v1\/turns\/([^/]+)$/)) && method === 'GET') {
-      const turn = this.turns.get(decodeURIComponent(m[1]!))
+      const found = this.turns.get(decodeURIComponent(m[1]!))
+      // Eval case turns live in their run's scratch tenant, so the caller cannot read them here.
+      const turn = found && !found.sessionId.startsWith('sess_eval_') ? found : undefined
       const index = turn ? [...this.turns.values()].filter((t) => t.sessionId === turn.sessionId && t.createdAt <= turn.createdAt).length - 1 : 0
       return turn ? json(200, { ...summarize(turn, index), ...this.ops.turnExtras(turn.id) }) : apiError(404, 'turn_not_found', 'No such turn for this tenant.')
     }
@@ -299,7 +301,7 @@ export class MockServer {
       const list = [...this.turns.values()].filter((t) => t.sessionId === sid)
       if (list.length === 0) return apiError(404, 'session_not_found', 'No such session for this tenant.')
       list.sort((a, b) => a.createdAt - b.createdAt)
-      const indexed = list.map((t, i) => summarize(t, i))
+      const indexed = list.map((t, i) => ({ ...summarize(t, i), ...this.ops.turnExtras(t.id) }))
       return json(200, indexed.reverse().slice(0, limit))
     }
     if ((m = p.match(/^\/v1\/nodes\/([^/]+)\/source$/)) && method === 'GET') return this.nodeSource(decodeURIComponent(m[1]!))
@@ -340,9 +342,11 @@ export class MockServer {
         knowledge: true,
         memory_review: true,
         evals: true,
+        judge: false,
         release: true,
         artifact_edit: true,
         feedback: true,
+        step_over: true,
       },
       limits: { max_message_chars: 4000, max_steps: 8, session_ttl_seconds: null },
       release: this.ops.releaseState(),
@@ -608,16 +612,16 @@ export class MockServer {
         const art = kind ? this.ops.current(kind, kind) : undefined
         const path = { policy: 'config/policy.yaml', router: 'config/models.yaml', registry: 'datasets/_starter/tools.yaml' }[nodeId as string] ?? null
         const content = art?.body ?? (path ? repoFile(path) : undefined)
-        return { type: 'config', path, version: art ? `${art.name}@${art.version}` : null, format: 'yaml', content: content ?? null, editable: true }
+        return { type: 'config', path, version: art ? `${art.name}@${art.version}` : null, format: 'yaml', content: content ?? null, editable: true, artifact: kind ? this.ops.inspectorArtifact(kind, kind) : null }
       }
       case 'prompt': {
         const prompt = this.ops.current('prompt', 'system_prompt')
-        const items = [{ name: 'system_prompt', version: `system_prompt@${prompt?.version ?? 1}`, content: prompt?.body ?? '' }]
+        const items = [{ name: 'system_prompt', version: `system_prompt@${prompt?.hash.slice(0, 8) ?? 'none'}`, content: prompt?.body ?? '', artifact: this.ops.inspectorArtifact('prompt', 'system_prompt') }]
         for (const skill of ['order_status', 'returns']) {
           const art = this.ops.current('skill', skill)
-          if (art) items.push({ name: skill, version: `${skill}@${art.version}`, content: art.body })
+          if (art) items.push({ name: skill, version: `${skill}@${art.hash.slice(0, 8)}`, content: art.body, artifact: this.ops.inspectorArtifact('skill', skill) })
         }
-        return { type: 'prompt', items, editable: true }
+        return { type: 'prompt', items, editable: true, release: this.ops.releaseState() }
       }
       case 'queue':
         return {
@@ -633,6 +637,7 @@ export class MockServer {
           router_rules: [{ name: 'default', model: 'fake-small' }],
           providers: ['fake'],
           last_routing: recent?.[0]?.summary ?? null,
+          ...(node.artifact_hint === 'config/models.yaml' ? { artifact: this.ops.inspectorArtifact('models', 'models') } : {}),
         }
       case 'store': {
         if (nodeId === 'trace') {
@@ -644,7 +649,13 @@ export class MockServer {
         return { type: 'store', counts: {}, last_records: recent?.map((r) => ({ turn_id: r.turn_id, ...r.summary })) ?? [] }
       }
       default:
-        return { type: 'source', path: node.source_hint, language: 'python', last_summary: recent?.[0] ?? null }
+        return {
+          type: 'source',
+          path: node.source_hint,
+          language: 'python',
+          last_summary: recent?.[0] ?? null,
+          ...(node.artifact_hint === 'config/context.yaml' ? { artifact: this.ops.inspectorArtifact('context', 'context') } : {}),
+        }
     }
   }
 
@@ -685,6 +696,14 @@ function boundEventSource(server: MockServer): EventSourceCtor {
   // One constructor for both streams: a turn's events, or an eval run's progress (P4).
   return class {
     constructor(url: string) {
+      const path = new URL(url, 'http://mock.local').pathname
+      if (path === '/v1/events') return new MockOpsEventSource(server.ops, url)
+      // An eval case's events_url serves its stored turn stream.
+      const kase = path.match(/^\/v1\/evals\/runs\/([^/]+)\/cases\/([^/]+)\/events$/)
+      if (kase) {
+        const turnId = server.ops.caseTurn(decodeURIComponent(kase[1]!), decodeURIComponent(kase[2]!)) ?? 'turn_none'
+        return new MockEventSource(server, `/v1/turns/${encodeURIComponent(turnId)}/events?follow=false`)
+      }
       return /\/v1\/evals\/runs\/[^/]+\/events/.test(url) ? new MockEvalEventSource(server.ops, url) : new MockEventSource(server, url)
     }
   } as unknown as EventSourceCtor

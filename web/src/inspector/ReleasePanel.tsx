@@ -4,7 +4,6 @@
 // Roll back).
 import { useState } from 'react'
 import { GitCommitHorizontal, History, Package, PackagePlus } from 'lucide-react'
-import type { ReleaseSummary } from '@/api/types'
 import { ConfirmItem } from '@/components/confirm-item'
 import { DiffView } from '@/components/diff-view'
 import { Hint } from '@/components/hint'
@@ -72,7 +71,7 @@ function ReleaseDetailView({ releaseId, blocked, onRolledBack }: { releaseId: st
   if (detail.status === 'error') return <p className="text-xs text-destructive">Could not load {releaseId}: {detail.error}</p>
   if (!detail.data) return <p className="text-xs text-muted-foreground">Loading {releaseId}…</p>
   const r = detail.data
-  const prevHash = (r as ReleaseSummary & { prev_hash?: string | null }).prev_hash
+  const first = !r.prev_hash || /^0+$/.test(r.prev_hash)
   return (
     <section className="flex flex-col gap-3" aria-label={`Release ${r.release_id}`} data-testid="release-detail" data-release={r.release_id}>
       <div className="flex flex-wrap items-center gap-2">
@@ -101,7 +100,8 @@ function ReleaseDetailView({ releaseId, blocked, onRolledBack }: { releaseId: st
       {r.note && <p className="text-sm">{r.note}</p>}
       <p className="font-mono text-xs break-all text-muted-foreground">
         hash {short(r.hash)}
-        {prevHash !== undefined ? (prevHash ? ` · after ${short(prevHash)}` : ' · first in the chain') : ''}
+        {first ? ' · first in the chain' : ` · after ${short(r.prev_hash)}`}
+        {r.created_by ? ` · by ${r.created_by}` : ''}
       </p>
       {confirming && (
         <ConfirmItem
@@ -177,13 +177,15 @@ export function ReleasePanel() {
   const capabilities = useApp((s) => s.capabilities)
   const version = useApp((s) => s.inspectorVersion)
   const on = capabilities?.features.release === true
-  const releases = useLoad(api && on ? `releases:${version}` : null, () => api!.releases())
+  const releases = useLoad(api && on ? `releases:${version}` : null, () => api!.releaseList())
   const [chosen, setChosen] = useState<string | null>(null)
   if (!on) return <p className="text-xs text-muted-foreground">This API does not version releases yet (no features.release in its capabilities).</p>
   const blocked = releaseBlockReason(capabilities)
-  const list = releases.data ?? []
+  const list = releases.data?.releases ?? []
+  const verify = releases.data?.verify
   const active = list.find((r) => r.active) ?? null
   const dirty = capabilities?.release?.working_set_dirty === true
+  const servesWorkingSet = (releases.data?.use_working_set ?? capabilities?.release?.use_working_set) === true
   const selected = (chosen && list.some((r) => r.release_id === chosen) ? chosen : (active?.release_id ?? list[0]?.release_id)) ?? null
   return (
     <div className="flex flex-col gap-4" data-testid="release-panel">
@@ -198,8 +200,19 @@ export function ReleasePanel() {
           )}
         </p>
         <p className={dirty ? 'text-xs text-state-waiting' : 'text-xs text-muted-foreground'} data-testid="release-dirty" data-dirty={dirty ? 'true' : 'false'}>
-          {dirty ? 'The working set has unreleased changes. In dev the harness serves them already.' : 'The working set matches the active release.'}
+          {dirty
+            ? servesWorkingSet
+              ? 'The working set has unreleased changes, and this harness serves the working set, so turns use them already.'
+              : 'The working set has unreleased changes. Turns use them once you create a release.'
+            : 'The working set matches the active release.'}
         </p>
+        {verify && (
+          <p className={verify.ok ? 'text-xs text-muted-foreground' : 'text-xs text-destructive'} data-testid="release-verify" data-ok={verify.ok ? 'true' : 'false'}>
+            {verify.ok
+              ? `Hash chain verified over ${verify.releases} release${verify.releases === 1 ? '' : 's'}.`
+              : `Hash chain broken at ${verify.broken_at}${verify.artifact ? ` (${verify.artifact})` : ''}.`}
+          </p>
+        )}
       </div>
       <CreateRelease blocked={blocked} dirty={dirty} />
       {blocked && <p className="text-xs text-muted-foreground">{blocked}</p>}

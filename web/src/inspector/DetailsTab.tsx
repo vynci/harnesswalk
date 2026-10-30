@@ -1,11 +1,11 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { stringify } from 'yaml'
-import type { ArtifactRef, DiagramNode, NodeInfo } from '@/api/types'
+import type { ArtifactRef, InspectorArtifact, NodeInfo } from '@/api/types'
 import { Code } from '@/components/code'
 import { Prose } from '@/components/prose'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { nodeArtifacts, promptItemArtifact } from '@/state/ops'
+import { inspectorArtifact } from '@/state/ops'
 import { ArtifactEditor } from './ArtifactEditor'
 import { DataView, KeyValues } from './DataView'
 import { sourceExtras } from './labels'
@@ -29,12 +29,12 @@ function Markdown({ text }: { text: string }) {
   )
 }
 
-export function DetailsTab({ info, node, artifacts = [] }: { info: NodeInfo; node?: DiagramNode; artifacts?: ArtifactRef[] }) {
+export function DetailsTab({ info, artifacts = [] }: { info: NodeInfo; artifacts?: ArtifactRef[] }) {
   const ins = info.inspector
   if (ins.type === 'config') {
     const content = typeof ins.content === 'string' ? ins.content : ins.effective !== undefined ? stringify(ins.effective) : null
     // P4: the YAML is a working-set artifact, edited here and shipped by a release.
-    const artifact = node ? nodeArtifacts(node, artifacts)[0] : undefined
+    const artifact = inspectorArtifact(ins.artifact, artifacts)
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-2">
         <p className="text-xs text-muted-foreground">
@@ -53,16 +53,18 @@ export function DetailsTab({ info, node, artifacts = [] }: { info: NodeInfo; nod
     )
   }
   if (ins.type === 'prompt') {
-    const items = Array.isArray(ins.items) ? (ins.items as { name: string; version?: string; description?: string; content?: string }[]) : []
+    const items = Array.isArray(ins.items)
+      ? (ins.items as { name: string; version?: string; description?: string; content?: string; artifact?: InspectorArtifact | null }[])
+      : []
     return (
       <div className="flex flex-col gap-4">
         {items.length === 0 && <p className="text-xs text-muted-foreground">No prompt or skills loaded.</p>}
-        {items.map((item, i) => {
-          const artifact = promptItemArtifact(item.name, i, artifacts)
+        {items.map((item) => {
+          const artifact = inspectorArtifact(item.artifact, artifacts)
           return artifact ? (
             <Card key={item.name} className="gap-2 py-3 shadow-none" data-testid="prompt-item" data-name={item.name}>
               <CardContent className="px-3">
-                <ArtifactEditor artifact={artifact} language="markdown" body={item.content} renderBody={(text) => <Markdown text={text} />} />
+                <ArtifactEditor artifact={artifact} stamp={item.version} language="markdown" body={item.content} renderBody={(text) => <Markdown text={text} />} />
               </CardContent>
             </Card>
           ) : (
@@ -84,7 +86,8 @@ export function DetailsTab({ info, node, artifacts = [] }: { info: NodeInfo; nod
   if (isAuditPayload(ins)) return <AuditView ins={ins} />
   // store, queue, model, a code node's own state and anything newer: one section per field,
   // each drawn by the shape of its value.
-  const keys = ins.type === 'source' ? sourceExtras(ins) : Object.keys(ins).filter((k) => k !== 'type')
+  // `artifact` is edited in its own Config tab (InspectorDrawer), not listed as a field.
+  const keys = (ins.type === 'source' ? sourceExtras(ins) : Object.keys(ins).filter((k) => k !== 'type')).filter((k) => k !== 'artifact')
   const fields = keys.map((k) => [k, ins[k]] as const)
   return (
     <div className="flex flex-col gap-4">
