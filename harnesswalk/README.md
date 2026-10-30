@@ -34,14 +34,14 @@ does not exist yet and the node is served with `implemented: false`.
 | `execution` | `registry.py` | `registry` | `tool_registry.md` | implemented |
 | `execution` | `sandbox.py` | `sandbox` | `sandbox.md` | implemented (subprocess with limits and no network; in-process for tests and public mode) |
 | `execution` | `output_guardrails.py` | `output_guardrails` | `guardrail.md` | implemented (schema, content, length, citations drawn from knowledge, PII leaks, placeholder restore) |
-| `ops` | `trace.py` | `trace` | `tracer.md` | implemented |
+| `ops` | `trace.py` | `trace` | `tracer.md` | implemented (P4: turn index, trace query, receipts per node and per call) |
 | `ops` | `cost.py` | `cost` | `tracer.md` | implemented |
-| `ops` | `eval/__init__.py` | `eval` | `evaluator.md` | stub (P4) |
-| `ops` | `eval/online.py` | `online_eval` | `evaluator.md` | not registered (P4) |
-| `ops` | `eval/offline.py` | `offline_eval` | `evaluator.md` | not registered (P4) |
-| `ops` | `eval/diagnose.py` | `diagnose` | `evaluator.md` | not registered (P4) |
-| `ops` | `release.py` | `release` | `release.md` | stub (`current()` is real; P4) |
-| `ops` | `artifacts.py` | `artifacts` | `release.md` | not registered (P4) |
+| `ops` | `eval/__init__.py` | `eval` | `evaluator.md` | implemented (P4: golden runs, judge, online scores, feedback) |
+| `ops` | `eval/online.py` | `online_eval` | `evaluator.md` | implemented (sampled judge, thumbs and notes) |
+| `ops` | `eval/offline.py` | `offline_eval` | `evaluator.md` | implemented (golden runs, scorers, diff against the previous run) |
+| `ops` | `eval/diagnose.py` | `diagnose` | `evaluator.md` | not registered (later) |
+| `ops` | `release.py` | `release` | `release.md` | implemented (P4: served set, edits, releases, rollback, reload) |
+| `ops` | `artifacts.py` | `artifacts` | `release.md` | implemented (versions and the release hash chain in `data/releases.db`) |
 
 Modules that are not nodes:
 
@@ -55,7 +55,7 @@ Modules that are not nodes:
 | (root) | `inspectors.py` | What `GET /v1/nodes/{id}` shows per node kind, and the code peek of `GET /v1/nodes/{id}/source` |
 | (root) | `turns.py` | Turn summaries read off the stored events: `GET /v1/turns/{id}` and `GET /v1/sessions/{id}/turns` |
 | (root) | `paths.py` | Where `config/`, `spec/` and `datasets/` live (`HARNESSWALK_ROOT`) |
-| (root) | `__main__.py` | The `harnesswalk` command: `serve`, `turn`, `events`, `turns`, `ingest` |
+| (root) | `__main__.py` | The `harnesswalk` command: `serve`, `turn`, `events`, `turns`, `ingest`, `eval`, `release` |
 | `config` | `loader.py` | Loads `config/*.yaml` and profiles through release, applies env and overrides |
 | `control` | `http_api.py` | The FastAPI app for `spec/contracts/http_api.md`, plus the built web app (`web/dist`) and dev-mode CORS |
 | `context` | `tokens.py` | The `chars_div_4` token estimator |
@@ -72,6 +72,11 @@ Modules that are not nodes:
 | `control` | `pii.py` | PII detection, Luhn, the per-turn placeholder vault (input and output guardrails, memory writer) |
 | `control` | `injection.py` | Prompt-injection heuristics: a score and the signals that fired |
 | `control` | `budgets.py` | Per-tenant budgets and the hourly usage ledger (read by policy and the loop) |
+| `control` | `http_ops.py` | P4 LLM Ops routes: eval runs, feedback, artifacts and releases, the trace query |
+| `ops` | `ops_events.py` | P4 ops event streams: events outside turns (eval progress, feedback, releases) |
+| `ops` | `otel.py` | P4 OpenTelemetry mapping and OTLP export (optional extra `otel`) |
+| `ops` | `lease.py` | P4 `data/owner.lock`: one `serve` per data directory, `--takeover` |
+| `ops` | `eval/golden.py`, `eval/scorers.py`, `eval/judge.py`, `eval/store.py` | P4 golden sets, deterministic scorers, the judge, `data/evals.db` |
 | `adapters` | `storage/sqlite.py` | The SQLite helper behind the trace, session, audit and approval stores |
 | `adapters` | `storage/vectors.py` | Vector indexes: `sqlite` (brute-force cosine) and `pgvector`, chosen by `storage.vectors` |
 | `adapters` | `mcp/` | MCP client that registers server tools (later phase) |
