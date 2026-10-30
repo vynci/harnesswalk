@@ -70,7 +70,10 @@ COMPONENT_MODULES = (
     "harnesswalk.ops.trace",
     "harnesswalk.ops.cost",
     "harnesswalk.ops.eval",
+    "harnesswalk.ops.eval.offline",
+    "harnesswalk.ops.eval.online",
     "harnesswalk.ops.release",
+    "harnesswalk.ops.artifacts",
 )
 
 

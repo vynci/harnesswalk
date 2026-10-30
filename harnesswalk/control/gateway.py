@@ -80,6 +80,10 @@ class TurnRequest:
     fixture: str | None = None  # dev mode only: the fake provider's fixture for this turn
     output_schema: dict[str, Any] | None = None  # a structured reply (output guardrails check it)
     model: str | None = None  # dev mode only: a router alias hint
+    # P4: a turn the harness starts for itself (an eval case). It may pick a provider and a
+    # fixture in any mode and is not rate-limited. Never set from HTTP.
+    internal: bool = False
+    eval_run_id: str | None = None
 
 
 @dataclass
@@ -95,6 +99,9 @@ class TurnState:
     proposals: list[Any] = field(default_factory=list)  # memory proposals from the loop
     recorded: bool = False  # the session holds this turn: a later failure must not rewrite it
     finished_at: float | None = None  # monotonic time the turn ended, for eviction
+    byo_key: bool = False  # the turn came with a BYO key (kept as a flag only, P4)
+    restored: bool = False  # re-attached after a restart (P4 checkpoints)
+    byo_key_dropped: bool = False  # restored, and the BYO key it had is gone
 
 
 CITATION_MARK = re.compile(r"\[(\d{1,2})\]")
@@ -187,7 +194,7 @@ class Gateway:
                 raise GatewayError(400, "invalid_request", "output_schema is not valid") from exc
         if req.provider is None and req.fixture is None:
             return
-        if self.h.settings.mode != "dev":
+        if self.h.settings.mode != "dev" and not req.internal:
             raise GatewayError(
                 400, "invalid_request", "provider and fixture can only be chosen in dev mode"
             )
@@ -213,14 +220,15 @@ class Gateway:
 
     async def start_turn(self, req: TurnRequest, client_ip: str = "") -> TurnState:
         self._validate(req)
+        self.h.refresh_artifacts()  # another process (the CLI) may have changed a release
         turn_providers = self._turn_providers(req)
         tenant = req.identity.tenant_id
         remaining = None
-        if self.h.settings.mode == "public":
+        if self.h.settings.mode == "public" and not req.internal:
             remaining = self._check_rate(
                 f"ip:{client_ip}", int(self.cfg["rate_limit"]["per_ip_per_hour"])
             )
-        if self.h.settings.mode != "dev":
+        if self.h.settings.mode != "dev" and not req.internal:
             self._check_rate(f"tenant:{tenant}", int(self.cfg["rate_limit"]["per_tenant_per_hour"]))
 
         session_id = req.session_id or "sess_" + uuid7().replace("-", "")[:20]
@@ -269,8 +277,10 @@ class Gateway:
             providers=turn_providers,
             model_hint=req.model,
             budget=self.h.budgets.for_turn(tenant),
+            output_schema=req.output_schema,
+            byo_key=bool(req.api_key),
         )
-        state = TurnState(ctx=ctx, request=req)
+        state = TurnState(ctx=ctx, request=req, byo_key=bool(req.api_key))
         self.evict_finished()
         self.turns[turn_id] = state
         self._open_sessions[session_id] = turn_id
@@ -291,6 +301,11 @@ class Gateway:
             start["disabled"] = list(req.disabled_nodes)
         if req.model is not None:
             start["model_hint"] = req.model
+        start["release"] = self.h.release.stamp()
+        if req.eval_run_id is not None:
+            start["eval_run_id"] = req.eval_run_id
+        if req.output_schema is not None:
+            start["output_schema"] = True
         emitter.turn_start(start)
         state.task = asyncio.create_task(self.run_turn(state, remaining))
         return state
@@ -413,6 +428,8 @@ class Gateway:
         receipt = await run_trace_node(ctx, h.tracer)
         state.cost = receipt["total"]
         end: dict[str, Any] = {"exit": exit_, "steps": steps, "reply": reply}
+        if state.byo_key_dropped:
+            end["byo_key_dropped"] = True
         cited = cited_sources(reply, ctx.citations)
         if cited:
             end["citations"] = cited
@@ -447,6 +464,12 @@ class Gateway:
         self._finished[ctx.turn_id] = state.finished_at
         state.done.set()
         self.evict_finished()
+        with contextlib.suppress(Exception):  # online judging never affects the turn
+            self.h.evals.online.after_turn(state)
+
+    def running_turns(self) -> list[str]:
+        """Turn ids this process is running (or holding paused), for the release lock."""
+        return [t for t, s in self.turns.items() if not s.done.is_set()]
 
     # -- recovery after a restart (approval_queue.md, P3 additions) ---------------------------
 
@@ -540,6 +563,7 @@ class Gateway:
         user_text = next(
             (m["content"] for m in reversed(checkpoint["messages"]) if m["role"] == "user"), None
         )
+        kept = checkpoint.get("turn") or {}
         request = TurnRequest(
             message=user_text or "",
             identity=ctx.identity,  # type: ignore[arg-type]
@@ -547,8 +571,16 @@ class Gateway:
             channel=summary.get("channel", "web"),
             provider=provider,
             fixture=fixture,
+            output_schema=kept.get("output_schema"),
+            eval_run_id=summary.get("eval_run_id"),
         )
-        state = TurnState(ctx=ctx, request=request)
+        ctx.output_schema = request.output_schema
+        ctx.citations = list(kept.get("citations") or [])
+        ctx.byo_key = bool(kept.get("byo_key"))
+        state = TurnState(ctx=ctx, request=request, restored=True)
+        # The key itself was never stored: the turn goes on with the configured provider.
+        state.byo_key_dropped = ctx.byo_key
+        h.session.mark_restored(ctx.tenant_id, ctx.turn_id)
         self.turns[ctx.turn_id] = state
         self._open_sessions[ctx.session_id] = ctx.turn_id
         state.task = asyncio.create_task(self._resume(state, record, checkpoint, user_text))
@@ -609,7 +641,7 @@ class Gateway:
                 if ctx.emit.stack:
                     raise
                 answer, exit_ = notice, "error"
-            await self._check_and_reply(state, answer, exit_, steps, user_text, [])
+            await self._check_and_reply(state, answer, exit_, steps, user_text, list(ctx.citations))
         except asyncio.CancelledError:
             state.exit = "cancelled"
             self._close_after_failure(state, "cancelled", "The turn was cancelled.")

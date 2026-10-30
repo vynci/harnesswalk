@@ -8,6 +8,12 @@ harnesswalk turn "<prompt>" --cancel-after loop
 harnesswalk events <turn_id>              dump a stored turn as JSON Lines
 harnesswalk turns <session_id>            list a session's turns, newest first
 harnesswalk ingest [<pack>] [--force]     index a pack's docs and load its seed facts and events
+harnesswalk eval <pack> --suite golden    run the pack's golden set (fake provider) and score it
+harnesswalk eval <pack> --suite judge --model hosted-haiku
+                                          answer on a model and score with the judge
+harnesswalk release list|create|rollback <id>|diff <id>
+                                          the versioned artifacts and their releases
+harnesswalk serve --takeover              take over a data directory another serve holds
 """
 
 from __future__ import annotations
@@ -31,12 +37,14 @@ SUMMARY_KEYS = (
 )  # fmt: skip
 
 
-def _settings(args: argparse.Namespace):
+def _settings(args: argparse.Namespace, **extra: Any):
+    """Settings from the common flags; `extra` are dotted overrides the command adds (they go
+    through load_settings so a release reload keeps them)."""
     import yaml
 
     from harnesswalk.config.loader import load_settings
 
-    overrides = {}
+    overrides = dict(extra)
     for item in getattr(args, "set", None) or []:
         key, sep, value = item.partition("=")
         if not sep or not key:
@@ -238,10 +246,10 @@ def _ingest(args: argparse.Namespace) -> int:
     """Index `datasets/<pack>/docs/` and load the pack's seeds into the memory stores."""
     from harnesswalk.runtime import Harness
 
-    settings = _settings(args)
+    extra: dict[str, Any] = {"stores.ingest_on_start": False}
     if args.pack:
-        settings.data["dataset"] = args.pack
-    settings.data.setdefault("stores", {})["ingest_on_start"] = False
+        extra["dataset"] = args.pack
+    settings = _settings(args, **extra)
     pack = settings.get("dataset", "_starter")
     if not (settings.root / "datasets" / pack).is_dir():
         print(f"no dataset pack {pack!r} under {settings.root / 'datasets'}", file=sys.stderr)
@@ -265,15 +273,147 @@ def _serve(args: argparse.Namespace) -> int:
     import uvicorn
 
     from harnesswalk.control.http_api import create_app
+    from harnesswalk.ops.lease import Lease, LeaseHeld
     from harnesswalk.runtime import Harness
 
-    harness = Harness(_settings(args))
-    print(
-        f"harnesswalk {__version__} (spec {SPEC_VERSION}), mode {harness.settings.mode}, "
-        f"provider {harness.provider_name}"
+    settings = _settings(args)
+    lease = Lease(
+        settings.data_dir, heartbeat_s=float(settings.get("release.lease.heartbeat_s", 5))
     )
-    uvicorn.run(create_app(harness), host=args.host, port=args.port, log_level=args.log_level)
+    try:
+        previous = lease.acquire(takeover=args.takeover)
+    except LeaseHeld as exc:
+        print(
+            f"harnesswalk serve: {exc} ({lease.path}). Stop it, or start this one with"
+            " --takeover to replace it.",
+            file=sys.stderr,
+        )
+        return 2
+    if previous:
+        print(f"took over {lease.path} from pid {previous.get('pid')}")
+    try:
+        harness = Harness(settings)
+        print(
+            f"harnesswalk {__version__} (spec {SPEC_VERSION}), mode {harness.settings.mode}, "
+            f"provider {harness.provider_name}"
+        )
+        uvicorn.run(create_app(harness), host=args.host, port=args.port, log_level=args.log_level)
+    finally:
+        lease.release()
     return 0
+
+
+def _eval(args: argparse.Namespace) -> int:
+    """Run a golden set in-process and print one line per case. Exit 1 when a case fails."""
+    from harnesswalk.ops.eval import EvalRequestError
+    from harnesswalk.runtime import Harness
+
+    if args.suite == "golden" and not args.provider:
+        args.provider = "fake"  # deterministic answers and hash embeddings, as in CI
+    settings = _settings(args, **{"dataset": args.pack, "sandbox.level": "inprocess"})
+
+    async def run() -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
+        harness = Harness(settings)
+        try:
+            start = harness.evals.offline.start(
+                args.tenant, args.pack, args.suite, model=args.model, case_ids=args.case,
+                by="cli",
+            )  # fmt: skip
+            await harness.evals.offline.wait(start["run_id"])
+            done = harness.evals.store.run(args.tenant, start["run_id"])
+            return done, harness.evals.store.cases(start["run_id"])  # type: ignore[return-value]
+        except EvalRequestError as exc:
+            print(f"harnesswalk eval: {exc.code}: {exc.message}", file=sys.stderr)
+            return None
+        finally:
+            await harness.aclose()
+
+    out = asyncio.run(run())
+    if out is None:
+        return 2
+    summary, cases = out
+    if args.json:
+        print(json.dumps({**summary, "cases": cases}, indent=2, ensure_ascii=False))
+    else:
+        for c in cases:
+            failing = {k: v["detail"] for k, v in c["scores"].items() if not v["pass"]}
+            mark = "  REGRESSION" if c.get("regression") else ""
+            line = f"{c['status'].upper():<7} {c['case_id']:<24} {c['title']}"
+            print(line + mark)
+            for name, detail in failing.items():
+                print(f"          {name}: {detail}")
+            for err in (c.get("actual") or {}).get("errors", [])[:1]:
+                print(f"          error: {err['code']} at {err['node_id']}: {err['message']}")
+            if c.get("error"):
+                print(f"          error: {c['error']['code']}: {c['error']['message']}")
+        t, cost = summary["totals"], summary["cost"]
+        print(
+            f"\nrun {summary['run_id']} ({summary['suite']}, pack {summary['pack']}): "
+            f"{t['passed']} passed, {t['failed']} failed, {t['skipped']} skipped of {t['cases']};"
+            f" {summary['regressions']} regression(s) against"
+            f" {summary['previous_run_id'] or 'no earlier run'};"
+            f" release {summary['release_id']}{' + working set' if summary['working_set'] else ''};"
+            f" {cost['input_tokens']} in / {cost['output_tokens']} out tokens, ${cost['usd']:.6f}"
+        )
+    return 0 if summary["status"] == "done" and summary["totals"]["failed"] == 0 else 1
+
+
+def _release(args: argparse.Namespace) -> int:
+    from harnesswalk.ops import release as rel
+    from harnesswalk.runtime import Harness
+
+    settings = _settings(args, **{"stores.ingest_on_start": False, "sandbox.level": "inprocess"})
+
+    async def run() -> int:
+        h = Harness(settings)
+        try:
+            if args.action == "list":
+                data = h.release.releases()
+                if args.json:
+                    print(json.dumps(data, indent=2))
+                    return 0
+                for r in data["releases"]:
+                    star = "*" if r["active"] else " "
+                    print(f"{star} {r['release_id']}  {r['created_at']}  {r['created_by']:<12} "
+                          f"{len(r['artifacts'])} artifacts  {r['note'] or ''}")  # fmt: skip
+                state = "dirty (unreleased changes)" if data["working_set_dirty"] else "clean"
+                print(f"working set {state}; chain {'ok' if data['verify']['ok'] else 'BROKEN'}")
+                return 0
+            if args.action == "create":
+                out = rel.apply_create(h, args.tenant, note=args.note)
+                print(f"created {out['release_id']} with {len(out['artifacts'])} artifacts")
+                for d in out.get("diff_from_previous", []):
+                    print(f"  {d['kind']}/{d['name']} {d['from_version']} -> {d['to_version']}")
+                return 0
+            if not args.release_id:
+                print(f"harnesswalk release {args.action} needs a release id", file=sys.stderr)
+                return 2
+            if args.action == "rollback":
+                try:
+                    out = rel.apply_rollback(h, args.tenant, args.release_id)
+                except KeyError:
+                    print(f"no release {args.release_id}", file=sys.stderr)
+                    return 1
+                print(f"rolled back to {args.release_id} (was {out['rollback_of']})")
+                for r in out["reset"]:
+                    print(f"  {r['kind']}/{r['name']} {r['from_version']} -> {r['to_version']}")
+                return 0
+            detail = h.release.release_detail(args.release_id)
+            if detail is None:
+                print(f"no release {args.release_id}", file=sys.stderr)
+                return 1
+            if args.json:
+                print(json.dumps(detail, indent=2))
+            else:
+                prev = detail["previous_release_id"] or "nothing"
+                print(f"{detail['release_id']} against {prev}:")
+                for d in detail["diff_from_previous"]:
+                    print(d["diff"] or f"  {d['kind']}/{d['name']} (no text change)")
+            return 0
+        finally:
+            await h.aclose()
+
+    return asyncio.run(run())
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -301,6 +441,26 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
     serve.add_argument("--log-level", default="info")
+    serve.add_argument(
+        "--takeover", action="store_true", help="take over a data directory another serve holds"
+    )
+
+    ev = sub.add_parser("eval", help="run a pack's golden set and score every case")
+    common(ev)
+    ev.add_argument("pack", help="dataset pack, for example _starter")
+    ev.add_argument("--suite", choices=["golden", "judge"], default="golden")
+    ev.add_argument("--model", help="judge suite: the model alias that answers the cases")
+    ev.add_argument("--case", action="append", help="run only this case id (repeatable)")
+    ev.add_argument("--tenant", default="dev")
+    ev.add_argument("--json", action="store_true", help="print the run detail as JSON")
+
+    rl = sub.add_parser("release", help="list, create, roll back or diff releases")
+    common(rl)
+    rl.add_argument("action", choices=["list", "create", "rollback", "diff"])
+    rl.add_argument("release_id", nargs="?")
+    rl.add_argument("--note", help="create: a note for the release")
+    rl.add_argument("--tenant", default="dev")
+    rl.add_argument("--json", action="store_true")
 
     turn = sub.add_parser("turn", help="run one turn in-process and print the walk")
     common(turn)
@@ -343,6 +503,10 @@ def main(argv: list[str] | None = None) -> int:
         return _turns(args)
     if args.command == "ingest":
         return _ingest(args)
+    if args.command == "eval":
+        return _eval(args)
+    if args.command == "release":
+        return _release(args)
     build_parser().print_help()
     return 0
 
