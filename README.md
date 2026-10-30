@@ -111,33 +111,6 @@ carry releases.
 6. **Framework-free core.** The loop is plain code you can read. Agent frameworks appear only as
    optional adapter examples that show where they would plug in.
 
-## How it relates to waku-agent
-
-[waku-agent](https://github.com/ShenSeanChen/waku-agent) is the closest existing project, and a
-good one: a readable Python assistant with a loop, three kinds of memory, tools, traces, evals, a
-release gate, and a dashboard whose architecture picture lights up live. We learned from it and
-adopt several of its ideas: one event stream for UI, trace and evals; a "things to try" table;
-deterministic and judged evals kept apart; a per-turn cost receipt; providers as data; topology
-derived from code.
-
-harnesswalk aims at a different spot. What it adds:
-
-- Input and output guardrails, policy with action classes, and human approval as real nodes on
-  the request path.
-- An inspectable context builder with a token budget per slice.
-- Knowledge retrieval (RAG) and five starter datasets, so a learner can ask real questions in
-  minute one.
-- Docker Compose for the learner path, with a local model.
-- A data-driven diagram where clicking a node opens its code, prompt, skill or config, and step
-  mode that walks a request one node at a time.
-- A lesson sequence bound to the diagram.
-- A published event schema and a conformance suite, so other runtimes can light the same diagram.
-- One permissive licence (Apache-2.0) for the whole learner path, with dataset content under CC0.
-
-If you want a personal assistant you can read in an afternoon, use waku-agent. If you want to
-see every stage of a production-style harness and step through it, that is what this project is
-for.
-
 ## The spec comes first
 
 The contract is in [`spec/`](spec/), written before the code:
