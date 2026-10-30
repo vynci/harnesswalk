@@ -77,8 +77,6 @@ export function Header() {
   const mock = useApp((s) => s.mock)
   const view = useApp((s) => s.view)
   const setView = useApp((s) => s.setView)
-  const stepMode = useApp((s) => s.stepMode)
-  const setStepMode = useApp((s) => s.setStepMode)
   const provider = useApp((s) => s.provider)
   const setProvider = useApp((s) => s.setProvider)
   const fixture = useApp((s) => s.fixture)
@@ -151,14 +149,6 @@ export function Header() {
             <Badge variant="outline" className="text-state-error">
               {disabled.length} off next turn
             </Badge>
-          </Hint>
-        )}
-        {capabilities?.features.step_mode !== false && (
-          <Hint label="Pause at every node. Press Next to move one hop.">
-            <label className="flex items-center gap-1.5 text-xs">
-              <Switch checked={stepMode} onCheckedChange={setStepMode} aria-label="Step mode: pause at every node" data-testid="step-toggle" />
-              Step mode
-            </label>
           </Hint>
         )}
         <Hint label="Expand each group into its parts and draw every edge.">

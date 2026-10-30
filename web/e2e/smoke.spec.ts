@@ -85,7 +85,15 @@ test('replay scrubbing changes node states', async ({ page }) => {
 })
 
 test('step mode pauses at every node and Next moves one hop', async ({ page }) => {
-  await page.getByRole('switch', { name: /Step mode/ }).click()
+  // Step mode sits on the hint line under the composer, not in the header.
+  const step = page.getByRole('switch', { name: /Step mode/ })
+  await expect(page.getByRole('banner').getByRole('switch', { name: /Step mode/ })).toHaveCount(0)
+  await expect(step).toBeVisible()
+  const hint = await page.locator('#composer-keys').boundingBox()
+  const box = await step.boundingBox()
+  expect(Math.abs(hint!.y + hint!.height / 2 - (box!.y + box!.height / 2))).toBeLessThan(8)
+  expect(box!.x).toBeGreaterThan(hint!.x + hint!.width)
+  await step.click()
   await send(page, 'What are your support hours?')
   const controls = page.getByTestId('step-controls')
   await expect(controls).toContainText('Gateway')

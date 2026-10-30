@@ -13,6 +13,7 @@ import {
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupText, InputGroupTextarea } from '@/components/ui/input-group'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { Spinner } from '@/components/ui/spinner'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { parseOutputSchema, useApp } from '@/state/store'
 
@@ -76,6 +77,22 @@ function ModelHint() {
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/** Step mode, on the hint line under the input: pause the next turns at every node. */
+function StepModeSwitch() {
+  const available = useApp((s) => s.capabilities?.features.step_mode !== false)
+  const stepMode = useApp((s) => s.stepMode)
+  const setStepMode = useApp((s) => s.setStepMode)
+  if (!available) return null
+  return (
+    <Hint label="Pause at every node. Press Next to move one hop." side="top">
+      <label className="flex cursor-pointer items-center gap-1.5 text-xs">
+        <Switch checked={stepMode} onCheckedChange={setStepMode} aria-label="Step mode: pause at every node" data-testid="step-toggle" />
+        Step mode
+      </label>
+    </Hint>
   )
 }
 
@@ -209,13 +226,16 @@ export function Composer({
           </span>
         </InputGroupAddon>
       </InputGroup>
-      <p id="composer-keys" className="flex items-center gap-1 px-1 text-xs text-muted-foreground">
-        <Kbd>Enter</Kbd> sends,
-        <KbdGroup>
-          <Kbd>Shift</Kbd>+<Kbd>Enter</Kbd>
-        </KbdGroup>
-        adds a line
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1">
+        <p id="composer-keys" className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Kbd>Enter</Kbd> sends,
+          <KbdGroup>
+            <Kbd>Shift</Kbd>+<Kbd>Enter</Kbd>
+          </KbdGroup>
+          adds a line
+        </p>
+        <StepModeSwitch />
+      </div>
     </form>
   )
 }
