@@ -363,6 +363,8 @@ def _release(args: argparse.Namespace) -> int:
     from harnesswalk.ops import release as rel
     from harnesswalk.runtime import Harness
 
+    if not args.provider:
+        args.provider = "fake"  # releases never call a model: no provider or embedder probe
     settings = _settings(args, **{"stores.ingest_on_start": False, "sandbox.level": "inprocess"})
 
     async def run() -> int:
