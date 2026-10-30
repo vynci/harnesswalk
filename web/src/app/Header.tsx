@@ -1,4 +1,4 @@
-import { Copy, Ellipsis, Monitor, Moon, RotateCcw, Sun } from 'lucide-react'
+import { Copy, Ellipsis, Moon, RotateCcw, Sun } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,17 +12,24 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import type { View } from '@/api/types'
-import { useApp, type Theme } from '@/state/store'
+import { useApp } from '@/state/store'
+import { useDarkTheme } from './useTheme'
 
 const AUTO = '__auto__'
 
-const THEMES: { value: Theme; label: string; Icon: typeof Sun }[] = [
-  { value: 'system', label: 'System theme', Icon: Monitor },
-  { value: 'light', label: 'Light theme', Icon: Sun },
-  { value: 'dark', label: 'Dark theme', Icon: Moon },
-]
+/** One ghost icon button: Sun in dark mode (press for light), Moon in light mode (press for dark). */
+function ThemeButton() {
+  const dark = useDarkTheme()
+  const setTheme = useApp((s) => s.setTheme)
+  const label = dark ? 'Switch to light theme' : 'Switch to dark theme'
+  return (
+    <Hint label={label}>
+      <Button size="icon-sm" variant="ghost" aria-label={label} onClick={() => setTheme(dark ? 'light' : 'dark')} data-testid="theme-toggle">
+        {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      </Button>
+    </Hint>
+  )
+}
 
 function SessionMenu() {
   const sessionId = useApp((s) => s.sessionId)
@@ -72,8 +79,6 @@ export function Header() {
   const setView = useApp((s) => s.setView)
   const stepMode = useApp((s) => s.stepMode)
   const setStepMode = useApp((s) => s.setStepMode)
-  const theme = useApp((s) => s.theme)
-  const setTheme = useApp((s) => s.setTheme)
   const provider = useApp((s) => s.provider)
   const setProvider = useApp((s) => s.setProvider)
   const fixture = useApp((s) => s.fixture)
@@ -156,30 +161,13 @@ export function Header() {
             </label>
           </Hint>
         )}
-        <ToggleGroup
-          type="single"
-          variant="outline"
-          size="sm"
-          value={view}
-          onValueChange={(v) => v && setView(v as View)}
-          aria-label="Diagram view"
-        >
-          <ToggleGroupItem value="simple" data-testid="view-simple">
-            Simple
-          </ToggleGroupItem>
-          <ToggleGroupItem value="expert" data-testid="view-expert">
-            Expert
-          </ToggleGroupItem>
-        </ToggleGroup>
-        <ToggleGroup type="single" size="sm" value={theme} onValueChange={(v) => v && setTheme(v as Theme)} aria-label="Theme" data-testid="theme-toggle">
-          {THEMES.map(({ value, label, Icon }) => (
-            <Hint key={value} label={label}>
-              <ToggleGroupItem value={value} aria-label={label} className="size-7 min-w-7 px-0">
-                <Icon />
-              </ToggleGroupItem>
-            </Hint>
-          ))}
-        </ToggleGroup>
+        <Hint label="Expand each group into its parts and draw every edge.">
+          <label className="flex items-center gap-1.5 text-xs">
+            <Switch checked={view === 'expert'} onCheckedChange={(on) => setView(on ? 'expert' : 'simple')} aria-label="Expert view" data-testid="view-toggle" />
+            Expert view
+          </label>
+        </Hint>
+        <ThemeButton />
         <SessionMenu />
       </div>
     </header>

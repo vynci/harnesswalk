@@ -108,7 +108,7 @@ test('Stop cancels a paused turn', async ({ page }) => {
 
 test('expert view expands children and the inspector shows lesson and code', async ({ page }) => {
   await expect(node(page, 'procedural')).toHaveCount(0)
-  await page.getByRole('radiogroup', { name: 'Diagram view' }).getByRole('radio', { name: 'Expert' }).click()
+  await page.getByRole('switch', { name: 'Expert view' }).click()
   await expect(node(page, 'procedural')).toBeVisible()
   await page.getByRole('button', { name: 'Collapse Memory' }).click()
   await expect(node(page, 'procedural')).toHaveCount(0)
@@ -203,21 +203,46 @@ test('the inspector events are a trace whose lines open to the event JSON', asyn
   await expect(events).toContainText('"finish_reason"')
 })
 
-test('the theme and view toggles, and the session menu starts a new session', async ({ page }) => {
-  const theme = page.getByRole('radiogroup', { name: 'Theme' })
-  await theme.getByRole('radio', { name: 'Dark theme' }).click()
-  await expect(page.locator('html')).toHaveClass(/\bdark\b/)
-  await theme.getByRole('radio', { name: 'Light theme' }).click()
+test('the theme button and the Expert view switch, and the session menu starts a new session', async ({ page }) => {
+  // No saved choice: the light OS preference wins, so the button offers dark.
   await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
-  const view = page.getByRole('radiogroup', { name: 'Diagram view' })
-  await view.getByRole('radio', { name: 'Expert' }).click()
-  await expect(view.getByRole('radio', { name: 'Expert' })).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByRole('button', { name: /theme/ })).toHaveCount(1)
+  const toDark = page.getByRole('button', { name: 'Switch to dark theme' })
+  await toDark.hover()
+  await expect(page.getByRole('tooltip')).toHaveText('Switch to dark theme')
+  await toDark.click()
+  await expect(page.locator('html')).toHaveClass(/\bdark\b/)
+  expect(await page.evaluate(() => localStorage.getItem('harnesswalk.theme'))).toBe('"dark"')
+  await page.getByRole('button', { name: 'Switch to light theme' }).click()
+  await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
+  await expect(page.getByRole('button', { name: 'Switch to dark theme' })).toBeVisible()
+
+  const expert = page.getByRole('switch', { name: 'Expert view' })
+  await expect(expert).toHaveAttribute('aria-checked', 'false')
+  await expert.click()
+  await expect(expert).toHaveAttribute('aria-checked', 'true')
+  await expect(node(page, 'procedural')).toBeVisible()
+  await expert.focus()
+  await page.keyboard.press('Space')
+  await expect(expert).toHaveAttribute('aria-checked', 'false')
+  await expect(node(page, 'procedural')).toHaveCount(0)
 
   await expect(page.getByTestId('chat-turn').first()).toBeVisible()
   await page.getByRole('button', { name: 'Session actions' }).click()
   await page.getByRole('menuitem', { name: 'New session' }).click()
   await expect(page.getByTestId('chat-turn')).toHaveCount(0)
   await expect(page.getByTestId('try-prompt').first()).toBeVisible()
+})
+
+test('with no saved choice the theme follows prefers-color-scheme, and a saved choice wins', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.reload()
+  await expect(page.locator('html')).toHaveClass(/\bdark\b/)
+  await page.getByRole('button', { name: 'Switch to light theme' }).click()
+  await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Switch to dark theme' })).toBeVisible()
+  await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
 })
 
 test('the composer: a plus button for attachments later, and the arrow-up send turns into Stop', async ({ page }) => {

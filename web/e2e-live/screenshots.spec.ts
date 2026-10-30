@@ -76,7 +76,7 @@ test('a finished turn', async ({ page, browser }) => {
 })
 
 test('a finished turn in the expert view', async ({ page }) => {
-  await page.getByTestId('view-expert').click()
+  await page.getByRole('switch', { name: 'Expert view' }).setChecked(true)
   await turn(page, 'tool_call', 'Where is order A-1001?')
   await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
   await settle(page)
@@ -132,7 +132,7 @@ test('the eval run and the release diff', async ({ page, request }) => {
   await inspector.getByTestId('eval-run-button').click()
   await expect(inspector.getByTestId('eval-run-detail')).toHaveAttribute('data-status', 'done', { timeout: 60_000 })
 
-  await page.getByTestId('view-expert').click()
+  await page.getByRole('switch', { name: 'Expert view' }).setChecked(true)
   await page.getByTestId('node-procedural').click()
   await inspector.getByRole('tab', { name: 'Prompt' }).click()
   // The README's gate walk: the returns skill's window changes, so returns_window regresses.
@@ -144,7 +144,7 @@ test('the eval run and the release diff', async ({ page, request }) => {
   await editor.getByTestId('artifact-save').click()
   await expect(editor.getByTestId('artifact-saved')).toBeVisible()
 
-  await page.getByTestId('view-simple').click()
+  await page.getByRole('switch', { name: 'Expert view' }).setChecked(false)
   await page.getByTestId('node-eval').click()
   await inspector.getByTestId('eval-run-button').click()
   const detail = inspector.getByTestId('eval-run-detail')

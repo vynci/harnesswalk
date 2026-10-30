@@ -16,7 +16,7 @@ async function settle(page: Page) {
 }
 
 async function editSkill(page: Page) {
-  await page.getByTestId('view-expert').click()
+  await page.getByRole('switch', { name: 'Expert view' }).setChecked(true)
   await page.getByTestId('node-procedural').click()
   const inspector = page.getByTestId('inspector')
   await inspector.getByRole('tab', { name: 'Prompt' }).click()
@@ -42,7 +42,7 @@ for (const theme of ['light', 'dark'] as const) {
     await settle(page)
     await shot(page, `artifact-saved-${theme}`)
 
-    await page.getByTestId('view-simple').click()
+    await page.getByRole('switch', { name: 'Expert view' }).setChecked(false)
     await page.getByTestId('node-eval').click()
     const inspector = page.getByTestId('inspector')
     await inspector.getByTestId('eval-run-button').click()

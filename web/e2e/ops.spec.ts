@@ -16,11 +16,12 @@ async function send(page: Page, text: string) {
  * at this viewport, and a click would wait for it to go.
  */
 async function setView(page: Page, view: 'Simple' | 'Expert') {
-  const radio = page.getByRole('radiogroup', { name: 'Diagram view' }).getByRole('radio', { name: view })
-  if ((await radio.getAttribute('aria-checked')) === 'true') return
-  await radio.focus()
-  await page.keyboard.press('Enter')
-  await expect(radio).toHaveAttribute('aria-checked', 'true')
+  const expert = page.getByRole('switch', { name: 'Expert view' })
+  const want = view === 'Expert' ? 'true' : 'false'
+  if ((await expert.getAttribute('aria-checked')) === want) return
+  await expert.focus()
+  await page.keyboard.press('Space')
+  await expect(expert).toHaveAttribute('aria-checked', want)
 }
 
 async function openSkill(page: Page, name: string) {

@@ -68,6 +68,7 @@ export interface OpsRun {
   total: number | null
 }
 
+/** 'system' is the default until the viewer picks one: it follows prefers-color-scheme. */
 export type Theme = 'light' | 'dark' | 'system'
 export type Connection = 'idle' | 'connecting' | 'open' | 'reconnecting'
 

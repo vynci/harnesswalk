@@ -17,10 +17,11 @@ const repo = fileURLToPath(new URL('../..', import.meta.url))
 const run = promisify(execFile)
 
 async function setView(page: Page, view: 'Simple' | 'Expert') {
-  const radio = page.getByRole('radiogroup', { name: 'Diagram view' }).getByRole('radio', { name: view })
-  if ((await radio.getAttribute('aria-checked')) === 'true') return
-  await radio.click()
-  await expect(radio).toHaveAttribute('aria-checked', 'true')
+  const expert = page.getByRole('switch', { name: 'Expert view' })
+  const want = view === 'Expert' ? 'true' : 'false'
+  if ((await expert.getAttribute('aria-checked')) === want) return
+  await expert.click()
+  await expect(expert).toHaveAttribute('aria-checked', want)
 }
 
 async function activeRelease(request: APIRequestContext): Promise<string> {
