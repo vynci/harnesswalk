@@ -104,3 +104,32 @@ async def test_tail_wakes_on_an_emit_and_polls_for_other_processes(tmp_path: Pat
     await asyncio.wait_for(task, 5)
     assert got == ["artifact_released", "artifact_changed"]
     assert not mine._wakers
+
+
+# -- inspector.artifact ----------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_every_artifact_backed_inspector_names_its_artifact(tmp_path: Path) -> None:
+    h = starter(tmp_path)
+    async with client(h, "dev") as c:
+        want = {
+            "policy": ("policy", "policy"),
+            "router": ("models", "models"),
+            "registry": ("tools", "tools"),
+            "context_builder": ("context", "context"),
+            "model_layer": ("models", "models"),
+        }
+        for node_id, (kind, name) in want.items():
+            ins = (await c.get(f"/v1/nodes/{node_id}")).json()["inspector"]
+            ref = ins["artifact"]
+            assert (ref["kind"], ref["name"], ref["version"]) == (kind, name, 1), node_id
+            assert ref["url"] == f"/v1/artifacts/{kind}/{name}"
+        items = (await c.get("/v1/nodes/procedural")).json()["inspector"]["items"]
+        assert [(i["name"], i["artifact"]["kind"]) for i in items] == [
+            ("system_prompt", "prompt"),
+            ("order_status", "skill"),
+            ("returns", "skill"),
+        ]
+        assert "artifact" not in (await c.get("/v1/nodes/loop")).json()["inspector"]
+    await h.aclose()

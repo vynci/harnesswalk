@@ -308,6 +308,12 @@ def inspect_node(h: Harness, tenant_id: str, node_id: str, recent_n: int = 5) ->
         for e in h.tracer.recent_exits(tenant_id, node_id, recent_n)
     ]
     reg = registered().get(node_id)
+    inspector = _inspector(h, tenant_id, node, recent)
+    hint = node.get("artifact_hint")
+    if "artifact" not in inspector and inspector.get("type") != "prompt" and hint in ARTIFACT_FOR:
+        # A code or model node whose settings are a config artifact (context_builder,
+        # model_layer): the UI edits that artifact from the node, so name it here too.
+        inspector["artifact"] = _artifact_ref(h, hint)
     return {
         "id": node_id,
         "label": node["label"],
@@ -317,7 +323,7 @@ def inspect_node(h: Harness, tenant_id: str, node_id: str, recent_n: int = 5) ->
         "implemented": implemented(node_id),
         "stub": bool(reg and reg.stub),
         "can_disable": bool(node.get("can_disable")),
-        "inspector": _inspector(h, tenant_id, node, recent),
+        "inspector": inspector,
         "source": _source(h, node),
         "recent": recent,
     }

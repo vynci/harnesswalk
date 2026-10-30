@@ -345,6 +345,12 @@ Response `200`:
 - `recent` holds the caller's last `node_exit` summaries for this node (default 5, `?recent=N`).
 - `editable` is false in public mode for shared artifacts. Edits go through release (P4), not
   through this endpoint.
+- P4: every inspector that shows a release artifact names it as `artifact: {kind, name, version,
+  url}` (`url` is its `/v1/artifacts/{kind}/{name}`; `null` when the artifact was removed): a
+  `config` inspector for its file, each `prompt` item for the system prompt or its skill, and
+  (P4 integration) the inspector of any node whose `artifact_hint` is a config file, such as
+  `context_builder` (`context/context`) and `model_layer` (`models/models`). A UI edits that
+  artifact with `PUT /v1/artifacts/{kind}/{name}` instead of guessing it from the node.
 
 Errors: `401`, `404` (unknown node id).
 
