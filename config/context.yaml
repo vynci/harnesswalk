@@ -47,3 +47,6 @@ memory_writer:
   auto_approve_tenants: ["*"]       # private-mode opt-in list; "*" opts every tenant in
   max_proposals_per_turn: 3         # model proposals past this are rejected
   auto_episodes: true               # one short `turn` event per finished turn (needs episodic)
+  injection:                        # proposals are scored like user input (control/injection.py):
+    block_threshold: 0.8            # rejected at this score
+    review_threshold: 0.45          # an auto or eval gate becomes review at this score

@@ -18,6 +18,10 @@ there are proposals, so a slow gate never delays the answer. For each proposal i
     disabled                 dropped, counted as rejected (no events)
     wrong tenant, bad shape  rejected
     over max_proposals       rejected (model proposals only; the turn event always counts)
+    injection score          the prompt-injection heuristics (control/injection.py) score the
+                             proposal's text (P4): at `injection.block_threshold` it is
+                             rejected, at `injection.review_threshold` it goes to review, so
+                             retrieved memory cannot carry an instruction in by the back door
     policy memory.write      the first matching rule decides; deny rejects, needs_approval
                              sends it to review
     public mode              gate `session`: held for the session only, never written
@@ -44,6 +48,7 @@ from harnesswalk.adapters.storage.sqlite import Database
 from harnesswalk.context.records import PACK_SCOPE
 from harnesswalk.context.stores.episodic import EpisodicStore
 from harnesswalk.context.stores.semantic import SemanticStore, normalize_key
+from harnesswalk.control.injection import score as score_injection
 from harnesswalk.control.pii import PiiDetector
 from harnesswalk.events import iso
 from harnesswalk.execution.registry import ToolSpec
@@ -222,6 +227,9 @@ class MemoryWriter:
         self.auto_tenants = list(cfg.get("auto_approve_tenants", ["*"]) or [])
         self.max_per_turn = int(cfg.get("max_proposals_per_turn", 3))
         self.auto_episodes = bool(cfg.get("auto_episodes", True)) and episodes_enabled
+        inj = cfg.get("injection") or {}
+        self.injection_block = float(inj.get("block_threshold", 0.8))
+        self.injection_review = float(inj.get("review_threshold", 0.45))
         self._queued: dict[str, list[MemoryProposal]] = {}  # turn_id -> proposals (ops seam)
 
     # -- the ops seam --------------------------------------------------------------------------
@@ -316,8 +324,11 @@ class MemoryWriter:
         model_seen: int,
     ) -> ProposalRecord:
         content, redactions = self._clean(proposal.content)
+        injection = score_injection(self._text(proposal.store, content))
         if decision == "needs_approval" and gate in ("auto", "eval"):
             gate = "review"
+        if injection.score >= self.injection_review and gate in ("auto", "eval"):
+            gate = "review"  # a human reads text that looks like an instruction first
         record = ProposalRecord(
             "prop_" + uuid.uuid4().hex[:16],
             ctx.tenant_id,
@@ -339,9 +350,12 @@ class MemoryWriter:
                 "preview": preview,
                 "source": proposal.source,
                 **({"redactions": redactions} if redactions else {}),
+                **({"injection": injection.score} if injection.signals else {}),
             },
         )
         reason = self._reject_reason(ctx, proposal, content, gate, decision, model_seen)
+        if reason is None and injection.score >= self.injection_block:
+            reason = "injection: " + ", ".join(sorted(injection.signals))
         if reason:
             return self._finish(record, "rejected", reason)
         if gate == "review":
@@ -374,6 +388,13 @@ class MemoryWriter:
                     counts[kind] = counts.get(kind, 0) + n
             out[key] = value
         return out, counts
+
+    @staticmethod
+    def _text(store: str, content: dict[str, Any]) -> str:
+        """Everything of a proposal that later reaches a prompt, for the injection score."""
+        if store == "semantic":
+            return f"{content.get('key', '')}: {content.get('value', '')}"
+        return str(content.get("text", ""))
 
     @staticmethod
     def _preview(store: str, content: dict[str, Any]) -> str:

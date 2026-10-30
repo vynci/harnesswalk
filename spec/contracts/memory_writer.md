@@ -69,6 +69,16 @@ tenant (`reserved_tenant`), a bad shape (`invalid: ...`), more model proposals t
 exact duplicate of an existing fact (`duplicate`). A write that fails leaves the proposal
 pending with reason `write_failed`.
 
+P4 (integration): every proposal's text (a fact's `key: value`, an event's `text`, after
+redaction) is scored with the same prompt-injection heuristics as the input guardrails
+(`control/injection.py`). At `memory_writer.injection.block_threshold` (default 0.8) it is
+rejected with reason `injection: <signals>`; at `review_threshold` (default 0.45) an `auto` or
+`eval` gate becomes `review`, so a person reads text that looks like an instruction before it
+can come back as retrieved memory. `memory_proposed.summary.injection` carries the score when
+any signal fired. Retrieved memory still reaches the model as a system message (the context
+builder's retrieved blocks); whether it should carry less authority than the system prompt is
+an open question recorded in `docs/ROADMAP.md` (P6).
+
 ## Inputs and outputs
 
 - In: `MemoryProposal`s from the `loop` (end of turn) and from eval `diagnose`; human decisions through `decide`.
@@ -108,3 +118,5 @@ is no open turn to carry them); the write is in the proposal record and the stor
 | `memory_writer.auto_approve_tenants` | `["*"]` | Private mode opt-in list; `"*"` opts every tenant in |
 | `memory_writer.max_proposals_per_turn` | `3` | Extra model proposals are rejected |
 | `memory_writer.auto_episodes` | `true` | One `turn` event per finished turn (only when `episodic` is among `context.stores`) |
+| `memory_writer.injection.block_threshold` | `0.8` | P4: a proposal whose injection score reaches this is rejected |
+| `memory_writer.injection.review_threshold` | `0.45` | P4: at this score an `auto` or `eval` gate becomes `review` |

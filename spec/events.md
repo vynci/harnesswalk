@@ -195,7 +195,7 @@ Values are small: counts, ids, enums, short previews. Implementations MAY add ke
 | `node_resumed` | `reason`, `approval_id` |
 | `approval_requested` | `approval_id` (required), `tool` (required), `action_class` (required), `args_preview`, `reason`, `expires_at` |
 | `approval_decided` | `approval_id` (required), `decision` (required), `decided_by`, `reason` |
-| `memory_proposed` | `proposal_id` (required), `store` (required), `gate` (`review`, `eval`, `auto`, `session`), `preview` (redacted), `source` (`loop`, `turn`, `diagnose`), `redactions` (counts by kind) |
+| `memory_proposed` | `proposal_id` (required), `store` (required), `gate` (`review`, `eval`, `auto`, `session`), `preview` (redacted), `source` (`loop`, `turn`, `diagnose`), `redactions` (counts by kind), `injection` (P4, the proposal text's injection score when any signal fired) |
 | `memory_written` | `proposal_id` (required), `store` (required), `record_id` (required), `version`, `op` (`create`, `update`) |
 | `artifact_released` | In a turn (P0 shape): `artifact` (required), `version` (required), `previous_version`, `gate`. As an ops event (P4): `release_id` (required), `artifacts` (required, `[{kind, name, version, hash}]`), `hash`, `prev_hash`, `note`, `rollback_of` (on a rollback: the release that was active and is undone; `release_id` is then the release made active again), `pack` |
 | `artifact_changed` | `kind` (required), `name` (required), `version` (required), `previous_version`, `hash`, `pack`, `note_chars` |
