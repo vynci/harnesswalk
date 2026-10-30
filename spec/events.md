@@ -290,7 +290,8 @@ artifact, a release. They use the same envelope and schema, with these differenc
 - `summary` follows the table in section 6; the same redaction and size rules apply (a feedback
   note is never in the event, only its length).
 - Over HTTP an eval run's stream is SSE at `GET /v1/evals/runs/{id}/events`; the `ops` stream is
-  read with `GET /v1/trace/ops-events`. OpenTelemetry exports each ops event as a span of its own
+  read with `GET /v1/trace/ops-events`; `GET /v1/events` follows every ops stream of a tenant at
+  once (P4 integration, `http_api.md`). OpenTelemetry exports each ops event as a span of its own
   (name `harnesswalk.<type>`), with summary keys as `harnesswalk.` attributes.
 
 | Type | Stream | `node_id` | `status` |

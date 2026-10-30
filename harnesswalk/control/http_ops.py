@@ -15,6 +15,7 @@ identity rules, error shape and content-type rule as every other route.
     GET  /v1/releases, /v1/releases/{id}              releases, one with its diff
     POST /v1/releases, /v1/releases/{id}/rollback     create, roll back (dev and private)
     GET  /v1/trace/turns, /v1/trace/turns/{id}/receipt, /v1/trace/ops-events
+    GET  /v1/events                                   every ops event of the tenant, live (SSE)
 """
 
 from __future__ import annotations
@@ -364,3 +365,37 @@ def add_ops_routes(
         events = h.ops.list(tenant_id, OPS_STREAM, after=after, limit=limit, type_=type)
         next_after = events[-1]["seq"] if len(events) == limit else None
         return JSONResponse({"events": events, "next_after": next_after})
+
+    # -- the tenant's ops events, live ----------------------------------------------------------
+
+    @app.get("/v1/events")
+    async def tenant_events(
+        request: Request,
+        tenant: str | None = None,  # noqa: A002 - the query parameter's name
+        after: str | None = None,
+        follow: bool = True,
+    ) -> Response:
+        """Every ops event of the caller's tenant, from every ops stream (eval runs, feedback,
+        artifact changes, releases), oldest first. `id:` is a cursor over all of them; without
+        `after` or `Last-Event-ID` the stream starts at the newest event (live only)."""
+        tenant_id = identities.resolve(request)[0].tenant_id
+        if tenant is not None and tenant != tenant_id:
+            raise GatewayError(404, "tenant_not_found", f"No tenant {tenant} for this caller.")
+        given = after is not None or request.headers.get("last-event-id")
+        start = _cursor(request, after) if given else None
+
+        async def stream():
+            yield ": ops events\n\n"  # sent at once, so the browser sees the stream open
+            async for item in h.ops.tail(tenant_id, after=start, follow=follow):
+                if item is None:
+                    yield ": keepalive\n\n"
+                    continue
+                cursor, name, event = item
+                data = json.dumps(
+                    {**event, "cursor": cursor, "stream": name},
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                )
+                yield f"id: {cursor}\nevent: {event['type']}\ndata: {data}\n\n"
+
+        return StreamingResponse(stream(), media_type="text/event-stream", headers=SSE_HEADERS)

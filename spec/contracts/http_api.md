@@ -579,6 +579,7 @@ Additive. Every existing endpoint keeps its shape; new fields are listed where t
 | `GET /v1/trace/turns` | Turn list with receipts, filtered | P4 |
 | `GET /v1/trace/turns/{turn_id}/receipt` | Per-turn receipt | P4 |
 | `GET /v1/trace/ops-events` | Point events outside turns (feedback, artifact changes, releases) | P4 |
+| `GET /v1/events` | Every ops event of the tenant, live (SSE) | P4 integration |
 
 ### Evals
 
@@ -741,6 +742,30 @@ OpenTelemetry: when `HARNESSWALK_OTLP_ENDPOINT` (or `trace.otel.endpoint`) is se
 optional extra `otel` is installed, every turn is exported as spans when it ends, and every ops
 event as a span of its own, with the attributes of `events.md` section 8. Off by default; a
 missing extra logs one warning and exports nothing.
+
+### The tenant's ops events, live (P4 integration)
+
+`GET /v1/events?tenant=&after=&follow=`: SSE of every ops event of the caller's tenant
+(`events.md` section 10), from every ops stream at once: the `ops` stream (`feedback_recorded`,
+`artifact_changed`, `artifact_released`) and every eval run's stream (`eval_run_started`,
+`eval_case_finished`, `eval_run_finished`), oldest first in the order they were stored. This is
+how a UI hears about a release made with the CLI, or an eval run another browser started,
+without polling.
+
+- `tenant` must be the caller's own (else `404 tenant_not_found`), as on `/v1/trace/turns`.
+- `id:` is a cursor over all of the tenant's ops events (an integer, not the event's `seq`,
+  which counts per stream); `event:` is the type. Each message's `data` is the stored event
+  plus two keys for the reader: `cursor` (the same value as `id:`) and `stream` (`ops` or
+  `eval:<run_id>`).
+- `after` (or `Last-Event-ID`, the larger wins) starts after that cursor; `after=-1` replays
+  everything stored. Without either, the stream starts at the tenant's newest event, so a fresh
+  page sees only what happens from then on.
+- `follow` (default `true`) keeps the stream open: the server sends new events as they are
+  stored, including events another process wrote to the same data directory (it polls the store
+  about once a second), and a `: keepalive` comment after 15 seconds of quiet. `follow=false`
+  sends what is stored and closes.
+- The stream never closes on its own while following. Errors: `400` (a cursor that is not an
+  integer), `401`, `404`.
 
 ### Step-over and checkpoints
 

@@ -8,6 +8,11 @@ and `session_id` are null except on `feedback_recorded`, which names its turn.
 They are stored in the trace database (`ops_events`), validated against the schema like turn
 events, and fanned out to live readers (the eval run SSE) and to plain subscribers (the
 OpenTelemetry exporter).
+
+Every ops event of a tenant, whatever its stream, can also be followed as one tail (`tail`, the
+SSE at `GET /v1/events`), ordered by the row's insertion order. The tail polls the database as
+well as waking on local emits, so an event another process wrote (a release from the CLI)
+reaches a browser too.
 """
 
 from __future__ import annotations
@@ -65,6 +70,8 @@ class OpsEvents:
         self.validate = validate
         self._live: dict[tuple[str, str], list[asyncio.Queue[Event]]] = {}
         self._subscribers: list[Callable[[Event], None]] = []
+        # Tails waiting for the next event: (their loop, the event that wakes them).
+        self._wakers: list[tuple[asyncio.AbstractEventLoop, asyncio.Event]] = []
 
     def subscribe(self, callback: Callable[[Event], None]) -> Callable[[], None]:
         self._subscribers.append(callback)
@@ -125,6 +132,9 @@ class OpsEvents:
             )
         for queue in self._live.get((tenant_id, stream), []):
             queue.put_nowait(event)
+        for loop, wake in list(self._wakers):
+            with contextlib.suppress(RuntimeError):  # a closed loop: its tail is gone
+                loop.call_soon_threadsafe(wake.set)
         for callback in list(self._subscribers):
             # An exporter never breaks the operation that emitted the event.
             with contextlib.suppress(Exception):
@@ -155,6 +165,66 @@ class OpsEvents:
             (tenant_id, turn_id, type_),
         )
         return [json.loads(r["body"]) for r in rows]
+
+    # -- the tenant tail (GET /v1/events) -----------------------------------------------------
+
+    def last_cursor(self, tenant_id: str) -> int:
+        """The cursor of the tenant's newest ops event, -1 when there is none."""
+        row = self.db.one(
+            "SELECT COALESCE(MAX(rowid), -1) AS c FROM ops_events WHERE tenant_id = ?",
+            (tenant_id,),
+        )
+        return int(row["c"]) if row else -1
+
+    def since(self, tenant_id: str, after: int, limit: int = 500) -> list[tuple[int, str, Event]]:
+        """(cursor, stream, event) of every ops event of the tenant after the cursor, any stream."""
+        rows = self.db.query(
+            "SELECT rowid AS cursor, stream, body FROM ops_events"
+            " WHERE tenant_id = ? AND rowid > ? ORDER BY rowid LIMIT ?",
+            (tenant_id, after, limit),
+        )
+        return [(int(r["cursor"]), r["stream"], json.loads(r["body"])) for r in rows]
+
+    async def tail(
+        self,
+        tenant_id: str,
+        *,
+        after: int | None = None,
+        follow: bool = True,
+        poll_s: float = 1.0,
+        keepalive_s: float = 15.0,
+    ) -> AsyncIterator[tuple[int, str, Event] | None]:
+        """Every ops event of the tenant after `after` (default: from now on), then live ones.
+
+        Yields (cursor, stream, event), or None after `keepalive_s` without one. Wakes on an
+        emit in this process and polls every `poll_s` for events other processes wrote.
+        """
+        cursor = self.last_cursor(tenant_id) if after is None else after
+        wake = asyncio.Event()
+        entry = (asyncio.get_running_loop(), wake)
+        self._wakers.append(entry)
+        try:
+            idle = 0.0
+            while True:
+                wake.clear()
+                rows = self.since(tenant_id, cursor)
+                for row in rows:
+                    cursor = row[0]
+                    yield row
+                if rows:
+                    idle = 0.0
+                    continue
+                if not follow:
+                    return
+                try:
+                    await asyncio.wait_for(wake.wait(), poll_s)
+                except TimeoutError:
+                    idle += poll_s
+                    if idle >= keepalive_s:
+                        idle = 0.0
+                        yield None
+        finally:
+            self._wakers.remove(entry)
 
     async def follow(
         self,
