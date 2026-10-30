@@ -76,3 +76,31 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByRole('region', { name: 'Chat' }).screenshot({ path: `${dir}/chat-ops-${theme}.png` })
   })
 }
+
+// The header and the node cards mid-turn: one capture paused in step mode (the waiting node's
+// dashed ring) and one while a node runs (the active ring), so the current node reads at a glance.
+for (const theme of ['light', 'dark'] as const) {
+  test(`mid-turn nodes, ${theme}`, async ({ page }) => {
+    await page.addInitScript((t) => localStorage.setItem('harnesswalk.theme', JSON.stringify(t)), theme)
+    await page.goto('/?mockStepMs=1500')
+    await expect(page.getByTestId('node-gateway')).toBeVisible()
+
+    await page.getByRole('switch', { name: /Step mode/ }).click()
+    await page.getByTestId('composer-input').fill('Where is order A-1001?')
+    await page.getByTestId('send-button').click()
+    const controls = page.getByTestId('step-controls')
+    await expect(controls).toContainText('Gateway')
+    for (const next of ['Input guardrails', 'Context builder']) {
+      await controls.getByRole('button', { name: 'Next node' }).click()
+      await expect(controls).toContainText(next)
+    }
+    await settle(page)
+    await shot(page, `step-mode-${theme}`)
+
+    await page.getByRole('switch', { name: /Step mode/ }).click()
+    await controls.getByRole('button', { name: 'Continue to the end' }).click()
+    await expect(page.locator('[data-testid^="node-"][data-state="active"]').first()).toBeVisible()
+    await page.mouse.move(0, 0)
+    await shot(page, `active-node-${theme}`)
+  })
+}
