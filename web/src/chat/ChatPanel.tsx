@@ -1,5 +1,5 @@
 import { useMemo, useState, type ComponentProps, type ReactElement } from 'react'
-import { Eye, Info, MessagesSquare, OctagonX, Play, RefreshCcw, Route, TriangleAlert } from 'lucide-react'
+import { Eye, History, Info, MessagesSquare, OctagonX, Play, RefreshCcw, Route, TriangleAlert } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
@@ -29,7 +29,10 @@ import {
   withPlaceholders,
   type LimitFacts,
 } from '@/state/turnFacts'
+import type { OpsMark } from '@/state/ops'
 import { useApp, type ChatTurn } from '@/state/store'
+import { FeedbackActions, ScoreChips } from './Feedback'
+import { OpsMarker } from './OpsMarker'
 import { ApprovalCard } from './ApprovalCard'
 import { Composer } from './Composer'
 import { StepControls } from './StepControls'
@@ -105,7 +108,7 @@ function SystemNotice({ notice }: { notice: Notice }) {
   )
 }
 
-/** A Message action: a ghost icon button with a tooltip (Replay now; P4 adds Good and Bad). */
+/** A Message action: a ghost icon button with a tooltip (Replay; Good and Bad are in Feedback.tsx). */
 function MessageAction({ label, children, ...props }: { label: string; children: ReactElement } & Omit<ComponentProps<typeof Button>, 'children'>) {
   return (
     <Hint label={label} side="top">
@@ -133,6 +136,9 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
   const started = turn.summary?.started_at ? new Date(turn.summary.started_at) : turn.createdAt ? new Date(turn.createdAt) : null
   const openDoc = useApp((s) => s.openDoc)
   const dev = useApp((s) => s.capabilities?.mode === 'dev')
+  const feedbackOn = useApp((s) => s.capabilities?.features.feedback === true)
+  const feedback = turn.feedback ?? turn.summary?.feedback ?? null
+  const checkpoint = turn.summary?.checkpoint
   const [reveal, setReveal] = useState(false)
   const events = state?.events
   const input = useMemo(() => (events ? inputGuardFacts(events) : null), [events])
@@ -229,6 +235,16 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
           )}
           {reply && <Sources citations={finished ? citations : []} onOpen={(c) => openDoc(c.doc, c.chunk)} />}
           {state && finished && <MemoryTrace events={state.events} />}
+          {checkpoint?.restored && (
+            <Marker variant="border" role="status" data-testid="checkpoint-notice">
+              <MarkerIcon>
+                <History />
+              </MarkerIcon>
+              <MarkerContent>
+                The harness restarted during this turn and resumed it from its checkpoint at step {checkpoint.step}, with its output schema and pending memory proposals.
+              </MarkerContent>
+            </Marker>
+          )}
           {notice && <SystemNotice notice={notice} />}
           {streaming && (
             <MessageFooter className="px-0">
@@ -242,6 +258,13 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
               <MessageAction label="Replay this turn on the diagram" onClick={() => void enterReplay(turn.turnId)} data-testid="replay-button">
                 <Play />
               </MessageAction>
+              {feedbackOn && <FeedbackActions turnId={turn.turnId} feedback={feedback} />}
+              <ScoreChips scores={turn.summary?.scores} />
+              {feedback?.note && (
+                <span className="ml-1 min-w-0 truncate font-normal" title={feedback.note} data-testid="feedback-note-text">
+                  “{feedback.note}”
+                </span>
+              )}
             </MessageFooter>
           )}
         </MessageContent>
@@ -262,6 +285,16 @@ export function ChatPanel() {
   const stop = useApp((s) => s.stop)
   const exitReplay = useApp((s) => s.exitReplay)
   const replayState = useDisplayTurn()
+  const marks = useApp((s) => s.marks)
+  // Markers go after the turn they followed; one whose turn is not here goes first.
+  const marksAfter = useMemo(() => {
+    const out = new Map<string | null, OpsMark[]>()
+    for (const m of marks) {
+      const key = m.afterTurnId && order.includes(m.afterTurnId) ? m.afterTurnId : null
+      out.set(key, [...(out.get(key) ?? []), m])
+    }
+    return out
+  }, [marks, order])
 
   const live = liveTurnId ? turns[liveTurnId]?.state : undefined
   const busy = !!live && (live.phase === 'running' || live.phase === 'paused')
@@ -294,26 +327,45 @@ export function ChatPanel() {
         )}
       </div>
       {visible.length === 0 ? (
-        <Empty className="min-h-0 p-8">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <Route />
-            </EmptyMedia>
-            <EmptyTitle className="text-base">Walk the harness</EmptyTitle>
-            <EmptyDescription>Send a message and watch it walk through the harness on the right, one node at a time.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <>
+          {(marksAfter.get(null) ?? []).length > 0 && (
+            <div className="flex flex-col gap-3 px-4 pt-4">
+              {marksAfter.get(null)!.map((m) => (
+                <OpsMarker key={m.id} mark={m} interactive />
+              ))}
+            </div>
+          )}
+          <Empty className="min-h-0 p-8">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Route />
+              </EmptyMedia>
+              <EmptyTitle className="text-base">Walk the harness</EmptyTitle>
+              <EmptyDescription>Send a message and watch it walk through the harness on the right, one node at a time.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </>
       ) : (
         <MessageScrollerProvider autoScroll defaultScrollPosition="end">
           <MessageScroller className="min-h-0 flex-1">
             <MessageScrollerViewport aria-label="Messages">
               <MessageScrollerContent className="gap-6 px-4 py-4">
+                {(marksAfter.get(null) ?? []).map((m) => (
+                  <OpsMarker key={m.id} mark={m} interactive={!replay} />
+                ))}
                 {visible.map((id, index) => {
                   const turn = turns[id]!
                   const isReplayed = replay?.turnId === id
                   return (
                     <MessageScrollerItem key={id} messageId={id} scrollAnchor>
                       <TurnView turn={turn} index={index} state={isReplayed ? replayState : turn.state} live={id === liveTurnId} replaying={isReplayed} />
+                      {!isReplayed && (marksAfter.get(id) ?? []).length > 0 && (
+                        <div className="mt-6 flex flex-col gap-3">
+                          {marksAfter.get(id)!.map((m) => (
+                            <OpsMarker key={m.id} mark={m} interactive={!replay} />
+                          ))}
+                        </div>
+                      )}
                     </MessageScrollerItem>
                   )
                 })}
