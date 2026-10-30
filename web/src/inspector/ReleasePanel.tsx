@@ -208,32 +208,33 @@ export function ReleasePanel() {
         {releases.status === 'error' && <p className="text-xs text-destructive">Could not list releases: {releases.error}</p>}
         <Trace role="list" data-testid="release-list">
           {list.map((r) => (
-            <button
-              key={r.release_id}
-              type="button"
-              role="listitem"
-              onClick={() => setChosen(r.release_id)}
-              aria-current={r.release_id === selected ? 'true' : undefined}
-              data-testid="release-row"
-              data-release={r.release_id}
-              data-active={r.active ? 'true' : 'false'}
-            >
-              <TraceLine className={r.release_id === selected ? 'text-foreground' : undefined}>
-                <TraceIcon>
-                  <Package />
-                </TraceIcon>
-                <TraceTitle>
-                  {r.release_id}
-                  {r.note ? `: ${r.note}` : ''}
-                </TraceTitle>
-                {r.active && (
-                  <Badge variant="secondary" className="h-5 shrink-0 font-normal">
-                    active
-                  </Badge>
-                )}
-                <TraceDescription>{when(r.created_at)}</TraceDescription>
-              </TraceLine>
-            </button>
+            <div key={r.release_id} role="listitem">
+              <button
+                type="button"
+                className="flex w-fit max-w-full min-w-0 rounded-lg text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+                onClick={() => setChosen(r.release_id)}
+                aria-current={r.release_id === selected ? 'true' : undefined}
+                data-testid="release-row"
+                data-release={r.release_id}
+                data-active={r.active ? 'true' : 'false'}
+              >
+                <TraceLine className={r.release_id === selected ? 'text-foreground' : undefined}>
+                  <TraceIcon>
+                    <Package />
+                  </TraceIcon>
+                  <TraceTitle>
+                    {r.release_id}
+                    {r.note ? `: ${r.note}` : ''}
+                  </TraceTitle>
+                  {r.active && (
+                    <Badge variant="secondary" className="h-5 shrink-0 font-normal">
+                      active
+                    </Badge>
+                  )}
+                  <TraceDescription>{when(r.created_at)}</TraceDescription>
+                </TraceLine>
+              </button>
+            </div>
           ))}
         </Trace>
       </section>

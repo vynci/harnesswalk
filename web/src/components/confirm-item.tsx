@@ -36,12 +36,12 @@ export function ConfirmItem({
         {description && <ItemDescription className="line-clamp-none text-xs">{description}</ItemDescription>}
       </ItemContent>
       <ItemActions>
-        <Button size="sm" variant="outline" onClick={onDeny} disabled={busy}>
+        {/* Focus lands on the safe choice: Enter does not roll anything back by accident. */}
+        <Button size="sm" variant="outline" onClick={onDeny} disabled={busy} autoFocus>
           {denyLabel}
         </Button>
         <Button
           size="sm"
-          autoFocus
           disabled={busy}
           onClick={async () => {
             setBusy(true)

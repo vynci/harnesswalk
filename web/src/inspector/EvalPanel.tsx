@@ -337,28 +337,29 @@ export function EvalPanel() {
         {runs.data && list.length === 0 && <p className="text-xs text-muted-foreground">No runs yet. Run the golden suite to get a baseline.</p>}
         <Trace role="list" data-testid="eval-runs">
           {list.map((r) => (
-            <button
-              key={r.run_id}
-              type="button"
-              role="listitem"
-              onClick={() => setChosen(r.run_id)}
-              aria-current={r.run_id === selected ? 'true' : undefined}
-              data-testid="eval-run-row"
-              data-run={r.run_id}
-            >
-              <TraceLine status={r.status === 'running' ? 'running' : undefined} className={r.run_id === selected ? 'text-foreground' : undefined}>
-                <TraceIcon>{r.status === 'running' ? <LoaderCircle /> : r.totals.failed ? <X /> : <Check />}</TraceIcon>
-                <TraceTitle>
-                  {runName(r)}: {r.totals.passed} passed, {r.totals.failed} failed
-                </TraceTitle>
-                {r.regressions > 0 && (
-                  <Badge variant="destructive" className="h-5 shrink-0 font-normal">
-                    {plural(r.regressions, 'regression')}
-                  </Badge>
-                )}
-                <TraceDescription>{when(r.started_at)}</TraceDescription>
-              </TraceLine>
-            </button>
+            <div key={r.run_id} role="listitem">
+              <button
+                type="button"
+                className="flex w-fit max-w-full min-w-0 rounded-lg text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+                onClick={() => setChosen(r.run_id)}
+                aria-current={r.run_id === selected ? 'true' : undefined}
+                data-testid="eval-run-row"
+                data-run={r.run_id}
+              >
+                <TraceLine status={r.status === 'running' ? 'running' : undefined} className={r.run_id === selected ? 'text-foreground' : undefined}>
+                  <TraceIcon>{r.status === 'running' ? <LoaderCircle /> : r.totals.failed ? <X /> : <Check />}</TraceIcon>
+                  <TraceTitle>
+                    {runName(r)}: {r.totals.passed} passed, {r.totals.failed} failed
+                  </TraceTitle>
+                  {r.regressions > 0 && (
+                    <Badge variant="destructive" className="h-5 shrink-0 font-normal">
+                      {plural(r.regressions, 'regression')}
+                    </Badge>
+                  )}
+                  <TraceDescription>{when(r.started_at)}</TraceDescription>
+                </TraceLine>
+              </button>
+            </div>
           ))}
         </Trace>
       </section>
