@@ -65,7 +65,8 @@
           "properties": {
             "tools_enabled": { "type": "boolean" },
             "last_message_role": { "enum": ["system", "user", "assistant", "tool"] },
-            "last_message_contains": { "type": "string" }
+            "last_message_contains": { "type": "string" },
+            "system_contains": { "type": "string" }
           }
         }
       }

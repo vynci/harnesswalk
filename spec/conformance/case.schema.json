@@ -58,7 +58,7 @@
           "maxProperties": 1,
           "properties": {
             "approval": { "enum": ["approve", "deny"] },
-            "resume": { "enum": ["step", "continue"] },
+            "resume": { "enum": ["step", "continue", "step_over"] },
             "cancel": { "const": true },
             "restart": { "const": true }
           }
@@ -66,11 +66,46 @@
         "repeat": { "type": "boolean", "default": false }
       }
     },
+    "request": {
+      "description": "P4: one HTTP request the runner makes before or after a turn. Strings may name saved values as ${name}.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "path"],
+      "properties": {
+        "method": { "enum": ["GET", "POST", "PUT"] },
+        "path": { "type": "string", "pattern": "^/" },
+        "body": { "type": "object" },
+        "status": { "type": "integer", "default": 200 },
+        "match": { "type": "object", "description": "Recursive subset the JSON response must match." },
+        "save": {
+          "description": "Values to keep for later requests and turns: name -> dotted path into the JSON response.",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "wait": {
+          "description": "Repeat the request until status and match hold, at most this many seconds.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["timeout_s"],
+          "properties": { "timeout_s": { "type": "number", "minimum": 0 } }
+        }
+      }
+    },
     "turn": {
       "type": "object",
       "additionalProperties": false,
       "required": ["send", "expect"],
       "properties": {
+        "before": {
+          "description": "P4: requests made, in order, before the turn's message is sent.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/request" }
+        },
+        "after": {
+          "description": "P4: requests made, in order, after the turn ends and its http checks ran.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/request" }
+        },
         "send": {
           "type": "object",
           "additionalProperties": false,

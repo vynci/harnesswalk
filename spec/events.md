@@ -26,7 +26,8 @@ events correctly and any UI built on harnesswalk can draw your harness.
    open. A UI in the simple view rolls an expert node's events up to its parent.
 7. **Point events.** `approval_requested`, `approval_decided`, `memory_proposed`,
    `memory_written`, `artifact_released`, `message_delta`, `node_paused` and `node_resumed` MUST
-   be emitted while their `node_id` is open.
+   be emitted while their `node_id` is open. Ops events (section 10, P4) are the exception: they are
+   emitted outside any turn, on streams of their own.
 8. **Pausing.** `node_paused` is allowed only for two reasons: `breakpoint` (step mode) and
    `approval`. Every `node_paused` MUST be followed by a `node_resumed` for the same node before
    that node closes, unless the turn ends in error or cancellation.
@@ -91,8 +92,13 @@ events correctly and any UI built on harnesswalk can draw your harness.
 | `approval_decided` | `approval` | `done` | The decision: `approve`, `deny` or `expired` |
 | `memory_proposed` | `memory_writer` | `waiting` | A memory proposal awaits its gate |
 | `memory_written` | `memory_writer` | `done` | A proposal passed the gate and was written |
-| `artifact_released` | `release` | `done` | A new artifact version is live |
+| `artifact_released` | `release` | `done` | A new artifact version is live. Since P4 an ops event: a release was created or rolled back to |
 | `message_delta` | `gateway` | `active` | Optional. One chunk of the reply text, emitted inside the `phase: reply` gateway span |
+| `eval_run_started` | `eval` | `active` | Ops event (P4): an eval run began |
+| `eval_case_finished` | `eval` | `done` | Ops event (P4): one case of a run was scored |
+| `eval_run_finished` | `eval` | `done` or `error` | Ops event (P4): a run ended |
+| `feedback_recorded` | `eval` | `done` | Ops event (P4): thumbs and a note on a turn |
+| `artifact_changed` | `release` | `done` | Ops event (P4): a working-set artifact got a new version |
 | `error` | optional | `error` | Failure. With `node_id` it closes that node's span; without, it is a turn-level failure followed by `turn_end` with status `error` |
 
 ## 4. Error codes
@@ -158,8 +164,8 @@ Values are small: counts, ids, enums, short previews. Implementations MAY add ke
 
 | Node | Summary keys |
 |---|---|
-| `turn_start` | `kind` (`chat`, `release`, `eval`, `replay`), `channel`, `mode`, `step_mode`, `message_chars`, `disabled` (node ids, P3, so a restart can restore them) |
-| `turn_end` | `exit` (`answered`, `blocked`, `limit`, `error`, `cancelled`), `steps`, `reply`, `citations` (when the reply cites knowledge: `[{n, doc, chunk, citation}]` in first-cited order) |
+| `turn_start` | `kind` (`chat`, `release`, `eval`, `replay`), `channel`, `mode`, `step_mode`, `message_chars`, `disabled` (node ids, P3, so a restart can restore them), `release` (P4: `{release_id, working_set, artifacts_hash}` the turn runs on), `eval_run_id` (P4, on a case turn), `output_schema` (P4: `true` when the turn asked for a structured reply) |
+| `turn_end` | `exit` (`answered`, `blocked`, `limit`, `error`, `cancelled`), `steps`, `reply`, `citations` (when the reply cites knowledge: `[{n, doc, chunk, citation}]` in first-cited order), `byo_key_dropped` (P4: the turn had a BYO key and resumed after a restart on the configured provider) |
 | `gateway` | `phase` (`receive`, `reply`), `channel`, `authenticated`, `rate_limit_remaining`, `reply_chars` |
 | `input_guardrails` | `action` (`pass`, `redact`, `block`), `checks`, `redactions` (counts by kind), `injection_score`, `injection_signals` (counts by category), `warnings`, `classifier_score`, `reason` |
 | `policy` | `tool`, `action_class`, `decision` (`allow`, `deny`, `needs_approval`), `rule`, `why`, `budget` (`name`, `limit`, `used`, when a budget decided) |
@@ -167,7 +173,7 @@ Values are small: counts, ids, enums, short previews. Implementations MAY add ke
 | `audit` | `record_id`, `action` (`policy_decision`, `approval_decision`, `tool_executed`, `memory_written`), `tool`, `decision`, `decided_by`, `executed`, `prev_hash`, `hash` |
 | `context_builder` | enter: `budget_tokens`. exit: `budget_tokens`, `used_tokens`, `slices` (tokens per slice), `compacted`, `stable_prefix_tokens`, `retrieved` (items per retrieved slice), `citations` (knowledge chunks numbered), `trimmed` (items dropped per slice), `degraded` (stores that failed) |
 | `memory` | `stores_queried`, `hits` (per store), `degraded` |
-| `procedural` | `prompt_version`, `skills_indexed`, `tokens` |
+| `procedural` | `prompt_version` (a content stamp, `<name>@<sha256 prefix>`, so a rollback shows the old stamp again), `prompt_artifact_version` (P4, the working-set version number), `skills_indexed`, `tokens` |
 | `session` | `turns`, `summary_tokens`, `tokens` |
 | `semantic`, `episodic` | `hits`, `tokens`, `top_score`, `entity_hits` (semantic), `enabled` (false when the store is not in `context.stores`) |
 | `knowledge` | `hits`, `top_score`, `tokens`, `docs` (document ids of the hits), `embedder`, `reranker`, `enabled` |
@@ -191,7 +197,12 @@ Values are small: counts, ids, enums, short previews. Implementations MAY add ke
 | `approval_decided` | `approval_id` (required), `decision` (required), `decided_by`, `reason` |
 | `memory_proposed` | `proposal_id` (required), `store` (required), `gate` (`review`, `eval`, `auto`, `session`), `preview` (redacted), `source` (`loop`, `turn`, `diagnose`), `redactions` (counts by kind) |
 | `memory_written` | `proposal_id` (required), `store` (required), `record_id` (required), `version`, `op` (`create`, `update`) |
-| `artifact_released` | `artifact` (required), `version` (required), `previous_version`, `gate` |
+| `artifact_released` | In a turn (P0 shape): `artifact` (required), `version` (required), `previous_version`, `gate`. As an ops event (P4): `release_id` (required), `artifacts` (required, `[{kind, name, version, hash}]`), `hash`, `prev_hash`, `note`, `rollback_of` (the release rolled back to, when it is a rollback), `pack` |
+| `artifact_changed` | `kind` (required), `name` (required), `version` (required), `previous_version`, `hash`, `pack`, `note_chars` |
+| `eval_run_started` | `run_id` (required), `pack`, `suite`, `model`, `cases` |
+| `eval_case_finished` | `run_id` (required), `case_id` (required), `status` (required), `index`, `scores` (`{name: pass}`), `regression`, `turn_id` |
+| `eval_run_finished` | `run_id` (required), `status`, `totals`, `regressions`, `regression_cases`, `previous_run_id` |
+| `feedback_recorded` | `rating` (required, `good` or `bad`), `note_chars` |
 | `message_delta` | `delta` (required, string), `index` (required, int from 0) |
 
 ### 6.1 Streaming the reply (`message_delta`)
@@ -263,3 +274,30 @@ exporter MAY attach it from the trace store when the deployment allows content c
 
 All three were produced with the `fake` provider, so `usd` is 0. `tests/spec/test_events.py`
 checks every line against the schema and every stream against the rules in section 1.
+
+## 10. Ops events (P4)
+
+Some events belong to no turn: an eval run's progress, feedback on a finished turn, an edited
+artifact, a release. They use the same envelope and schema, with these differences:
+
+- They live on **ops streams**, never in a turn's stream. An eval run has its own stream (the
+  run's events, `seq` from 0 per run, one `trace_id` per run). Feedback, artifact and release
+  events go to the tenant's `ops` stream (`seq` from 0 per tenant).
+- `turn_id` and `session_id` are `null`, except on `feedback_recorded`, which carries the turn's
+  `turn_id`, `session_id` and `trace_id`. `trace_id` is otherwise new per eval run or per event.
+- `node_id` names the node the event is about (`eval` or `release`), which is not open: rule 7
+  does not apply, and no `node_enter` or `turn_start` precedes them.
+- `summary` follows the table in section 6; the same redaction and size rules apply (a feedback
+  note is never in the event, only its length).
+- Over HTTP an eval run's stream is SSE at `GET /v1/evals/runs/{id}/events`; the `ops` stream is
+  read with `GET /v1/trace/ops-events`. OpenTelemetry exports each ops event as a span of its own
+  (name `harnesswalk.<type>`), with summary keys as `harnesswalk.` attributes.
+
+| Type | Stream | `node_id` | `status` |
+|---|---|---|---|
+| `eval_run_started` | the run | `eval` | `active` |
+| `eval_case_finished` | the run | `eval` | `done` |
+| `eval_run_finished` | the run | `eval` | `done`, or `error` when the run could not finish |
+| `feedback_recorded` | `ops` | `eval` | `done` |
+| `artifact_changed` | `ops` | `release` | `done` |
+| `artifact_released` | `ops` | `release` | `done` |

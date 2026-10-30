@@ -94,6 +94,16 @@ exit(reason, text?):
   reason `breakpoint`), and nested nodes pause on their own enter.
 - Memory proposals are collected, not written. They are handed to `memory_writer` after the reply.
 
+## P4 additions: checkpoints
+
+A checkpoint (one row per step in the session store, rewritten before an approval pause with the
+pending call) holds `messages`, `usage`, the pending call, and since P4 `proposals` (the memory
+proposals collected so far) and `turn` (`output_schema`, `byo_key` as a boolean, the
+`citations` numbered for the turn). A turn re-attached after a restart restores all of them, so
+its reply is still checked against its schema, its proposals still reach the memory writer and
+its citations still resolve. The re-attached checkpoint is marked `restored: true`, which
+`GET /v1/turns/{id}` reports as `checkpoint.restored`.
+
 ## Failure behaviour
 
 | Condition | Result |
