@@ -9,6 +9,10 @@ each turn, read its SSE stream, perform the case's actions (approve, deny, resum
 restart) when their matchers fire, and assert the stream: schema, stream rules, path, statuses,
 ordered events, absent events, cost, reply, then the turn's HTTP checks.
 
+P4: a turn's `before` and `after` requests (GET, POST, PUT) run around it, with `save` to keep
+values from a response and `${name}` to use them anywhere later in the case (`${turn_id}` and
+`${session_id}` name the current turn), and `wait` to poll until a request matches.
+
 No network beyond 127.0.0.1, no Docker, no model. Run the whole suite and print one line per
 case with:
 
@@ -20,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -308,6 +313,49 @@ async def perform(
         raise AssertionError(f"action {do} returned HTTP {r.status_code}: {r.text}")
 
 
+VAR = re.compile(r"\$\{([a-z_][a-z0-9_]*)\}")
+
+
+def substitute(value: Any, saved: dict[str, Any]) -> Any:
+    """`${name}` in every string of a case value, from the values saved so far."""
+    if isinstance(value, str):
+        whole = VAR.fullmatch(value)
+        if whole and whole.group(1) in saved:
+            return saved[whole.group(1)]
+        return VAR.sub(lambda m: str(saved.get(m.group(1), m.group(0))), value)
+    if isinstance(value, list):
+        return [substitute(v, saved) for v in value]
+    if isinstance(value, dict):
+        return {k: substitute(v, saved) for k, v in value.items()}
+    return value
+
+
+def dig(data: Any, dotted: str) -> Any:
+    for part in dotted.split("."):
+        data = data[int(part)] if isinstance(data, list) else data[part]
+    return data
+
+
+async def request(client: httpx.AsyncClient, req: dict[str, Any], saved: dict[str, Any]) -> None:
+    """One `before` or `after` request: send, check status and match, save values (P4)."""
+    req = substitute(req, saved)
+    want = req.get("status", 200)
+    deadline = time.monotonic() + float((req.get("wait") or {}).get("timeout_s", 0))
+    while True:
+        r = await client.request(req["method"], req["path"], json=req.get("body"))
+        body = r.json() if r.content else None
+        ok = r.status_code == want and ("match" not in req or subset(req["match"], body))
+        if ok or time.monotonic() >= deadline:
+            break
+        await asyncio.sleep(0.1)
+    if r.status_code != want:
+        raise AssertionError(f"{req['method']} {req['path']} returned {r.status_code}: {r.text}")
+    if "match" in req and not subset(req["match"], body):
+        raise AssertionError(f"{req['method']} {req['path']} does not match {req['match']}: {body}")
+    for name, dotted in (req.get("save") or {}).items():
+        saved[name] = dig(body, dotted)
+
+
 async def _drive(live: Any, case: dict[str, Any], result: CaseResult) -> None:
     tenant = load_yaml(PROFILE)["tenant_prefix"] + case["id"]
     driver = Driver(live, {"X-Harnesswalk-Tenant": tenant})
@@ -317,7 +365,11 @@ async def _drive(live: Any, case: dict[str, Any], result: CaseResult) -> None:
             result.problems.append(f"healthz: {health}")
             return
         session_id = None
-        for n, turn in enumerate(case["turns"]):
+        saved: dict[str, Any] = {}
+        for n, raw_turn in enumerate(case["turns"]):
+            for req in raw_turn.get("before", []):
+                await request(driver.client, req, saved)
+            turn = substitute(raw_turn, saved)
             body: dict[str, Any] = {"message": turn["send"]["message"]}
             if turn["send"].get("options"):
                 body["options"] = turn["send"]["options"]
@@ -330,6 +382,8 @@ async def _drive(live: Any, case: dict[str, Any], result: CaseResult) -> None:
                 )
                 return
             session_id = r.json()["session_id"]
+            saved.update(turn_id=r.json()["turn_id"], session_id=session_id)
+            turn = substitute(raw_turn, saved)
             events = await asyncio.wait_for(
                 read_turn(driver, r.json()["turn_id"], turn.get("actions", [])), TURN_LIMIT_S
             )
@@ -337,6 +391,7 @@ async def _drive(live: Any, case: dict[str, Any], result: CaseResult) -> None:
             for problem in check_stream(events) or check_expectations(turn["expect"], events):
                 result.problems.append(f"turn {n}: {problem}")
             for check in turn.get("http", []):
+                check = substitute(check, saved)
                 got = await driver.client.get(check["get"])
                 if got.status_code != check.get("status", 200):
                     result.problems.append(
@@ -346,6 +401,8 @@ async def _drive(live: Any, case: dict[str, Any], result: CaseResult) -> None:
                     result.problems.append(
                         f"turn {n}: http {check['get']} does not match {check['match']}"
                     )
+            for req in raw_turn.get("after", []):
+                await request(driver.client, req, saved)
     finally:
         await driver.aclose()
 
