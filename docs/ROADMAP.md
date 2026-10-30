@@ -22,8 +22,8 @@ itself a node. Lessons cover all 15.
 P0 (spec and scaffold) is done. P1 (vertical slice) is built: the harness runs end to end with
 the `fake`, `ollama`, `openai_compatible` and `anthropic` providers, the event stream is stored
 in SQLite and served over SSE, step mode and the approval pause work, and every conformance case
-passes with the fake provider. Stubs that P1 registers but does not implement: `semantic`,
-`episodic`, `knowledge`, `memory_writer` (P3), `eval` and `release` (P4).
+passes with the fake provider. Stubs that P1 registered but did not implement: `semantic`,
+`episodic`, `knowledge`, `memory_writer` (built in P3), `eval` and `release` (built in P4).
 
 P2 (web UI) is built: the chat and the live diagram in `web/`, served by the API at `/`, with
 step mode, approval cards, Stop, replay, history, the inspector with a code peek, and a mock mode
@@ -58,9 +58,47 @@ audited memory writes, and paged the audit export by record. Gate met: the e-com
 pauses for approval (and survives a restart), and the starter pack's Trailhead question cites
 the returns policy. The finance pack arrives with the other packs in P5. Next: P4, ops.
 
-Deferred from P3 (owner phase): read walls in the sandbox (Linux mount or landlock over the
-data directory and `/proc`, P6); turn ownership so a second process on the same data directory
-is never mistaken for a crashed one (P4); retrieved memory sent as untrusted data rather than
-system text, and injection scoring of proposals (P4); TTL cleanup of public proposals (P6); a
-resumed turn keeping its output schema, BYO key and pre-pause proposals (P4, with checkpoints);
-budget ledger charged per call rather than per turn (P6).
+Deferred from P3, and where each stands after P4:
+
+| Item | Phase | Status |
+|---|---|---|
+| Read walls in the sandbox (Linux mount or landlock over the data directory and `/proc`) | P6 | open |
+| Turn ownership, so a second process on the same data directory is not mistaken for a crashed one | P4 | **closed**: `serve` holds `data/owner.lock` (pid and heartbeat), a second `serve` refuses or `--takeover`s |
+| Injection scoring of memory proposals | P4 | **closed**: proposals are scored like input; block at 0.8, review at 0.45 (`memory_writer.injection`) |
+| Retrieved memory carries system authority (retrieved blocks are system messages) | P6 | open, recorded below |
+| TTL cleanup of public proposals | P6 | open |
+| A resumed turn keeping its output schema, BYO key and pre-pause proposals | P4 | **closed**: loop checkpoints keep the schema, the proposals, the numbered knowledge and the BYO-key flag (the key itself is never stored; `byo_key_dropped`) |
+| Memory proposals made before a restart were lost | P4 | **closed**, with the checkpoints above (conformance `restart_keeps_schema`, and a live two-process test) |
+| Budget ledger charged per call rather than per turn | P6 | open |
+
+**P4 is done** (integration pass, 2026-10-30). Ops and web merged on `main`, then wired: the
+trace query and receipts, OpenTelemetry export, golden and judge eval runs with a diff against
+the previous run, feedback and a sampled online judge, versioned artifacts with releases, a hash
+chain and rollback, step-over and restart-proof checkpoints, all drawn in the web app on the
+AI Elements patterns (Test Results for runs, Trace Commit diffs for releases, Checkpoint markers
+for saves and releases, Good and Bad message actions). The integration added `GET /v1/events`,
+one live stream of a tenant's ops events, so a release made with the CLI or in another tab shows
+up at once; replays eval case turns from their `events_url`; lists them with `kind=eval` in the
+trace query; names every artifact behind an inspector (`inspector.artifact`); and moved the UI
+onto the real response shapes. The review fixed: tool `entrypoint`s and model `providers` can no
+longer be changed by a web edit (one would import code, the other could send a hosted key to
+another host), YAML alias bombs and long notes are refused, release verification checks the
+stored bodies too, eval scratch tenants cannot be named by a caller, and reply text and message
+deltas stay out of OpenTelemetry. Gate met: changing the `returns` skill creates version 2, the
+next golden run flags `returns_window` as a regression, and a rollback serves the old version to
+the next turn, in unit tests, the `eval_golden_regression` and `release_rollback` conformance
+cases, and the browser (`make e2e`). Next: P5, datasets and lessons.
+
+Deferred from P4 (owner phase):
+
+| Item | Phase |
+|---|---|
+| The eval gate on release: a release records `gate: skipped`; P5 runs golden before it ships | P5 |
+| `diagnose` (map a failed case to the layer that caused it) is a stub node | P5 |
+| Retrieved memory still reaches the model as system text; whether it should be a lower-authority message (and how the fake fixtures and lessons show it) is open. Proposals are now scored, which closes the write side | P6 |
+| Which release is active (`activations`) is logged but not hash-chained | P6 |
+| Per-tenant artifact overrides; config overlays (`--set`, profiles) still win over edited artifacts | P6 |
+| The tenant ops stream polls the store once a second for other processes' writes; a notify channel for hosted deployments | P6 |
+| An opt-in to export message content to OpenTelemetry (off and not offered) | P6 |
+| `node_resumed` does not say which resume mode released it (step, continue, step_over) | P5 |
+| The judge suite and the online judge were hand-run once in the ops pass; the integration pass made no hosted call | owner |

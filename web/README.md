@@ -35,7 +35,7 @@ pnpm test          # Vitest: reducer, layout, edge routes, colour contrast, memo
                    # turn facts (guardrails, budgets, citations, memory, placeholders), payload
                    # shapes, the drift rule (no node id literals in src/), and P4: line diffs,
                    # ops roles from the diagram, chat markers, the eval and receipt text, replay
-                   # step-over, the mock's ops routes and the store's ops actions
+                   # step-over, the mock's ops routes and ops stream, and the store's ops actions
 pnpm test:e2e      # Playwright against a mock build (Chromium only): smoke.spec.ts, and ops.spec.ts
                    # for P4 (the gate: edit a skill, run golden, see the regression; release,
                    # roll back, see the old version; feedback, step-over, the trace query)
@@ -62,11 +62,15 @@ a harness of their own (`e2e-live/helpers.ts`, ports `HARNESSWALK_E2E_PORT` + 1 
 SIGKILLs and restarts it to show an approval that survives a restart and a turn closed
 `restarted`, the other holds proposals at the review gate (`e2e-live/profile-review.yaml`). The
 suite's server runs with `e2e-live/profile.yaml`, which only adds the budget tenant.
-`e2e-live/p4.spec.ts` walks the Phase 4 gate against the real ops API (and feedback across a
-reload); it skips itself while `/v1/capabilities` lacks `features.evals`, `release` and
-`artifact_edit`. Playwright stops the server when the run ends.
+`e2e-live/p4.spec.ts` walks the Phase 4 gate against the real ops API (edit the `returns`
+skill, run golden, see the regression on the Eval node and in the run detail, open the case in
+replay, release, edit again, roll back, and the next turn runs on the old version), then a
+release made with `harnesswalk release create` arriving live, feedback across a reload and from
+another tab, step-over, the trace query with eval case turns, and `restart_keeps_schema` on a
+second server it kills and restarts. P4 tests first cancel any turn earlier tests left open,
+because edits are refused while one runs. Playwright stops the server when the run ends.
 `HARNESSWALK_SCREENSHOTS=1` (`make screenshots`) also writes `docs/screenshots/*.png` (with
-`eval-run.png` and `release-diff.png` once the API has the P4 features); the
+`eval-run.png` and `release-diff.png`); the
 side-by-side `edges-before-after.png` puts the kept `edges-before.png` (the old routing, from the
 owner's feedback) beside a fresh capture.
 
@@ -99,13 +103,16 @@ run as against the real API. It:
   menu, else by the words in the message), with fresh ids and timestamps, the reply split into
   `message_delta` events, breakpoints in step mode, approve and deny, cancel, and disabled nodes;
 - serves the real Python source, config, prompt and skill files from the repo for the inspector;
-- P4 (`src/mock/ops.ts`, phase-4 `CONTRACT.md`): a working set seeded from the pack files with
+- P4 (`src/mock/ops.ts`, the real API's shapes from `spec/contracts/http_api.md`): a working set seeded from the pack files with
   versions and unified diffs, YAML checked on save, 409 while a turn runs; releases `r1`, `r2`...
   with a hash chain and an append-only rollback; a seeded golden run and twelve golden cases over
   the three recorded streams (a case regresses when the skill it depends on loses the tool it
-  teaches, and its turn is stored for replay), progress on the run's event stream, the judge suite
-  answering 422 `judge_unavailable` on the fake provider; feedback, with a Good and judge scores on
-  the first seeded turn; the trace query with receipts; step-over that runs past expert children.
+  teaches; its turn lives in the run's scratch tenant, so `GET /v1/turns/{id}` is 404 and its
+  `events_url` replays it, as on the real API), progress on the run's event stream, the judge
+  suite answering 422 `judge_unavailable` on the fake provider; feedback, with a Good and judge
+  scores on the first seeded turn; the trace query with receipts and `kind=eval`; the tenant's ops
+  stream (`GET /v1/events`); `inspector.artifact` on every artifact-backed inspector; step-over
+  that runs past expert children.
 
 The mock and the schema validator are dynamic imports behind build-time constants, so a
 production build contains neither. The diagram (React Flow), the inspector and shiki are their
@@ -226,29 +233,40 @@ Prose component; it is the typography styles in one container).
 
 ## LLM Ops in the UI (P4)
 
-The UI codes against phase 4's `CONTRACT.md` and nothing more. How it finds things without
-naming node ids:
+The UI codes against `spec/contracts/http_api.md` ("P4 additions"); the integration pass checked
+every route against a live harness. How it finds things without naming node ids:
 
 - **Which node gets which panel** is read from the diagram's shape (`src/diagram/opsRoles.ts`):
   an LLM Ops node with a `release` edge into another plane ships artifacts (Releases); one with
   a `release` edge inside the ops plane gates them (Runs); any other ops store keeps turns
   (Turns). Expert children take their parent's panel. A node with a panel opens on that tab.
-- **Which artifact a node edits** comes from `GET /v1/artifacts` and the node's
-  `artifact_hint`: a prompt node edits the `prompt` and `skill` artifacts (the first inspector
-  item is the system prompt, http_api.md lists it first), a hint `config/policy.yaml` edits the
-  artifact of kind `policy`, and so on. A config node edits in its Config tab; a code or model
-  node with a YAML hint (the context builder, the model layer) gets a Config tab of its own.
-- **Chat markers.** `artifact_changed` and `artifact_released` are point events outside any turn
-  and the contract has no tenant stream, so the markers come from the responses of this
-  browser's own saves, releases and rollbacks, and from a change of
-  `capabilities.release.active_release_id` read after each turn (a release made with the CLI).
-  They are kept per session in `localStorage`.
-- **Status bar.** `release r2`, or `working set (unreleased changes)` when
-  `release.working_set_dirty`.
-- **Lists.** The contract names list items, not envelopes, so `listOf` in `src/api/client.ts`
-  takes a bare array or `{runs | releases | artifacts | turns: [...]}` with `next_after`.
-- **Eval progress.** The run's event stream is counted (`eval_case_finished`), and the run is read
-  back from `GET /v1/evals/runs/{id}` when it ends or drops, so only the event names are relied on.
+- **Which artifact a node edits** is what its inspector names, `inspector.artifact {kind, name,
+  version, url}` (`GET /v1/nodes/{id}`): a config inspector for its file, each prompt item for
+  the system prompt or its skill, and a code or model node whose settings are a config artifact
+  (the context builder, the model layer), which gets a Config tab of its own. `GET /v1/artifacts`
+  only adds who changed it last and the version turns are served. The editor shows the content
+  stamp the turns record (`returns@b0e44e5b`), which a rollback brings back.
+- **The tenant's ops stream.** `GET /v1/events` (opened at boot when the API offers evals,
+  releases or feedback) carries every ops event of the tenant, from whichever process wrote it:
+  `artifact_changed` and `artifact_released` place the chat markers (Checkpoint) after the last
+  turn and refresh the status bar and the inspector, so a release made with the CLI or in
+  another tab appears at once; `feedback_recorded` re-reads the turn it names, so a rating from
+  another tab shows; `eval_run_*` drive the progress line and the chip on the node that runs
+  evals for a run started anywhere. The event's own `node_id` gives the node a short pulse.
+  Without the stream (an older API) the markers come from this browser's own responses, as
+  before. Markers are kept per session in `localStorage`, one per change.
+- **Status bar and chips.** `release r2`, or `working set (unreleased changes)` when
+  `release.working_set_dirty`; the node that ships releases carries an `unreleased` chip then,
+  and the node that runs evals a `done/total` chip during a run and a regressions chip after.
+- **Eval runs.** "Run judge" (the judge suite and its model menu) shows only with
+  `features.judge`. A regression is a case that failed or errored now and passed in the previous
+  run, and `totals.failed` counts errors too: the run detail says both. A case opens to expected
+  against actual, and to its turn in replay from the case's `events_url` (case turns live in the
+  run's scratch tenant, so `GET /v1/turns/{id}` would 404); the chat header names the replay.
+- **Trace query.** Kind (chat turns, or the case turns of your eval runs with `kind=eval`),
+  session, node, status, since; each turn opens to its receipt per node and per model call.
+- **Lists** read the API's envelopes (`{runs}`, `{pack, releases, verify, ...}`, `{pack,
+  artifacts, release}`, `{turns, next_after}`).
 
 ## Reading the diagram: the colour system
 
@@ -270,7 +288,10 @@ never on it, so the moving dot does not pass under it. With reduced motion there
 moving dash or dot; states still show by colour and weight.
 
 The legend (bottom right of the diagram) has one row per channel: states, node kinds, edge kinds.
-It collapses, and opens by default in the simple view. Its Show telemetry switch matters in the
+It collapses, and opens by default in the simple view while the diagram is at least 760 px wide
+(an open inspector narrows it, and the open legend would sit over the LLM Ops row); once you open
+or close it, that choice holds across view switches and reloads. Toasts appear top left, under
+the chat's header, clear of the app header, the composer, the legend and the inspector. Its Show telemetry switch matters in the
 simple view only: by default the edges to and from LLM Ops are hidden and one dotted bus runs
 from the execution plane to Trace; the switch draws them all, and hovering a node draws its own.
 The expert view always draws every edge.

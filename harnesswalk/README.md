@@ -72,8 +72,8 @@ Modules that are not nodes:
 | `control` | `pii.py` | PII detection, Luhn, the per-turn placeholder vault (input and output guardrails, memory writer) |
 | `control` | `injection.py` | Prompt-injection heuristics: a score and the signals that fired |
 | `control` | `budgets.py` | Per-tenant budgets and the hourly usage ledger (read by policy and the loop) |
-| `control` | `http_ops.py` | P4 LLM Ops routes: eval runs, feedback, artifacts and releases, the trace query |
-| `ops` | `ops_events.py` | P4 ops event streams: events outside turns (eval progress, feedback, releases) |
+| `control` | `http_ops.py` | P4 LLM Ops routes: eval runs, feedback, artifacts and releases, the trace query, and `GET /v1/events` (the tenant's ops events, live) |
+| `ops` | `ops_events.py` | P4 ops event streams: events outside turns (eval progress, feedback, releases), and the tenant tail behind `GET /v1/events` |
 | `ops` | `otel.py` | P4 OpenTelemetry mapping and OTLP export (optional extra `otel`) |
 | `ops` | `lease.py` | P4 `data/owner.lock`: one `serve` per data directory, `--takeover` |
 | `ops` | `eval/golden.py`, `eval/scorers.py`, `eval/judge.py`, `eval/store.py` | P4 golden sets, deterministic scorers, the judge, `data/evals.db` |

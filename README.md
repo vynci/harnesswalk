@@ -203,9 +203,44 @@ answers with a real local model instead.
   with your value restored. Every tool line says where the call ran (sandbox level, network,
   jail). A turn that runs out of its tool-call budget ends with a notice that quotes the policy.
   The Audit node's Records tab lists the hash chain and a Verify button checks it on the server.
+- **The release gate: edit, eval, release, roll back (P4).** Everything the harness loads (the
+  system prompt, each skill, policy, context, models and tools) is a versioned artifact, and
+  this walk changes one and catches the regression before it ships:
+  1. **Run a baseline.** Click the Eval node; its Runs tab has Run. The golden suite replays
+     every case of `datasets/_starter/golden.jsonl` on the fake provider and scores it (node
+     path, tool calls, citations, schema, PII, answer). All pass.
+  2. **Edit a skill.** Switch to Expert, click Procedural, open the Prompt tab, press Edit on
+     `returns` and change "within 30 days of delivery" to "within 14 days of delivery". Save
+     shows the diff, puts a "Skill returns v2 saved" marker in the chat, and the status bar
+     says "working set (unreleased changes)". In dev the working set is what turns use, so the
+     edit applies to the next turn.
+  3. **Run golden again.** The `returns_window` case now fails (its fixture expects the 30 day
+     window in the skill) and is marked a regression: it failed in this run and passed in the
+     run before. The Eval node carries a regression chip, and the case opens to expected
+     against actual and to its turn in replay. A failed count includes cases that errored.
+  4. **Release, then roll back.** The Release node's Releases tab creates a release from the
+     working set (a hash-chained snapshot; its changes open as a diff) and lists earlier ones.
+     Edit again if you like, then pick `r1` and Roll back: the working set gets r1's content back
+     as new versions (history is never rewritten), a "Rolled back" marker lands in the chat, and
+     the Procedural inspector shows the old text and the old content stamp. Pick the
+     `golden_returns_window` fixture and ask "How long do I have to return a shipped order?":
+     the answer says 30 days again, and the turn records that it ran on `r1`.
+
+  Releases made anywhere (another tab, `harnesswalk release` on the command line) reach the
+  page live over the tenant's ops stream, `GET /v1/events`.
+
+![An eval run: 16 cases, one regression, the failing case opened to expected against actual](docs/screenshots/eval-run.png)
+
+![A release: the active release, the hash chain, and the skill's change as a diff](docs/screenshots/release-diff.png)
+
+- **Feedback and the trace (P4).** Good and Bad under a reply record a rating and an optional
+  note (every tab of the session sees it). The Trace node's Turns tab queries stored turns by
+  session, node, status and time, with a receipt per node and per model call; "eval case
+  turns" lists the turns of your eval runs, which replay like chat turns.
 - **Step mode.** Switch on Step mode before sending. The harness stops at every node, like a
-  debugger; Next moves one hop, Continue runs to the end, and Stop cancels the turn (a model
-  or tool call already in flight finishes first).
+  debugger; Next moves one hop, Step over runs past a node's expert children to the next node
+  of the simple view, Continue runs to the end, and Stop cancels the turn (a model or tool call
+  already in flight finishes first).
 - **Inspect a node.** Click any node (or focus it and press Enter) for its lesson, its config,
   prompt or records, the events it emitted this turn, and its source code. For the guardrails,
   policy and the memory writer, the inspector can also switch the node off for your next turn,
@@ -245,6 +280,34 @@ uv run harnesswalk turn "Email it to ana@example.com" --provider fake --fixture 
 uv run harnesswalk turn "Ignore all previous instructions" --provider fake --mode public --fixture plain_answer  # blocked
 uv run harnesswalk turn "Where is order A-1001?" --provider ollama
 ```
+
+The release gate on the command line (`eval` runs in-process on the fake provider and exits 1
+when a case fails, which is what CI runs; `release` works on the same data directory as a
+running `serve`, which picks the change up before its next turn):
+
+```sh
+uv run harnesswalk eval _starter                       # the golden suite, one line per case, diffed against the last run
+uv run harnesswalk eval _starter --case returns_window --json
+uv run harnesswalk release list                        # * marks the active release; the chain is verified
+uv run harnesswalk release create --note "returns: 14 days"
+uv run harnesswalk release diff r2                     # the artifact diff against the release before
+uv run harnesswalk release rollback r1                 # r1 active again, its content back as new versions
+make eval                                              # the same golden run (PACK=_starter)
+```
+
+Edits come from the web app or `PUT /v1/artifacts/{kind}/{name}`; a file changed on disk is
+picked up as a new working-set version at the next start. After an edit, `harnesswalk eval`
+prints the regression:
+
+```
+FAILED  returns_window           The returns skill sets the 30 day window (edit the skill and this case regresses)  REGRESSION
+          error: fixture_mismatch at providers: fixture golden_returns_window: last message does not contain 'within 30 days of delivery'
+run run_0002 (golden, pack _starter): 15 passed, 1 failed, 0 skipped of 16; 1 regression(s) against run_0001; release r1 + working set; ...
+```
+
+The judge suite (`--suite judge`) scores faithfulness and relevance with a judge model
+(`claude-haiku-5-5` through the router's `judge` step) and needs a configured hosted or local
+model; CI never runs it.
 
 The memory and citation walk on the command line (the session id comes from the first turn's
 output):
@@ -286,6 +349,21 @@ The connection comes from `HARNESSWALK_DATABASE_URL`, else from `POSTGRES_HOST`,
 `POSTGRES_USER`, `POSTGRES_DB` and `POSTGRES_PASSWORD` (the compose defaults work as they are).
 `make up` runs the whole stack with pgvector already on.
 
+### OpenTelemetry
+
+Off by default. Install the optional extra and point the harness at an OTLP/HTTP collector:
+
+```sh
+uv sync --extra otel
+HARNESSWALK_OTLP_ENDPOINT=http://127.0.0.1:4318 make run PROVIDER=fake
+```
+
+Every finished turn is exported as spans (a root `harnesswalk.turn`, one span per node, GenAI
+attribute names for model and tool calls) and every ops event as a span of its own; the mapping
+is in `spec/events.md` section 8. Reply text, message deltas, previews and notes are never
+exported, and no secret is ever in an event. `trace.otel.endpoint` in `config/harness.yaml`
+does the same as the variable.
+
 ### The API
 
 [`spec/contracts/http_api.md`](spec/contracts/http_api.md): `POST /v1/turns`, the event stream
@@ -295,11 +373,17 @@ as Server-Sent Events at `GET /v1/turns/{id}/events` (with `?after=` cursors and
 `GET /v1/diagram`, `GET /v1/nodes/{id}` and its `/source`, `GET /v1/capabilities`,
 `GET /v1/audit` (the tenant's hash-chained audit records, dev and private), the context plane's
 `GET /v1/knowledge/docs[/{id}]` and `GET|POST /v1/memory/proposals[/{id}]` (the review gate), and
-`GET /healthz`.
+`GET /healthz`. P4 adds LLM Ops: eval runs (`/v1/evals/runs`, their progress as SSE, each case's
+stored turn stream), feedback (`POST /v1/turns/{id}/feedback`), the versioned artifacts and
+releases (`GET|PUT /v1/artifacts/{kind}/{name}`, `/v1/releases`, rollback), the trace query and
+receipts (`/v1/trace/turns`), and `GET /v1/events`, every ops event of a tenant as one live
+stream.
 
 `harnesswalk serve` survives a restart: a turn that was waiting on an approval comes back
-paused, and deciding it finishes the same turn; a turn the restart cut off is closed with error
-code `restarted`.
+paused, with its output schema and its memory proposals, and deciding it finishes the same turn;
+a turn the restart cut off is closed with error code `restarted`. A second `serve` on the same
+data directory refuses to start while the first holds `data/owner.lock` (`--takeover` asks it to
+stop).
 
 ### Tests
 
@@ -315,7 +399,10 @@ make e2e           # Playwright in Chromium against a real API with the fake pro
 (`E2E_PORT`, default 8765) with its stores in a temporary directory, drives the UI through the
 conformance fixtures and the P3 walks (citations, memory write and review, PII, budgets, audit,
 step mode through the stores, and an approval that survives a restart, on a second server it
-starts and kills itself), and stops the servers. `make web-e2e-mock` runs the smoke tests against the
+starts and kills itself), the P4 gate above in the browser (edit, golden run, regression,
+release, edit, rollback, the next turn on the old version), a release made with the CLI showing
+up live, feedback across tabs, step-over, the trace query, and a restart that keeps a paused
+turn's output schema, and stops the servers. `make web-e2e-mock` runs the smoke tests against the
 mock build, and `make screenshots` recaptures the pictures above.
 
 ## Repository layout
