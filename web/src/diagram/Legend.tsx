@@ -1,19 +1,16 @@
-import { useState } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
-import type { EdgeKind, NodeKind, PlaneId, View } from '@/api/types'
-import { Hint } from '@/components/hint'
+import { BookOpen } from 'lucide-react'
+import type { EdgeKind, NodeKind, PlaneId } from '@/api/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Switch } from '@/components/ui/switch'
-import { load, save } from '@/state/persist'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import type { NodeState } from '@/state/reducer'
 import { StateIcon } from './HarnessNode'
 import { edgeColor, KIND_HINT, KIND_ICON } from './planes'
 
 // The three colour channels of the diagram, one row each: node state (status icon, and a ring
 // while active, waiting or failed),
-// node kind (icon chip) and edge kind (stroke colour and dash). See web/README.md.
+// node kind (icon chip) and edge kind (stroke colour and dash), in a Dialog opened from the
+// canvas controls. See web/README.md.
 
 const STATES: { state: NodeState; label: string; title: string }[] = [
   { state: 'idle', label: 'idle', title: 'Idle: not reached this turn' },
@@ -70,59 +67,22 @@ function Entry({ children, title }: { children: React.ReactNode; title?: string 
   )
 }
 
-export function Legend({
-  view,
-  roomy,
-  showTelemetry,
-  onShowTelemetry,
-}: {
-  view: View
-  /** The diagram is wide enough for the open legend not to sit over the LLM Ops row. */
-  roomy: boolean
-  showTelemetry: boolean
-  onShowTelemetry: (on: boolean) => void
-}) {
-  // Open by default in the simple view, where people meet the colours first, and only while the
-  // diagram has room (an open inspector narrows it). Once the reader opens or closes it, that
-  // choice holds across view switches and reloads.
-  const [pref, setPref] = useState<boolean | null>(() => load<boolean | null>('legend', null))
-  const open = pref ?? (view === 'simple' && roomy)
-  const setOpen = (next: boolean) => {
-    setPref(next)
-    save('legend', next)
-  }
+/** The Legend button of the canvas controls and the Dialog it opens (Esc or the close button shut it). */
+export function Legend() {
   return (
-    <Card
-      size="sm"
-      className="absolute right-3 bottom-8 z-10 hidden max-w-[calc(100%-5rem)] gap-0 rounded-2xl bg-card/95 py-0 text-xs text-muted-foreground md:flex"
-      data-testid="legend"
-      data-open={open ? 'true' : 'false'}
-    >
-      <div className="flex items-center gap-3 px-2 py-1.5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="xs"
-          className="text-foreground"
-          aria-expanded={open}
-          aria-controls="diagram-legend"
-          onClick={() => setOpen(!open)}
-          data-testid="legend-toggle"
-        >
-          {open ? <ChevronDown aria-hidden /> : <ChevronUp aria-hidden />}
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button type="button" variant="ghost" size="xs" className="text-foreground" data-testid="legend-toggle">
+          <BookOpen aria-hidden />
           Legend
         </Button>
-        {view === 'simple' && (
-          <Hint label="Draw every edge to and from LLM Ops (telemetry, eval, release) instead of one telemetry bus. Hovering a node shows its own." side="top">
-            <label className="ml-auto flex cursor-pointer items-center gap-1.5 pr-1">
-              <Switch size="sm" checked={showTelemetry} onCheckedChange={onShowTelemetry} data-testid="telemetry-toggle" aria-label="Show telemetry and LLM Ops edges" />
-              Show telemetry
-            </label>
-          </Hint>
-        )}
-      </div>
-      {open && (
-        <dl id="diagram-legend" className="flex flex-col gap-1.5 border-t px-3.5 pt-2 pb-2.5" title="Faint: not used this turn. Moving: in use now. Stronger: used this turn.">
+      </DialogTrigger>
+      <DialogContent className="gap-4 sm:max-w-xl" data-testid="legend">
+        <DialogHeader>
+          <DialogTitle>Legend</DialogTitle>
+          <DialogDescription>Faint: not used this turn. Moving: in use now. Stronger: used this turn.</DialogDescription>
+        </DialogHeader>
+        <dl className="flex flex-col gap-2.5 text-xs text-muted-foreground">
           <Row title="State">
             {STATES.map((s) => (
               <Entry key={s.state} title={s.title}>
@@ -159,7 +119,7 @@ export function Legend({
             ))}
           </Row>
         </dl>
-      )}
-    </Card>
+      </DialogContent>
+    </Dialog>
   )
 }

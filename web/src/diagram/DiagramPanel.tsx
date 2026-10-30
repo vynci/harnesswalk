@@ -17,14 +17,12 @@ import { opsRoleNode } from './opsRoles'
 import { PlaneNode } from './PlaneNode'
 import { toFlow, type OpsChip } from './flow'
 import { TurnStatusBar } from './TurnStatusBar'
-import { Legend } from './Legend'
+import { CanvasControls } from './CanvasControls'
 
 const nodeTypes = { harness: HarnessNode, plane: PlaneNode }
-// Room for the turn status bar above the diagram and the legend below it.
-const FIT_PADDING = { top: '48px', right: '14px', bottom: '132px', left: '14px' } as const
+// Room for the turn status bar above the diagram and the canvas controls below it.
+const FIT_PADDING = { top: '48px', right: '14px', bottom: '84px', left: '14px' } as const
 const edgeTypes = { flow: FlowEdge }
-// Below this width the open legend would sit over the LLM Ops row, so it starts closed.
-const ROOMY_PX = 760
 
 function Flow() {
   const diagram = useApp((s) => s.diagram)!
@@ -35,9 +33,7 @@ function Flow() {
   const selectNode = useApp((s) => s.selectNode)
   const toggleCollapsed = useApp((s) => s.toggleCollapsed)
   const showTelemetry = useApp((s) => s.showTelemetry)
-  const setShowTelemetry = useApp((s) => s.setShowTelemetry)
   const [hovered, setHovered] = useState<string | null>(null)
-  const [roomy, setRoomy] = useState(true)
   const latestEval = useApp((s) => s.latestEval)
   // The node that gates releases carries the regressions of the latest eval run.
   const alerts = useMemo(() => {
@@ -90,7 +86,6 @@ function Flow() {
     if (!el || typeof ResizeObserver === 'undefined') return
     let frame = 0
     const ro = new ResizeObserver(() => {
-      setRoomy(el.clientWidth >= ROOMY_PX)
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => void fitView({ padding: FIT_PADDING }))
     })
@@ -149,7 +144,7 @@ function Flow() {
         <Controls showInteractive={false} position="bottom-left" />
       </ReactFlow>
       <TurnStatusBar turn={turn} />
-      <Legend view={view} roomy={roomy} showTelemetry={showTelemetry} onShowTelemetry={setShowTelemetry} />
+      <CanvasControls />
     </div>
   )
 }

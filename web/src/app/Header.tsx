@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
+import { Separator } from '@/components/ui/separator'
 import { useApp } from '@/state/store'
 import { useDarkTheme } from './useTheme'
 
@@ -75,8 +75,6 @@ function SessionMenu() {
 export function Header() {
   const capabilities = useApp((s) => s.capabilities)
   const mock = useApp((s) => s.mock)
-  const view = useApp((s) => s.view)
-  const setView = useApp((s) => s.setView)
   const provider = useApp((s) => s.provider)
   const setProvider = useApp((s) => s.setProvider)
   const fixture = useApp((s) => s.fixture)
@@ -89,7 +87,7 @@ export function Header() {
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2">
       <div className="flex items-baseline gap-2">
         <h1 className="text-base font-medium tracking-tight">harnesswalk</h1>
-        <span className="hidden text-xs text-muted-foreground lg:inline">walk through an AI harness, one node at a time</span>
+        <span className="hidden text-xs text-muted-foreground md:inline">walk through an AI harness, one node at a time</span>
       </div>
       {capabilities && (
         <Hint label={`API ${capabilities.version}${mock ? ', in-browser mock' : ''}`}>
@@ -151,14 +149,11 @@ export function Header() {
             </Badge>
           </Hint>
         )}
-        <Hint label="Expand each group into its parts and draw every edge.">
-          <label className="flex items-center gap-1.5 text-xs">
-            <Switch checked={view === 'expert'} onCheckedChange={(on) => setView(on ? 'expert' : 'simple')} aria-label="Expert view" data-testid="view-toggle" />
-            Expert view
-          </label>
-        </Hint>
-        <ThemeButton />
-        <SessionMenu />
+        {(dev || disabled.length > 0) && <Separator orientation="vertical" className="my-1.5" />}
+        <div className="flex items-center gap-1">
+          <ThemeButton />
+          <SessionMenu />
+        </div>
       </div>
     </header>
   )

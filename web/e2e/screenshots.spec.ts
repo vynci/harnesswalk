@@ -78,7 +78,8 @@ for (const theme of ['light', 'dark'] as const) {
 }
 
 // The header and the node cards mid-turn: one capture paused in step mode (the waiting node's
-// dashed ring) and one while a node runs (the active ring), so the current node reads at a glance.
+// dashed ring), the legend dialog over it, and one while a node runs (the active ring), so the
+// current node reads at a glance.
 for (const theme of ['light', 'dark'] as const) {
   test(`mid-turn nodes, ${theme}`, async ({ page }) => {
     await page.addInitScript((t) => localStorage.setItem('harnesswalk.theme', JSON.stringify(t)), theme)
@@ -96,6 +97,12 @@ for (const theme of ['light', 'dark'] as const) {
     }
     await settle(page)
     await shot(page, `step-mode-${theme}`)
+    // The legend Dialog, opened from the canvas controls.
+    await page.getByRole('group', { name: 'Diagram controls' }).getByRole('button', { name: 'Legend' }).click()
+    await expect(page.getByRole('dialog', { name: 'Legend' })).toBeVisible()
+    await settle(page)
+    await shot(page, `legend-${theme}`)
+    await page.keyboard.press('Escape')
 
     await page.getByRole('switch', { name: /Step mode/ }).click()
     await controls.getByRole('button', { name: 'Continue to the end' }).click()

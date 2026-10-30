@@ -140,13 +140,34 @@ test('a focused node opens its inspector with Enter', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Close inspector' })).toBeFocused()
 })
 
-test('the legend explains the colours and the telemetry toggle swaps the bus for the ops edges', async ({ page }) => {
-  const legend = page.getByTestId('legend')
-  await expect(legend).toHaveAttribute('data-open', 'true')
+test('the canvas controls: the legend dialog explains the colours and the telemetry switch swaps the bus for the ops edges', async ({ page }) => {
+  const controls = page.getByRole('group', { name: 'Diagram controls' })
+  await expect(controls.getByRole('switch', { name: 'Expert view' })).toBeVisible()
+  await expect(page.getByRole('banner').getByRole('switch')).toHaveCount(0)
+  await expect(node(page, 'policy').getByTestId('kind-chip')).toHaveAttribute('data-kind', 'config')
+
+  // The legend is a Dialog: closed at first, opened by its button, Esc closes it and focus returns.
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  const open = controls.getByRole('button', { name: 'Legend' })
+  await open.click()
+  const legend = page.getByRole('dialog', { name: 'Legend' })
+  await expect(legend).toBeVisible()
+  for (const row of ['State', 'Node', 'Edge']) await expect(legend.getByRole('term').filter({ hasText: row })).toBeVisible()
   await expect(legend).toContainText('waiting')
   await expect(legend).toContainText('queue')
   await expect(legend).toContainText('telemetry')
-  await expect(node(page, 'policy').getByTestId('kind-chip')).toHaveAttribute('data-kind', 'config')
+  // Focus stays inside the dialog while it is open.
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press('Tab')
+    expect(await legend.evaluate((el) => el.contains(el.ownerDocument.activeElement))).toBe(true)
+  }
+  await page.keyboard.press('Escape')
+  await expect(legend).toBeHidden()
+  await expect(open).toBeFocused()
+  // Nothing is remembered: a reload starts with the dialog closed.
+  await page.reload()
+  await expect(page.getByTestId('node-gateway')).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 
   // Default: one bus from the execution plane to Trace, no ops edges.
   await expect(page.getByTestId('edge-bus__execution__trace')).toBeAttached()
@@ -157,13 +178,17 @@ test('the legend explains the colours and the telemetry toggle swaps the bus for
   await page.mouse.move(0, 0)
   await expect(page.getByTestId('edge-loop_to_trace')).toHaveCount(0)
 
-  await page.getByTestId('telemetry-toggle').click()
+  const telemetry = page.getByRole('switch', { name: 'Telemetry' })
+  await telemetry.click()
+  await expect(telemetry).toHaveAttribute('aria-checked', 'true')
   await expect(page.getByTestId('edge-eval_to_release')).toBeAttached()
   await expect(page.getByTestId('edge-loop_to_trace')).toBeAttached()
   await expect(page.getByTestId('edge-bus__execution__trace')).toHaveCount(0)
-
-  await page.getByTestId('legend-toggle').click()
-  await expect(legend).toHaveAttribute('data-open', 'false')
+  await telemetry.click()
+  // The expert view draws every edge, so Telemetry shows on and cannot be switched off there.
+  await page.getByRole('switch', { name: 'Expert view' }).click()
+  await expect(telemetry).toHaveAttribute('aria-checked', 'true')
+  await expect(telemetry).toBeDisabled()
 })
 
 test('a tool call shows inline in the chat and opens to its details', async ({ page }) => {
