@@ -34,6 +34,7 @@ SUMMARY_KEYS = (
     "record_id", "prompt_version", "skills_indexed", "turns", "hits", "tokens", "input_tokens",
     "output_tokens", "citations", "proposed", "written", "rejected", "pending", "gate",
     "injection_score", "restored", "level", "network", "budget_source", "cascade",
+    "prompt_artifact_version", "release_id",
 )  # fmt: skip
 
 
