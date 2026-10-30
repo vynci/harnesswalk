@@ -1,0 +1,1 @@
+{"responses": [{"text": "I will send the prepaid return label to [EMAIL_1] within one business day.", "usage": {"input_tokens": 240, "output_tokens": 20}, "expect": {"last_message_role": "user", "last_message_contains": "[EMAIL_1]"}}]}
