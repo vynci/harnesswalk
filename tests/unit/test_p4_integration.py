@@ -264,3 +264,34 @@ def test_verify_catches_an_edited_body_behind_a_release(tmp_path: Path) -> None:
     out = store.verify("_starter")
     assert out["ok"] is False and out["artifact"] == "skill/returns@v1"
     store.close()
+
+
+# -- tenancy and telemetry (integration review) ------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_eval_scratch_tenants_are_reserved(tmp_path: Path) -> None:
+    h = starter(tmp_path)
+    async with client(h, "evalrun-run_0001") as c:
+        r = await c.post("/v1/turns", json={"message": "hi"})
+        assert r.status_code == 400 and "reserved" in r.json()["error"]["message"]
+        assert (await c.get("/v1/trace/turns")).status_code == 400
+    await h.aclose()
+
+
+@pytest.mark.anyio
+async def test_otel_spans_carry_no_reply_text_or_personal_data(tmp_path: Path) -> None:
+    import json
+
+    from harnesswalk.ops.otel import spans_from_events
+
+    h = Harness(settings(tmp_path, "golden_pii", profile=None))
+    events = await run_turn(h, "My email is sam@example.com, send the label there?", tenant="dev")
+    assert "sam@example.com" in events[-1]["summary"]["reply"]  # dev gives the user's value back
+    assert any(e["type"] == "message_delta" for e in events)
+    spans = spans_from_events(events)
+    dumped = json.dumps(spans)
+    assert "sam@example.com" not in dumped and "return label" not in dumped
+    names = {ev["name"] for s in spans for ev in s["events"]}
+    assert "message_delta" not in names and "memory_proposed" in names
+    await h.aclose()

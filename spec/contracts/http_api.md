@@ -32,7 +32,8 @@ dev-mode CORS.
 
 - Base path `/v1`. `GET /healthz` sits outside it.
 - Identity: in `dev` mode every request is the `dev` tenant unless the header
-  `X-Harnesswalk-Tenant` names another (dev only; ignored in other modes). In `public` mode a
+  `X-Harnesswalk-Tenant` names another (dev only; ignored in other modes). Ids starting with
+  `evalrun-` are reserved for eval runs' scratch tenants and are `400` (P4 integration). In `public` mode a
   signed, HTTP-only session cookie carries the anonymous tenant. In `private` mode a session
   cookie or bearer token from sign-in.
 - BYO key (public and private): header `X-Harnesswalk-Provider-Key` on `POST /v1/turns` only.

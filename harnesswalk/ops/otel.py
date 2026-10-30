@@ -53,8 +53,22 @@ def _attr(value: Any) -> Any:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
 
 
+# Summary keys that carry text a person or the model wrote (redacted for the UI, but still
+# content): never exported. GenAI semantic conventions keep message content out of telemetry
+# unless a deployment opts in, and in dev the reply can carry the user's own values back.
+CONTENT_KEYS = frozenset(
+    {"reply", "delta", "text", "message", "preview", "args_preview", "note", "query", "content"}
+)
+# Point events whose whole point is content (one chunk of the reply).
+CONTENT_EVENTS = frozenset({"message_delta"})
+
+
 def _summary_attrs(summary: dict[str, Any] | None) -> dict[str, Any]:
-    return {f"harnesswalk.{k}": _attr(v) for k, v in (summary or {}).items() if v is not None}
+    return {
+        f"harnesswalk.{k}": _attr(v)
+        for k, v in (summary or {}).items()
+        if v is not None and k not in CONTENT_KEYS
+    }
 
 
 def _name(node_id: str, summary: dict[str, Any]) -> str:
@@ -167,6 +181,8 @@ def spans_from_events(events: list[Event]) -> list[dict[str, Any]]:
             if kind == "error":
                 span["status"] = "ERROR"
                 span["status_description"] = event["error"]["message"]
+        elif kind in CONTENT_EVENTS:
+            continue
         elif kind not in ("turn_start", "turn_end"):
             target = stack[-1][1] if stack else root
             attrs = {

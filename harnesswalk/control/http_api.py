@@ -67,6 +67,7 @@ CORS_HEADERS = [
 ]
 # Paths the web app's fallback never answers: the API, health and the OpenAPI docs, and the
 # built assets (a missing asset is a 404, not index.html served as JavaScript).
+EVAL_TENANT_PREFIX = "evalrun-"  # ops/eval/offline.py scratch_tenant()
 API_PREFIXES = ("v1/", "healthz/", "docs/", "openapi.json/", "assets/")
 API_PATHS = frozenset({"v1", "healthz", "docs", "openapi.json"})
 ANY_METHOD = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
@@ -98,6 +99,10 @@ class Identities:
             if header and self.cfg.get("allow_tenant_header", True):
                 if not TOKEN.match(header):
                     raise GatewayError(400, "invalid_request", "bad X-Harnesswalk-Tenant")
+                if header.startswith(EVAL_TENANT_PREFIX):
+                    # An eval run's scratch tenant: a caller could read a run's case turns or
+                    # seed memory into a future run's starting state (P4 integration review).
+                    raise GatewayError(400, "invalid_request", "that tenant id is reserved")
                 tenant = header
             return Identity(tenant, None, ["user"], anonymous=False), None
         if self.mode == "public":

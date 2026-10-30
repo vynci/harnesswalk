@@ -261,6 +261,14 @@ marked as in development upstream; this mapping targets the attribute names curr
 | `turn_start` to `turn_end` | Root span `harnesswalk.turn` | Optional; parent of the first node span |
 | `detail_ref` | `harnesswalk.detail_ref` | |
 
+Content stays out of telemetry (P4 integration): the summary keys that carry text a person or
+the model wrote (`reply`, `delta`, `text`, `message`, `preview`, `args_preview`, `note`,
+`query`, `content`) are never exported as attributes, and `message_delta` events are not
+exported at all. Summaries are redacted for the UI, but in dev the reply carries the user's
+own values back, and the GenAI conventions keep message content out unless a deployment opts
+in (an opt-in is not offered yet). Secrets never appear in events, so none can reach an
+exporter.
+
 Message content (`gen_ai.input.messages`, `gen_ai.output.messages`) is not in the stream. An
 exporter MAY attach it from the trace store when the deployment allows content capture.
 
