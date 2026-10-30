@@ -43,7 +43,6 @@ for (const theme of ['light', 'dark'] as const) {
     await shot(page, `artifact-saved-${theme}`)
 
     await page.getByTestId('view-simple').click()
-    await page.getByTestId('legend-toggle').click()
     await page.getByTestId('node-eval').click()
     const inspector = page.getByTestId('inspector')
     await inspector.getByTestId('eval-run-button').click()

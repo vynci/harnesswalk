@@ -15,7 +15,7 @@ import { HarnessNode } from './HarnessNode'
 import { computeLayout } from './layout'
 import { opsRoleNode } from './opsRoles'
 import { PlaneNode } from './PlaneNode'
-import { toFlow } from './flow'
+import { toFlow, type OpsChip } from './flow'
 import { TurnStatusBar } from './TurnStatusBar'
 import { Legend } from './Legend'
 
@@ -23,6 +23,8 @@ const nodeTypes = { harness: HarnessNode, plane: PlaneNode }
 // Room for the turn status bar above the diagram and the legend below it.
 const FIT_PADDING = { top: '48px', right: '14px', bottom: '132px', left: '14px' } as const
 const edgeTypes = { flow: FlowEdge }
+// Below this width the open legend would sit over the LLM Ops row, so it starts closed.
+const ROOMY_PX = 760
 
 function Flow() {
   const diagram = useApp((s) => s.diagram)!
@@ -35,6 +37,7 @@ function Flow() {
   const showTelemetry = useApp((s) => s.showTelemetry)
   const setShowTelemetry = useApp((s) => s.setShowTelemetry)
   const [hovered, setHovered] = useState<string | null>(null)
+  const [roomy, setRoomy] = useState(true)
   const latestEval = useApp((s) => s.latestEval)
   // The node that gates releases carries the regressions of the latest eval run.
   const alerts = useMemo(() => {
@@ -44,6 +47,24 @@ function Flow() {
     const text = `${n} regression${n === 1 ? '' : 's'}`
     return { [id]: { count: n, text, title: `${text} in the latest ${latestEval!.suite} run (${latestEval!.run_id})` } }
   }, [diagram, latestEval])
+  // Neutral chips from the tenant's ops stream: an eval run in progress on the node that runs
+  // them, unreleased edits on the node that ships releases. Both found by diagram shape.
+  const opsRun = useApp((s) => s.opsRun)
+  const liveEval = useApp((s) => s.liveEval)
+  const dirty = useApp((s) => s.capabilities?.release?.working_set_dirty === true)
+  const opsChips = useMemo(() => {
+    const out: Record<string, OpsChip> = {}
+    const evalNode = opsRoleNode(diagram, 'evals')
+    const run = liveEval ?? opsRun
+    if (evalNode && run) {
+      const of = run.total ? `${run.done}/${run.total}` : `${run.done}`
+      out[evalNode] = { text: of, title: `Eval run in progress: ${run.done}${run.total ? ` of ${run.total}` : ''} cases done`, running: true }
+    }
+    const releaseNode = opsRoleNode(diagram, 'releases')
+    if (releaseNode && dirty) out[releaseNode] = { text: 'unreleased', title: 'The working set has unreleased changes' }
+    return out
+  }, [diagram, opsRun, liveEval, dirty])
+  const pulse = useApp((s) => s.opsPulse?.nodeId ?? null)
   const turn = useDisplayTurn()
   const { fitView } = useReactFlow()
 
@@ -53,8 +74,8 @@ function Flow() {
   )
   const disabled = useMemo(() => new Set(disabledList), [disabledList])
   const { nodes, edges } = useMemo(
-    () => toFlow(diagram, layout, turn, { disabled, onToggle: toggleCollapsed, showOps: showTelemetry, hovered, alerts }),
-    [diagram, layout, turn, disabled, toggleCollapsed, showTelemetry, hovered, alerts],
+    () => toFlow(diagram, layout, turn, { disabled, onToggle: toggleCollapsed, showOps: showTelemetry, hovered, alerts, opsChips, pulse }),
+    [diagram, layout, turn, disabled, toggleCollapsed, showTelemetry, hovered, alerts, opsChips, pulse],
   )
 
   useEffect(() => {
@@ -69,6 +90,7 @@ function Flow() {
     if (!el || typeof ResizeObserver === 'undefined') return
     let frame = 0
     const ro = new ResizeObserver(() => {
+      setRoomy(el.clientWidth >= ROOMY_PX)
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => void fitView({ padding: FIT_PADDING }))
     })
@@ -127,7 +149,7 @@ function Flow() {
         <Controls showInteractive={false} position="bottom-left" />
       </ReactFlow>
       <TurnStatusBar turn={turn} />
-      <Legend key={view} view={view} showTelemetry={showTelemetry} onShowTelemetry={setShowTelemetry} />
+      <Legend view={view} roomy={roomy} showTelemetry={showTelemetry} onShowTelemetry={setShowTelemetry} />
     </div>
   )
 }

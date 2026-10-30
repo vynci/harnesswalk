@@ -17,6 +17,16 @@ export interface FlowOptions {
   hovered?: string | null
   /** P4: alert chips by node id (the regressions of the latest eval run). */
   alerts?: Record<string, { count: number; text: string; title: string }>
+  /** P4: neutral ops chips by node id (an eval run in progress, unreleased edits). */
+  opsChips?: Record<string, OpsChip>
+  /** P4: the node an ops event just touched (from the tenant's ops stream). */
+  pulse?: string | null
+}
+
+export interface OpsChip {
+  text: string
+  title: string
+  running?: boolean
 }
 
 /** Which laid-out edges are drawn, given the toggles, the hovered node and the active edge. */
@@ -72,6 +82,7 @@ export function toFlow(
     const off = l.node.disabled === true ? 'now' : opts.disabled.has(l.id) ? 'next' : null
     const offText = off === 'now' ? ', disabled' : off === 'next' ? ', off next turn' : ''
     const alert = opts.alerts?.[l.id]
+    const opsChip = opts.opsChips?.[l.id]
     return {
       id: l.id,
       type: 'harness',
@@ -82,7 +93,7 @@ export function toFlow(
       height: l.height,
       style: { width: l.width, height: l.height },
       draggable: false,
-      ariaLabel: `${l.node.label}, ${l.node.kind}, ${state}${stat ? `, ${stat}` : ''}${l.node.implemented === false ? ', not implemented yet' : ''}${offText}${alert ? `, ${alert.title}` : ''}. Press Enter to inspect.`,
+      ariaLabel: `${l.node.label}, ${l.node.kind}, ${state}${stat ? `, ${stat}` : ''}${l.node.implemented === false ? ', not implemented yet' : ''}${offText}${alert ? `, ${alert.title}` : ''}${opsChip ? `, ${opsChip.title}` : ''}. Press Enter to inspect.`,
       data: {
         node: l.node,
         state,
@@ -96,6 +107,8 @@ export function toFlow(
         current: current === l.id,
         off,
         alert,
+        opsChip,
+        pulse: opts.pulse === l.id,
         onToggle: opts.onToggle,
       },
     }

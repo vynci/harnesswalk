@@ -61,8 +61,6 @@ test('the gate: edit a skill, run golden, see the regression; release, roll back
 
   // 2. Run the golden suite from the Eval node: three cases regress against the seeded run.
   await setView(page, 'Simple')
-  // The legend opens again in the simple view and sits over the ops row of a narrowed diagram.
-  await page.getByTestId('legend-toggle').click()
   await node(page, 'eval').click()
   const inspector = page.getByTestId('inspector')
   await expect(inspector.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')

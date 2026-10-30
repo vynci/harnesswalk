@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
+import { load, save } from '@/state/persist'
 import { edgeColor, KIND_HINT, KIND_ICON } from './planes'
 
 // The three colour channels of the diagram, one row each: node state (accent bar and icon),
@@ -66,9 +67,27 @@ function Entry({ children, title }: { children: React.ReactNode; title?: string 
   )
 }
 
-export function Legend({ view, showTelemetry, onShowTelemetry }: { view: View; showTelemetry: boolean; onShowTelemetry: (on: boolean) => void }) {
-  // Open by default in the simple view, where people meet the colours first.
-  const [open, setOpen] = useState(view === 'simple')
+export function Legend({
+  view,
+  roomy,
+  showTelemetry,
+  onShowTelemetry,
+}: {
+  view: View
+  /** The diagram is wide enough for the open legend not to sit over the LLM Ops row. */
+  roomy: boolean
+  showTelemetry: boolean
+  onShowTelemetry: (on: boolean) => void
+}) {
+  // Open by default in the simple view, where people meet the colours first, and only while the
+  // diagram has room (an open inspector narrows it). Once the reader opens or closes it, that
+  // choice holds across view switches and reloads.
+  const [pref, setPref] = useState<boolean | null>(() => load<boolean | null>('legend', null))
+  const open = pref ?? (view === 'simple' && roomy)
+  const setOpen = (next: boolean) => {
+    setPref(next)
+    save('legend', next)
+  }
   return (
     <Card
       size="sm"

@@ -59,7 +59,6 @@ test('the P4 gate: a skill edit regresses a golden case, and a rollback brings t
 
   // Golden again: at least one case regresses, and the Eval node says so.
   await setView(page, 'Simple')
-  await page.getByTestId('legend-toggle').click()
   await node(page, 'eval').click()
   await inspector.getByTestId('eval-run-button').click()
   const detail = inspector.getByTestId('eval-run-detail')

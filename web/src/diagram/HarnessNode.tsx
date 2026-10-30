@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
-import { ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleDashed, CirclePause, Loader, MinusCircle, TriangleAlert } from 'lucide-react'
+import { ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleDashed, CirclePause, Loader, LoaderCircle, MinusCircle, TriangleAlert } from 'lucide-react'
 import type { DiagramNode } from '@/api/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import type { NodeState } from '@/state/reducer'
 import { KIND_HINT, KIND_ICON, planeStyle } from './planes'
+import type { OpsChip } from './flow'
 import type { StoreBadge } from './stats'
 
 export interface HarnessNodeData extends Record<string, unknown> {
@@ -27,6 +28,10 @@ export interface HarnessNodeData extends Record<string, unknown> {
   off: 'now' | 'next' | null
   /** P4: a short alert chip, such as the regressions of the latest eval run. */
   alert?: { count: number; text: string; title: string }
+  /** P4: a neutral ops chip: an eval run in progress, unreleased edits. */
+  opsChip?: OpsChip
+  /** P4: an ops event just touched this node (a release, an edit, an eval run). */
+  pulse?: boolean
   onToggle?: (id: string) => void
 }
 
@@ -68,7 +73,7 @@ function KindChip({ kind, small }: { kind: DiagramNode['kind']; small: boolean }
 }
 
 function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
-  const { node, state, stat, why, points, badges, expanded, hasChildren, isChild, current, off, alert } = data
+  const { node, state, stat, why, points, badges, expanded, hasChildren, isChild, current, off, alert, opsChip, pulse } = data
   const notYet = node.implemented === false
   return (
     <Card
@@ -82,6 +87,7 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
       data-implemented={notYet ? 'false' : 'true'}
       data-current={current ? 'true' : 'false'}
       data-node-kind={node.kind}
+      data-pulse={pulse ? 'true' : undefined}
       data-points={points ? Object.entries(points).map(([k, v]) => `${k}:${v}`).join(' ') : undefined}
     >
       <span className="hw-accent" aria-hidden />
@@ -96,6 +102,12 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
         <CardTitle className={cn('min-w-0 truncate leading-normal font-medium tracking-[-0.005em]', isChild ? 'text-xs' : 'text-[13.5px]')}>{node.label}</CardTitle>
         <span className="ml-auto flex shrink-0 items-center gap-1">
           <KindChip kind={node.kind} small={isChild} />
+          {opsChip && (
+            <Badge variant="secondary" className="h-4 gap-0.5 px-1 font-normal text-muted-foreground tabular-nums" title={opsChip.title} data-testid={`ops-chip-${node.id}`}>
+              {opsChip.running && <LoaderCircle aria-hidden className="animate-spin motion-reduce:animate-none" />}
+              {opsChip.text}
+            </Badge>
+          )}
           {alert && (
             <Badge variant="destructive" className="h-4 gap-0.5 px-1 font-normal tabular-nums" title={alert.title} data-testid={`alert-${node.id}`}>
               <TriangleAlert aria-hidden />

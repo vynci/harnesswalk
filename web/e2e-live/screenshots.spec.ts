@@ -139,7 +139,6 @@ test('the eval run and the release diff', async ({ page, request }) => {
   await expect(editor.getByTestId('artifact-saved')).toBeVisible()
 
   await page.getByTestId('view-simple').click()
-  await page.getByTestId('legend-toggle').click()
   await page.getByTestId('node-eval').click()
   await inspector.getByTestId('eval-run-button').click()
   const detail = inspector.getByTestId('eval-run-detail')

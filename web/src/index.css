@@ -324,6 +324,19 @@
   }
 }
 
+/* An ops event (a release, an edit, an eval run) just touched the node: one short ring. */
+.hw-node[data-pulse='true'] {
+  animation: hw-ops-pulse 1.4s ease-out 1;
+}
+@keyframes hw-ops-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--plane-stroke) 60%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 10px color-mix(in oklab, var(--plane-stroke) 0%, transparent);
+  }
+}
+
 /* Edges: colour says the kind, opacity and motion say the state. */
 .hw-edge {
   color: var(--edge-color);
@@ -395,6 +408,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .hw-node[data-pulse='true'] {
+    animation: none;
+  }
   .hw-node[data-state='active'] {
     animation: none;
     box-shadow: 0 0 0 4px color-mix(in oklab, var(--state-active) 40%, transparent);

@@ -35,5 +35,7 @@ export function Notices() {
     }
   }, [connection])
 
-  return <Toaster theme={theme} position="top-right" closeButton offset={{ top: 56 }} />
+  // Bottom left, over the chat's message area just above the composer: never over the header
+  // (which wraps on narrow screens), the diagram's legend and status bar, or the inspector.
+  return <Toaster theme={theme} position="bottom-left" closeButton offset={{ bottom: 112, left: 16 }} mobileOffset={{ bottom: 112, left: 16, right: 16 }} />
 }
