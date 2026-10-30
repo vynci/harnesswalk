@@ -1,9 +1,22 @@
 // Application state. Stream state per turn comes from the pure reducer; this store wires it to
 // the API, the stream client, the chat, replay and the view toggles.
 import { create } from 'zustand'
-import { ApiError, createApi, type Api, type Transport } from '@/api/client'
-import { loadTurnEvents, openTurnStream, type TurnStream } from '@/api/stream'
-import type { Capabilities, Diagram, HarnessEvent, TurnSummary, View } from '@/api/types'
+import { ApiError, createApi, type Api, type ResumeMode, type Transport } from '@/api/client'
+import { loadTurnEvents, openEvalStream, openTurnStream, type TurnStream } from '@/api/stream'
+import type {
+  ArtifactSaved,
+  Capabilities,
+  Diagram,
+  EvalRunSummary,
+  FeedbackRating,
+  HarnessEvent,
+  ReleaseSummary,
+  StartEvalRequest,
+  TurnFeedback,
+  TurnSummary,
+  View,
+} from '@/api/types'
+import { artifactLabel, releaseMark, savedMark, type OpsMark } from './ops'
 import { buildEdgeIndex, initialTurnState, reduceEvent, reduceEvents, type EdgeIndex, type TurnState } from './reducer'
 import { load, rememberMessage, recallMessages, save } from './persist'
 
@@ -16,6 +29,18 @@ export interface ChatTurn {
   createdAt: number
   /** The event stream dropped and came back while the turn was still going (a restart, say). */
   reconnected?: boolean
+  /** P4: the Good or Bad sent from this browser, before the summary is read back. */
+  feedback?: TurnFeedback | null
+}
+
+/** An eval run this browser started, while its progress stream is open. */
+export interface LiveEval {
+  runId: string
+  suite: string
+  pack: string
+  /** Cases finished so far, counted from `eval_case_finished`. */
+  done: number
+  total: number | null
 }
 
 export interface Notice {
@@ -74,11 +99,17 @@ export interface AppState {
   /** Dev mode composer options: a JSON Schema for the answer, and a model alias hint. */
   outputSchema: string
   modelHint: string | null
+  /** P4: saves and releases in the chat timeline (Checkpoint markers). */
+  marks: OpsMark[]
+  /** P4: the eval run in progress, started here. */
+  liveEval: LiveEval | null
+  /** P4: the newest eval run, for the regression badge on the diagram. */
+  latestEval: EvalRunSummary | null
 
   boot: (t: Transport, opts?: { mock?: boolean; validate?: AppState['validate']; seedMessages?: Record<string, string>; sessionId?: string }) => Promise<void>
   send: (text: string) => Promise<void>
   stop: () => Promise<void>
-  resume: (mode: 'step' | 'continue') => Promise<void>
+  resume: (mode: ResumeMode) => Promise<void>
   decide: (decision: 'approve' | 'deny') => Promise<void>
   newSession: () => void
   enterReplay: (turnId: string) => Promise<void>
@@ -102,6 +133,20 @@ export interface AppState {
   decideProposal: (proposalId: string, decision: 'accept' | 'reject') => Promise<boolean>
   setOutputSchema: (text: string) => void
   setModelHint: (alias: string | null) => void
+  refreshCapabilities: () => Promise<void>
+  refreshLatestEval: () => Promise<void>
+  startEval: (req: StartEvalRequest) => Promise<string | null>
+  saveArtifact: (kind: string, name: string, body: string, note?: string) => Promise<ArtifactSaved | null>
+  restoreArtifact: (kind: string, name: string, version: number) => Promise<boolean>
+  createRelease: (note?: string) => Promise<ReleaseSummary | null>
+  rollback: (releaseId: string) => Promise<boolean>
+  sendFeedback: (turnId: string, rating: FeedbackRating, note?: string) => Promise<boolean>
+}
+
+/** A turn is running or paused: edits wait for it (the API answers 409 turn_running). */
+export function selectTurnRunning(s: Pick<AppState, 'liveTurnId' | 'turns'>): boolean {
+  const live = s.liveTurnId ? s.turns[s.liveTurnId]?.state : undefined
+  return !!live && (live.phase === 'running' || live.phase === 'paused')
 }
 
 /** The composer's schema text as a JSON Schema object, or an error message. Empty is none. */
@@ -117,6 +162,7 @@ export function parseOutputSchema(text: string): { schema?: Record<string, unkno
 }
 
 let stream: TurnStream | null = null
+let evalStream: { close: () => void } | null = null
 let noticeId = 0
 
 /**
@@ -190,7 +236,11 @@ export const useApp = create<AppState>()((set, get) => {
             if (get().liveTurnId === turnId) set({ liveTurnId: null })
             get().notify('error', 'Lost the event stream for this turn. Reload to reconnect.')
           }
-          if (why === 'turn_end') void refreshSummary(turnId)
+          if (why === 'turn_end') {
+            void refreshSummary(turnId)
+            // A release made elsewhere (the CLI, another browser) shows up in the capabilities.
+            if (get().capabilities?.features.release) void get().refreshCapabilities()
+          }
         },
       },
     )
@@ -205,6 +255,36 @@ export const useApp = create<AppState>()((set, get) => {
     } catch {
       // The stream already carried everything the chat needs.
     }
+  }
+
+  /**
+   * The session listing may not carry P4's `feedback` and `scores` (the contract adds them to
+   * GET /v1/turns/{id}); read those turns one by one, newest first, so the Good and Bad buttons
+   * show what was pressed before the reload.
+   */
+  const hydrateFeedback = async (list: TurnSummary[]) => {
+    const { api, capabilities } = get()
+    if (!api || !capabilities?.features.feedback) return
+    const missing = list.filter((t) => t.status === 'done' && !('feedback' in t)).slice(-20).reverse()
+    for (const t of missing) await refreshSummary(t.turn_id)
+  }
+
+  const addMark = (mark: OpsMark) => {
+    const s = get()
+    const marks = [...s.marks, mark]
+    set({ marks })
+    save('marks', { sessionId: s.sessionId, marks: marks.slice(-50) })
+  }
+
+  /** Record the release this browser just made active, so a refresh does not mark it twice. */
+  const setActiveRelease = (releaseId: string) => {
+    const c = get().capabilities
+    if (c) set({ capabilities: { ...c, release: { working_set_dirty: false, ...c.release, active_release_id: releaseId } } })
+  }
+
+  const afterTurn = () => {
+    const o = get().order
+    return o[o.length - 1] ?? null
   }
 
   const loadHistory = async (sessionId: string) => {
@@ -232,6 +312,7 @@ export const useApp = create<AppState>()((set, get) => {
       ),
       order: oldestFirst.map((t) => t.turn_id),
     })
+    void hydrateFeedback(oldestFirst)
     // A turn that is still running (a reload mid-turn) is picked up from the start of its stream.
     const running = oldestFirst.find((t) => t.status !== 'done')
     if (running) {
@@ -284,15 +365,21 @@ export const useApp = create<AppState>()((set, get) => {
     inspectorVersion: 0,
     outputSchema: '',
     modelHint: null,
+    marks: [],
+    liveEval: null,
+    latestEval: null,
 
     async boot(t, opts = {}) {
       const api = createApi(t)
       if (opts.seedMessages) for (const [id, text] of Object.entries(opts.seedMessages)) rememberMessage(id, text)
       const sessionId = opts.sessionId ?? load<string | null>('session', null)
-      set({ api, validate: opts.validate, mock: opts.mock ?? false, sessionId })
+      const stored = load<{ sessionId: string | null; marks: OpsMark[] } | null>('marks', null)
+      const marks = stored && stored.sessionId === sessionId && Array.isArray(stored.marks) ? stored.marks : []
+      set({ api, validate: opts.validate, mock: opts.mock ?? false, sessionId, marks })
       try {
         const [capabilities, diagram] = await Promise.all([api.capabilities(), api.diagram()])
         set({ capabilities, diagram, edgeIndex: buildEdgeIndex(diagram.edges), ready: true, bootError: null })
+        if (capabilities.features.evals) void get().refreshLatestEval()
         if (sessionId) await loadHistory(sessionId)
       } catch (err) {
         set({ bootError: describe(err), ready: false })
@@ -331,6 +418,8 @@ export const useApp = create<AppState>()((set, get) => {
         if (res.session_id !== sessionId) {
           set({ sessionId: res.session_id })
           save('session', res.session_id)
+          // Markers made before the first message belong to this session now.
+          if (get().marks.length) save('marks', { sessionId: res.session_id, marks: get().marks })
         }
         addTurn({ turnId: res.turn_id, userText: message, state: initialTurnState(), createdAt: Date.now() })
         follow(res.turn_id)
@@ -380,7 +469,8 @@ export const useApp = create<AppState>()((set, get) => {
       stream?.close()
       stream = null
       save('session', null)
-      set({ sessionId: null, turns: {}, order: [], liveTurnId: null, replay: null, connection: 'idle' })
+      save('marks', null)
+      set({ sessionId: null, turns: {}, order: [], liveTurnId: null, replay: null, connection: 'idle', marks: [] })
     },
 
     async enterReplay(turnId) {
@@ -510,6 +600,162 @@ export const useApp = create<AppState>()((set, get) => {
 
     setModelHint(modelHint) {
       set({ modelHint })
+    },
+
+    async refreshCapabilities() {
+      const api = get().api
+      if (!api) return
+      const before = get().capabilities?.release?.active_release_id ?? null
+      try {
+        const capabilities = await api.capabilities()
+        set({ capabilities })
+        const now = capabilities.release?.active_release_id ?? null
+        // A release this browser did not make: its own actions set the active id first.
+        if (now && before && now !== before) addMark(releaseMark(now, before, false, afterTurn()))
+      } catch {
+        // Keep the capabilities we have.
+      }
+    },
+
+    async refreshLatestEval() {
+      const api = get().api
+      if (!api) return
+      try {
+        const [latest] = await api.evalRuns({ limit: 1 })
+        set({ latestEval: latest ?? null })
+      } catch {
+        // The badge just stays as it was.
+      }
+    },
+
+    async startEval(req) {
+      const api = get().api
+      if (!api) return null
+      let runId: string
+      try {
+        runId = (await api.startEval(req)).run_id
+      } catch (err) {
+        const text =
+          err instanceof ApiError && err.code === 'judge_unavailable'
+            ? 'The judge suite needs a configured model other than fake. Pick one, or run the golden suite.'
+            : `Could not start the eval run: ${describe(err)}`
+        get().notify('error', text)
+        return null
+      }
+      evalStream?.close()
+      set({ liveEval: { runId, suite: req.suite, pack: req.pack, done: 0, total: req.cases?.length ?? null }, inspectorVersion: get().inspectorVersion + 1 })
+      const finish = async () => {
+        evalStream = null
+        try {
+          const run = await api.evalRun(runId)
+          set({ latestEval: run })
+          const t = run.totals
+          get().notify(
+            run.regressions > 0 ? 'error' : 'info',
+            `${run.suite} run finished: ${t.passed} passed, ${t.failed} failed, ${t.skipped} skipped${run.regressions ? `, ${run.regressions} regression${run.regressions === 1 ? '' : 's'}` : ''}.`,
+          )
+        } catch (err) {
+          get().notify('error', `Could not read the eval run: ${describe(err)}`)
+        }
+        set((s) => ({ liveEval: s.liveEval?.runId === runId ? null : s.liveEval, inspectorVersion: s.inspectorVersion + 1 }))
+      }
+      evalStream = openEvalStream(api.transport, runId, {
+        onEvent: (ev) => {
+          const summary = ev.summary ?? {}
+          set((s) => {
+            if (s.liveEval?.runId !== runId) return {}
+            const total = typeof summary.total === 'number' ? summary.total : typeof summary.cases === 'number' ? summary.cases : s.liveEval.total
+            return { liveEval: { ...s.liveEval, total, done: s.liveEval.done + (ev.type === 'eval_case_finished' ? 1 : 0) } }
+          })
+        },
+        onEnd: (why) => {
+          if (why !== 'closed') void finish()
+        },
+      })
+      return runId
+    },
+
+    async saveArtifact(kind, name, body, note) {
+      const api = get().api
+      if (!api) return null
+      try {
+        const saved = await api.saveArtifact(kind, name, body, note)
+        get().notify('info', `${artifactLabel(saved.kind, saved.name)} v${saved.version} saved to the working set.`)
+        addMark(savedMark(saved, afterTurn()))
+        set((s) => ({ inspectorVersion: s.inspectorVersion + 1 }))
+        void get().refreshCapabilities()
+        return saved
+      } catch (err) {
+        const text =
+          err instanceof ApiError && err.code === 'turn_running'
+            ? 'A turn is running, so the edit was not saved. Try again when it ends.'
+            : `Could not save ${artifactLabel(kind, name)}: ${describe(err)}`
+        get().notify('error', text)
+        return null
+      }
+    },
+
+    async restoreArtifact(kind, name, version) {
+      const api = get().api
+      if (!api) return false
+      try {
+        const old = await api.artifact(kind, name, version)
+        const saved = await get().saveArtifact(kind, name, old.body, `restore v${version}`)
+        return saved !== null
+      } catch (err) {
+        get().notify('error', `Could not read ${artifactLabel(kind, name)} v${version}: ${describe(err)}`)
+        return false
+      }
+    },
+
+    async createRelease(note) {
+      const api = get().api
+      if (!api) return null
+      const previous = get().capabilities?.release?.active_release_id ?? null
+      try {
+        const release = await api.createRelease(note)
+        get().notify('info', `Release ${release.release_id} created and active.`)
+        addMark(releaseMark(release.release_id, previous, false, afterTurn()))
+        setActiveRelease(release.release_id)
+        set((s) => ({ inspectorVersion: s.inspectorVersion + 1 }))
+        await get().refreshCapabilities()
+        return release
+      } catch (err) {
+        get().notify('error', `Could not create the release: ${describe(err)}`)
+        return null
+      }
+    },
+
+    async rollback(releaseId) {
+      const api = get().api
+      if (!api) return false
+      const previous = get().capabilities?.release?.active_release_id ?? null
+      try {
+        await api.rollback(releaseId)
+        get().notify('info', `Rolled back: release ${releaseId} is active and the working set matches it.`)
+        addMark(releaseMark(releaseId, previous, true, afterTurn()))
+        setActiveRelease(releaseId)
+        set((s) => ({ inspectorVersion: s.inspectorVersion + 1 }))
+        await get().refreshCapabilities()
+        return true
+      } catch (err) {
+        get().notify('error', `Could not roll back to ${releaseId}: ${describe(err)}`)
+        return false
+      }
+    },
+
+    async sendFeedback(turnId, rating, note) {
+      const api = get().api
+      if (!api) return false
+      try {
+        const stored = await api.feedback(turnId, rating, note)
+        const feedback: TurnFeedback = { rating: stored?.rating ?? rating, note: stored?.note ?? note ?? null, at: stored?.at }
+        updateTurn(turnId, (t) => ({ ...t, feedback, summary: t.summary ? { ...t.summary, feedback } : t.summary }))
+        return true
+      } catch (err) {
+        get().notify('error', `Could not record the feedback: ${describe(err)}`)
+        return false
+      }
     },
   }
 })
