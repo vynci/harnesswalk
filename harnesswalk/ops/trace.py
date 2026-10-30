@@ -177,9 +177,20 @@ class Tracer:
             self._index(start)
             self._complete(start["tenant_id"], start["turn_id"])
 
+    def tenant_of(self, turn_id: str, among: list[str]) -> str | None:
+        """Which of these tenants owns the turn (an eval case turn lives in a scratch tenant)."""
+        if not among:
+            return None
+        marks = ", ".join("?" for _ in among)
+        row = self.db.one(
+            f"SELECT tenant_id FROM turn_index WHERE turn_id = ? AND tenant_id IN ({marks})",
+            (turn_id, *among),
+        )
+        return row["tenant_id"] if row else None
+
     def query_turns(
         self,
-        tenant_id: str,
+        tenant_id: str | list[str],
         *,
         session: str | None = None,
         node: str | None = None,
@@ -190,11 +201,14 @@ class Tracer:
         limit: int = 50,
         after: str | None = None,
     ) -> tuple[list[dict[str, Any]], str | None]:
-        """The trace query: the tenant's turns, newest first, with receipts, and the cursor of
-        the next page. `status` running and paused are both unfinished rows; paused is read off
-        the turn's events."""
-        sql = "SELECT * FROM turn_index WHERE tenant_id = ?"
-        params: list[Any] = [tenant_id]
+        """The trace query: the tenant's turns (or several tenants', for eval case turns), newest
+        first, with receipts, and the cursor of the next page. `status` running and paused are
+        both unfinished rows; paused is read off the turn's events."""
+        tenants = [tenant_id] if isinstance(tenant_id, str) else list(tenant_id)
+        if not tenants:
+            return [], None
+        sql = f"SELECT * FROM turn_index WHERE tenant_id IN ({', '.join('?' for _ in tenants)})"
+        params: list[Any] = list(tenants)
         if session:
             sql += " AND session_id = ?"
             params.append(session)
@@ -220,8 +234,9 @@ class Tracer:
             params.append(node)
         if after:
             cursor = self.db.one(
-                "SELECT started_at FROM turn_index WHERE tenant_id = ? AND turn_id = ?",
-                (tenant_id, after),
+                "SELECT started_at FROM turn_index WHERE turn_id = ?"
+                f" AND tenant_id IN ({', '.join('?' for _ in tenants)})",
+                (after, *tenants),
             )
             if cursor is None:
                 raise KeyError(after)
@@ -269,6 +284,7 @@ class Tracer:
             return None
         return {
             "turn_id": row["turn_id"],
+            "tenant_id": row["tenant_id"],
             "session_id": row["session_id"],
             "trace_id": row["trace_id"],
             "started_at": row["started_at"],

@@ -148,6 +148,22 @@ class EvalStore:
         )
         return [json.loads(r["body"]) for r in rows]
 
+    def case_of_turn(self, run_id: str, turn_id: str) -> str | None:
+        """The case id whose turn this is, in that run."""
+        row = self.db.one(
+            "SELECT case_id FROM eval_cases WHERE run_id = ?"
+            " AND json_extract(body, '$.turn_id') = ?",
+            (run_id, turn_id),
+        )
+        return row["case_id"] if row else None
+
+    def run_ids(self, tenant_id: str, limit: int = 1000) -> list[str]:
+        rows = self.db.query(
+            "SELECT run_id FROM eval_runs WHERE tenant_id = ? ORDER BY seq DESC LIMIT ?",
+            (tenant_id, limit),
+        )
+        return [r["run_id"] for r in rows]
+
     def case_statuses(self, run_id: str) -> dict[str, str]:
         rows = self.db.query("SELECT case_id, status FROM eval_cases WHERE run_id = ?", (run_id,))
         return {r["case_id"]: r["status"] for r in rows}

@@ -736,6 +736,12 @@ output_tokens, usd}, steps, duration_ms, path, kind, channel }` where `path` is 
 path (`steps` and `duration_ms` are `null` while the turn runs). Served from a turn index the
 trace store keeps (one query per page).
 
+P4 integration: each item also carries `tenant_id`. Case turns of eval runs live in a scratch
+tenant per run, so `kind=eval` lists the case turns of the caller's own runs (their
+`tenant_id` is `evalrun-<run_id>`), each with `run_id`, `case_id` and `events_url` (the case's
+stored stream, as in the run detail); without `kind` only the caller's own tenant is listed.
+The receipt route answers for those case turns too.
+
 `GET /v1/trace/turns/{turn_id}/receipt`: `{ turn_id, total, by_node, by_model, latency_ms,
 nodes: {node_id: {ms, count, input_tokens, output_tokens, usd}}, calls: [{seq, step, provider,
 model, input_tokens, output_tokens, usd, ms, fallback}], scores: {node_id: {name: value}} |

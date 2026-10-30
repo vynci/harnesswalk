@@ -133,3 +133,39 @@ async def test_every_artifact_backed_inspector_names_its_artifact(tmp_path: Path
         ]
         assert "artifact" not in (await c.get("/v1/nodes/loop")).json()["inspector"]
     await h.aclose()
+
+
+# -- eval case turns in the trace query --------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_kind_eval_lists_the_callers_case_turns_with_their_streams(tmp_path: Path) -> None:
+    h = starter(tmp_path)
+    async with client(h, "dev") as c, client(h, "other") as o:
+        await run_turn(h, "What are your support hours?", tenant="dev")
+        body = {"pack": "_starter", "suite": "golden", "cases": ["support_hours", "order_status"]}
+        run_id = (await c.post("/v1/evals/runs", json=body)).json()["run_id"]
+        await h.evals.offline.wait(run_id)
+
+        chat = (await c.get("/v1/trace/turns", params={"kind": "chat"})).json()["turns"]
+        assert len(chat) == 1 and chat[0]["kind"] == "chat"
+        evals = (await c.get("/v1/trace/turns", params={"kind": "eval"})).json()
+        rows = evals["turns"]
+        assert {r["case_id"] for r in rows} == {"support_hours", "order_status"}
+        assert all(r["kind"] == "eval" and r["run_id"] == run_id for r in rows)
+        assert all(r["tenant_id"] == f"evalrun-{run_id}" for r in rows)
+        one = next(r for r in rows if r["case_id"] == "order_status")
+        assert one["events_url"] == f"/v1/evals/runs/{run_id}/cases/order_status/events"
+        stream = parse_sse((await c.get(one["events_url"])).text)
+        assert stream[0]["turn_id"] == one["turn_id"] and stream[-1]["type"] == "turn_end"
+        receipt = (await c.get(f"/v1/trace/turns/{one['turn_id']}/receipt")).json()
+        assert receipt["total"] == stream[-1]["cost"]
+        page = (await c.get("/v1/trace/turns", params={"kind": "eval", "limit": 1})).json()
+        nxt = await c.get("/v1/trace/turns", params={"kind": "eval", "after": page["next_after"]})
+        assert len(nxt.json()["turns"]) == 1
+
+        # Another tenant sees none of the run.
+        assert (await o.get("/v1/trace/turns", params={"kind": "eval"})).json()["turns"] == []
+        assert (await o.get(f"/v1/trace/turns/{one['turn_id']}/receipt")).status_code == 404
+        assert (await o.get(one["events_url"])).status_code == 404
+    await h.aclose()

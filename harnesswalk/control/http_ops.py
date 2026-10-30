@@ -325,9 +325,14 @@ def add_ops_routes(
             raise GatewayError(400, "invalid_request", "kind must be chat or eval")
         if not 1 <= limit <= 200:
             raise GatewayError(400, "invalid_request", "limit must be between 1 and 200")
+        # Case turns of eval runs live in one scratch tenant per run: `kind=eval` lists the
+        # caller's runs' case turns, each with the events_url that serves its stream.
+        tenants: str | list[str] = tenant_id
+        if kind == "eval":
+            tenants = [scratch_tenant(r) for r in h.evals.store.run_ids(tenant_id)]
         try:
             turns, next_after = h.tracer.query_turns(
-                tenant_id,
+                tenants,
                 session=session,
                 node=node,
                 status=status,
@@ -339,12 +344,26 @@ def add_ops_routes(
             )
         except KeyError as exc:
             raise GatewayError(400, "invalid_request", "after names no turn of yours") from exc
+        if kind == "eval":
+            for t in turns:
+                run_id = t["tenant_id"].removeprefix(scratch_tenant(""))
+                case_id = h.evals.store.case_of_turn(run_id, t["turn_id"])
+                t["run_id"] = run_id
+                t["case_id"] = case_id
+                t["events_url"] = (
+                    f"/v1/evals/runs/{run_id}/cases/{case_id}/events" if case_id else None
+                )
         return JSONResponse({"turns": turns, "next_after": next_after})
 
     @app.get("/v1/trace/turns/{turn_id}/receipt")
     async def trace_receipt(request: Request, turn_id: str) -> JSONResponse:
         tenant_id = tenant(request)
         events = h.tracer.get_turn(tenant_id, turn_id)
+        if not events:  # a case turn of one of the caller's eval runs
+            scratch = [scratch_tenant(r) for r in h.evals.store.run_ids(tenant_id)]
+            owner = h.tracer.tenant_of(turn_id, scratch)
+            events = h.tracer.get_turn(owner, turn_id) if owner else []
+            tenant_id = owner or tenant_id
         if not events:
             raise GatewayError(404, "turn_not_found", f"No turn {turn_id} for this tenant.")
         out = full_receipt(turn_id, events)
