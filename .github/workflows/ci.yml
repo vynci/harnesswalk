@@ -28,6 +28,10 @@ jobs:
           uv run ruff format --check .
       - name: Test
         run: uv run pytest
+      - name: Golden suite (fake provider; the judge is never configured in CI)
+        run: uv run harnesswalk eval _starter --suite golden
+        env:
+          HARNESSWALK_DATA_DIR: ${{ runner.temp }}/harnesswalk-eval
 
   web:
     runs-on: ubuntu-latest

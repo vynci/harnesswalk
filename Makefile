@@ -1,5 +1,5 @@
 # harnesswalk developer targets. Every target goes through uv.
-.PHONY: setup test conformance run turn lint format up down web-build web-dev web-mock web-test web-e2e-mock e2e screenshots
+.PHONY: setup test conformance eval run turn lint format up down web-build web-dev web-mock web-test web-e2e-mock e2e screenshots
 
 setup: ## Create .venv and install the package with dev tools
 	uv sync
@@ -10,6 +10,9 @@ test: ## Unit tests, spec checks and the conformance suite (fake provider, offli
 conformance: ## Run every spec/conformance case against the live harness, then the spec checks
 	uv run python -m tests.conformance.runner
 	uv run pytest tests/spec -q
+
+eval: ## The starter golden set on the fake provider, scored and diffed against the last run: make eval PACK=_starter
+	uv run harnesswalk eval $(or $(PACK),_starter) --suite golden
 
 # The web app `make run` serves. A HARNESSWALK_WEB_DIST already set in the environment wins.
 HARNESSWALK_WEB_DIST ?= $(CURDIR)/web/dist
