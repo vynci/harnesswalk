@@ -75,10 +75,10 @@ not git: the store is append-only and every release carries a hash chained to th
 which gives the same restore-by-id and tamper evidence without a repository in the data volume.
 `release.store: git` is reserved for later.
 
-- **Artifacts** are `(kind, name)` pairs: `prompt/<pack>` (`datasets/<pack>/system_prompt.md`,
+- **Artifacts** are `(kind, name)` pairs: `prompt/system_prompt` (`datasets/<pack>/system_prompt.md`,
   or the profile's inline `procedural.system_prompt`), `skill/<name>` (`skills/<name>.md` or the
   inline skills), `policy/policy`, `context/context`, `models/models` (`config/*.yaml`) and
-  `tools/<pack>` (`datasets/<pack>/tools.yaml`). `config/harness.yaml` is process
+  `tools/tools` (`datasets/<pack>/tools.yaml`). `config/harness.yaml` is process
   configuration, not an artifact.
 - **Versions** are integers from 1 per artifact, with `hash` (sha256 of the body),
   `updated_at`, `updated_by` (`seed`, `disk`, `user:<tenant>`, `rollback`), `note`, and
@@ -87,14 +87,14 @@ which gives the same restore-by-id and tamper evidence without a repository in t
 - **Seeding and disk changes.** At start-up each source file (or inline profile value) is
   compared with the hash it was last imported at. A new artifact is seeded as version 1, a
   changed one gets a new version (`updated_by: disk`). The first start creates release
-  `rel_0001` (note "initial"). In a mode that does not serve the working set, a start-up import
+  `r1` (note "initial"). In a mode that does not serve the working set, a start-up import
   also creates a release, because the files are what was deployed.
 - **current()** stays the one door: `config/loader.py` and the procedural store read every
   artifact through it, with the served set (active release, or the working set when
   `release.use_working_set`). The content stamp (`<name>@<sha256 prefix>`) is what traces show.
   Overlays (the conformance profile, `HARNESSWALK_*` variables, `--set`) apply on top of the
   served config, as they did on top of the files.
-- **Releases** have `release_id` (`rel_0001`, ...), `pack`, `created_at`, `created_by`, `note`,
+- **Releases** have `release_id` (`r1`, ...), `pack`, `created_at`, `created_by`, `note`,
   `artifacts[] {kind, name, version, hash}`, `prev_hash` and `hash` = sha256 of the canonical
   JSON of `{release_id, pack, created_at, created_by, note, artifacts, prev_hash}`. Verifying the
   chain recomputes every hash. One release is active per pack; rollback changes which, and is

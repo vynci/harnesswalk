@@ -610,7 +610,7 @@ at most 200). Each run summary:
   "ended_at": "2026-10-29T15:00:02.410Z", "status": "done",
   "totals": { "cases": 13, "passed": 12, "failed": 1, "skipped": 0 },
   "regressions": 1, "previous_run_id": "run_0002",
-  "release_id": "rel_0001", "working_set": true, "artifacts_hash": "9c1f...",
+  "release_id": "r1", "working_set": true, "artifacts_hash": "9c1f...",
   "cost": { "input_tokens": 0, "output_tokens": 0, "usd": 0.0 }
 }
 ```
@@ -653,7 +653,12 @@ stored events only). Approvals in a case are decided by the runner with the case
 `GET /v1/evals/runs/{run_id}/events`: SSE of the run's ops events, stored first then live,
 `eval_run_started`, one `eval_case_finished` per case, `eval_run_finished`; closes after
 `eval_run_finished`. `id:` is the event's `seq` in the run stream; `after` and `Last-Event-ID`
-work as on turn streams.
+work as on turn streams. Each message's `data` is the ops event (`type`, `tenant_id`,
+`turn_id: null`, `ts`, `summary`, ...) with `run_id` added at the top level for the reader's
+convenience (the stored event keeps the schema's envelope; `run_id` is also in `summary`).
+Summaries: `eval_run_started {run_id, pack, suite, model, total}`, `eval_case_finished
+{run_id, case_id, status, regression, index, total, scores, turn_id}`, `eval_run_finished
+{run_id, status, totals, regressions, regression_cases, previous_run_id}`.
 
 `GET /v1/evals/golden?pack=` returns `{ "pack": "_starter", "path": "datasets/_starter/golden.jsonl", "cases": [...] }`,
 read-only, as stored.
@@ -677,9 +682,10 @@ rating replaces the current one; earlier ones stay in the history. Emits `feedba
 
 ### Artifacts and releases
 
-Artifacts: `prompt` (the system prompt of a pack, named after the pack), `skill` (one per skill,
-named after the skill), `policy`, `context`, `models` (named after their kind), `tools` (the
-pack's tool file, named after the pack). Each has `kind, name, version (int from 1), hash
+Artifacts and their names: `prompt/system_prompt` (the loaded pack's system prompt),
+`skill/<name>` (one per skill, for example `skill/order_status`, `skill/returns`),
+`policy/policy`, `context/context`, `models/models`, `tools/tools` (the loaded pack's tool
+file). Each has `kind, name, version (int from 1), hash
 (sha256 of the body), updated_at, updated_by, note, body`. The working set is the latest
 version of each; a release is a frozen snapshot of the working set with its own `release_id`,
 `created_at`, `note`, `hash` chained to the previous release (`prev_hash`), and
@@ -693,14 +699,14 @@ version of each; a release is a frozen snapshot of the working set with its own 
 | `GET /v1/releases?pack=` | `{ pack, releases: [...] newest first, each with active, active_release_id, working_set_dirty, verify: {ok, releases} }` |
 | `GET /v1/releases/{release_id}` | The release plus `diff_from_previous[] {kind, name, from_version, to_version, diff}` (added artifacts have `from_version: null`, removed ones `to_version: null`) |
 | `POST /v1/releases` | Body `{note?}`. Dev and private only. Snapshots the working set, makes it active, `201`. Emits `artifact_released` |
-| `POST /v1/releases/{release_id}/rollback` | Dev and private only. Makes that release active and resets the working set to its artifact versions by appending new versions (history is append-only); an artifact absent from the release is marked deleted. `200` `{ release, reset: [{kind, name, from_version, to_version}] }`. `409 turn_running` as for `PUT`. Emits `artifact_released` with `rollback_of` |
+| `POST /v1/releases/{release_id}/rollback` | Dev and private only. Makes that release active and resets the working set to its artifact versions by appending new versions (history is append-only); an artifact absent from the release is marked deleted. `200` with the release (as `GET /v1/releases/{id}`) plus `rollback_of` (the release that was active), `reset: [{kind, name, from_version, to_version}]`, `active_release_id`, `working_set_dirty`. `409 turn_running` as for `PUT`. Emits `artifact_released` with `rollback_of` |
 
 Loading rule: the harness serves turns from the active release. With `release.use_working_set`
 (default `true` in dev, `false` elsewhere) it serves the working set instead, so an edit
 applies to the next turn; `working_set_dirty` is true when the working set differs from the
 active release (the status bar shows "working set (unreleased changes)"). A turn in progress
 keeps what it started with. The first start seeds the working set from the pack and config
-files and creates release `rel_0001` ("initial"); a later start that finds a file changed on
+files and creates release `r1` ("initial"; release ids are `r1`, `r2`, ...); a later start that finds a file changed on
 disk appends a working-set version (`updated_by: disk`), and in a mode that serves the release
 it also creates a release for it.
 
@@ -718,9 +724,10 @@ tenant_not_found`); `node` keeps turns that entered that node (simple or expert)
 turns); `since` and `until` bound `started_at` (RFC 3339 with an offset); `limit` default 50,
 at most 200; `after` is a `turn_id` from the previous page. Response
 `{ "turns": [...], "next_after": "<turn_id>" | null }`, each item
-`{ turn_id, trace_id, session_id, kind, channel, status, exit, started_at, ended_at,
-receipt: {input_tokens, output_tokens, usd, steps, duration_ms, nodes} }` where `nodes` is the
-simple-view path. Served from a turn index the trace store keeps (one query per page).
+`{ turn_id, session_id, trace_id, started_at, ended_at, status, exit, cost: {input_tokens,
+output_tokens, usd}, steps, duration_ms, path, kind, channel }` where `path` is the simple-view
+path (`steps` and `duration_ms` are `null` while the turn runs). Served from a turn index the
+trace store keeps (one query per page).
 
 `GET /v1/trace/turns/{turn_id}/receipt`: `{ turn_id, total, by_node, by_model, latency_ms,
 nodes: {node_id: {ms, count, input_tokens, output_tokens, usd}}, calls: [{seq, step, provider,
