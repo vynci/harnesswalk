@@ -86,13 +86,35 @@ def node_source(h: Harness, node_id: str) -> dict[str, Any] | None:
     }
 
 
+ARTIFACT_FOR = {
+    "config/policy.yaml": ("policy", "policy"),
+    "config/context.yaml": ("context", "context"),
+    "config/models.yaml": ("models", "models"),
+}
+
+
+def _artifact_ref(h: Harness, rel: str) -> dict[str, Any] | None:
+    """Which release artifact a config file is (P4), so the inspector can PUT an edit."""
+    pack = h.release.pack
+    kind, name = ARTIFACT_FOR.get(
+        rel, ("tools", "tools") if rel.endswith("/tools.yaml") else ("", "")
+    )
+    if not kind:
+        return None
+    v = h.release.store.get(pack, kind, name)
+    if v is None or v.deleted:
+        return None
+    return {"kind": kind, "name": name, "version": v.version, "url": f"/v1/artifacts/{kind}/{name}"}
+
+
 def _config(h: Harness, node_id: str) -> dict[str, Any]:
     rel = CONFIG_FOR.get(node_id)
     if node_id == "registry":
         rel = f"datasets/{h.settings.get('dataset', '_starter')}/tools.yaml"
-    if not rel or not (h.settings.root / rel).exists():
+    served = h.settings.served.read(rel) if rel and h.settings.served is not None else None
+    if not rel or (served is None and not (h.settings.root / rel).exists()):
         return {"type": "config", "path": None, "content": None, "editable": False}
-    content, version = release.current(h.settings.root, rel)
+    content, version = release.current(h.settings.root, rel, h.settings.served)
     return {
         "type": "config",
         "path": rel,
@@ -100,6 +122,7 @@ def _config(h: Harness, node_id: str) -> dict[str, Any]:
         "format": "yaml",
         "content": content,
         "editable": h.settings.mode != "public",
+        "artifact": _artifact_ref(h, rel),
         "effective": _effective(h, node_id),
     }
 
@@ -126,12 +149,39 @@ def _inspector(h: Harness, tenant_id: str, node: dict[str, Any], recent: list[di
         return _config(h, node_id)
     if kind == "prompt":
         p = h.procedural
-        items = [{"name": "system_prompt", "version": p.prompt_version, "content": p.system_prompt}]
+        pack = h.release.pack
+
+        def ref(kind: str, name: str) -> dict[str, Any] | None:
+            v = h.release.store.get(pack, kind, name)
+            if v is None or v.deleted:
+                return None
+            url = f"/v1/artifacts/{kind}/{name}"
+            return {"kind": kind, "name": name, "version": v.version, "url": url}
+
+        items = [
+            {
+                "name": "system_prompt",
+                "version": p.prompt_version,
+                "content": p.system_prompt,
+                "artifact": ref("prompt", "system_prompt"),
+            }
+        ]
         items += [
-            {"name": s.name, "version": s.version, "description": s.description, "content": s.body}
+            {
+                "name": s.name,
+                "version": s.version,
+                "description": s.description,
+                "content": s.body,
+                "artifact": ref("skill", s.name),
+            }
             for s in p.skills.values()
         ]
-        return {"type": "prompt", "items": items, "editable": h.settings.mode != "public"}
+        return {
+            "type": "prompt",
+            "items": items,
+            "editable": h.settings.mode != "public",
+            "release": h.release.status(),
+        }
     if kind == "queue":
         return {"type": "queue", "pending": h.approvals.pending(tenant_id)}
     if kind == "model":
