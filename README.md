@@ -209,7 +209,7 @@ answers with a real local model instead.
   1. **Run a baseline.** Click the Eval node; its Runs tab has Run. The golden suite replays
      every case of `datasets/_starter/golden.jsonl` on the fake provider and scores it (node
      path, tool calls, citations, schema, PII, answer). All pass.
-  2. **Edit a skill.** Turn on Expert view in the header, click Procedural, open the Prompt
+  2. **Edit a skill.** Turn on Expert view on the diagram, click Procedural, open the Prompt
      tab, press Edit on `returns` and change "within 30 days of delivery" to "within 14 days of
      delivery". Save shows the diff, puts a "Skill returns v2 saved" marker in the chat, and the
      status bar says "working set (unreleased changes)". In dev the working set is what turns
@@ -237,7 +237,7 @@ answers with a real local model instead.
   note (every tab of the session sees it). The Trace node's Turns tab queries stored turns by
   session, node, status and time, with a receipt per node and per model call; "eval case
   turns" lists the turns of your eval runs, which replay like chat turns.
-- **Step mode.** Switch on Step mode before sending. The harness stops at every node, like a
+- **Step mode.** Switch on Step mode (under the message box) before sending. The harness stops at every node, like a
   debugger; Next moves one hop, Step over runs past a node's expert children to the next node
   of the simple view, Continue runs to the end, and Stop cancels the turn (a model or tool call
   already in flight finishes first).
@@ -250,13 +250,13 @@ answers with a real local model instead.
 
 - **Replay.** Every finished turn has a Replay button: a slider walks the stored events back
   and forth on the diagram without calling the model again. History survives a reload.
-- **Simple and Expert.** The header's Expert view switch opens memory, the model layer, tools
-  and trace into their parts, and draws every edge, telemetry included. The simple view folds
-  the LLM Ops edges into one telemetry bus; the legend's Show telemetry switch (or hovering a
-  node) brings them back.
+- **Simple and Expert.** The Expert view switch at the bottom right of the diagram opens
+  memory, the model layer, tools and trace into their parts, and draws every edge, telemetry
+  included. The simple view folds the LLM Ops edges into one telemetry bus; the Telemetry switch
+  beside it (or hovering a node) brings them back.
 - **Reading the colours.** A plane is a coloured box; a chip by each title says what kind of
-  thing the node is (code, config, prompt, store, queue, model); a bar on its left says its
-  state; an edge's colour and dash say what kind of traffic it carries. The legend in the
+  thing the node is (code, config, prompt, store, queue, model); a status icon (and a ring while
+  active, waiting or failed) says its state; an edge's colour and dash say what kind of traffic it carries. The Legend button in the
   corner of the diagram lists them all, and [web/README.md](web/README.md) has the table.
 
 ![The same turn in the expert view: every node opened into its parts](docs/screenshots/turn-done-expert.png)

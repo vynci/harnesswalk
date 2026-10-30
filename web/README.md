@@ -216,15 +216,15 @@ the plus button and the Model Selector for your own key in P6; Subagent in P7.
 
 | App part | shadcn components |
 |---|---|
-| Header | Select (provider, fixture), Switch (Step mode, Expert view), a ghost icon Button for the theme (Sun in dark, Moon in light; it follows `prefers-color-scheme` until pressed), Dropdown Menu (session: new, copy id), Badge (mode), Tooltip on every unlabelled control |
+| Header | Select (provider, fixture), a ghost icon Button for the theme (Sun in dark, Moon in light; it follows `prefers-color-scheme` until pressed), Dropdown Menu (session: new, copy id), Badge (mode), Tooltip on every unlabelled control |
 | Notices | Sonner toasts (errors carry `role="alert"`), plus a toast when the event stream drops and when it reconnects |
 | Chat | Message Scroller, Message, Bubble, Marker, Spinner, Empty, Button (suggestions, message actions), Tooltip |
 | Tool calls and memory | Trace lines opening to a Code Block, a Badge for the sandbox; a Memory Trace line per `remember` proposal (written, waiting, rejected) |
 | Citations and guardrails | Hover Card and Button (inline citations), Trace (Sources), Dialog (the document reader at the cited chunk, `GET /v1/knowledge/docs/{doc}`); secondary Badges for input guardrails (redactions, injection score, warnings) and output guardrails (citations, restored); placeholders as `mark`, a Switch revealing the restored reply (dev only) |
-| Composer | Input Group (Textarea, Buttons, Text), Dropdown Menu (model hint), Textarea (`output_schema`, dev only), Kbd, Tooltip, Spinner |
+| Composer | Input Group (Textarea, Buttons, Text), Dropdown Menu (model hint), Textarea (`output_schema`, dev only), Kbd, Tooltip, Spinner; Switch (Step mode) on the hint line under the input, right-aligned |
 | Approval, step controls | Item (Media, Content, Title, Description, Actions, Footer), Code Block, Badge, Button |
 | Inspector | A Resizable pane docked beside the diagram (not a modal Sheet, so step mode keeps it open) with Tabs and Scroll Area; the LLM Ops tabs (Runs, Releases, Turns) with Input, Select, Toggle Group, Badge, Table and the Confirmation Item; artifact edits with Textarea, Input and the Code Block diff; Badge (kind, view); Events as a Trace opening to the event JSON in a Code Block; Code and config in a Code Block with line numbers; prompts in `Prose`; records in a Table; payload views picked by shape (`src/inspector/shapes.ts`): the audit chain with a Verify Button, store records with a scope Badge, the document list, memory writes as Cards with a diff and Accept/Reject, the context budget as Progress bars; Switch (disable next turn); Kbd (Esc) |
-| Diagram | Nodes are Cards (CardTitle, CardDescription) with Badges for the kind chip, store badges, the off and not-yet tags and the regressions chip on the node that runs evals; the legend is a Card with a Switch; the turn status bar is a Card with the Context hover card. The canvas, edges and layout stay React Flow |
+| Diagram | Nodes are Cards (CardTitle, CardDescription) on their own warm surface (`--node-surface`) with Badges for the kind chip, store badges, the off and not-yet tags and the regressions chip on the node that runs evals; the canvas controls are one Card with two Switches (Expert view, Telemetry) and a Button opening the legend Dialog; the turn status bar is a Card with the Context hover card. The canvas, edges and layout stay React Flow |
 | Replay bar | Card, Button Group (previous, play, next, step over), Slider, Tooltip with Kbd |
 | Feedback | Popover (the optional note), Textarea, Badge (judge scores) |
 
@@ -278,7 +278,7 @@ strokes.
 
 | Channel | Drawn as | Values |
 |---|---|---|
-| Plane | group box background, dashed border and header (the node inside is a neutral `bg-card` card with `shadow-sm` and `ring-1 ring-foreground/5`) | control amber, context blue, execution green, LLM Ops purple |
+| Plane | group box background, dashed border and header (the node inside is a neutral card on `bg-node-surface`, a warm bone paper in light mode and a slightly warm lift of the card in dark, with `shadow-sm` and `ring-1 ring-foreground/5`) | control amber, context blue, execution green, LLM Ops purple |
 | Node kind (purpose) | icon chip (the Badge `kind` variant) after the title; the kind word stays for screen readers | code slate, config amber, prompt violet, store teal, queue orange, model indigo |
 | Node state | the status icon, plus a 1 px ring in the state colour while active, waiting or failed | idle neutral grey, active blue with a pulsing ring, waiting amber (dashed ring), done green (icon only), error red (ring), skipped grey and faded, not yet built muted with a "not yet" pill |
 | Edge kind | stroke colour and dash | request solid in the source plane's colour, reply (a request back against walk order) a lighter tint of it, data solid teal, control dashed amber, telemetry dotted thin grey, release dashed purple |
@@ -289,14 +289,15 @@ node stands out against the quiet done ones. An active edge shows its label besi
 never on it, so the moving dot does not pass under it. With reduced motion there is no pulse,
 moving dash or dot; states still show by colour and weight.
 
-The legend (bottom right of the diagram) has one row per channel: states, node kinds, edge kinds.
-It collapses, and opens by default in the simple view while the diagram is at least 760 px wide
-(an open inspector narrows it, and the open legend would sit over the LLM Ops row); once you open
-or close it, that choice holds across view switches and reloads. Toasts appear top left, under
-the chat's header, clear of the app header, the composer, the legend and the inspector. Its Show telemetry switch matters in the
-simple view only: by default the edges to and from LLM Ops are hidden and one dotted bus runs
-from the execution plane to Trace; the switch draws them all, and hovering a node draws its own.
-The expert view always draws every edge.
+The canvas controls (one card at the bottom right of the diagram) hold the Expert view switch,
+the Telemetry switch and the Legend button. Legend opens a Dialog with one row per channel:
+states, node kinds, edge kinds; Esc or the close button shuts it and focus returns to the
+button. It starts closed and nothing about it is remembered. Toasts appear top left, under the
+chat's header, clear of the app header, the composer, the canvas controls and the inspector.
+The Telemetry switch matters in the simple view only: by default the edges to and from LLM Ops
+are hidden and one dotted bus runs from the execution plane to Trace; the switch draws them all,
+and hovering a node draws its own. The expert view always draws every edge, so there the switch
+shows on and disabled.
 
 ## How the diagram stays in step with the spec
 
