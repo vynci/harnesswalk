@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
-import { ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleDashed, CirclePause, Loader, MinusCircle } from 'lucide-react'
+import { ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleDashed, CirclePause, Loader, MinusCircle, TriangleAlert } from 'lucide-react'
 import type { DiagramNode } from '@/api/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,6 +25,8 @@ export interface HarnessNodeData extends Record<string, unknown> {
   current: boolean
   /** `now`: the API serves the node disabled; `next`: switched off here for the next turn. */
   off: 'now' | 'next' | null
+  /** P4: a short alert chip, such as the regressions of the latest eval run. */
+  alert?: { count: number; text: string; title: string }
   onToggle?: (id: string) => void
 }
 
@@ -66,7 +68,7 @@ function KindChip({ kind, small }: { kind: DiagramNode['kind']; small: boolean }
 }
 
 function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
-  const { node, state, stat, why, points, badges, expanded, hasChildren, isChild, current, off } = data
+  const { node, state, stat, why, points, badges, expanded, hasChildren, isChild, current, off, alert } = data
   const notYet = node.implemented === false
   return (
     <Card
@@ -94,6 +96,13 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
         <CardTitle className={cn('min-w-0 truncate leading-normal font-medium tracking-[-0.005em]', isChild ? 'text-xs' : 'text-[13.5px]')}>{node.label}</CardTitle>
         <span className="ml-auto flex shrink-0 items-center gap-1">
           <KindChip kind={node.kind} small={isChild} />
+          {alert && (
+            <Badge variant="destructive" className="h-4 gap-0.5 px-1 font-normal tabular-nums" title={alert.title} data-testid={`alert-${node.id}`}>
+              <TriangleAlert aria-hidden />
+              {alert.count}
+              <span className="sr-only"> {alert.text.replace(/^\d+\s*/, '')}</span>
+            </Badge>
+          )}
           {off && (
             <Badge
               variant="destructive"
