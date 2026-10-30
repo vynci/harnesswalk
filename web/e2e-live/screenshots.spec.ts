@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
+import { settleTurns } from './helpers'
 
 // The README screenshots, taken from the real API in light mode. Skipped unless
 // HARNESSWALK_SCREENSHOTS=1 (make screenshots), so the e2e run never rewrites them.
@@ -28,6 +29,8 @@ async function turn(page: Page, fixture: string, text: string) {
 }
 
 async function settle(page: Page) {
+  // Toasts are transient: close them so the picture shows the page, not the last notice.
+  for (const close of await page.getByRole('button', { name: 'Close toast' }).all()) await close.click({ timeout: 1000 }).catch(() => {})
   await page.mouse.move(0, 0)
   await page.waitForTimeout(400) // let the refit and edge animation come to rest
 }
@@ -120,6 +123,7 @@ test('the eval run and the release diff', async ({ page, request }) => {
   const caps = (await (await request.get('/v1/capabilities')).json()) as { features: Record<string, boolean | undefined> }
   test.skip(!(caps.features.evals && caps.features.release && caps.features.artifact_edit), 'the API has no P4 features yet')
   test.setTimeout(120_000)
+  await settleTurns(request) // the approval card above leaves a turn waiting; edits wait for none
   const inspector = page.getByTestId('inspector')
   const releases = (await (await request.get('/v1/releases')).json()) as { releases?: { release_id: string; active: boolean }[] }
   const base = releases.releases?.find((r) => r.active)?.release_id
@@ -131,10 +135,12 @@ test('the eval run and the release diff', async ({ page, request }) => {
   await page.getByTestId('view-expert').click()
   await page.getByTestId('node-procedural').click()
   await inspector.getByRole('tab', { name: 'Prompt' }).click()
-  const editor = inspector.getByTestId('artifact-editor').and(page.locator('[data-name="order_status"]'))
+  // The README's gate walk: the returns skill's window changes, so returns_window regresses.
+  const editor = inspector.getByTestId('artifact-editor').and(page.locator('[data-name="returns"]'))
   await editor.getByTestId('artifact-edit').click()
   const textarea = editor.getByTestId('artifact-textarea')
-  await textarea.fill((await textarea.inputValue()).replaceAll('lookup_order', 'find_order'))
+  await textarea.fill((await textarea.inputValue()).replace('within 30 days of delivery', 'within 14 days of delivery'))
+  await editor.getByTestId('artifact-note').fill('returns: 14 day window')
   await editor.getByTestId('artifact-save').click()
   await expect(editor.getByTestId('artifact-saved')).toBeVisible()
 
@@ -148,9 +154,10 @@ test('the eval run and the release diff', async ({ page, request }) => {
   await page.screenshot({ path: out('eval-run') })
 
   await page.getByTestId('node-release').click()
-  await inspector.getByTestId('release-note').fill('find_order experiment')
+  await inspector.getByTestId('release-note').fill('returns: 14 day window')
   await inspector.getByTestId('release-create').click()
-  await inspector.getByTestId('release-commit').filter({ hasText: 'order_status' }).click()
+  await expect(page.getByTestId('ops-marker-text').last()).toHaveText(/^Release r\d+ active$/)
+  await inspector.getByTestId('release-commit').filter({ hasText: 'Skill returns' }).click()
   await settle(page)
   await page.screenshot({ path: out('release-diff') })
 

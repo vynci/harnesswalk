@@ -134,3 +134,30 @@ export class Harness {
     rmSync(this.data, { recursive: true, force: true })
   }
 }
+
+/**
+ * Cancel every unfinished turn the suite's tenants left behind (a test that ends on an approval
+ * card, a reload mid-turn). Artifact edits and releases are refused while any turn of the
+ * process runs (409 turn_running), so the P4 tests start from a quiet harness.
+ */
+export async function settleTurns(request: APIRequestContext, base = '', tenants = ['dev', 'e2e-memory', 'e2e-budget', 'e2e-step']) {
+  for (const tenant of tenants) {
+    const headers = { 'X-Harnesswalk-Tenant': tenant }
+    for (const status of ['paused', 'running']) {
+      const r = await request.get(`${base}/v1/trace/turns?status=${status}&limit=200`, { headers })
+      if (!r.ok()) continue
+      const { turns } = (await r.json()) as { turns: { turn_id: string }[] }
+      for (const t of turns) await request.post(`${base}/v1/turns/${t.turn_id}/cancel`, { headers, data: {} })
+    }
+  }
+  await expect
+    .poll(async () => {
+      let open = 0
+      for (const tenant of tenants) {
+        const r = await request.get(`${base}/v1/trace/turns?status=running&limit=200`, { headers: { 'X-Harnesswalk-Tenant': tenant } })
+        if (r.ok()) open += ((await r.json()) as { turns: unknown[] }).turns.length
+      }
+      return open
+    })
+    .toBe(0)
+}

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
-import { Harness, lastTurnEvents, node, pickFixture, send, status, turnDone } from './helpers'
+import { Harness, lastTurnEvents, node, pickFixture, send, settleTurns, status, turnDone } from './helpers'
 
 // Phase 4 against the real harness (fake provider): the gate (edit a skill, run golden, see the
 // regression; release, edit again, roll back, see the old version served), and the ops seams:
@@ -63,7 +63,8 @@ async function runGolden(page: Page) {
   return detail
 }
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page, request }) => {
+  await settleTurns(request)
   await page.goto('/')
   await expect(page.getByTestId('mode-badge')).toContainText('dev')
   await expect(node(page, 'gateway')).toBeVisible()
