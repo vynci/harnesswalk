@@ -211,6 +211,8 @@ def validate_body(kind: str, name: str, body: Any) -> None:
         if meta.get("name") not in (None, name):
             raise ArtifactInvalid(f"front matter name {meta['name']!r} is not {name!r}")
     if kind in YAML_KINDS:
+        if _yaml_aliases(body) > MAX_YAML_ALIASES:
+            raise ArtifactInvalid(f"more than {MAX_YAML_ALIASES} YAML aliases")
         try:
             data = yaml.safe_load(body)
         except yaml.YAMLError as exc:
@@ -235,6 +237,65 @@ def validate_body(kind: str, name: str, body: Any) -> None:
             if errors:
                 where = "/".join(str(p) for p in errors[0].path) or "policy"
                 raise ArtifactInvalid(f"policy {where}: {errors[0].message}")
+
+
+MAX_YAML_ALIASES = 50  # anchors are fine; an alias bomb (billion laughs) is not
+MAX_NOTE_CHARS = 2000
+
+
+def _yaml_aliases(body: str) -> int:
+    try:
+        return sum(isinstance(e, yaml.AliasEvent) for e in yaml.parse(body, Loader=yaml.SafeLoader))
+    except yaml.YAMLError:
+        return 0  # the parse error is reported by safe_load
+
+
+def _entrypoints(body: str | None) -> set[str]:
+    try:
+        data = yaml.safe_load(body or "") or []
+    except yaml.YAMLError:
+        return set()
+    if not isinstance(data, list):
+        return set()
+    return {str(e["entrypoint"]) for e in data if isinstance(e, dict) and "entrypoint" in e}
+
+
+def check_against_current(kind: str, body: str, current: str | None) -> None:
+    """Edits never reach code or secrets the files on disk did not already name.
+
+    - A tool `entrypoint` imports and runs Python when the registry loads it, so an edit may
+      keep, drop or move the entrypoints the current tools artifact has but not add one (a new
+      Python tool is a file change and a restart, not a web edit).
+    - `providers` in models.yaml say where requests go and which environment variable holds
+      the key: an edit could send a hosted key to another host, so it may not change them.
+    """
+    if kind not in ("tools", "models"):
+        return
+    if _yaml_aliases(body) > MAX_YAML_ALIASES:
+        raise ArtifactInvalid(f"more than {MAX_YAML_ALIASES} YAML aliases")
+    try:
+        yaml.safe_load(body)
+    except yaml.YAMLError:
+        return  # validate_body reports the parse error
+    if kind == "tools":
+        new = _entrypoints(body) - _entrypoints(current)
+        if new:
+            raise ArtifactInvalid(
+                f"tools: a new entrypoint ({', '.join(sorted(new))}) would run Python; add it to"
+                " the pack's tools.yaml on disk and restart instead"
+            )
+    if kind == "models":
+
+        def providers(text: str | None) -> Any:
+            data = yaml.safe_load(text or "") or {}
+            return data.get("providers") if isinstance(data, dict) else None
+
+        before, after = providers(current), providers(body)
+        if before != after:
+            raise ArtifactInvalid(
+                "models: providers (endpoints, key variables, enabled) are set on disk; edit"
+                " config/models.yaml and restart to change them"
+            )
 
 
 class Busy(Exception):
@@ -553,6 +614,11 @@ def apply_edit(
 
     rm: ReleaseManager = harness.release
     rm.check_kind(kind, name, creating=kind == "skill")
+    if note is not None and len(note) > MAX_NOTE_CHARS:
+        raise ArtifactInvalid(f"note is over {MAX_NOTE_CHARS} characters")
+    if isinstance(body, str):  # before validate_body, which loads tool specs
+        current = rm.store.get(rm.pack, kind, name)
+        check_against_current(kind, body, current.body if current else None)
     validate_body(kind, name, body)
     if harness.busy():
         raise Busy("a turn or an eval run is running; try again when it ends")

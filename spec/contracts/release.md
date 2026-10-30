@@ -97,7 +97,9 @@ which gives the same restore-by-id and tamper evidence without a repository in t
 - **Releases** have `release_id` (`r1`, ...), `pack`, `created_at`, `created_by`, `note`,
   `artifacts[] {kind, name, version, hash}`, `prev_hash` and `hash` = sha256 of the canonical
   JSON of `{release_id, pack, created_at, created_by, note, artifacts, prev_hash}`. Verifying the
-  chain recomputes every hash. One release is active per pack; rollback changes which, and is
+  chain recomputes every hash, and (P4 integration) checks that every version a release names
+  still exists with that hash and a body that hashes to it; a failure names `broken_at` and the
+  `artifact`. One release is active per pack; rollback changes which, and is
   logged (`activations`), not chained.
 - **Applying a change.** An edit, a release or a rollback that changes what is served rebuilds
   the artifact-backed components (procedural memory, tools, policy, router and model layer,
@@ -105,6 +107,13 @@ which gives the same restore-by-id and tamper evidence without a repository in t
   eval run is running. Providers, stores and embeddings are not rebuilt (a provider or embedder
   change needs a restart). Another process (the CLI) writing the store bumps a generation
   counter; the server reloads before its next turn.
+- **Edit validation.** Besides YAML parsing, the policy rule schema and the dry run: bodies
+  are capped at 200,000 characters and notes at 2,000; YAML with more than 50 aliases is
+  refused (an alias bomb); a `tools` edit may not add an `entrypoint` the current version does
+  not have (loading one imports and runs Python, so new code is a file change and a restart);
+  a `models` edit may not change `providers` (endpoints, key variable names and `enabled` say
+  where a hosted key is sent). These are `422 invalid_artifact` and are checked before anything
+  from the body is loaded.
 - **Events.** `artifact_changed` per edit and one `artifact_released` per release or rollback,
   as ops events (`events.md` section 10), not release turns. Turns record what they ran on in
   `turn_start.summary.release`.

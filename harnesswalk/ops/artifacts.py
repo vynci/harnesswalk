@@ -423,6 +423,17 @@ class ArtifactStore:
             fields = rel.to_dict()
             if rel.prev_hash != prev or release_hash(fields) != rel.hash:
                 return {"ok": False, "releases": len(rels), "broken_at": rel.release_id}
+            # The chain covers the artifact hashes; the stored bodies must still match them, or
+            # an edited row would be served while the chain looked fine.
+            for ref in rel.artifacts:
+                v = self.get(pack, ref["kind"], ref["name"], ref["version"])
+                if v is None or v.hash != ref["hash"] or sha256(v.body) != v.hash:
+                    return {
+                        "ok": False,
+                        "releases": len(rels),
+                        "broken_at": rel.release_id,
+                        "artifact": f"{ref['kind']}/{ref['name']}@v{ref['version']}",
+                    }
             prev = rel.hash
         return {"ok": True, "releases": len(rels)}
 

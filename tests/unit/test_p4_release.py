@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from harnesswalk.ops.artifacts import ArtifactStore
 from harnesswalk.ops.release import ReleaseManager
@@ -135,10 +136,12 @@ async def test_edits_are_validated(tmp_path: Path) -> None:
         assert (await put("policy", "policy", "rules: [unclosed"))[0] == 422
         status, body = await put("policy", "policy", "rules:\n  - {id: x, decision: maybe}\n")
         assert status == 422 and body["error"]["code"] == "invalid_artifact"
+        current = yaml.safe_load((await c.get("/v1/artifacts/models/models")).json()["body"])
+        providers = yaml.safe_dump({"providers": current["providers"]})
         status, body = await put(
             "models",
             "models",
-            "models: {}\nrouter:\n  rules:\n    - {id: d, when: {}, use: [nope]}\n",
+            providers + "models: {}\nrouter:\n  rules:\n    - {id: d, when: {}, use: [nope]}\n",
         )
         assert status == 422 and "nope" in body["error"]["message"]  # the dry run caught it
         assert (await put("tools", "tools", "- name: x\n"))[0] == 422
