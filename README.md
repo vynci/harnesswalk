@@ -209,11 +209,11 @@ answers with a real local model instead.
   1. **Run a baseline.** Click the Eval node; its Runs tab has Run. The golden suite replays
      every case of `datasets/_starter/golden.jsonl` on the fake provider and scores it (node
      path, tool calls, citations, schema, PII, answer). All pass.
-  2. **Edit a skill.** Switch to Expert, click Procedural, open the Prompt tab, press Edit on
-     `returns` and change "within 30 days of delivery" to "within 14 days of delivery". Save
-     shows the diff, puts a "Skill returns v2 saved" marker in the chat, and the status bar
-     says "working set (unreleased changes)". In dev the working set is what turns use, so the
-     edit applies to the next turn.
+  2. **Edit a skill.** Turn on Expert view in the header, click Procedural, open the Prompt
+     tab, press Edit on `returns` and change "within 30 days of delivery" to "within 14 days of
+     delivery". Save shows the diff, puts a "Skill returns v2 saved" marker in the chat, and the
+     status bar says "working set (unreleased changes)". In dev the working set is what turns
+     use, so the edit applies to the next turn.
   3. **Run golden again.** The `returns_window` case now fails (its fixture expects the 30 day
      window in the skill) and is marked a regression: it failed in this run and passed in the
      run before. The Eval node carries a regression chip, and the case opens to expected
@@ -250,9 +250,10 @@ answers with a real local model instead.
 
 - **Replay.** Every finished turn has a Replay button: a slider walks the stored events back
   and forth on the diagram without calling the model again. History survives a reload.
-- **Simple and Expert.** Expert view opens memory, the model layer, tools and trace into their
-  parts, and draws every edge, telemetry included. The simple view folds the LLM Ops edges into
-  one telemetry bus; the legend's Show telemetry switch (or hovering a node) brings them back.
+- **Simple and Expert.** The header's Expert view switch opens memory, the model layer, tools
+  and trace into their parts, and draws every edge, telemetry included. The simple view folds
+  the LLM Ops edges into one telemetry bus; the legend's Show telemetry switch (or hovering a
+  node) brings them back.
 - **Reading the colours.** A plane is a coloured box; a chip by each title says what kind of
   thing the node is (code, config, prompt, store, queue, model); a bar on its left says its
   state; an edge's colour and dash say what kind of traffic it carries. The legend in the

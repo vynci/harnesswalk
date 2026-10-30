@@ -215,7 +215,7 @@ the plus button and the Model Selector for your own key in P6; Subagent in P7.
 
 | App part | shadcn components |
 |---|---|
-| Header | Select (provider, fixture), Switch (step mode), Toggle Group (Simple/Expert, theme), Dropdown Menu (session: new, copy id), Badge (mode), Tooltip on every unlabelled control |
+| Header | Select (provider, fixture), Switch (Step mode, Expert view), a ghost icon Button for the theme (Sun in dark, Moon in light; it follows `prefers-color-scheme` until pressed), Dropdown Menu (session: new, copy id), Badge (mode), Tooltip on every unlabelled control |
 | Notices | Sonner toasts (errors carry `role="alert"`), plus a toast when the event stream drops and when it reconnects |
 | Chat | Message Scroller, Message, Bubble, Marker, Spinner, Empty, Button (suggestions, message actions), Tooltip |
 | Tool calls and memory | Trace lines opening to a Code Block, a Badge for the sandbox; a Memory Trace line per `remember` proposal (written, waiting, rejected) |
