@@ -1,0 +1,12 @@
+fixture: restart_keeps_schema
+description: P4, two-process. A remember call and a cancel in one step; the harness restarts while the cancel waits on an approval; the JSON reply must still meet the turn's output schema.
+model: fake-small
+turns:
+  - responses:
+      - tool_calls:
+          - { call_id: call_1, name: remember, arguments: { kind: fact, key: preferred name, value: Sam } }
+          - { call_id: call_2, name: cancel_order, arguments: { order_id: A-1002 } }
+        usage: { input_tokens: 900, output_tokens: 40 }
+      - text: '{"order_id": "A-1002", "status": "cancelled"}'
+        usage: { input_tokens: 1050, output_tokens: 20 }
+        expect: { last_message_role: tool, last_message_contains: cancelled }

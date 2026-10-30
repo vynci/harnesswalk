@@ -56,6 +56,9 @@ output_guardrails: { enabled: true, checks: [schema, content, citations] }
 
 tools: spec/conformance/tools.yaml
 
+# P4: the golden set eval runs read (spec/contracts/evaluator.md), the same for any pack.
+evals: { golden_path: spec/conformance/golden.jsonl }
+
 overridable:
   - context.stores
   - loop.max_steps

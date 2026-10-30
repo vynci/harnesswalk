@@ -146,6 +146,8 @@ def _normalize_profile(profile: dict) -> dict:
         "output_guardrails",
         "stores",
         "memory_writer",
+        "evals",
+        "release",
     ):
         if key in profile:
             out[key] = profile[key]

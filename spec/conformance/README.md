@@ -24,6 +24,7 @@ the same API.
 | `fixture.schema.json` | Shape of a fixture |
 | `cases/*.yaml` | One case per file: what to send and what the stream must look like |
 | `case.schema.json` | Shape of a case |
+| `golden.jsonl` | P4: the golden set eval runs read under the profile (`evals.golden_path`) |
 
 ## Protocol
 

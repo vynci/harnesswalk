@@ -1,0 +1,34 @@
+id: restart_keeps_schema
+title: A restart during an approval keeps the turn's output schema and its memory proposal from before the pause
+spec_version: 0.1.0
+fixture: restart_keeps_schema
+two_process: true
+turns:
+  - send:
+      message: Call me Sam, and please cancel order A-1002.
+      options:
+        output_schema:
+          type: object
+          required: [order_id, status]
+          properties:
+            order_id: { type: string }
+            status: { enum: [processing, cancelled] }
+    actions:
+      - when: { type: node_paused, node_id: approval }
+        do: { restart: true }
+      - when: { type: node_paused, node_id: approval }
+        do: { approval: approve }
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, tools, policy, audit, tools, policy, audit, approval, audit, audit, model_layer, output_guardrails, gateway, memory_writer, trace]
+      statuses: done
+      events:
+        - { type: turn_start, summary: { output_schema: true } }
+        - { type: node_paused, node_id: approval, summary: { reason: approval } }
+        - { type: approval_decided, node_id: approval, summary: { decision: approve } }
+        - { type: node_exit, node_id: output_guardrails, summary: { action: pass, schema: valid } }
+        - { type: memory_written, node_id: memory_writer, summary: { store: semantic } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      reply_contains: ['"status": "cancelled"']
+    http:
+      - get: /v1/turns/${turn_id}
+        match: { status: done, checkpoint: { restored: true } }

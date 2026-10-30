@@ -1,0 +1,12 @@
+fixture: release_rollback
+description: P4. Turn 0 runs on the edited prompt (released as the second release), turn 1 after the rollback to the first release runs on the old one.
+model: fake-small
+turns:
+  - responses:
+      - text: Support is open 8am to 4pm Eastern.
+        usage: { input_tokens: 300, output_tokens: 10 }
+        expect: { last_message_role: user, system_contains: "8am to 4pm" }
+  - responses:
+      - text: Support is open 9am to 5pm Eastern, Monday to Friday.
+        usage: { input_tokens: 320, output_tokens: 14 }
+        expect: { last_message_role: user, system_contains: "9am to 5pm Eastern, Monday to Friday" }

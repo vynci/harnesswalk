@@ -1,0 +1,34 @@
+id: step_over
+title: Step over at memory skips the breakpoints of its expert children; the next pause is loop
+spec_version: 0.1.0
+fixture: step_over
+turns:
+  - send:
+      message: What are your support hours?
+      options: { step_mode: true }
+    actions:
+      - when: { type: node_paused, node_id: gateway }
+        do: { resume: step }
+      - when: { type: node_paused, node_id: input_guardrails }
+        do: { resume: step }
+      - when: { type: node_paused, node_id: context_builder }
+        do: { resume: step }
+      - when: { type: node_paused, node_id: memory }
+        do: { resume: step_over }
+      - when: { type: node_paused, node_id: loop }
+        do: { resume: continue }
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: node_paused, node_id: memory, summary: { reason: breakpoint } }
+        - { type: node_resumed, node_id: memory }
+        - { type: node_exit, node_id: memory }
+        - { type: node_paused, node_id: loop, summary: { reason: breakpoint } }
+        - { type: node_resumed, node_id: loop }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      absent:
+        - { type: node_paused, node_id: procedural }
+        - { type: node_paused, node_id: session }
+        - { type: node_paused, node_id: model_layer }
+      reply_contains: [9am to 5pm]

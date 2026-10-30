@@ -1,0 +1,47 @@
+id: release_rollback
+title: An edited prompt is released and reaches the model; after a rollback to the first release the model sees the old prompt
+spec_version: 0.1.0
+fixture: release_rollback
+turns:
+  - before:
+      - method: GET
+        path: /v1/releases
+        match: { working_set_dirty: false }
+        save: { first: active_release_id }
+      - method: PUT
+        path: /v1/artifacts/prompt/system_prompt
+        body: { body: "You are the support assistant for Example Store, a fictional shop used for conformance tests.\nSupport hours are 8am to 4pm Eastern.\n" }
+        match: { version: 2, previous_version: 1 }
+      - method: POST
+        path: /v1/releases
+        body: { note: earlier hours }
+        status: 201
+        save: { second: release_id }
+    send:
+      message: What are your support hours?
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: turn_start, summary: { release: { release_id: "${second}" } } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      reply_contains: [8am to 4pm]
+  - before:
+      - method: POST
+        path: /v1/releases/${first}/rollback
+        body: {}
+        match: { release_id: "${first}", rollback_of: "${second}", working_set_dirty: false }
+    send:
+      message: What are your support hours?
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: turn_start, summary: { release: { release_id: "${first}" } } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      reply_contains: [9am to 5pm]
+    http:
+      - get: /v1/artifacts/prompt/system_prompt
+        match: { version: 3, updated_by: rollback }
+      - get: /v1/releases/${second}
+        match: { active: false, previous_release_id: "${first}" }
