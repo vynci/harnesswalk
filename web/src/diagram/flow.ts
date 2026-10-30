@@ -15,6 +15,8 @@ export interface FlowOptions {
   showOps?: boolean
   /** A hovered node shows its optional edges. */
   hovered?: string | null
+  /** P4: alert chips by node id (the regressions of the latest eval run). */
+  alerts?: Record<string, { count: number; text: string; title: string }>
 }
 
 /** Which laid-out edges are drawn, given the toggles, the hovered node and the active edge. */
@@ -69,6 +71,7 @@ export function toFlow(
     // Served as disabled for this session, or switched off here for the next turn.
     const off = l.node.disabled === true ? 'now' : opts.disabled.has(l.id) ? 'next' : null
     const offText = off === 'now' ? ', disabled' : off === 'next' ? ', off next turn' : ''
+    const alert = opts.alerts?.[l.id]
     return {
       id: l.id,
       type: 'harness',
@@ -79,7 +82,7 @@ export function toFlow(
       height: l.height,
       style: { width: l.width, height: l.height },
       draggable: false,
-      ariaLabel: `${l.node.label}, ${l.node.kind}, ${state}${stat ? `, ${stat}` : ''}${l.node.implemented === false ? ', not implemented yet' : ''}${offText}. Press Enter to inspect.`,
+      ariaLabel: `${l.node.label}, ${l.node.kind}, ${state}${stat ? `, ${stat}` : ''}${l.node.implemented === false ? ', not implemented yet' : ''}${offText}${alert ? `, ${alert.title}` : ''}. Press Enter to inspect.`,
       data: {
         node: l.node,
         state,
@@ -92,6 +95,7 @@ export function toFlow(
         isChild: Boolean(l.parentId),
         current: current === l.id,
         off,
+        alert,
         onToggle: opts.onToggle,
       },
     }

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { ChevronLeft, ChevronRight, Pause, Play, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pause, Play, Redo2, X } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Kbd } from '@/components/ui/kbd'
 import { Slider } from '@/components/ui/slider'
 import { useApp } from '@/state/store'
+import { nextSimpleEnter } from './stepOver'
 
 const PLAY_MS = 260
 
@@ -16,6 +17,7 @@ export function ReplayBar() {
   const stepReplay = useApp((s) => s.stepReplay)
   const setPlaying = useApp((s) => s.setPlaying)
   const exitReplay = useApp((s) => s.exitReplay)
+  const diagram = useApp((s) => s.diagram)
 
   useEffect(() => {
     if (!replay?.playing) return
@@ -64,6 +66,18 @@ export function ReplayBar() {
         <Hint label="Next event" side="top">
           <Button size="icon-sm" variant="outline" onClick={() => stepReplay(1)} disabled={replay.cursor >= last} aria-label="Next event" data-testid="replay-next">
             <ChevronRight />
+          </Button>
+        </Hint>
+        <Hint label="Step over: the next simple-view node, past the expert children" side="top">
+          <Button
+            size="icon-sm"
+            variant="outline"
+            onClick={() => setCursor(nextSimpleEnter(replay.events, replay.cursor, diagram))}
+            disabled={replay.cursor >= last}
+            aria-label="Step over to the next simple-view node"
+            data-testid="replay-step-over"
+          >
+            <Redo2 />
           </Button>
         </Hint>
       </ButtonGroup>

@@ -13,6 +13,7 @@ import { useApp } from '@/state/store'
 import { FlowEdge } from './FlowEdge'
 import { HarnessNode } from './HarnessNode'
 import { computeLayout } from './layout'
+import { opsRoleNode } from './opsRoles'
 import { PlaneNode } from './PlaneNode'
 import { toFlow } from './flow'
 import { TurnStatusBar } from './TurnStatusBar'
@@ -34,6 +35,15 @@ function Flow() {
   const showTelemetry = useApp((s) => s.showTelemetry)
   const setShowTelemetry = useApp((s) => s.setShowTelemetry)
   const [hovered, setHovered] = useState<string | null>(null)
+  const latestEval = useApp((s) => s.latestEval)
+  // The node that gates releases carries the regressions of the latest eval run.
+  const alerts = useMemo(() => {
+    const id = opsRoleNode(diagram, 'evals')
+    const n = latestEval?.regressions ?? 0
+    if (!id || n <= 0) return undefined
+    const text = `${n} regression${n === 1 ? '' : 's'}`
+    return { [id]: { count: n, text, title: `${text} in the latest ${latestEval!.suite} run (${latestEval!.run_id})` } }
+  }, [diagram, latestEval])
   const turn = useDisplayTurn()
   const { fitView } = useReactFlow()
 
@@ -43,8 +53,8 @@ function Flow() {
   )
   const disabled = useMemo(() => new Set(disabledList), [disabledList])
   const { nodes, edges } = useMemo(
-    () => toFlow(diagram, layout, turn, { disabled, onToggle: toggleCollapsed, showOps: showTelemetry, hovered }),
-    [diagram, layout, turn, disabled, toggleCollapsed, showTelemetry, hovered],
+    () => toFlow(diagram, layout, turn, { disabled, onToggle: toggleCollapsed, showOps: showTelemetry, hovered, alerts }),
+    [diagram, layout, turn, disabled, toggleCollapsed, showTelemetry, hovered, alerts],
   )
 
   useEffect(() => {

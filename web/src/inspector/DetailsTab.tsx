@@ -1,10 +1,12 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { stringify } from 'yaml'
-import type { NodeInfo } from '@/api/types'
+import type { ArtifactRef, DiagramNode, NodeInfo } from '@/api/types'
 import { Code } from '@/components/code'
 import { Prose } from '@/components/prose'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { nodeArtifacts, promptItemArtifact } from '@/state/ops'
+import { ArtifactEditor } from './ArtifactEditor'
 import { DataView, KeyValues } from './DataView'
 import { sourceExtras } from './labels'
 import { isAuditPayload, isDocList, isProposalList, isRecord, isScopedRecords } from './shapes'
@@ -19,18 +21,30 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-export function DetailsTab({ info }: { info: NodeInfo }) {
+function Markdown({ text }: { text: string }) {
+  return (
+    <Prose>
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+    </Prose>
+  )
+}
+
+export function DetailsTab({ info, node, artifacts = [] }: { info: NodeInfo; node?: DiagramNode; artifacts?: ArtifactRef[] }) {
   const ins = info.inspector
   if (ins.type === 'config') {
     const content = typeof ins.content === 'string' ? ins.content : ins.effective !== undefined ? stringify(ins.effective) : null
+    // P4: the YAML is a working-set artifact, edited here and shipped by a release.
+    const artifact = node ? nodeArtifacts(node, artifacts)[0] : undefined
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-2">
         <p className="text-xs text-muted-foreground">
           {typeof ins.path === 'string' ? <code className="font-mono">{ins.path}</code> : 'No config file'}
           {typeof ins.version === 'string' ? ` · ${ins.version}` : ''}
-          {' · read-only in P2'}
+          {artifact ? ' · the working set, shipped by a release' : ' · read-only'}
         </p>
-        {content ? (
+        {artifact ? (
+          <ArtifactEditor artifact={artifact} language="yaml" body={typeof ins.content === 'string' ? ins.content : undefined} />
+        ) : content ? (
           <Code code={content} language="yaml" lineNumbers size="sm" label="Config" contentClassName="text-xs" data-testid="config-view" />
         ) : (
           <p className="text-xs">Nothing configured.</p>
@@ -43,19 +57,26 @@ export function DetailsTab({ info }: { info: NodeInfo }) {
     return (
       <div className="flex flex-col gap-4">
         {items.length === 0 && <p className="text-xs text-muted-foreground">No prompt or skills loaded.</p>}
-        {items.map((item) => (
-          <Card key={item.name} className="gap-2 py-3 shadow-none">
-            <CardHeader className="flex items-baseline gap-2 px-3">
-              <CardTitle className="font-mono text-xs">{item.name}</CardTitle>
-              {item.version && <span className="text-xs text-muted-foreground">{item.version}</span>}
-            </CardHeader>
-            <CardContent className="px-3">
-              <Prose>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.content ?? ''}</ReactMarkdown>
-              </Prose>
-            </CardContent>
-          </Card>
-        ))}
+        {items.map((item, i) => {
+          const artifact = promptItemArtifact(item.name, i, artifacts)
+          return artifact ? (
+            <Card key={item.name} className="gap-2 py-3 shadow-none" data-testid="prompt-item" data-name={item.name}>
+              <CardContent className="px-3">
+                <ArtifactEditor artifact={artifact} language="markdown" body={item.content} renderBody={(text) => <Markdown text={text} />} />
+              </CardContent>
+            </Card>
+          ) : (
+            <Card key={item.name} className="gap-2 py-3 shadow-none" data-testid="prompt-item" data-name={item.name}>
+              <CardHeader className="flex items-baseline gap-2 px-3">
+                <CardTitle className="font-mono text-xs">{item.name}</CardTitle>
+                {item.version && <span className="text-xs text-muted-foreground">{item.version}</span>}
+              </CardHeader>
+              <CardContent className="px-3">
+                <Markdown text={item.content ?? ''} />
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
     )
   }
