@@ -16,6 +16,9 @@ export type EventType =
   | 'artifact_released'
   | 'message_delta'
   | 'error'
+  // P4, point events outside a turn (turn_id null): feedback and working-set edits.
+  | 'feedback_recorded'
+  | 'artifact_changed'
 
 export const EVENT_TYPES: readonly EventType[] = [
   'turn_start',
@@ -32,6 +35,8 @@ export const EVENT_TYPES: readonly EventType[] = [
   'artifact_released',
   'message_delta',
   'error',
+  'feedback_recorded',
+  'artifact_changed',
 ]
 
 export type EventStatus = 'active' | 'waiting' | 'done' | 'error' | 'skipped'
@@ -147,7 +152,17 @@ export interface Capabilities {
     knowledge?: boolean
     /** P3: proposals waiting at the review gate can be accepted or rejected here. */
     memory_review?: boolean
+    /** P4: golden and judge eval runs (POST /v1/evals/runs). */
+    evals?: boolean
+    /** P4: releases of the working set, with rollback. */
+    release?: boolean
+    /** P4: PUT /v1/artifacts/{kind}/{name} edits the working set. */
+    artifact_edit?: boolean
+    /** P4: Good and Bad feedback on a turn. */
+    feedback?: boolean
   }
+  /** P4: which release serves turns, and whether the working set has unreleased edits. */
+  release?: { active_release_id: string | null; working_set_dirty: boolean }
   limits: {
     max_message_chars: number
     max_steps: number
@@ -175,6 +190,20 @@ export interface TurnSummary {
   event_count: number
   paused_at_node: string | null
   pending_approval_id: string | null
+  /** P4: the person's Good or Bad, null when none. Absent from APIs before P4. */
+  feedback?: TurnFeedback | null
+  /** P4: online judge scores by name, when this turn was sampled. */
+  scores?: Record<string, number> | null
+  /** P4: the loop checkpoint; `restored` after a restart resumed the turn from it. */
+  checkpoint?: { step: number; at: string; restored: boolean } | null
+}
+
+export type FeedbackRating = 'good' | 'bad'
+
+export interface TurnFeedback {
+  rating: FeedbackRating
+  note?: string | null
+  at?: string
 }
 
 export interface StartTurnRequest {
@@ -298,6 +327,147 @@ export interface AuditExport {
   verify: { ok: boolean; records: number; first_bad_record?: string }
   records: AuditRecord[]
   next_since: string | null
+}
+
+// ---------- LLM Ops (P4, phase-4 CONTRACT.md) ----------
+
+export type EvalSuite = 'golden' | 'judge'
+export type EvalCaseStatus = 'passed' | 'failed' | 'skipped' | 'error'
+
+export interface EvalTotals {
+  cases: number
+  passed: number
+  failed: number
+  skipped: number
+}
+
+export interface EvalRunSummary {
+  run_id: string
+  pack: string
+  suite: EvalSuite
+  model: string | null
+  started_at: string
+  ended_at: string | null
+  status: 'running' | 'done' | 'error'
+  totals: EvalTotals
+  /** How many cases failed now and passed in `previous_run_id`. */
+  regressions: number
+  previous_run_id: string | null
+}
+
+export interface EvalScore {
+  value: number | boolean | string | null
+  pass: boolean | null
+  detail?: string | null
+}
+
+export interface EvalCase {
+  case_id: string
+  title: string
+  status: EvalCaseStatus
+  /** By scorer name: path, citations, tool_calls, schema, pii_leak, answer_match, faithfulness, relevance. */
+  scores: Record<string, EvalScore>
+  expected: Record<string, unknown> | null
+  actual: { reply: string | null; path: string[]; citations: unknown[]; tool_calls: unknown[] } | null
+  turn_id: string | null
+  previous_status: EvalCaseStatus | null
+  regression: boolean
+}
+
+export interface EvalRunDetail extends EvalRunSummary {
+  cases: EvalCase[]
+}
+
+export interface StartEvalRequest {
+  pack: string
+  suite: EvalSuite
+  model?: string
+  cases?: string[]
+}
+
+export type ArtifactKind = 'prompt' | 'skill' | 'policy' | 'context' | 'models' | 'tools'
+
+export interface ArtifactRef {
+  kind: ArtifactKind | string
+  name: string
+  version: number
+  hash: string
+  updated_at?: string
+  updated_by?: string
+}
+
+export interface Artifact extends ArtifactRef {
+  body: string
+}
+
+/** PUT /v1/artifacts/{kind}/{name}: the new working-set version and a unified diff against the one before. */
+export interface ArtifactSaved extends Artifact {
+  diff: string
+}
+
+export interface ReleaseSummary {
+  release_id: string
+  created_at: string
+  note: string | null
+  hash: string
+  active: boolean
+  artifacts: { kind: string; name: string; version: number; hash: string }[]
+}
+
+export interface ReleaseDiff {
+  kind: string
+  name: string
+  from_version: number | null
+  to_version: number | null
+  diff: string
+}
+
+export interface ReleaseDetail extends ReleaseSummary {
+  diff_from_previous: ReleaseDiff[]
+}
+
+export interface TraceQuery {
+  session?: string
+  node?: string
+  status?: string
+  since?: string
+  until?: string
+  limit?: number
+  after?: string
+}
+
+/** One row of GET /v1/trace/turns: the turn with its receipt totals (tracer.md TurnSummary plus receipts). */
+export interface TraceTurn {
+  turn_id: string
+  session_id: string
+  trace_id?: string
+  started_at: string
+  ended_at?: string | null
+  status: string
+  exit?: string | null
+  cost?: Cost | null
+  steps?: number | null
+  duration_ms?: number | null
+  /** The nodes visited, in order. */
+  path?: string[]
+}
+
+/** GET /v1/trace/turns/{id}/receipt, as tracer.md's Receipt. */
+export interface Receipt {
+  turn_id: string
+  total: Cost
+  by_node: Record<string, Cost>
+  by_model: Record<string, Cost>
+  latency_ms: Record<string, number>
+}
+
+/** A point event on the eval run stream (GET /v1/evals/runs/{id}/events). */
+export interface EvalStreamEvent {
+  type: 'eval_run_started' | 'eval_case_finished' | 'eval_run_finished'
+  run_id?: string
+  turn_id?: null
+  tenant_id?: string
+  summary?: Summary
 }
 
 export interface ApiErrorBody {

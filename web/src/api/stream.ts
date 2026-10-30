@@ -8,7 +8,7 @@
 // - Drops any event at or below the cursor, so a replayed overlap is harmless.
 // - Closes itself on turn_end, and after the replay when follow=false.
 import { eventsPath, type EventSourceLike, type Transport } from './client'
-import { EVENT_TYPES, type HarnessEvent } from './types'
+import { EVENT_TYPES, type EvalStreamEvent, type HarnessEvent } from './types'
 
 export type StreamEnd = 'turn_end' | 'replayed' | 'closed' | 'failed'
 
@@ -141,4 +141,42 @@ export function loadTurnEvents(
       },
     )
   })
+}
+
+export const EVAL_STREAM_TYPES = ['eval_run_started', 'eval_case_finished', 'eval_run_finished'] as const
+
+/**
+ * GET /v1/evals/runs/{id}/events: the progress of one eval run. The server closes it after
+ * `eval_run_finished`; a drop before that ends the stream too (`lost`), and the caller reads the
+ * run's state back from GET /v1/evals/runs/{id} either way, so nothing is retried here.
+ */
+export function openEvalStream(
+  t: Transport,
+  runId: string,
+  handlers: { onEvent: (ev: EvalStreamEvent) => void; onEnd: (why: 'finished' | 'lost' | 'closed') => void },
+): { close: () => void } {
+  let ended = false
+  const source = new t.EventSource(`${t.baseUrl}/v1/evals/runs/${encodeURIComponent(runId)}/events`, { withCredentials: true })
+  const finish = (why: 'finished' | 'lost' | 'closed') => {
+    if (ended) return
+    ended = true
+    source.close()
+    handlers.onEnd(why)
+  }
+  const onMessage = (msg: MessageEvent) => {
+    if (ended || typeof msg.data !== 'string') return
+    let ev: EvalStreamEvent
+    try {
+      ev = JSON.parse(msg.data) as EvalStreamEvent
+    } catch {
+      return
+    }
+    if (!ev.type && msg.type && msg.type !== 'message') ev = { ...ev, type: msg.type as EvalStreamEvent['type'] }
+    handlers.onEvent(ev)
+    if (ev.type === 'eval_run_finished') finish('finished')
+  }
+  for (const type of EVAL_STREAM_TYPES) source.addEventListener(type, onMessage)
+  source.onmessage = onMessage
+  source.onerror = () => finish('lost')
+  return { close: () => finish('closed') }
 }
