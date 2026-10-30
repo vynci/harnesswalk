@@ -105,6 +105,28 @@ test('step mode pauses at every node and Next moves one hop', async ({ page }) =
   await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
 })
 
+test('the step card stacks its buttons under the title in a narrow chat', async ({ page }) => {
+  await page.getByTestId('step-toggle').click()
+  await send(page, 'What are your support hours?')
+  const controls = page.getByTestId('step-controls')
+  await expect(controls).toContainText('Gateway')
+  const title = controls.getByText(/^Paused at /)
+  const next = controls.getByRole('button', { name: 'Next node' })
+  const layout = async () => {
+    const [card, t, n] = await Promise.all([controls.boundingBox(), title.boundingBox(), next.boundingBox()])
+    return { width: card!.width, titleLines: Math.round(t!.height / 20), stacked: n!.y >= t!.y + t!.height }
+  }
+  // Narrow (the old layout wrapped "Paused at Gateway" word by word here): the buttons go under
+  // the title, which stays on one line.
+  await page.setViewportSize({ width: 1500, height: 800 })
+  await expect.poll(async () => (await layout()).width).toBeLessThan(560)
+  expect(await layout()).toMatchObject({ titleLines: 1, stacked: true })
+  // Wide: title and buttons share the row.
+  await page.setViewportSize({ width: 1900, height: 800 })
+  await expect.poll(async () => (await layout()).width).toBeGreaterThan(560)
+  expect(await layout()).toMatchObject({ titleLines: 1, stacked: false })
+})
+
 test('Stop cancels a paused turn', async ({ page }) => {
   await page.getByTestId('step-toggle').click()
   await send(page, 'What are your support hours?')
