@@ -55,6 +55,11 @@ CREATE TABLE IF NOT EXISTS checkpoints (
     ts TEXT NOT NULL,
     PRIMARY KEY (turn_id, step)
 );
+CREATE TABLE IF NOT EXISTS restored_turns (
+    turn_id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    ts TEXT NOT NULL
+);
 """
 
 WRITERS = {"turns": {"gateway"}, "summary": {"loop"}, "checkpoint": {"loop"}}
@@ -187,6 +192,28 @@ class SessionStore:
             (tenant_id, turn_id),
         )
         return {"step": row["step"], **json.loads(row["body"])} if row else None
+
+    def mark_restored(self, tenant_id: str, turn_id: str) -> None:
+        """The turn was re-attached from its checkpoint after a restart (P4)."""
+        self.db.execute(
+            "INSERT OR REPLACE INTO restored_turns VALUES (?, ?, ?)",
+            (turn_id, tenant_id, iso(time.time())),
+        )
+
+    def checkpoint_info(self, tenant_id: str, turn_id: str) -> dict[str, Any] | None:
+        """`{step, at, restored}` of the turn's last checkpoint, for the turn summary (P4)."""
+        row = self.db.one(
+            "SELECT step, ts FROM checkpoints WHERE tenant_id = ? AND turn_id = ?"
+            " ORDER BY step DESC LIMIT 1",
+            (tenant_id, turn_id),
+        )
+        if row is None:
+            return None
+        restored = self.db.one(
+            "SELECT 1 FROM restored_turns WHERE tenant_id = ? AND turn_id = ?",
+            (tenant_id, turn_id),
+        )
+        return {"step": row["step"], "at": row["ts"], "restored": restored is not None}
 
     def count(self, tenant_id: str) -> dict[str, int]:
         sessions = self.db.one(
