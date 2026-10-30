@@ -44,11 +44,12 @@ const SIDES: [Position, string][] = [
   [Position.Left, 'left'],
 ]
 
-function StateIcon({ state }: { state: NodeState }) {
+/** The node's status icon, in the state colour; the legend draws it still (`spin={false}`). */
+export function StateIcon({ state, spin = true }: { state: NodeState; spin?: boolean }) {
   const cls = 'size-3.5 shrink-0'
   switch (state) {
     case 'active':
-      return <Loader className={cn(cls, 'text-state-active motion-safe:animate-spin')} aria-hidden />
+      return <Loader className={cn(cls, 'text-state-active', spin && 'motion-safe:animate-spin')} aria-hidden />
     case 'waiting':
       return <CirclePause className={cn(cls, 'text-state-waiting')} aria-hidden />
     case 'done':
@@ -78,8 +79,8 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
   return (
     <Card
       className={cn(
-        'hw-node relative h-full w-full gap-0 rounded-[10px] py-2 pr-2 pl-3.5 text-left shadow-none',
-        isChild && 'py-1.5 pr-1.5 pl-3',
+        'hw-node relative h-full w-full gap-0 rounded-[10px] py-2 pr-2 pl-2.5 text-left',
+        isChild && 'py-1.5 pr-1.5 pl-2',
       )}
       style={planeStyle(node.group)}
       data-testid={`node-${node.id}`}
@@ -90,7 +91,6 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
       data-pulse={pulse ? 'true' : undefined}
       data-points={points ? Object.entries(points).map(([k, v]) => `${k}:${v}`).join(' ') : undefined}
     >
-      <span className="hw-accent" aria-hidden />
       {SIDES.map(([pos, side]) => (
         <Handle key={`t-${side}`} id={`t-${side}`} type="target" position={pos} className="!h-1 !w-1 !min-w-0 !border-0 !bg-transparent" isConnectable={false} />
       ))}

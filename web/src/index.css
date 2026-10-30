@@ -230,63 +230,39 @@
   color: var(--plane-ink);
 }
 
-/* A node: plane border and fill; its state is the left accent bar plus the status icon. Only an
-   active, waiting or failed node changes its border, so the one running node stands out. */
+/* A node: a neutral card (bg-card, shadow-sm and the rhea ring, as the Card component draws
+   them) inside its coloured plane group; the group carries the plane. Its state is the status
+   icon, plus a 1 px state-coloured ring only while it is active (pulsing), waiting (dashed) or
+   failed, so the one running node stands out. Done, idle, skipped and not built get no ring. */
 .hw-node {
-  --ring-color: transparent;
-  --node-accent: var(--state-idle);
-  border: 1.5px solid var(--plane-stroke);
-  background: var(--plane-fill);
-  box-shadow: 0 0 0 0 var(--ring-color);
+  --node-ring: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --node-shadow: 0 0 0 1px var(--node-ring), 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  border: 1px solid transparent;
+  box-shadow: var(--node-shadow);
   transition:
     box-shadow 160ms ease,
     border-color 160ms ease,
     opacity 160ms ease;
 }
-.hw-accent {
-  position: absolute;
-  left: 3px;
-  top: 7px;
-  bottom: 7px;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--node-accent);
-  opacity: 0.55;
+.dark .hw-node {
+  --node-ring: color-mix(in oklab, var(--foreground) 10%, transparent);
 }
 .hw-node[data-state='active'] {
-  --node-accent: var(--state-active);
-  --ring-color: var(--state-active);
   border-color: var(--state-active);
   animation: hw-pulse 1.1s ease-in-out infinite;
 }
 .hw-node[data-state='waiting'] {
-  --node-accent: var(--state-waiting);
   border-color: var(--state-waiting);
   border-style: dashed;
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--state-waiting) 35%, transparent);
-}
-.hw-node[data-state='done'] {
-  --node-accent: var(--state-done);
 }
 .hw-node[data-state='error'] {
-  --node-accent: var(--state-error);
   border-color: var(--state-error);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--state-error) 35%, transparent);
 }
 .hw-node[data-state='skipped'] {
-  --node-accent: var(--state-skipped);
-  border-style: dotted;
   opacity: 0.75;
-}
-.hw-node:not([data-state='idle']) .hw-accent {
-  opacity: 1;
-}
-.hw-node[data-state='skipped'] .hw-accent {
-  background: repeating-linear-gradient(to bottom, var(--node-accent) 0 3px, transparent 3px 6px);
 }
 .hw-node[data-implemented='false'] {
   opacity: 0.55;
-  border-style: dashed;
   filter: saturate(0.4);
 }
 .hw-node[data-current='true'] {
@@ -317,10 +293,14 @@
 @keyframes hw-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 color-mix(in oklab, var(--state-active) 55%, transparent);
+    box-shadow:
+      0 0 0 0 color-mix(in oklab, var(--state-active) 55%, transparent),
+      var(--node-shadow);
   }
   50% {
-    box-shadow: 0 0 0 7px color-mix(in oklab, var(--state-active) 0%, transparent);
+    box-shadow:
+      0 0 0 7px color-mix(in oklab, var(--state-active) 0%, transparent),
+      var(--node-shadow);
   }
 }
 
@@ -330,10 +310,14 @@
 }
 @keyframes hw-ops-pulse {
   0% {
-    box-shadow: 0 0 0 0 color-mix(in oklab, var(--plane-stroke) 60%, transparent);
+    box-shadow:
+      0 0 0 0 color-mix(in oklab, var(--plane-stroke) 60%, transparent),
+      var(--node-shadow);
   }
   100% {
-    box-shadow: 0 0 0 10px color-mix(in oklab, var(--plane-stroke) 0%, transparent);
+    box-shadow:
+      0 0 0 10px color-mix(in oklab, var(--plane-stroke) 0%, transparent),
+      var(--node-shadow);
   }
 }
 
@@ -413,7 +397,9 @@
   }
   .hw-node[data-state='active'] {
     animation: none;
-    box-shadow: 0 0 0 4px color-mix(in oklab, var(--state-active) 40%, transparent);
+    box-shadow:
+      0 0 0 4px color-mix(in oklab, var(--state-active) 40%, transparent),
+      var(--node-shadow);
   }
   .hw-edge[data-state='active'] .hw-edge-path {
     animation: none;

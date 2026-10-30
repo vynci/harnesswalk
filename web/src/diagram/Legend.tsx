@@ -7,18 +7,21 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { load, save } from '@/state/persist'
+import type { NodeState } from '@/state/reducer'
+import { StateIcon } from './HarnessNode'
 import { edgeColor, KIND_HINT, KIND_ICON } from './planes'
 
-// The three colour channels of the diagram, one row each: node state (accent bar and icon),
+// The three colour channels of the diagram, one row each: node state (status icon, and a ring
+// while active, waiting or failed),
 // node kind (icon chip) and edge kind (stroke colour and dash). See web/README.md.
 
-const STATES: { state: string; label: string }[] = [
-  { state: 'idle', label: 'idle' },
-  { state: 'active', label: 'active' },
-  { state: 'waiting', label: 'waiting' },
-  { state: 'done', label: 'done' },
-  { state: 'error', label: 'error' },
-  { state: 'skipped', label: 'skipped' },
+const STATES: { state: NodeState; label: string; title: string }[] = [
+  { state: 'idle', label: 'idle', title: 'Idle: not reached this turn' },
+  { state: 'active', label: 'active', title: 'Active: working now, with a pulsing ring' },
+  { state: 'waiting', label: 'waiting', title: 'Waiting: paused (approval or step mode), with a dashed ring' },
+  { state: 'done', label: 'done', title: 'Done this turn' },
+  { state: 'error', label: 'error', title: 'Error: failed, with a ring' },
+  { state: 'skipped', label: 'skipped', title: 'Skipped: switched off or not needed, faded' },
 ]
 
 const KINDS: NodeKind[] = ['code', 'config', 'prompt', 'store', 'queue', 'model']
@@ -122,21 +125,15 @@ export function Legend({
         <dl id="diagram-legend" className="flex flex-col gap-1.5 border-t px-3.5 pt-2 pb-2.5" title="Faint: not used this turn. Moving: in use now. Stronger: used this turn.">
           <Row title="State">
             {STATES.map((s) => (
-              <Entry key={s.state}>
-                <span
-                  className="inline-block h-3 w-[3px] rounded-full"
-                  style={{
-                    background:
-                      s.state === 'skipped'
-                        ? 'repeating-linear-gradient(to bottom, var(--state-skipped) 0 2px, transparent 2px 4px)'
-                        : `var(--state-${s.state})`,
-                  }}
-                />
+              <Entry key={s.state} title={s.title}>
+                <StateIcon state={s.state} spin={false} />
                 {s.label}
               </Entry>
             ))}
-            <Entry>
-              <span className="inline-block h-3 w-3.5 rounded-sm border border-dashed border-current opacity-60" />
+            <Entry title="Not built yet: faded, with a not yet pill">
+              <Badge variant="outline" className="h-4 border-dashed border-current px-1.5 font-normal text-muted-foreground">
+                not yet
+              </Badge>
               not built
             </Entry>
           </Row>

@@ -169,8 +169,9 @@ legend and diagram chrome read as one system:
 - **Monochrome.** Status is text colour (`text-destructive`), `opacity-60` for not started, the
   `shimmer` for running (off under reduced motion) and the tense of the title. Primary fill only
   on the send button and the main action of a prompt (Approve, Next). Plane, kind and state
-  colours appear on icons, the 3 px accent bars, diagram strokes and small chips, never as
-  coloured or dashed borders around chat or inspector surfaces.
+  colours appear on icons, diagram strokes, plane groups and small chips, never as coloured or
+  dashed borders around chat or inspector surfaces. A diagram node is a neutral card; only an
+  active, waiting or failed one gets a 1 px ring in its state colour.
 - **Borders.** Trace lines have none; open content gets one hairline on the left. Bubbles are
   fills. Items are a 1 px outline. Raised surfaces (cards, menus, hover cards) use
   `ring-1 ring-foreground/5` and a shadow.
@@ -272,17 +273,18 @@ every route against a live harness. How it finds things without naming node ids:
 
 Colour carries four separate meanings, each on its own channel, so they never compete. The
 tokens live in `src/index.css` (light and dark), and `src/diagram/colors.test.ts` checks their
-contrast in both themes: 4.5:1 for text, 3:1 for accents, icons and edge strokes.
+contrast in both themes: 4.5:1 for text, 3:1 for state icons and rings, kind icons and edge
+strokes.
 
 | Channel | Drawn as | Values |
 |---|---|---|
-| Plane | group box background, dashed border and header | control amber, context blue, execution green, LLM Ops purple |
+| Plane | group box background, dashed border and header (the node inside is a neutral `bg-card` card with `shadow-sm` and `ring-1 ring-foreground/5`) | control amber, context blue, execution green, LLM Ops purple |
 | Node kind (purpose) | icon chip (the Badge `kind` variant) after the title; the kind word stays for screen readers | code slate, config amber, prompt violet, store teal, queue orange, model indigo |
-| Node state | left accent bar plus the status icon | idle neutral grey, active blue with a pulse, waiting amber (dashed border), done green (bar and icon only, border stays the plane's), error red, skipped grey dashed bar, not yet built muted and dashed |
+| Node state | the status icon, plus a 1 px ring in the state colour while active, waiting or failed | idle neutral grey, active blue with a pulsing ring, waiting amber (dashed ring), done green (icon only), error red (ring), skipped grey and faded, not yet built muted with a "not yet" pill |
 | Edge kind | stroke colour and dash | request solid in the source plane's colour, reply (a request back against walk order) a lighter tint of it, data solid teal, control dashed amber, telemetry dotted thin grey, release dashed purple |
 | Edge state | opacity and motion | idle 40 percent, flowing full opacity with moving dashes and a dot, used this turn 70 percent |
 
-Only an active, waiting or failed node changes its border, so while a turn runs the one active
+Only an active, waiting or failed node gets a ring, so while a turn runs the one active
 node stands out against the quiet done ones. An active edge shows its label beside the line,
 never on it, so the moving dot does not pass under it. With reduced motion there is no pulse,
 moving dash or dot; states still show by colour and weight.

@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 // WCAG contrast of the diagram's colour tokens, read from index.css, in both themes:
-// 4.5:1 for text, 3:1 for the state accent, the kind icons and the edge strokes.
+// 4.5:1 for text, 3:1 for the state icons and rings, the kind icons and the edge strokes. Nodes
+// are neutral cards (--card) inside their plane group, so node colours are checked on the card.
 
 type RGB = [number, number, number]
 
@@ -43,6 +44,8 @@ const light = block(':root')
 const dark = new Map([...light, ...block('.dark')])
 const PLANES = ['control', 'context', 'execution', 'ops']
 const STATES = ['active', 'waiting', 'done', 'error', 'idle', 'skipped']
+// Only these states draw a ring on the node (index.css .hw-node).
+const RINGS = ['active', 'waiting', 'error']
 const KINDS = ['code', 'config', 'prompt', 'store', 'queue', 'model']
 const EDGES = ['data', 'control', 'telemetry', 'release']
 
@@ -53,23 +56,24 @@ describe.each([
   const c = (name: string) => parse(tokens.get(name)!)
 
   it('plane headers and node text read at 4.5:1', () => {
-    for (const p of PLANES) {
-      expect(contrast(c(`plane-${p}-ink`), c(`plane-${p}-group`)), `${p} header`).toBeGreaterThanOrEqual(4.5)
-      expect(contrast(c('foreground'), c(`plane-${p}-fill`)), `${p} title`).toBeGreaterThanOrEqual(4.5)
-      expect(contrast(c('muted-foreground'), c(`plane-${p}-fill`)), `${p} stat`).toBeGreaterThanOrEqual(4.5)
+    for (const p of PLANES) expect(contrast(c(`plane-${p}-ink`), c(`plane-${p}-group`)), `${p} header`).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(c('foreground'), c('card')), 'node title').toBeGreaterThanOrEqual(4.5)
+    expect(contrast(c('muted-foreground'), c('card')), 'node stat').toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('state icons and rings stand out at 3:1 on the node card', () => {
+    for (const s of STATES) expect(contrast(c(`state-${s}`), c('card')), `${s} on the card`).toBeGreaterThanOrEqual(3)
+  })
+
+  it('the state rings stand out at 3:1 on every plane group around the card', () => {
+    for (const p of PLANES) for (const s of RINGS) expect(contrast(c(`state-${s}`), c(`plane-${p}-group`)), `${s} ring on ${p}`).toBeGreaterThanOrEqual(3)
+  })
+
+  it('kind icons stand out at 3:1 on their chip on the node card', () => {
+    for (const k of KINDS) {
+      const chip = mix(c(`kind-${k}`), c('card'), 0.13)
+      expect(contrast(c(`kind-${k}`), chip), k).toBeGreaterThanOrEqual(3)
     }
-  })
-
-  it('state accents stand out at 3:1 on every plane', () => {
-    for (const p of PLANES) for (const s of STATES) expect(contrast(c(`state-${s}`), c(`plane-${p}-fill`)), `${s} on ${p}`).toBeGreaterThanOrEqual(3)
-  })
-
-  it('kind icons stand out at 3:1 on their chip on every plane', () => {
-    for (const p of PLANES)
-      for (const k of KINDS) {
-        const chip = mix(c(`kind-${k}`), c(`plane-${p}-fill`), 0.13)
-        expect(contrast(c(`kind-${k}`), chip), `${k} on ${p}`).toBeGreaterThanOrEqual(3)
-      }
   })
 
   it('edge strokes in use stand out at 3:1 on the canvas and the planes', () => {
