@@ -42,7 +42,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from harnesswalk.context.memory_writer import proposal_from_call
+from harnesswalk.context.memory_writer import MemoryProposal, proposal_from_call
 from harnesswalk.context.stores.session import SessionStore
 from harnesswalk.events import Span
 from harnesswalk.execution.model_layer import ModelLayer, ModelRequest
@@ -208,6 +208,8 @@ class Loop:
         messages = [Message.from_dict(m) for m in checkpoint["messages"]]
         usage = Usage(**checkpoint.get("usage", {}))
         state = LoopState(messages, usage, int(checkpoint["step"]))
+        # P4: the proposals collected before the pause survive the restart with the checkpoint.
+        state.proposals = [MemoryProposal(**p) for p in checkpoint.get("proposals", [])]
         for m in messages:
             for c in m.tool_calls:
                 state.seen[call_key(c.name, c.arguments)] += 1
@@ -350,6 +352,13 @@ class Loop:
         body: dict[str, Any] = {
             "messages": [m.to_dict() for m in state.messages],
             "usage": asdict(state.usage),
+            # P4: what a turn re-attached after a restart must keep (loop.md, checkpoints).
+            "proposals": [asdict(p) for p in state.proposals],
+            "turn": {
+                "output_schema": ctx.output_schema,
+                "byo_key": ctx.byo_key,
+                "citations": ctx.citations,
+            },
         }
         if pending is not None:
             body["pending_call"] = asdict(pending)

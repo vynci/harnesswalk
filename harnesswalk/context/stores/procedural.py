@@ -4,7 +4,9 @@ Contract: spec/contracts/store.md. Node: `procedural` (expert child of `memory`,
 
 The prompt and the skills index (name and one line per skill) are in the `always` tier. A skill
 body is `on_demand`: the model fetches it by exact name with the `read_skill` tool. Everything
-is loaded through `release.current()`, and only release may change it.
+is loaded through release, and only release may change it: with the settings' served view (P4)
+the prompt and the skills are the release store's served versions (an edit in the inspector, a
+rollback), otherwise the pack files or the profile's inline values.
 
 A skill is a markdown file with front matter:
 
@@ -53,15 +55,49 @@ def parse_skill(path_name: str, text: str, version: str) -> Skill:
 class ProceduralStore:
     kind = "procedural"
 
-    def __init__(self, system_prompt: str, prompt_version: str, skills: list[Skill]) -> None:
+    def __init__(
+        self,
+        system_prompt: str,
+        prompt_version: str,
+        skills: list[Skill],
+        prompt_artifact_version: int | None = None,
+    ) -> None:
         self.system_prompt = system_prompt.strip()
         self.prompt_version = prompt_version
+        self.prompt_artifact_version = prompt_artifact_version
         self.skills = {s.name: s for s in skills}
 
     @classmethod
     def from_settings(cls, settings: Any) -> ProceduralStore:
         inline = settings.get("procedural", {}) or {}
         pack = f"datasets/{settings.get('dataset', '_starter')}"
+        served = getattr(settings, "served", None)
+        if served is not None and served.read(f"{pack}/system_prompt.md") is not None:
+            store = cls._from_served(settings, served, pack)
+        else:
+            store = cls._from_files(settings, inline, pack)
+        budget = settings.get("context.slices.procedural", 3000)
+        estimator = settings.get("context.token_estimator", "chars_div_4")
+        if store.tokens(estimator) > budget:
+            raise ConfigError(
+                f"procedural memory needs {store.tokens(estimator)} tokens,"
+                f" over its {budget} budget"
+            )
+        return store
+
+    @classmethod
+    def _from_served(cls, settings: Any, served: Any, pack: str) -> ProceduralStore:
+        path = f"{pack}/system_prompt.md"
+        prompt, _ = release.current(settings.root, path, served)
+        version = release.version_of("system_prompt", prompt)
+        skills = [
+            parse_skill(f"{name}.md", body, release.version_of(f"{name}.md", body))
+            for name, body, _ in served.skills
+        ]
+        return cls(prompt, version, skills, served.versions.get(path))
+
+    @classmethod
+    def _from_files(cls, settings: Any, inline: dict[str, Any], pack: str) -> ProceduralStore:
         if "system_prompt" in inline:
             prompt = inline["system_prompt"]
             version = release.version_of("system_prompt", prompt)
@@ -78,15 +114,7 @@ class ProceduralStore:
                 rel = str(path.relative_to(settings.root))
                 text, ver = release.current(settings.root, rel)
                 skills.append(parse_skill(path.name, text, ver))
-        store = cls(prompt, version, skills)
-        budget = settings.get("context.slices.procedural", 3000)
-        estimator = settings.get("context.token_estimator", "chars_div_4")
-        if store.tokens(estimator) > budget:
-            raise ConfigError(
-                f"procedural memory needs {store.tokens(estimator)} tokens,"
-                f" over its {budget} budget"
-            )
-        return store
+        return cls(prompt, version, skills)
 
     def index_text(self) -> str:
         if not self.skills:
@@ -117,4 +145,6 @@ async def run_procedural(ctx: TurnContext, store: ProceduralStore, estimator: st
             skills_indexed=len(store.skills),
             tokens=estimate(text, estimator),
         )
+        if store.prompt_artifact_version is not None:
+            span.set(prompt_artifact_version=store.prompt_artifact_version)
     return text

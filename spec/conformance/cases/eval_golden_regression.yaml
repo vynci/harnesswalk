@@ -1,0 +1,46 @@
+id: eval_golden_regression
+title: A golden run passes, a skill edit makes the next run fail the case that pinned it, and the run lists the regression
+spec_version: 0.1.0
+fixture: eval_golden_regression
+turns:
+  - before:
+      - method: PUT
+        path: /v1/artifacts/skill/returns
+        body: { body: "---\nname: returns\ndescription: How to handle a return or refund request.\n---\nReturns are accepted within 30 days of delivery.\n" }
+        match: { kind: skill, name: returns, version: 1 }
+      - method: POST
+        path: /v1/evals/runs
+        body: { pack: _starter, suite: golden }
+        status: 202
+        save: { run1: run_id }
+      - method: GET
+        path: /v1/evals/runs/${run1}
+        wait: { timeout_s: 20 }
+        match: { status: done, totals: { cases: 1, passed: 1, failed: 0 }, regressions: 0 }
+    send:
+      message: What are your support hours?
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: turn_end, status: done, summary: { exit: answered } }
+    after:
+      - method: PUT
+        path: /v1/artifacts/skill/returns
+        body: { body: "---\nname: returns\ndescription: Refunds and returns.\n---\nReturns are accepted within 30 days of delivery.\n", note: a shorter description }
+        match: { version: 2, previous_version: 1 }
+      - method: POST
+        path: /v1/evals/runs
+        body: { pack: _starter, suite: golden }
+        status: 202
+        save: { run2: run_id }
+      - method: GET
+        path: /v1/evals/runs/${run2}
+        wait: { timeout_s: 20 }
+        match:
+          status: done
+          totals: { cases: 1, passed: 0, failed: 1 }
+          regressions: 1
+          regression_cases: [skill_index]
+          previous_run_id: ${run1}
+          diff: { regressed: [skill_index] }

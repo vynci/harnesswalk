@@ -122,8 +122,20 @@ class ToolRegistry:
         self._tools[spec.name] = spec
 
     def load_yaml(self, path: Path) -> None:
-        entries = yaml.safe_load(path.read_text(encoding="utf-8")) or []
+        self.load_text(path.read_text(encoding="utf-8"), path)
+
+    def load_text(self, text: str, path: Path) -> None:
+        """Tool specs from YAML text; `path` names it in errors and anchors relative entrypoints
+        (the release store hands the text of a pack's tools.yaml, P4)."""
+        try:
+            entries = yaml.safe_load(text) or []
+        except yaml.YAMLError as exc:
+            raise ConfigError(f"{path}: not valid YAML: {exc}") from exc
+        if not isinstance(entries, list):
+            raise ConfigError(f"{path} must hold a list of tool specs")
         for entry in entries:
+            if not isinstance(entry, dict):
+                raise ConfigError(f"{path}: every tool spec must be a mapping")
             for key in ("name", "description", "parameters", "action_class", "timeout_ms"):
                 if key not in entry:
                     raise ConfigError(f"{path}: tool {entry.get('name')} has no {key}")

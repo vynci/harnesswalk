@@ -24,6 +24,7 @@ the same API.
 | `fixture.schema.json` | Shape of a fixture |
 | `cases/*.yaml` | One case per file: what to send and what the stream must look like |
 | `case.schema.json` | Shape of a case |
+| `golden.jsonl` | P4: the golden set eval runs read under the profile (`evals.golden_path`) |
 
 ## Protocol
 
@@ -45,7 +46,7 @@ never imports the implementation.
    `GET /v1/turns/{turn_id}/events` until `turn_end`, with a 30 second limit per turn.
 4. **Act.** While reading, when an event matches an `actions[].when` matcher, perform its `do`:
    `approval: approve | deny` posts to `/v1/approvals/{summary.approval_id}`;
-   `resume: step | continue` posts to `/v1/turns/{turn_id}/resume`; `cancel: true` posts `{}` as
+   `resume: step | continue | step_over` posts to `/v1/turns/{turn_id}/resume`; `cancel: true` posts `{}` as
    `application/json` to `/v1/turns/{turn_id}/cancel` and expects `202`. Each action fires once unless `repeat: true`.
    Once a turn is cancelled no further action fires for it.
    `restart: true` (P3, only in a `two_process` case) kills the harness process (`SIGKILL`),
@@ -69,6 +70,12 @@ never imports the implementation.
    6. **Absent.** No event matches any `expect.absent` matcher.
    7. **Cost.** `turn_end.cost` token totals equal `expect.cost` when given.
    8. **Reply.** `turn_end.summary.reply` contains every `expect.reply_contains` substring.
+5a. **Requests** (P4). A turn may list `before` and `after` requests (`GET`, `POST` or `PUT`
+   with a JSON body): `before` runs before the turn's message is sent, `after` once the turn
+   ended and its `http` checks ran. Each must answer `status` (default 200) and match `match`;
+   with `wait: {timeout_s}` the runner repeats it until both hold. `save: {name: dotted.path}`
+   keeps a value from the response, and any later string in the case may name it as
+   `${name}` (requests, messages, options, matchers).
 5b. **HTTP checks** (P3). After a turn ends, each `http` entry is a `GET` whose status must be
    `status` (default 200) and whose JSON must match `match` (recursive subset, as matchers).
 6. **Report.** One line per case: `PASS` or `FAIL <assertion>: <detail>`. Unused fixture responses
@@ -107,6 +114,10 @@ model would say. The fake provider fixes what the model says.
 | `knowledge_cited` | `knowledge_cited` | With `knowledge` among the stores, the `knowledge` child retrieves the returns policy, the context numbers it `[1]`, and `turn_end.summary.citations` names the chunk the reply cites |
 | `memory_written` | `memory_written` | A `remember` call (class `memory.write`) is allowed and audited, the memory writer runs after the reply and writes the fact (`memory_proposed`, `memory_written`), and the next turn retrieves it from `semantic` |
 | `memory_denied_public` | `memory_denied_public` | In `public` mode the same call is proposed with gate `session` and rejected: no `memory_written` |
+| `eval_golden_regression` | `eval_golden_regression` | P4: a golden run over `spec/conformance/golden.jsonl` passes; after a skill edit (`PUT /v1/artifacts/skill/returns`) the next run fails the case that pinned the skill and lists it in `regression_cases` |
+| `release_rollback` | `release_rollback` | P4: an edited prompt reaches the model after a release; after `POST /v1/releases/{id}/rollback` to the first release, the next turn's model sees the old prompt (the fixture's `system_contains`) and the working set is clean |
+| `step_over` | `step_over` | P4: step mode with `resume: step_over` at `memory`: the expert children `procedural` and `session` do not pause, the next pause is `loop` |
+| `restart_keeps_schema` | `restart_keeps_schema` | P4, two-process: a turn with an `output_schema` and a `remember` call pauses on an approval, the harness is killed and restarted, the approval is decided, and the reply is still schema-checked (`schema: valid`), the pre-pause proposal is written and `checkpoint.restored` is true |
 
 The knowledge and memory cases need the expert children `knowledge` and `semantic`: an
 implementation that implements those stores emits their spans, so these cases assert them.

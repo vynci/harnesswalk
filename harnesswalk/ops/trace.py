@@ -8,11 +8,16 @@ tenant. Live readers get stored events first, then new ones as they arrive, unti
 
 The `trace` node itself runs once at the end of a chat turn, after the gateway reply and before
 `turn_end`: it confirms the turn is persisted and computes the receipt (its `cost` child).
+
+P4: a turn index (one row per turn, written at `turn_start`, completed at `turn_end`) answers the
+trace query (`query_turns`) in one statement, and `receipt` adds per-node timing and one line
+per model call.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import sqlite3
 from collections.abc import AsyncIterator
@@ -41,6 +46,27 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS events_by_node ON events (tenant_id, node_id, type);
 CREATE INDEX IF NOT EXISTS events_by_session ON events (tenant_id, session_id, type);
+CREATE TABLE IF NOT EXISTS turn_index (
+    tenant_id TEXT NOT NULL,
+    turn_id TEXT NOT NULL,
+    trace_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    channel TEXT,
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    status TEXT NOT NULL,
+    exit TEXT,
+    steps INTEGER,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    usd REAL,
+    duration_ms REAL,
+    path TEXT,
+    nodes TEXT,
+    PRIMARY KEY (tenant_id, turn_id)
+);
+CREATE INDEX IF NOT EXISTS turn_index_by_start ON turn_index (tenant_id, started_at, turn_id);
 CREATE TABLE IF NOT EXISTS details (
     tenant_id TEXT NOT NULL,
     trace_id TEXT NOT NULL,
@@ -63,6 +89,8 @@ class Tracer:
         self._buffer: list[Event] = []
         self._turn_ids: dict[str, tuple[str, str]] = {}  # turn_id -> (tenant_id, trace_id)
         self._live: dict[str, list[asyncio.Queue[Event]]] = {}
+        if not readonly:
+            self._backfill_index()
 
     # -- writing ----------------------------------------------------------------------------
 
@@ -82,8 +110,178 @@ class Tracer:
             self._buffer.append(event)
         for queue in self._live.get(turn_id, []):
             queue.put_nowait(event)
+        if event["type"] in ("turn_start", "turn_end"):
+            with contextlib.suppress(sqlite3.Error):  # the index is derived; the events are kept
+                self._index(event)
         if event["type"] == "turn_end":
             self._turn_ids.pop(turn_id, None)
+
+    # -- the turn index (P4) ----------------------------------------------------------------
+
+    def _index(self, event: Event) -> None:
+        summary = event.get("summary") or {}
+        if event["type"] == "turn_start":
+            self.db.execute(
+                "INSERT OR IGNORE INTO turn_index (tenant_id, turn_id, trace_id, session_id,"
+                " kind, channel, started_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'running')",
+                (
+                    event["tenant_id"],
+                    event["turn_id"],
+                    event["trace_id"],
+                    event["session_id"],
+                    "eval" if summary.get("channel") == "eval" else summary.get("kind", "chat"),
+                    summary.get("channel"),
+                    event["ts"],
+                ),
+            )
+            return
+        self._complete(event["tenant_id"], event["turn_id"])
+
+    def _complete(self, tenant_id: str, turn_id: str) -> None:
+        events = self.get_turn(tenant_id, turn_id)
+        if not events:
+            return
+        start, end = events[0], events[-1]
+        if end["type"] != "turn_end":
+            return
+        summary = end.get("summary") or {}
+        cost = end.get("cost") or receipt_of(turn_id, events)["total"]
+        self.db.execute(
+            "UPDATE turn_index SET ended_at = ?, status = ?, exit = ?, steps = ?,"
+            " input_tokens = ?, output_tokens = ?, usd = ?, duration_ms = ?, path = ?, nodes = ?"
+            " WHERE tenant_id = ? AND turn_id = ?",
+            (
+                end["ts"],
+                end["status"],
+                summary.get("exit"),
+                summary.get("steps", 0),
+                cost["input_tokens"],
+                cost["output_tokens"],
+                cost["usd"],
+                end.get("duration_ms"),
+                json.dumps(simple_path(events)),
+                json.dumps(sorted(entered(events))),
+                tenant_id,
+                start["turn_id"],
+            ),
+        )
+
+    def _backfill_index(self) -> None:
+        """Index turns stored before the index existed (one pass at start-up)."""
+        rows = self.db.query(
+            "SELECT body FROM events s WHERE s.type = 'turn_start' AND NOT EXISTS (SELECT 1"
+            " FROM turn_index i WHERE i.tenant_id = s.tenant_id AND i.turn_id = s.turn_id)"
+        )
+        for row in rows:
+            start = json.loads(row["body"])
+            self._index(start)
+            self._complete(start["tenant_id"], start["turn_id"])
+
+    def query_turns(
+        self,
+        tenant_id: str,
+        *,
+        session: str | None = None,
+        node: str | None = None,
+        status: str | None = None,
+        kind: str | None = None,
+        since: str | None = None,
+        until: str | None = None,
+        limit: int = 50,
+        after: str | None = None,
+    ) -> tuple[list[dict[str, Any]], str | None]:
+        """The trace query: the tenant's turns, newest first, with receipts, and the cursor of
+        the next page. `status` running and paused are both unfinished rows; paused is read off
+        the turn's events."""
+        sql = "SELECT * FROM turn_index WHERE tenant_id = ?"
+        params: list[Any] = [tenant_id]
+        if session:
+            sql += " AND session_id = ?"
+            params.append(session)
+        if kind:
+            sql += " AND kind = ?"
+            params.append(kind)
+        if since:
+            sql += " AND started_at >= ?"
+            params.append(since)
+        if until:
+            sql += " AND started_at <= ?"
+            params.append(until)
+        if status in ("done", "error"):
+            sql += " AND status = ?"
+            params.append(status)
+        elif status in ("running", "paused"):
+            sql += " AND ended_at IS NULL"
+        if node:
+            sql += (
+                " AND (ended_at IS NULL OR EXISTS (SELECT 1 FROM json_each(turn_index.nodes)"
+                " WHERE value = ?))"
+            )
+            params.append(node)
+        if after:
+            cursor = self.db.one(
+                "SELECT started_at FROM turn_index WHERE tenant_id = ? AND turn_id = ?",
+                (tenant_id, after),
+            )
+            if cursor is None:
+                raise KeyError(after)
+            sql += " AND (started_at < ? OR (started_at = ? AND turn_id < ?))"
+            params += [cursor["started_at"], cursor["started_at"], after]
+        sql += " ORDER BY started_at DESC, turn_id DESC"
+        out: list[dict[str, Any]] = []
+        offset = 0
+        page = max(limit * 2, 20)
+        while len(out) < limit + 1:  # unfinished rows are filtered here, so read in pages
+            rows = self.db.query(sql + " LIMIT ? OFFSET ?", (*params, page, offset))
+            if not rows:
+                break
+            offset += len(rows)
+            for row in rows:
+                item = self._listed(row, node, status)
+                if item is not None:
+                    out.append(item)
+        more = len(out) > limit
+        out = out[:limit]
+        return out, (out[-1]["turn_id"] if more and out else None)
+
+    def _listed(self, row: Any, node: str | None, status: str | None) -> dict[str, Any] | None:
+        ended = row["ended_at"] is not None
+        if ended:
+            state = row["status"]
+            path = json.loads(row["path"] or "[]")
+            cost = {
+                "input_tokens": row["input_tokens"] or 0,
+                "output_tokens": row["output_tokens"] or 0,
+                "usd": row["usd"] or 0.0,
+            }
+            steps, duration = row["steps"] or 0, row["duration_ms"]
+        else:
+            from harnesswalk.turns import summarize
+
+            events = self.get_turn(row["tenant_id"], row["turn_id"])
+            view = summarize(events) or {}
+            state = view.get("status", "running")
+            if node and node not in entered(events):
+                return None
+            cost = view.get("cost") or Usage().cost()
+            path, steps, duration = simple_path(events), None, None
+        if status and status != state:
+            return None
+        return {
+            "turn_id": row["turn_id"],
+            "session_id": row["session_id"],
+            "trace_id": row["trace_id"],
+            "started_at": row["started_at"],
+            "ended_at": row["ended_at"],
+            "status": state,
+            "exit": row["exit"],
+            "cost": cost,
+            "steps": steps,
+            "duration_ms": duration,
+            "path": path,
+            "kind": row["kind"],
+            "channel": row["channel"],
+        }
 
     def _insert(self, event: Event) -> None:
         self.db.execute(
@@ -257,6 +455,58 @@ class Tracer:
 
     def close(self) -> None:
         self.db.close()
+
+
+def simple_path(events: list[Event]) -> list[str]:
+    from harnesswalk import diagram
+
+    simple = {n["id"] for n in diagram.diagram()["nodes"] if n["view"] == "simple"}
+    return [e["node_id"] for e in events if e["type"] == "node_enter" and e["node_id"] in simple]
+
+
+def entered(events: list[Event]) -> set[str]:
+    return {e["node_id"] for e in events if e["type"] == "node_enter"}
+
+
+def full_receipt(turn_id: str, events: list[Event]) -> dict[str, Any]:
+    """The P4 receipt: the cost receipt plus timing and cost per node and one line per model
+    call. `total` still sums node exits only (rule 13), so it equals `turn_end.cost`."""
+    out = receipt_of(turn_id, events)
+    nodes: dict[str, dict[str, Any]] = {}
+    calls: list[dict[str, Any]] = []
+    for event in events:
+        if event["type"] not in ("node_exit", "error") or "node_id" not in event:
+            continue
+        node_id = event["node_id"]
+        cost = event.get("cost") or {}
+        item = nodes.setdefault(
+            node_id, {"ms": 0.0, "count": 0, "input_tokens": 0, "output_tokens": 0, "usd": 0.0}
+        )
+        item["ms"] = round(item["ms"] + event.get("duration_ms", 0.0), 3)
+        item["count"] += 1
+        for key in ("input_tokens", "output_tokens", "usd"):
+            item[key] += cost.get(key, 0)
+        if node_id == "model_layer":
+            summary = event.get("summary") or {}
+            calls.append(
+                {
+                    "seq": event["seq"],
+                    "step": summary.get("step"),
+                    "provider": summary.get("provider"),
+                    "model": summary.get("model"),
+                    "input_tokens": cost.get("input_tokens", 0),
+                    "output_tokens": cost.get("output_tokens", 0),
+                    "usd": cost.get("usd", 0.0),
+                    "ms": event.get("duration_ms"),
+                    "fallback": summary.get("fallback", False),
+                    "status": event["status"],
+                }
+            )
+    for item in nodes.values():
+        item["usd"] = round(item["usd"], 8)
+    out["nodes"] = nodes
+    out["calls"] = calls
+    return out
 
 
 def receipt_of(turn_id: str, events: list[Event]) -> dict[str, Any]:

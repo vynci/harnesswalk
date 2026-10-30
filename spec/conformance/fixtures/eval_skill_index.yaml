@@ -1,0 +1,8 @@
+fixture: eval_skill_index
+description: P4 golden case. The model is only scripted to answer when the returns skill's index line is in the system message, so editing the skill's description makes the case fail.
+model: fake-small
+turns:
+  - responses:
+      - text: Returns are accepted within 30 days of delivery.
+        usage: { input_tokens: 300, output_tokens: 12 }
+        expect: { last_message_role: user, system_contains: "- returns: How to handle a return or refund request." }

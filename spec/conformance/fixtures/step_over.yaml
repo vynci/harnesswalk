@@ -1,0 +1,7 @@
+fixture: step_over
+description: P4. A plain answer walked in step mode with one step over.
+model: fake-small
+turns:
+  - responses:
+      - text: Our support team is available 9am to 5pm Eastern, Monday to Friday.
+        usage: { input_tokens: 622, output_tokens: 17 }

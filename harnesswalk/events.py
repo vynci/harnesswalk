@@ -117,17 +117,26 @@ class TurnCancelled(asyncio.CancelledError):
 
 
 class Breakpoints:
-    """Step mode: pause after every node_enter until someone calls `resume` or `cancel`."""
+    """Step mode: pause after every node_enter until someone calls `resume` or `cancel`.
+
+    `step_over` (P4) releases the breakpoint and skips the breakpoints of expert nodes until the
+    next simple-view node is entered, where it pauses again.
+    """
 
     def __init__(self, enabled: bool) -> None:
         self.enabled = enabled
         self.paused_node: str | None = None
         self.cancelled = False
+        self.over = False  # stepping over: expert nodes do not pause
         self._release = asyncio.Event()
 
     async def hit(self, emitter: TurnEmitter, node_id: str) -> None:
         if not self.enabled:
             return
+        if self.over:
+            if diagram.parent_of(node_id) and not self.cancelled:
+                return  # an expert child: step over it
+            self.over = False
         if self.cancelled:  # cancelled while running: the next breakpoint stops the turn
             raise TurnCancelled()
         emitter.point("node_paused", node_id, "waiting", {"reason": "breakpoint"})
@@ -164,6 +173,7 @@ class Breakpoints:
         node_id = self.paused_node
         if mode == "continue":
             self.enabled = False
+        self.over = mode == "step_over"
         self.paused_node = None  # a second resume before the turn wakes is a 409
         self._release.set()
         return node_id

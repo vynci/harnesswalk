@@ -14,7 +14,8 @@ the `harnesswalk_session` cookie, else a new one.
 
 P2 adds cancel, turn summaries, the session turn list, cursor replay with `follow`, the code
 peek, capabilities and per-turn options, and serves the built web app (`web/dist`) with a
-fallback to `index.html`. In dev mode it answers CORS for the Vite dev server.
+fallback to `index.html`. In dev mode it answers CORS for the Vite dev server. P4 adds the LLM
+Ops routes (http_ops.py) and `step_over` on resume.
 """
 
 from __future__ import annotations
@@ -44,6 +45,7 @@ from harnesswalk import SPEC_VERSION, __version__, diagram
 from harnesswalk.control.approval import ApprovalAlreadyDecided, ApprovalNotFound
 from harnesswalk.control.gateway import GatewayError, TurnRequest
 from harnesswalk.control.http_memory import add_memory_routes
+from harnesswalk.control.http_ops import add_ops_routes, turn_extras
 from harnesswalk.events import iso, parse_iso
 from harnesswalk.inspectors import inspect_node, node_source
 from harnesswalk.nodes import generated_diagram
@@ -207,7 +209,7 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
             CORSMiddleware,
             allow_origins=DEV_ORIGINS,
             allow_credentials=True,
-            allow_methods=["GET", "POST"],
+            allow_methods=["GET", "POST", "PUT"],
             allow_headers=CORS_HEADERS,
         )
     identities = Identities(harness)
@@ -315,7 +317,7 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
         summary = turn_summary(harness.tracer, harness.session, identity.tenant_id, turn_id)
         if summary is None:
             raise not_found(turn_id)
-        return JSONResponse(summary)
+        return JSONResponse(turn_extras(harness, identity.tenant_id, summary))
 
     @app.post("/v1/turns/{turn_id}/cancel", status_code=202)
     async def cancel(request: Request, turn_id: str) -> JSONResponse:
@@ -352,7 +354,7 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
             raise GatewayError(
                 404, "session_not_found", f"No session {session_id} for this tenant."
             )
-        return JSONResponse(turns)
+        return JSONResponse([turn_extras(harness, identity.tenant_id, t) for t in turns])
 
     @app.get("/v1/turns/{turn_id}/events")
     async def turn_events(
@@ -410,8 +412,8 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
         identity, _ = identities.resolve(request)
         data = await read_json(request)
         mode = data.get("mode", "step")
-        if mode not in ("step", "continue"):
-            raise GatewayError(400, "invalid_request", "mode must be step or continue")
+        if mode not in ("step", "continue", "step_over"):
+            raise GatewayError(400, "invalid_request", "mode must be step, continue or step_over")
         node_id = gateway.resume(identity.tenant_id, turn_id, mode)
         return JSONResponse({"turn_id": turn_id, "resumed_node_id": node_id, "mode": mode})
 
@@ -511,6 +513,7 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
         return JSONResponse(harness.capabilities())
 
     add_memory_routes(app, harness, identities, read_json)
+    add_ops_routes(app, harness, identities, read_json)
 
     async def unknown_api_path(request: Request) -> JSONResponse:
         # Any method on an unknown /v1 path is a JSON 404, never the web app's 405 or HTML. A

@@ -67,3 +67,22 @@ child (summary `input_tokens`, `output_tokens`, `usd`). Edges: `loop_to_trace`, 
 | `trace.buffer_events` | `10000` | In-memory buffer when the store is down |
 | `trace.capture_content` | `true` in dev | Store full prompts and tool results in detail records |
 | `trace.otel.endpoint` | unset | Optional OTLP export |
+
+## P4 additions
+
+- **Turn index.** The store keeps one row per turn (ids, kind, channel, status, exit, steps,
+  cost, duration, the simple-view path and every node entered), written at `turn_start` and
+  completed at `turn_end`, backfilled for turns stored before P4. `list_turns` filters by
+  session, node, status, kind and start time and pages with a `turn_id` cursor
+  (`GET /v1/trace/turns`).
+- **Receipt.** Adds `nodes` (ms, count and cost per node, every node) and `calls` (one row per
+  `model_layer` exit: step, provider, model, tokens, usd, ms, fallback), plus online scores and
+  feedback. `total` still equals `turn_end.cost`.
+- **Ops events** (`events.md` section 10) are stored in the same database, per tenant and
+  stream, validated against the schema like turn events.
+- **OpenTelemetry export** (`export_otel`): `harnesswalk/ops/otel.py` turns a finished turn into
+  spans following `events.md` section 8 (root `harnesswalk.turn`, one span per node span, point
+  events as span events, span ids derived from the `event_id` of the opening event) and exports
+  them over OTLP when `HARNESSWALK_OTLP_ENDPOINT` or `trace.otel.endpoint` is set. Needs the
+  optional extra `otel` (`opentelemetry-sdk`, `opentelemetry-exporter-otlp`). Export runs off the
+  event loop and never fails a turn.

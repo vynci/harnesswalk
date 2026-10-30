@@ -89,7 +89,10 @@ Semantics:
 - `call_id` is taken from the fixture when given, else assigned `call_<n>` (1-based, per turn).
 - `usage` defaults to zero tokens. `usd` is always 0.
 - `expect` is optional. Keys: `tools_enabled` (bool), `last_message_role`,
-  `last_message_contains` (substring). A mismatch fails the call with `fixture_mismatch`.
+  `last_message_contains` (substring), and since P4 `system_contains` (a substring of the first
+  `system` message, the system prompt and skills index the context builder assembled, so a
+  fixture can pin which prompt or skill version a turn ran on). A mismatch fails the call with
+  `fixture_mismatch`.
 - `latency_ms` (optional, default 0) delays the response, for step-mode and timeout tests.
 - More calls than scripted fails with `fixture_exhausted`. Fewer calls is not an error, but the
   conformance runner reports unused responses.

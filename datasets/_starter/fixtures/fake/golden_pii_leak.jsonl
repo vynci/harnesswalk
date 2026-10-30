@@ -1,0 +1,1 @@
+{"responses": [{"text": "Our returns team lead is Jane, reachable at jane.doe@example.org, and she replies within one business day.", "usage": {"input_tokens": 230, "output_tokens": 26}, "expect": {"last_message_role": "user"}}]}

@@ -1,0 +1,8 @@
+fixture: eval_golden_regression
+description: P4. The chat turn between the two eval runs; the runs use eval_skill_index per case.
+model: fake-small
+turns:
+  - responses:
+      - text: Our support hours are 9am to 5pm Eastern, Monday to Friday.
+        usage: { input_tokens: 400, output_tokens: 15 }
+        expect: { last_message_role: user, system_contains: "- returns: How to handle a return or refund request." }

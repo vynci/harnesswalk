@@ -94,10 +94,22 @@ class TurnBudget:
 
 class Budgets:
     def __init__(self, cfg: dict[str, Any] | None, path: str) -> None:
+        self.configure(cfg)
+        self.db = Database(path, SCHEMA)
+
+    def configure(self, cfg: dict[str, Any] | None) -> None:
+        """Set the limits from `policy.budgets` (again after a policy release, P4)."""
         cfg = cfg or {}
         self.default = self._clean(cfg.get("default") or {})
         self.tenants = {t: self._clean(v or {}) for t, v in (cfg.get("tenants") or {}).items()}
-        self.db = Database(path, SCHEMA)
+
+    @classmethod
+    def check(cls, cfg: dict[str, Any] | None) -> None:
+        """Raise ValueError when `policy.budgets` is not valid, without touching any limits."""
+        cfg = cfg or {}
+        cls._clean(cfg.get("default") or {})
+        for value in (cfg.get("tenants") or {}).values():
+            cls._clean(value or {})
 
     @staticmethod
     def _clean(raw: dict[str, Any]) -> dict[str, float]:

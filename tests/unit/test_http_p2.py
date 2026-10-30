@@ -21,6 +21,7 @@ SUMMARY_KEYS = {
     "turn_id", "session_id", "tenant_id", "trace_id", "turn_index", "status", "exit", "reply",
     "message", "started_at", "ended_at", "cost", "event_count", "paused_at_node",
     "pending_approval_id",
+    "feedback", "scores", "checkpoint", "release",  # P4
 }  # fmt: skip
 
 
@@ -309,7 +310,7 @@ async def test_node_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         assert text.splitlines()[names["Policy"]["line"] - 1].startswith("class Policy")
         assert (await c.get("/v1/nodes/memory/source")).json()["path"].endswith("__init__.py")
 
-        r = await c.get("/v1/nodes/online_eval/source")  # no file yet
+        r = await c.get("/v1/nodes/diagnose/source")  # no file yet
         assert r.status_code == 404 and r.json()["error"]["code"] == "source_not_found"
         r = await c.get("/v1/nodes/not_a_node/source")
         assert r.status_code == 404 and r.json()["error"]["code"] == "node_not_found"
@@ -359,7 +360,11 @@ async def test_capabilities_per_mode(tmp_path: Path) -> None:
     assert caps["features"] == {
         "step_mode": True, "approvals": True, "message_delta": True, "cancel": True,
         "byo_key": False, "disable_nodes": True, "knowledge": False, "memory_review": True,
+        "evals": True, "judge": False, "release": True, "artifact_edit": True,
+        "feedback": True, "step_over": True,
     }  # fmt: skip
+    assert caps["release"]["active_release_id"] == "r1"
+    assert caps["release"]["working_set_dirty"] is False and caps["release"]["use_working_set"]
     assert caps["limits"]["max_steps"] == h.settings.get("loop.max_steps")
     assert caps["limits"]["max_message_chars"] == 32000
     assert caps["limits"]["session_ttl_seconds"] is None
@@ -379,6 +384,8 @@ async def test_capabilities_per_mode(tmp_path: Path) -> None:
     assert caps["mode"] == "public" and caps["fixtures"] == []
     assert caps["features"]["byo_key"] and not caps["features"]["disable_nodes"]
     assert caps["features"]["message_delta"] is False
+    assert not caps["features"]["evals"] and not caps["features"]["artifact_edit"]
+    assert caps["release"]["use_working_set"] is False
     assert caps["limits"]["session_ttl_seconds"] == 7200
 
     # Private mode has no sign-in yet, but capabilities and the code peek need no identity.

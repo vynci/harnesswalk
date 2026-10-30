@@ -30,16 +30,14 @@ def add_memory_routes(
     identities: Any,
     read_json: Callable[[Request], Awaitable[dict[str, Any]]],
 ) -> None:
-    writer = harness.memory_writer
-
     @app.get("/v1/memory/proposals")
     async def list_proposals(request: Request, status: str = "pending", limit: int = 20):
         identity, _ = identities.resolve(request)
         limit = max(1, min(limit, 100))
         if status == "pending":
-            items = writer.pending(identity.tenant_id, limit)
+            items = harness.memory_writer.pending(identity.tenant_id, limit)
         elif status == "all":
-            items = writer.recent(identity.tenant_id, limit)
+            items = harness.memory_writer.recent(identity.tenant_id, limit)
         else:
             raise GatewayError(400, "invalid_request", "status must be pending or all")
         return JSONResponse({"proposals": items})
@@ -60,7 +58,7 @@ def add_memory_routes(
             )
         decider = f"user:{identity.user_id or identity.tenant_id}"
         try:
-            record = writer.decide(
+            record = harness.memory_writer.decide(
                 identity.tenant_id, proposal_id, decider, decision, harness.settings.mode, reason
             )
         except KeyError as exc:

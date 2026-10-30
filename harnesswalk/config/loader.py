@@ -4,8 +4,11 @@ Precedence, lowest first: `config/*.yaml`, the profile (`HARNESSWALK_PROFILE`), 
 variables, explicit arguments, dotted overrides. Lists replace, mappings merge.
 
 Every file is read through `ops.release.current()`, the one door through which the harness
-loads its artifacts (spec/contracts/release.md). In P1 release is a stub that reads the working
-tree and stamps a content hash as the version.
+loads its artifacts (spec/contracts/release.md). Without a served view (`artifacts`) it reads
+the working tree; the harness passes the release store's served set (P4), so an edited or
+rolled-back policy, context or models file is what the settings are built from. The profile,
+environment variables and overrides still apply on top. `load_args` keeps the arguments so the
+harness can build the settings again after a release change (`reload`).
 """
 
 from __future__ import annotations
@@ -55,6 +58,14 @@ class Settings:
     data_dir: Path
     provider: str | None = None  # when set, the only configured provider
     versions: dict[str, str] = field(default_factory=dict)  # artifact -> version
+    load_args: dict[str, Any] | None = None  # what load_settings was called with (P4 reload)
+    served: Any = None  # ops.release.Served the settings were built from, or None (the files)
+
+    def reload(self, served: Any) -> Settings:
+        """The same settings built again on another served artifact set."""
+        if self.load_args is None:
+            return self
+        return load_settings(**self.load_args, artifacts=served)
 
     def get(self, dotted: str, default: Any = _MISSING) -> Any:
         node: Any = self.data
@@ -115,8 +126,8 @@ class Settings:
         return False
 
 
-def _read_yaml(root: Path, artifact: str, versions: dict[str, str]) -> dict:
-    content, version = release.current(root, artifact)
+def _read_yaml(root: Path, artifact: str, versions: dict[str, str], served: Any = None) -> dict:
+    content, version = release.current(root, artifact, served)
     versions[artifact] = version
     data = yaml.safe_load(content) or {}
     if not isinstance(data, dict):
@@ -135,6 +146,8 @@ def _normalize_profile(profile: dict) -> dict:
         "output_guardrails",
         "stores",
         "memory_writer",
+        "evals",
+        "release",
     ):
         if key in profile:
             out[key] = profile[key]
@@ -162,17 +175,28 @@ def load_settings(
     overrides: Mapping[str, Any] | None = None,
     data_dir: str | Path | None = None,
     env: Mapping[str, str] | None = None,
+    artifacts: Any = None,
 ) -> Settings:
+    load_args = {
+        "root": root,
+        "mode": mode,
+        "provider": provider,
+        "fixture": fixture,
+        "profile": profile,
+        "overrides": dict(overrides) if overrides else None,
+        "data_dir": data_dir,
+        "env": env,
+    }
     env = os.environ if env is None else env
     root = Path(root) if root else Path(env.get("HARNESSWALK_ROOT") or PACKAGE_ROOT)
     versions: dict[str, str] = {}
 
     data: dict[str, Any] = _read_yaml(root, "config/harness.yaml", versions)
-    policy = _read_yaml(root, "config/policy.yaml", versions)
+    policy = _read_yaml(root, "config/policy.yaml", versions, artifacts)
     data["approval"] = policy.pop("approval", {})
     data["policy"] = policy
-    data.update(_read_yaml(root, "config/context.yaml", versions))
-    data["models"] = _read_yaml(root, "config/models.yaml", versions)
+    data.update(_read_yaml(root, "config/context.yaml", versions, artifacts))
+    data["models"] = _read_yaml(root, "config/models.yaml", versions, artifacts)
 
     profile = profile or env.get("HARNESSWALK_PROFILE")
     if profile:
@@ -197,7 +221,13 @@ def load_settings(
 
     data_dir = Path(data_dir or env.get("HARNESSWALK_DATA_DIR") or root / "data")
     settings = Settings(
-        data=data, root=root, data_dir=data_dir, provider=provider, versions=versions
+        data=data,
+        root=root,
+        data_dir=data_dir,
+        provider=provider,
+        versions=versions,
+        load_args=load_args,
+        served=artifacts,
     )
     validate(settings)
     return settings

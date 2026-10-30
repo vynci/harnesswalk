@@ -6,8 +6,9 @@ Semantics are normative (spec/contracts/model_provider.md, "The fake provider"):
   `responses[k]`. A fixture picked per turn (http_api.md, `fixture`) counts `n` over the
   session's turns that ran on it (`relative_turns`), so switching fixture starts at `turns[0]`.
 - A response has `text`, `tool_calls`, or both; `finish_reason` follows from them.
-- `expect` checks the request (`tools_enabled`, `last_message_role`, `last_message_contains`)
-  and fails with `fixture_mismatch`; running out of responses fails with `fixture_exhausted`.
+- `expect` checks the request (`tools_enabled`, `last_message_role`, `last_message_contains`,
+  and since P4 `system_contains` on the first system message) and fails with
+  `fixture_mismatch`; running out of responses fails with `fixture_exhausted`.
 
 Fixtures are YAML (spec/conformance/fixtures/*.yaml) or JSON Lines, where each line is one turn
 (`{"responses": [...]}`), as in datasets/_starter/fixtures/fake/*.jsonl.
@@ -197,6 +198,10 @@ class FakeProvider:
             not last or expect["last_message_contains"] not in last.content
         ):
             problems.append(f"last message does not contain {expect['last_message_contains']!r}")
+        if "system_contains" in expect:  # P4: which prompt or skill version the turn ran on
+            system = next((m for m in request.messages if m.role == "system"), None)
+            if not system or expect["system_contains"] not in system.content:
+                problems.append(f"system message does not contain {expect['system_contains']!r}")
         if problems:
             raise ProviderError(
                 "fixture_mismatch",

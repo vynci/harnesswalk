@@ -42,8 +42,14 @@
       "type": "string",
       "pattern": "^(?!0{32})[0-9a-f]{32}$"
     },
-    "turn_id": { "$ref": "#/$defs/token" },
-    "session_id": { "$ref": "#/$defs/token" },
+    "turn_id": {
+      "description": "Turn id. Null only on ops events (spec/events.md section 10, P4), which belong to no turn.",
+      "anyOf": [{ "$ref": "#/$defs/token" }, { "type": "null" }]
+    },
+    "session_id": {
+      "description": "Session id. Null only on ops events (spec/events.md section 10, P4).",
+      "anyOf": [{ "$ref": "#/$defs/token" }, { "type": "null" }]
+    },
     "tenant_id": {
       "description": "Required on every event. Consumers MUST NOT show an event to a viewer of another tenant.",
       "$ref": "#/$defs/token"
@@ -63,7 +69,12 @@
         "memory_written",
         "artifact_released",
         "message_delta",
-        "error"
+        "error",
+        "eval_run_started",
+        "eval_case_finished",
+        "eval_run_finished",
+        "feedback_recorded",
+        "artifact_changed"
       ]
     },
     "node_id": {
@@ -116,6 +127,23 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": [
+              "eval_run_started",
+              "eval_case_finished",
+              "eval_run_finished",
+              "feedback_recorded",
+              "artifact_changed",
+              "artifact_released"
+            ]
+          }
+        }
+      },
+      "else": { "properties": { "turn_id": { "type": "string" }, "session_id": { "type": "string" } } }
+    },
     {
       "if": { "properties": { "type": { "const": "turn_start" } } },
       "then": {
@@ -222,7 +250,72 @@
         "properties": {
           "node_id": { "const": "release" },
           "status": { "const": "done" },
-          "summary": { "required": ["artifact", "version"] }
+          "summary": {
+            "anyOf": [{ "required": ["artifact", "version"] }, { "required": ["release_id", "artifacts"] }]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "eval_run_started" } } },
+      "then": {
+        "required": ["node_id", "summary"],
+        "properties": {
+          "node_id": { "const": "eval" },
+          "status": { "const": "active" },
+          "summary": { "required": ["run_id"] }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "eval_case_finished" } } },
+      "then": {
+        "required": ["node_id", "summary"],
+        "properties": {
+          "node_id": { "const": "eval" },
+          "status": { "const": "done" },
+          "summary": {
+            "required": ["run_id", "case_id", "status"],
+            "properties": { "status": { "enum": ["passed", "failed", "skipped", "error"] } }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "eval_run_finished" } } },
+      "then": {
+        "required": ["node_id", "summary"],
+        "properties": {
+          "node_id": { "const": "eval" },
+          "status": { "enum": ["done", "error"] },
+          "summary": { "required": ["run_id"] }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "feedback_recorded" } } },
+      "then": {
+        "required": ["node_id", "summary"],
+        "properties": {
+          "turn_id": { "type": "string" },
+          "session_id": { "type": "string" },
+          "node_id": { "const": "eval" },
+          "status": { "const": "done" },
+          "summary": {
+            "required": ["rating"],
+            "properties": { "rating": { "enum": ["good", "bad"] } }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "artifact_changed" } } },
+      "then": {
+        "required": ["node_id", "summary"],
+        "properties": {
+          "node_id": { "const": "release" },
+          "status": { "const": "done" },
+          "summary": { "required": ["kind", "name", "version"] }
         }
       }
     },

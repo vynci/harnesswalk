@@ -2,6 +2,12 @@
 
 Nothing clever happens here. Each component gets its configuration section and the
 collaborators its contract names, and the trace store subscribes to the event bus.
+
+P4: the release store comes first. It seeds itself from the files, and the settings are built
+again from what it serves. The components that read artifacts (procedural memory, the tool
+registry and tools, policy, the router and model layer, memory, the memory writer, the context
+builder and the loop) are built by `_build_artifact_components`, which `reload()` runs again
+after an edit, a release or a rollback. Stores, providers and embeddings are built once.
 """
 
 from __future__ import annotations
@@ -17,7 +23,7 @@ import yaml
 
 from harnesswalk import SPEC_VERSION, __version__
 from harnesswalk.adapters.storage.vectors import build_vectors
-from harnesswalk.config.loader import Settings, deep_merge
+from harnesswalk.config.loader import Settings, deep_merge, load_settings
 from harnesswalk.context.builder import ContextBuilder
 from harnesswalk.context.embeddings import build_embedder
 from harnesswalk.context.memory_writer import MemoryWriter, remember_tool
@@ -59,6 +65,10 @@ from harnesswalk.execution.router import Router, RouteRequest
 from harnesswalk.execution.sandbox import Sandbox
 from harnesswalk.execution.tools import Tools
 from harnesswalk.nodes import load_components
+from harnesswalk.ops.eval import Evals
+from harnesswalk.ops.ops_events import OpsEvents
+from harnesswalk.ops.otel import build_exporter
+from harnesswalk.ops.release import ReleaseManager
 from harnesswalk.ops.trace import Tracer
 from harnesswalk.types import ConfigError, Message, TurnContext
 
@@ -68,12 +78,14 @@ log = logging.getLogger(__name__)
 class Harness:
     def __init__(self, settings: Settings) -> None:
         self.registrations = load_components()
-        self.settings = s = settings
+        self.release = ReleaseManager(settings)
+        self.settings = s = settings.reload(self.release.served)
         mode = s.mode
 
         self.bus = EventBus()
         self.tracer = Tracer(str(s.resolve(s.get("trace.sqlite_path", "data/trace.db"))))
         self.bus.subscribe(self.tracer.record)
+        self.ops = OpsEvents(self.tracer.db, validate=bool(s.get("trace.validate_events", True)))
 
         self.session = SessionStore(
             str(s.resolve(s.get("stores.session.sqlite_path", "data/session.db")))
@@ -88,17 +100,7 @@ class Harness:
             timeout_s=float(s.get("approval.timeout_s", 900)),
             show_args=bool(s.get("approval.show_args", True)),
         )
-        self.procedural = ProceduralStore.from_settings(s)
         self._build_memory_stores()
-
-        self.registry = ToolRegistry()
-        self._register_tools()
-        self.policy = Policy(
-            s.get("policy", {}),
-            mode,
-            record_read_allows=bool(s.get("audit.record_read_allows", False)),
-        )
-        self.policy.check_public_mode(self.registry.all())
         self.sandbox = Sandbox(
             s.get("sandbox.level", "inprocess"),
             int(s.get("sandbox.max_timeout_ms", 10000)),
@@ -106,31 +108,73 @@ class Harness:
             subprocess_cfg=s.get("sandbox.subprocess", {}),
             workdir=s.resolve(s.get("sandbox.subprocess.workdir", "data/sandbox")),
         )
-        self.tools = Tools(
-            self.registry,
-            self.policy,
+        self.providers = build_providers(s)
+        if not self.providers:
+            raise ConfigError("no model provider is configured (set HARNESSWALK_PROVIDER)")
+        self.provider_health = ProviderHealth(
+            self.providers, float(s.get("models.router.health_check_s", 30))
+        )
+        # One PII detector (the pack's patterns included) for the input guardrails and the
+        # memory writer, so a proposal is redacted exactly as a message is.
+        guard_cfg = self._input_guardrails_config()
+        self.input_guardrails = InputGuardrails(guard_cfg, mode, classifier=self._classify)
+        self.output_guardrails = OutputGuardrails(
+            s.get("output_guardrails", {}), mode, pii_cfg=guard_cfg.get("pii", {})
+        )
+        for name, value in self._build_artifact_components(s).items():
+            setattr(self, name, value)
+        self.ingest_report: dict[str, Any] | None = None
+        if bool(s.get("stores.ingest_on_start", True)):
+            try:
+                self.ingest_report = self.ingest()
+            except Exception as exc:  # a broken document or embedder never stops the harness
+                log.warning("knowledge ingestion failed: %s: %s", type(exc).__name__, exc)
+                self.ingest_report = {"error": f"{type(exc).__name__}: {exc}"}
+        self.evals = Evals(self)
+        self.otel = build_exporter(s, self.bus, self.ops)
+        self._background: list[asyncio.Task] = []
+        self.gateway = Gateway(self)
+        self._turn_providers: dict[str, ModelProvider] = {}  # built on demand for a turn
+        self._turn_fakes: dict[str, FakeProvider] = {}  # fixture name -> provider
+        self._startup_fake: FakeProvider | None = None  # `provider: fake` on another server
+
+    def _build_artifact_components(self, s: Settings) -> dict[str, Any]:
+        """Everything that reads an artifact, built from settings `s`, without side effects on
+        the harness (so a candidate edit can be dry-run). The caller assigns the result."""
+        mode = s.mode
+        out: dict[str, Any] = {}
+        out["procedural"] = procedural = ProceduralStore.from_settings(s)
+        out["registry"] = registry = ToolRegistry()
+        self._register_tools(registry, procedural, s)
+        out["policy"] = policy = Policy(
+            s.get("policy", {}),
+            mode,
+            record_read_allows=bool(s.get("audit.record_read_allows", False)),
+        )
+        policy.check_public_mode(registry.all())
+        Budgets.check(s.get("policy.budgets", {}))
+        out["tools"] = tools = Tools(
+            registry,
+            policy,
             self.audit,
             self.approvals,
             self.sandbox,
             max_observation_chars=int(s.get("tools.max_observation_chars", 4000)),
         )
-
-        self.providers = build_providers(s)
-        if not self.providers:
-            raise ConfigError("no model provider is configured (set HARNESSWALK_PROVIDER)")
+        tools.scrubber = self.input_guardrails.pii
         models = s.get("models.models", {})
-        self.provider_health = ProviderHealth(
-            self.providers, float(s.get("models.router.health_check_s", 30))
-        )
+        for alias, cfg in models.items():
+            if cfg.get("provider") not in PROVIDER_NAMES:
+                raise ConfigError(f"model {alias} has an unknown provider {cfg.get('provider')!r}")
         health = self.provider_health
-        self.router = Router(
+        out["router"] = router = Router(
             s.get("models.router.rules", []),
             models,
             lambda p: p in self.providers and health.ok(p),
         )
-        self.model_layer = ModelLayer(
+        out["model_layer"] = model_layer = ModelLayer(
             self.providers,
-            self.router,
+            router,
             models,
             timeout_s=float(s.get("models.model_layer.timeout_s", 60)),
             max_output_tokens=int(s.get("models.model_layer.max_output_tokens", 1024)),
@@ -139,11 +183,10 @@ class Harness:
             cascade=s.get("models.router.cascade", {}),
             tight_fraction=float(s.get("models.router.cost.tight_fraction", 0.75)),
         )
-
         estimator = s.get("context.token_estimator", "chars_div_4")
         enabled = set(s.get("context.stores", ["procedural", "session"]))
-        self.memory = Memory(
-            self.procedural,
+        out["memory"] = memory = Memory(
+            procedural,
             self.session,
             estimator=estimator,
             semantic=self.semantic if "semantic" in enabled else None,
@@ -151,40 +194,64 @@ class Harness:
             knowledge=self.knowledge if "knowledge" in enabled else None,
             top_k=s.get("context.retrieval.top_k", {}),
         )
-        # One PII detector (the pack's patterns included) for the input guardrails and the
-        # memory writer, so a proposal is redacted exactly as a message is.
-        guard_cfg = self._input_guardrails_config()
-        self.input_guardrails = InputGuardrails(guard_cfg, mode, classifier=self._classify)
-        self.memory_writer = MemoryWriter(
+        out["memory_writer"] = MemoryWriter(
             s.get("memory_writer", {}),
             self.memory_db,
             self.semantic,
             self.episodic,
-            self.policy,
+            policy,
             episodes_enabled="episodic" in enabled,
             pii=self.input_guardrails.pii,
             audit=self.audit,
         )
-        self.tools.scrubber = self.input_guardrails.pii
-        self.ingest_report: dict[str, Any] | None = None
-        if bool(s.get("stores.ingest_on_start", True)):
-            try:
-                self.ingest_report = self.ingest()
-            except Exception as exc:  # a broken document or embedder never stops the harness
-                log.warning("knowledge ingestion failed: %s: %s", type(exc).__name__, exc)
-                self.ingest_report = {"error": f"{type(exc).__name__}: {exc}"}
-        self.context_builder = ContextBuilder(
-            s.get("context", {}), self.memory, self.session, summarizer=self._summarize
+        out["context_builder"] = ContextBuilder(
+            s.get("context", {}), memory, self.session, summarizer=self._summarize
         )
-        self.loop = Loop(self.model_layer, self.tools, self.session, s.get("loop.notices", {}))
-        self.output_guardrails = OutputGuardrails(
-            s.get("output_guardrails", {}), mode, pii_cfg=guard_cfg.get("pii", {})
-        )
-        self._background: list[asyncio.Task] = []
-        self.gateway = Gateway(self)
-        self._turn_providers: dict[str, ModelProvider] = {}  # built on demand for a turn
-        self._turn_fakes: dict[str, FakeProvider] = {}  # fixture name -> provider
-        self._startup_fake: FakeProvider | None = None  # `provider: fake` on another server
+        out["loop"] = Loop(model_layer, tools, self.session, s.get("loop.notices", {}))
+        return out
+
+    # -- release (P4) ----------------------------------------------------------------------------
+
+    def busy(self) -> bool:
+        """A turn or an eval run is running in this process: artifacts must not change now."""
+        return bool(self.gateway.running_turns()) or self.evals.running()
+
+    def dry_run(self, served: Any) -> None:
+        """Build every artifact-backed component from a candidate served set, then drop them.
+        Raises ConfigError (or another error) when the candidate would not load.
+
+        The artifact must also load on its own, without the profile and overrides that apply on
+        top of it here: a broken router rule hidden by an overlay would break the next start
+        without that overlay."""
+        self._build_artifact_components(self.settings.reload(served))
+        args = self.settings.load_args
+        if args is not None:
+            load_settings(**{**args, "profile": None, "overrides": None}, artifacts=served)
+
+    def reload(self) -> None:
+        """Rebuild what reads artifacts from the release store's served set (between turns)."""
+        self.release.refresh()
+        settings = self.settings.reload(self.release.served)
+        built = self._build_artifact_components(settings)
+        last_route = self.model_layer.last_route
+        last_context = self.context_builder.last
+        self.settings = settings
+        self.budgets.configure(settings.get("policy.budgets", {}))
+        for name, value in built.items():
+            setattr(self, name, value)
+        self.model_layer.last_route.update(last_route)
+        self.context_builder.last.update(last_context)
+
+    def refresh_artifacts(self) -> bool:
+        """Before a turn: pick up a change another process (the CLI) made to the store."""
+        if not self.release.changed_elsewhere() or self.busy():
+            return False
+        before = self.release.stamp()["artifacts_hash"]
+        self.release.refresh()
+        if self.release.stamp()["artifacts_hash"] != before:
+            self.reload()
+            return True
+        return False
 
     def _input_guardrails_config(self) -> dict[str, Any]:
         """config/harness.yaml `input_guardrails`, with the pack's `guardrails.yaml` over it."""
@@ -225,6 +292,7 @@ class Harness:
     async def start(self) -> dict[str, list[str]]:
         """Server start-up: recover unfinished turns, then the sweeper and health probes."""
         recovered = self.gateway.recover()
+        self.evals.offline.recover()  # runs a stopped process left `running` become `error`
         self.approvals.sweep_expired()
         sweep_s = float(self.settings.get("approval.sweep_s", 30))
 
@@ -281,25 +349,30 @@ class Harness:
         out["vectors"] = self.vectors.backend
         return out
 
-    def _register_tools(self) -> None:
-        s = self.settings
+    def _register_tools(
+        self, registry: ToolRegistry, procedural: ProceduralStore, s: Settings
+    ) -> None:
         builtins = s.get("tools.builtins", ["calculator", "read_skill"])
         if "calculator" in builtins:
-            self.registry.register(CALCULATOR)
+            registry.register(CALCULATOR)
         if "read_skill" in builtins:
-            self.registry.register(
-                read_skill_tool(self.procedural.skill_body, sorted(self.procedural.skills))
-            )
+            registry.register(read_skill_tool(procedural.skill_body, sorted(procedural.skills)))
         if "remember" in builtins:
-            self.registry.register(remember_tool())
+            registry.register(remember_tool())
         if "read_doc" in builtins:
-            self.registry.register(read_doc_tool(self.knowledge))
+            registry.register(read_doc_tool(self.knowledge))
         files = s.get("tools.files", None)
+        pack_tools = f"datasets/{s.get('dataset', '_starter')}/tools.yaml"
+        served = s.served.read(pack_tools) if s.served is not None else None
         if files is None:
-            pack_tools = Path("datasets") / s.get("dataset", "_starter") / "tools.yaml"
-            files = [str(pack_tools)] if (s.root / pack_tools).exists() else []
+            files = [pack_tools] if served is not None or (s.root / pack_tools).exists() else []
         for rel in files:
-            self.registry.load_yaml(s.resolve(rel))
+            path = s.resolve(rel)
+            text = s.served.read(rel) if s.served is not None else None
+            if text is not None:  # the release store's version of the pack's tools.yaml
+                registry.load_text(text, path)
+            else:
+                registry.load_yaml(path)
 
     @property
     def provider_name(self) -> str:
@@ -386,7 +459,14 @@ class Harness:
                 "disable_nodes": mode != "public",
                 "knowledge": self.memory.knowledge is not None,
                 "memory_review": mode != "public",
+                "evals": mode != "public",
+                "judge": mode != "public" and self.evals.judge.available,
+                "release": True,
+                "artifact_edit": mode != "public",
+                "feedback": True,
+                "step_over": True,
             },
+            "release": self.release.status(),
             "limits": {
                 "max_message_chars": int(s.get("gateway.max_message_chars", 32000)),
                 "max_steps": int(s.get("loop.max_steps", 8)),
@@ -447,7 +527,11 @@ class Harness:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await task
+        await self.evals.aclose()
         await self.gateway.shutdown()
+        if self.otel is not None:
+            self.otel.shutdown()
+        self.release.close()
         for db in (
             self.tracer.db,
             self.session.db,
@@ -455,6 +539,7 @@ class Harness:
             self.approvals.db,
             self.budgets.db,
             self.memory_db,
+            self.evals.store.db,
         ):
             db.close()
         self.vectors.close()

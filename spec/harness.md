@@ -319,7 +319,8 @@ invocation; the "Events" line lists only what they add. Per-node `summary` shape
 - **Invariants**:
   - The harness MUST load prompts, skills, policy and model config only through release.
   - Every version MUST be diffable against its predecessor and restorable by version id.
-  - MUST emit `artifact_released` for each released artifact.
+  - MUST emit `artifact_released` for each released artifact. Since P4 this is one ops event per
+    release (or rollback) listing every artifact in it (`events.md` section 10).
 - **Without it**: a prompt edit in production is untracked and cannot be undone.
 - **Events**: `artifact_released`.
 
@@ -392,6 +393,8 @@ Normative rules:
   identical to the stored one except for an `ext.replay: true` marker if the implementation adds
   one.
 - Breakpoints and approval are the only two reasons a node may pause.
+- Step over (P4): resuming with `step_over` releases the breakpoint and skips the breakpoints of
+  expert nodes until the next simple-view node is entered, where the harness pauses again.
 
 ## 9. Versioning
 

@@ -526,8 +526,8 @@ Accepted for P2 and scheduled, so a UI author does not mistake them for the cont
 
 ## Not yet
 
-Uploads, sign-in endpoints, eval and release endpoints, feedback (`POST /v1/turns/{id}/feedback`
-arrives with online eval in P4), WebSocket transport.
+Uploads, sign-in endpoints, WebSocket transport. (Eval, release, artifact, trace and feedback
+endpoints arrived in P4, in the section "P4 additions" below.)
 
 ## Context plane routes (P3)
 
@@ -552,3 +552,210 @@ The store inspectors (`GET /v1/nodes/semantic`, `episodic`, `knowledge`, `memory
 `settings` (embedder, vector backend, ranking settings). `GET /v1/nodes/memory_writer` adds
 `last_writes` (the last proposals with their outcome and, for writes, a diff), `pending` and
 `settings` (including `gate_in_this_mode`).
+
+## P4 additions: LLM Ops (evals, feedback, releases, artifacts, trace, step-over, checkpoints)
+
+Additive. Every existing endpoint keeps its shape; new fields are listed where they appear.
+`PUT` joins `POST` under the content-type rule of the Conventions (`415` unless
+`application/json`), and the dev-mode CORS allow list gains `PUT`. "Dev and private only" means
+`403 forbidden_in_mode` in public mode.
+
+| Method and path | Purpose | Since |
+|---|---|---|
+| `POST /v1/evals/runs` | Start an eval run | P4 |
+| `GET /v1/evals/runs` | List runs | P4 |
+| `GET /v1/evals/runs/{run_id}` | Run detail with per-case results and the diff against the previous run | P4 |
+| `GET /v1/evals/runs/{run_id}/events` | Run progress stream (SSE) | P4 |
+| `GET /v1/evals/runs/{run_id}/cases/{case_id}/events` | The stored event stream of one case's turn (SSE) | P4 |
+| `GET /v1/evals/golden` | The golden set of a pack | P4 |
+| `POST /v1/turns/{turn_id}/feedback` | Thumbs and an optional note on a turn | P4 |
+| `GET /v1/artifacts` | Working set listing | P4 |
+| `GET /v1/artifacts/{kind}/{name}` | One artifact with its body and history | P4 |
+| `PUT /v1/artifacts/{kind}/{name}` | Edit an artifact (a new working-set version) | P4 |
+| `GET /v1/releases` | List releases | P4 |
+| `GET /v1/releases/{release_id}` | Release detail with the artifact diff | P4 |
+| `POST /v1/releases` | Snapshot the working set as a release | P4 |
+| `POST /v1/releases/{release_id}/rollback` | Make a release active again | P4 |
+| `GET /v1/trace/turns` | Turn list with receipts, filtered | P4 |
+| `GET /v1/trace/turns/{turn_id}/receipt` | Per-turn receipt | P4 |
+| `GET /v1/trace/ops-events` | Point events outside turns (feedback, artifact changes, releases) | P4 |
+
+### Evals
+
+`POST /v1/evals/runs` (dev and private). Body:
+
+```json
+{ "pack": "_starter", "suite": "golden", "model": null, "cases": ["support_hours"] }
+```
+
+| Field | Required | Meaning |
+|---|---|---|
+| `pack` | yes | The loaded dataset pack; another pack is `422 invalid_request` |
+| `suite` | yes | `golden` (every case on the `fake` provider with its fixture; deterministic scorers) or `judge` (judged scorers) |
+| `model` | no | `judge` only: a model alias from `config/models.yaml` whose provider is configured, used to answer the cases. Without it the cases answer from their fixtures and only the scoring is judged. On `golden` it must be absent or a `fake` alias |
+| `cases` | no | Case ids to run; default every case. An unknown id is `400 invalid_request` |
+
+`202` `{ "run_id": "run_0003", "events_url": "/v1/evals/runs/run_0003/events" }`. A `judge` run
+needs a configured non-fake judge model (`evals.judge.model`, router step `judge`), else
+`422 judge_unavailable`. A run is refused with `409 eval_running` while another run of the
+same tenant is running.
+
+`GET /v1/evals/runs?pack=&limit=` returns `{ "runs": [...] }`, newest first (`limit` default 20,
+at most 200). Each run summary:
+
+```json
+{
+  "run_id": "run_0003", "pack": "_starter", "suite": "golden", "model": null,
+  "judge_model": null, "started_at": "2026-10-29T15:00:00.000Z",
+  "ended_at": "2026-10-29T15:00:02.410Z", "status": "done",
+  "totals": { "cases": 13, "passed": 12, "failed": 1, "skipped": 0 },
+  "regressions": 1, "previous_run_id": "run_0002",
+  "release_id": "r1", "working_set": true, "artifacts_hash": "9c1f...",
+  "cost": { "input_tokens": 0, "output_tokens": 0, "usd": 0.0 }
+}
+```
+
+`status` is `running`, `done` or `error` (the run could not finish; `error` carries
+`{code, message}`). `release_id`, `working_set` and `artifacts_hash` say what was under test.
+`cost` is the judge's spend plus the hosted answers' spend (0 on `golden`). `totals.failed`
+counts `failed` and `error` cases.
+
+`GET /v1/evals/runs/{run_id}` returns the summary plus:
+
+| Field | Meaning |
+|---|---|
+| `cases[]` | `case_id`, `title`, `status` (`passed`, `failed`, `skipped`, `error`), `scores` (`{name: {value, pass, detail}}`), `expected`, `actual` (`reply`, `path[]`, `citations[]`, `tool_calls[]`, `exit`), `turn_id`, `events_url`, `previous_status`, `regression` (bool), `error` (when `error`) |
+| `regression_cases` | Case ids with `regression: true`, in case order |
+| `diff` | Against `previous_run_id`: `{ "fixed": [ids], "regressed": [ids], "new": [ids], "removed": [ids] }` (`new` and `removed` by case id) |
+
+Scorers (names fixed): `path` (expected node path is a subsequence of the actual simple-view
+path), `citations` (every expected citation present in `turn_end.summary.citations`, by `doc`
+and, when given, `chunk`), `tool_calls` (the tool names the turn called, in order, equal the
+expected list), `schema` (the reply validates against the case's `output_schema`), `pii_leak`
+(no personal data in the reply other than values the user typed), `answer_match` (substring,
+exact or regex, when the case gives one), `faithfulness` and `relevance` (judge, 0 to 1, pass
+at `evals.judge.threshold`, default 0.7). A scorer is applicable when the case gives what it
+checks (`pii_leak` always applies). `golden` applies `path`, `citations`, `tool_calls`,
+`schema`, `pii_leak`, `answer_match`; `judge` applies `schema`, `pii_leak`, `faithfulness`,
+`relevance`, so deterministic and judged results stay apart (`evaluator.md`). A case passes
+when every applicable scorer passes; a case with no fixture is `skipped` on `golden`.
+`regression` is true when the case is `failed` or `error` now and was `passed` in
+`previous_run_id` (the last finished run of the same tenant, pack and suite).
+
+Case turns run on the harness like any turn (`turn_start.summary.channel: eval`,
+`summary.eval_run_id`), each in its own session, in a scratch tenant per run
+(`evalrun-<run_id>`) so a run never reads or writes the caller's memory and two runs see the
+same starting state. Their streams are served to the caller at `events_url`
+(`/v1/evals/runs/{run_id}/cases/{case_id}/events`, the same SSE format as a turn's stream,
+stored events only). Approvals in a case are decided by the runner with the case's `approval`
+(default `deny`).
+
+`GET /v1/evals/runs/{run_id}/events`: SSE of the run's ops events, stored first then live,
+`eval_run_started`, one `eval_case_finished` per case, `eval_run_finished`; closes after
+`eval_run_finished`. `id:` is the event's `seq` in the run stream; `after` and `Last-Event-ID`
+work as on turn streams. Each message's `data` is the ops event (`type`, `tenant_id`,
+`turn_id: null`, `ts`, `summary`, ...) with `run_id` added at the top level for the reader's
+convenience (the stored event keeps the schema's envelope; `run_id` is also in `summary`).
+Summaries: `eval_run_started {run_id, pack, suite, model, total}`, `eval_case_finished
+{run_id, case_id, status, regression, index, total, scores, turn_id}`, `eval_run_finished
+{run_id, status, totals, regressions, regression_cases, previous_run_id}`.
+
+`GET /v1/evals/golden?pack=` returns `{ "pack": "_starter", "path": "datasets/_starter/golden.jsonl", "cases": [...] }`,
+read-only, as stored.
+
+### Feedback
+
+`POST /v1/turns/{turn_id}/feedback` body `{ "rating": "good" | "bad", "note"?: string }` (a note
+of at most 2000 characters, PII-redacted before it is stored). `200` with the stored record
+`{ turn_id, rating, note, at, by }`. Tenant-scoped (another tenant's turn is `404`). A later
+rating replaces the current one; earlier ones stay in the history. Emits `feedback_recorded`
+(an ops event with the turn's `turn_id`, `session_id` and `trace_id`). Allowed in every mode.
+
+`GET /v1/turns/{turn_id}` (and each item of `GET /v1/sessions/{id}/turns`) gains:
+
+| Field | Meaning |
+|---|---|
+| `feedback` | `{ rating, note, at }` or `null` |
+| `scores` | Online judge scores `{ name: value }` when the turn was sampled, else `null` |
+| `checkpoint` | `{ step, at, restored }` from the last loop checkpoint, else `null`; `restored` is true when the turn was re-attached after a restart |
+| `release` | `{ release_id, working_set, artifacts_hash }` the turn ran on (`turn_start.summary.release`) |
+
+### Artifacts and releases
+
+Artifacts and their names: `prompt/system_prompt` (the loaded pack's system prompt),
+`skill/<name>` (one per skill, for example `skill/order_status`, `skill/returns`),
+`policy/policy`, `context/context`, `models/models`, `tools/tools` (the loaded pack's tool
+file). Each has `kind, name, version (int from 1), hash
+(sha256 of the body), updated_at, updated_by, note, body`. The working set is the latest
+version of each; a release is a frozen snapshot of the working set with its own `release_id`,
+`created_at`, `note`, `hash` chained to the previous release (`prev_hash`), and
+`artifacts[] {kind, name, version, hash}`.
+
+| Method and path | Notes |
+|---|---|
+| `GET /v1/artifacts?pack=` | `{ pack, artifacts: [...] (no bodies), release: {active_release_id, working_set_dirty, use_working_set} }` |
+| `GET /v1/artifacts/{kind}/{name}?version=` | With `body`, `latest_version` and `history[] {version, hash, updated_at, updated_by, note}`; default the latest version. Unknown kind or name `404 artifact_not_found` |
+| `PUT /v1/artifacts/{kind}/{name}` | Body `{body, note?}`. Dev and private only. Creates version n+1, `200` with the new artifact (with body), `previous_version` and a unified `diff` against n. A body equal to the latest is `200` with `unchanged: true` and no new version. `409 turn_running` while any turn or eval run is running in the process (artifacts are shared, so this is process-wide). `422 invalid_artifact` when validation fails: YAML parse for `policy`, `context`, `models`, `tools`, the policy rule schema, and a dry run that builds the harness components from the candidate (router rules, tool specs, the procedural token budget). A new `skill` name creates version 1; other kinds only edit names that exist. Emits `artifact_changed` |
+| `GET /v1/releases?pack=` | `{ pack, releases: [...] newest first, each with active, active_release_id, working_set_dirty, verify: {ok, releases} }` |
+| `GET /v1/releases/{release_id}` | The release plus `diff_from_previous[] {kind, name, from_version, to_version, diff}` (added artifacts have `from_version: null`, removed ones `to_version: null`) |
+| `POST /v1/releases` | Body `{note?}`. Dev and private only. Snapshots the working set, makes it active, `201`. Emits `artifact_released` |
+| `POST /v1/releases/{release_id}/rollback` | Dev and private only. Makes that release active and resets the working set to its artifact versions by appending new versions (history is append-only); an artifact absent from the release is marked deleted. `200` with the release (as `GET /v1/releases/{id}`) plus `rollback_of` (the release that was active), `reset: [{kind, name, from_version, to_version}]`, `active_release_id`, `working_set_dirty`. `409 turn_running` as for `PUT`. Emits `artifact_released` with `rollback_of` |
+
+Loading rule: the harness serves turns from the active release. With `release.use_working_set`
+(default `true` in dev, `false` elsewhere) it serves the working set instead, so an edit
+applies to the next turn; `working_set_dirty` is true when the working set differs from the
+active release (the status bar shows "working set (unreleased changes)"). A turn in progress
+keeps what it started with. The first start seeds the working set from the pack and config
+files and creates release `r1` ("initial"; release ids are `r1`, `r2`, ...); a later start that finds a file changed on
+disk appends a working-set version (`updated_by: disk`), and in a mode that serves the release
+it also creates a release for it.
+
+`GET /v1/capabilities` gains `features.evals` (dev and private), `features.judge` (a judge
+model is configured), `features.release` (true), `features.artifact_edit` (dev and private),
+`features.feedback` (true), `features.step_over` (true) and `release: {active_release_id,
+working_set_dirty, use_working_set}`.
+
+### Trace
+
+`GET /v1/trace/turns?tenant=&session=&node=&status=&kind=&since=&until=&limit=&after=`:
+the caller's turns, newest first. `tenant` must be the caller's own (else `404
+tenant_not_found`); `node` keeps turns that entered that node (simple or expert); `status` is
+`running`, `paused`, `done` or `error` (`turn_end.status`); `kind` is `chat` or `eval` (case
+turns); `since` and `until` bound `started_at` (RFC 3339 with an offset); `limit` default 50,
+at most 200; `after` is a `turn_id` from the previous page. Response
+`{ "turns": [...], "next_after": "<turn_id>" | null }`, each item
+`{ turn_id, session_id, trace_id, started_at, ended_at, status, exit, cost: {input_tokens,
+output_tokens, usd}, steps, duration_ms, path, kind, channel }` where `path` is the simple-view
+path (`steps` and `duration_ms` are `null` while the turn runs). Served from a turn index the
+trace store keeps (one query per page).
+
+`GET /v1/trace/turns/{turn_id}/receipt`: `{ turn_id, total, by_node, by_model, latency_ms,
+nodes: {node_id: {ms, count, input_tokens, output_tokens, usd}}, calls: [{seq, step, provider,
+model, input_tokens, output_tokens, usd, ms, fallback}], scores: {node_id: {name: value}} |
+null, feedback }`. `total` equals `turn_end.cost` (`tracer.md`).
+
+`GET /v1/trace/ops-events?type=&after=&limit=`: the caller's ops events (`events.md` section 10)
+from the `ops` stream, oldest first, `{ "events": [...], "next_after": <seq> | null }`.
+
+OpenTelemetry: when `HARNESSWALK_OTLP_ENDPOINT` (or `trace.otel.endpoint`) is set and the
+optional extra `otel` is installed, every turn is exported as spans when it ends, and every ops
+event as a span of its own, with the attributes of `events.md` section 8. Off by default; a
+missing extra logs one warning and exports nothing.
+
+### Step-over and checkpoints
+
+`POST /v1/turns/{turn_id}/resume` takes `mode: "step" | "continue" | "step_over"`. `step_over`
+releases the current breakpoint and runs to the next simple-view node, skipping breakpoints on
+expert children on the way (from `memory` it pauses next at `loop`, not at `procedural`).
+
+After a restart a turn paused on an approval keeps its `output_schema`, its memory proposals
+from before the pause, the knowledge chunks numbered for it (so citations still check) and
+whether a BYO key was present (the key itself is never stored; the turn resumes on the
+configured provider and `turn_end.summary.byo_key_dropped` is `true`). A turn paused on a
+breakpoint is still closed with `restarted` (step mode is interactive and cheap to redo).
+
+`harnesswalk serve` holds `data/owner.lock` (pid and a heartbeat every
+`release.lease.heartbeat_s`, default 5 seconds). A second `serve` on the same data directory
+refuses to start while the lock is held by a live process with a fresh heartbeat, unless it is
+started with `--takeover`, which asks the holder to stop and waits for it before recovering
+turns. A lock whose pid is gone or whose heartbeat is older than three periods is stale.
