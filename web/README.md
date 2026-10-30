@@ -3,7 +3,9 @@
 The web UI for harnesswalk: a chat on the left and a live diagram of the harness on the right.
 Send a message and watch it walk through the nodes. Click a node to read its lesson, its config or
 prompt, its code and its events. Turn on step mode to stop at every node, or replay a past turn
-with a slider.
+with a slider. The LLM Ops nodes run the harness's lifecycle: edit a skill or a config, run the
+golden set from Eval and see what regressed, ship the working set from Release and roll it back,
+and query stored turns with their receipts from Trace.
 
 Stack: React 19, Vite, TypeScript (strict), Tailwind 4, shadcn/ui on Radix (see
 [Components](#components)), React Flow (`@xyflow/react`, attribution kept), shiki (code
@@ -31,8 +33,12 @@ pnpm build
 pnpm test          # Vitest: reducer, layout, edge routes, colour contrast, memory badges, stream client,
                    # the inspector's Trace status per event, tool calls read from the stream,
                    # turn facts (guardrails, budgets, citations, memory, placeholders), payload
-                   # shapes, and the drift rule (no node id literals in src/)
-pnpm test:e2e      # Playwright smoke tests against a mock build (Chromium only)
+                   # shapes, the drift rule (no node id literals in src/), and P4: line diffs,
+                   # ops roles from the diagram, chat markers, the eval and receipt text, replay
+                   # step-over, the mock's ops routes and the store's ops actions
+pnpm test:e2e      # Playwright against a mock build (Chromium only): smoke.spec.ts, and ops.spec.ts
+                   # for P4 (the gate: edit a skill, run golden, see the regression; release,
+                   # roll back, see the old version; feedback, step-over, the trace query)
 pnpm lint          # ESLint, then tsc -b
 pnpm test:e2e:live # Playwright against the real API with the fake provider, see below
 ```
@@ -55,8 +61,12 @@ audit chain, step mode through the stores and the writer, and dev turn options. 
 a harness of their own (`e2e-live/helpers.ts`, ports `HARNESSWALK_E2E_PORT` + 1 and + 2): one
 SIGKILLs and restarts it to show an approval that survives a restart and a turn closed
 `restarted`, the other holds proposals at the review gate (`e2e-live/profile-review.yaml`). The
-suite's server runs with `e2e-live/profile.yaml`, which only adds the budget tenant. Playwright stops the server when the run ends.
-`HARNESSWALK_SCREENSHOTS=1` (`make screenshots`) also writes `docs/screenshots/*.png`; the
+suite's server runs with `e2e-live/profile.yaml`, which only adds the budget tenant.
+`e2e-live/p4.spec.ts` walks the Phase 4 gate against the real ops API (and feedback across a
+reload); it skips itself while `/v1/capabilities` lacks `features.evals`, `release` and
+`artifact_edit`. Playwright stops the server when the run ends.
+`HARNESSWALK_SCREENSHOTS=1` (`make screenshots`) also writes `docs/screenshots/*.png` (with
+`eval-run.png` and `release-diff.png` once the API has the P4 features); the
 side-by-side `edges-before-after.png` puts the kept `edges-before.png` (the old routing, from the
 owner's feedback) beside a fresh capture.
 
@@ -70,9 +80,11 @@ owner's feedback) beside a fresh capture.
 | `VITE_HARNESSWALK_MOCK_STEP_MS` | build time | Milliseconds between mock events, default 140. The `?mockStepMs=` query overrides it |
 | `VITE_HARNESSWALK_API_URL` | build time | API origin when the UI is not served by the API or the proxy. Default same origin |
 | `VITE_HARNESSWALK_VALIDATE` | build time | `1` validates every event against the schema in a production build too (dev and mock builds always do) |
+| `HARNESSWALK_MOCK_SHOTS` | `test:e2e` | A directory: `e2e/screenshots.spec.ts` writes review screenshots of the P4 panels from the mock build there, light and dark. Skipped when unset |
 
 Per-viewer conveniences (theme, view, collapsed groups, the telemetry switch, the pane sizes, the
-session id and the messages this browser sent) live in `localStorage` under `harnesswalk.*`. The app works without storage.
+session id, the messages this browser sent and the chat's save and release markers for that
+session) live in `localStorage` under `harnesswalk.*`. The app works without storage.
 
 ## Mock mode
 
@@ -86,7 +98,14 @@ run as against the real API. It:
 - plays `plain_answer`, `tool_call` or `approval_pause` for a new message (picked by the fixture
   menu, else by the words in the message), with fresh ids and timestamps, the reply split into
   `message_delta` events, breakpoints in step mode, approve and deny, cancel, and disabled nodes;
-- serves the real Python source, config, prompt and skill files from the repo for the inspector.
+- serves the real Python source, config, prompt and skill files from the repo for the inspector;
+- P4 (`src/mock/ops.ts`, phase-4 `CONTRACT.md`): a working set seeded from the pack files with
+  versions and unified diffs, YAML checked on save, 409 while a turn runs; releases `r1`, `r2`...
+  with a hash chain and an append-only rollback; a seeded golden run and twelve golden cases over
+  the three recorded streams (a case regresses when the skill it depends on loses the tool it
+  teaches, and its turn is stored for replay), progress on the run's event stream, the judge suite
+  answering 422 `judge_unavailable` on the fake provider; feedback, with a Good and judge scores on
+  the first seeded turn; the trace query with receipts; step-over that runs past expert children.
 
 The mock and the schema validator are dynamic imports behind build-time constants, so a
 production build contains neither. The diagram (React Flow), the inspector and shiki are their
@@ -163,21 +182,27 @@ legend and diagram chrome read as one system:
 |---|---|---|
 | Chat (Message Scroller, Message, Bubble) | `chat/ChatPanel.tsx` | The person's turn is a muted Bubble on the right; the agent's reply has no bubble. One agent Message holds the turn's lines, prompts, reply, sources and notices |
 | Prompt Input (Input Group) | `chat/Composer.tsx` | Plus on the left (`aria-disabled`, tooltip "Attach, coming later"; attachments are P6), dev Options and a Model Selector menu for the model hint, the arrow-up send on the right that turns into Stop while a turn runs; Enter and Shift+Enter hints under it |
-| Message actions | `chat/ChatPanel.tsx` | Replay is a MessageFooter icon action with a tooltip; P4 adds Good and Bad here |
+| Message actions | `chat/ChatPanel.tsx`, `chat/Feedback.tsx` | Replay, then Good and Bad: ghost icon actions with tooltips, `aria-pressed`, the pressed one filled. A press records the rating, then a Popover offers an optional note; the note and the online judge scores (muted chips, "faithfulness 0.92") sit beside them |
 | Tool (Trace, Code Block) | `chat/ToolTrace.tsx` | One wrench line per call: running, waiting for approval, ran, denied, failed. The description is a short outcome and the duration; policy, why, budget, approval, sandbox chip and arguments open below |
 | Confirmation (Item) | `chat/ApprovalCard.tsx` | "Run X?" with the action class, reason, countdown and arguments; Deny then Approve. Once decided it goes and the tool line above says how |
-| Item | `chat/StepControls.tsx` | The step-mode pause: "Paused at X", Continue, Next |
+| Item | `chat/StepControls.tsx` | The step-mode pause: "Paused at X", Continue, Step over (runs past expert children to the next simple-view node), Next |
 | Sources, Inline Citation (Hover Card) | `chat/Citations.tsx` | `[n]` chips with a hover card, click opens the document reader (a Dialog); "Cited N passages" starts closed |
 | Empty, Suggestion | `chat/ChatPanel.tsx` | An empty chat: Empty in the thread, a row of suggested prompts above the input |
 | Context (Hover Card, Progress) | `diagram/TurnStatusBar.tsx` | "{n}% budget" opens a Progress bar per budget (tokens, cost, steps, policy) |
-| Reasoning, Plan | `chat/Reasoning.tsx` | Mounted as empty slots; P4 fills them from the stream |
-| Marker | `chat/ChatPanel.tsx` | Turn separators (the Checkpoint shape; P4 adds Restore), the working shimmer, system notices |
+| Reasoning, Plan | `chat/Reasoning.tsx` | Mounted as empty slots. Neither the event schema nor the P4 contract has a reasoning or plan field yet, so they stay empty until one does |
+| Marker | `chat/ChatPanel.tsx` | Turn separators, the working shimmer, system notices, and the restart checkpoint notice (`checkpoint.restored`) |
+| Checkpoint (Marker, Button) | `chat/OpsMarker.tsx` | "Skill returns v2 saved", "Release r2 active", "Rolled back: release r1 active" after the turn they followed; Restore asks first (Confirmation), then saves the previous version again or rolls back to the release before |
+| Test Results (Trace) | `inspector/EvalPanel.tsx` | "Ran 12 cases, 3 failed" with a regressions chip, then the cases (by case: each opens to expected against actual, its scores and a link to its turn in replay; by scorer: one suite per scorer, failing first). Regressions sort first and carry a chip; "was passed" says what changed |
+| Trace Commit, Code Block diff | `inspector/ReleasePanel.tsx`, `components/diff-view.tsx` | A release's `diff_from_previous` as one commit line per artifact ("Skill order_status v1 → v2", +1 −1) opening to the diff on the Code Block's `added` and `removed` lines |
+| Confirmation (Item) | `components/confirm-item.tsx` | Rollback and Restore: "Roll back to r1?", Cancel then Roll back |
+| Code Block in edit mode | `inspector/ArtifactEditor.tsx` | The system prompt, each skill and the YAML configs: Edit opens a mono Textarea with Save and Cancel and a "Review the change" diff; Save shows the API's diff and a toast. Blocked with the reason in public mode, without `features.artifact_edit`, or while a turn runs |
+| Trace (query) | `inspector/TracePanel.tsx` | The Trace node's query (session, node, status, since) and turn lines with receipt totals, opening to the per-node receipt Table and to replay |
 | Trace | `inspector/EventsTab.tsx`, `chat/ToolTrace.tsx` | The inspector's Events tab is a Trace too; its icons keep the node kind colours |
 | Resizable | `app/App.tsx` | The chat and diagram split and the docked inspector, with the grip handle; sizes kept per viewer |
 
-Later phases: Reasoning and Plan get data in P4, with Task, Chain of Thought, Test Results,
-Terminal, Checkpoint Restore and message Good/Bad; File Tree and Questionnaire in P5; Attachment
-behind the plus button and the Model Selector for your own key in P6; Subagent in P7.
+Later phases: Reasoning and Plan get data once the stream carries it; Task, Chain of Thought,
+Terminal and Stack Trace are still unused; File Tree and Questionnaire in P5; Attachment behind
+the plus button and the Model Selector for your own key in P6; Subagent in P7.
 
 ### Which part uses what
 
@@ -190,13 +215,40 @@ behind the plus button and the Model Selector for your own key in P6; Subagent i
 | Citations and guardrails | Hover Card and Button (inline citations), Trace (Sources), Dialog (the document reader at the cited chunk, `GET /v1/knowledge/docs/{doc}`); secondary Badges for input guardrails (redactions, injection score, warnings) and output guardrails (citations, restored); placeholders as `mark`, a Switch revealing the restored reply (dev only) |
 | Composer | Input Group (Textarea, Buttons, Text), Dropdown Menu (model hint), Textarea (`output_schema`, dev only), Kbd, Tooltip, Spinner |
 | Approval, step controls | Item (Media, Content, Title, Description, Actions, Footer), Code Block, Badge, Button |
-| Inspector | A Resizable pane docked beside the diagram (not a modal Sheet, so step mode keeps it open) with Tabs and Scroll Area; Badge (kind, view); Events as a Trace opening to the event JSON in a Code Block; Code and config in a Code Block with line numbers; prompts in `Prose`; records in a Table; payload views picked by shape (`src/inspector/shapes.ts`): the audit chain with a Verify Button, store records with a scope Badge, the document list, memory writes as Cards with a diff and Accept/Reject, the context budget as Progress bars; Switch (disable next turn); Kbd (Esc) |
-| Diagram | Nodes are Cards (CardTitle, CardDescription) with Badges for the kind chip, store badges and the off and not-yet tags; the legend is a Card with a Switch; the turn status bar is a Card with the Context hover card. The canvas, edges and layout stay React Flow |
-| Replay bar | Card, Button Group (previous, play, next), Slider, Tooltip with Kbd |
+| Inspector | A Resizable pane docked beside the diagram (not a modal Sheet, so step mode keeps it open) with Tabs and Scroll Area; the LLM Ops tabs (Runs, Releases, Turns) with Input, Select, Toggle Group, Badge, Table and the Confirmation Item; artifact edits with Textarea, Input and the Code Block diff; Badge (kind, view); Events as a Trace opening to the event JSON in a Code Block; Code and config in a Code Block with line numbers; prompts in `Prose`; records in a Table; payload views picked by shape (`src/inspector/shapes.ts`): the audit chain with a Verify Button, store records with a scope Badge, the document list, memory writes as Cards with a diff and Accept/Reject, the context budget as Progress bars; Switch (disable next turn); Kbd (Esc) |
+| Diagram | Nodes are Cards (CardTitle, CardDescription) with Badges for the kind chip, store badges, the off and not-yet tags and the regressions chip on the node that runs evals; the legend is a Card with a Switch; the turn status bar is a Card with the Context hover card. The canvas, edges and layout stay React Flow |
+| Replay bar | Card, Button Group (previous, play, next, step over), Slider, Tooltip with Kbd |
+| Feedback | Popover (the optional note), Textarea, Badge (judge scores) |
 
 App-level helpers on top of the primitives live in `src/components/`: `hint.tsx` (a Tooltip on
 one control), `code.tsx` (a Code Block highlighted by shiki) and `prose.tsx` (shadcn has no
 Prose component; it is the typography styles in one container).
+
+## LLM Ops in the UI (P4)
+
+The UI codes against phase 4's `CONTRACT.md` and nothing more. How it finds things without
+naming node ids:
+
+- **Which node gets which panel** is read from the diagram's shape (`src/diagram/opsRoles.ts`):
+  an LLM Ops node with a `release` edge into another plane ships artifacts (Releases); one with
+  a `release` edge inside the ops plane gates them (Runs); any other ops store keeps turns
+  (Turns). Expert children take their parent's panel. A node with a panel opens on that tab.
+- **Which artifact a node edits** comes from `GET /v1/artifacts` and the node's
+  `artifact_hint`: a prompt node edits the `prompt` and `skill` artifacts (the first inspector
+  item is the system prompt, http_api.md lists it first), a hint `config/policy.yaml` edits the
+  artifact of kind `policy`, and so on. A config node edits in its Config tab; a code or model
+  node with a YAML hint (the context builder, the model layer) gets a Config tab of its own.
+- **Chat markers.** `artifact_changed` and `artifact_released` are point events outside any turn
+  and the contract has no tenant stream, so the markers come from the responses of this
+  browser's own saves, releases and rollbacks, and from a change of
+  `capabilities.release.active_release_id` read after each turn (a release made with the CLI).
+  They are kept per session in `localStorage`.
+- **Status bar.** `release r2`, or `working set (unreleased changes)` when
+  `release.working_set_dirty`.
+- **Lists.** The contract names list items, not envelopes, so `listOf` in `src/api/client.ts`
+  takes a bare array or `{runs | releases | artifacts | turns: [...]}` with `next_after`.
+- **Eval progress.** The run's event stream is counted (`eval_case_finished`), and the run is read
+  back from `GET /v1/evals/runs/{id}` when it ends or drops, so only the event names are relied on.
 
 ## Reading the diagram: the colour system
 
@@ -227,7 +279,8 @@ The expert view always draws every edge.
 
 - The UI never names a node id outside the memory badge node: `src/test/drift.test.ts` fails
   on a node id string literal in `src/` beyond a short, explained list of homonyms (`approval` the pause reason, `release` the edge kind, `session`
-  the storage key). Turn facts, inspector views and stats are found by summary keys and payload
+  the storage key, `artifacts` the list key of `GET /v1/artifacts`). The LLM Ops panels are
+  picked by the diagram's shape, not by id (see LLM Ops in the UI). Turn facts, inspector views and stats are found by summary keys and payload
   shapes.
 - The UI never hard-codes nodes or edges. It draws whatever `GET /v1/diagram` returns, and the
   API generates that from its node registry merged with `spec/diagram/diagram.json`.
@@ -251,17 +304,18 @@ The expert view always draws every edge.
 ## Layout of the code
 
 ```
-src/api        types, HTTP client, SSE stream client, schema validator
+src/api        types, HTTP client, SSE stream clients (turns, eval runs), schema validator
 src/state      the reducer (events to state), turn facts read from summary keys, the Zustand
-               store, persistence
-src/diagram    layout, React Flow nodes and edges, stats and memory badges
+               store, persistence, ops helpers (markers, edit blocks, artifact lookup)
+src/diagram    layout, React Flow nodes and edges, stats and memory badges, ops roles
 src/chat       chat panel, composer, approval confirmation, step controls, tool calls, citations,
-               the document reader, guardrail badges, reasoning and plan slots
-src/inspector  node drawer: overview, config or prompt or records, code, events (Trace)
-src/components shadcn/ui in ui/, plus hint, code and prose
-src/lib, hooks cn() and the shiki highlighter, from the shadcn CLI
-src/replay     replay bar
-src/mock       in-browser mock API over spec/examples
+               the document reader, guardrail badges, reasoning and plan slots, feedback, markers
+src/inspector  node drawer: overview, config or prompt or records, code, events (Trace), and
+               the LLM Ops panels (eval runs, releases, trace query) and the artifact editor
+src/components shadcn/ui in ui/, plus hint, code, prose, the diff view and the confirm item
+src/lib, hooks cn() and the shiki highlighter, from the shadcn CLI, and line diffs
+src/replay     replay bar and its step-over
+src/mock       in-browser mock API over spec/examples, and the P4 ops routes
 src/app        shell, header, bootstrap
 e2e, e2e-live  Playwright suites (mock build, live API)
 ```
