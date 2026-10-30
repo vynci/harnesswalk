@@ -11,6 +11,9 @@
   --foreground: oklch(0.205 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.205 0 0);
+  /* Diagram nodes only: a warm bone paper, quieter than the white card on the tinted planes. */
+  --node-surface: oklch(0.975 0.006 85);
+  --node-surface-foreground: oklch(0.205 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.205 0 0);
   --primary: oklch(0.205 0 0);
@@ -76,6 +79,8 @@
   --foreground: oklch(0.96 0 0);
   --card: oklch(0.215 0 0);
   --card-foreground: oklch(0.96 0 0);
+  --node-surface: oklch(0.24 0.006 85);
+  --node-surface-foreground: oklch(0.96 0 0);
   --popover: oklch(0.215 0 0);
   --popover-foreground: oklch(0.96 0 0);
   --primary: oklch(0.92 0 0);
@@ -140,6 +145,8 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-node-surface: var(--node-surface);
+  --color-node-surface-foreground: var(--node-surface-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
@@ -230,10 +237,11 @@
   color: var(--plane-ink);
 }
 
-/* A node: a neutral card (bg-card, shadow-sm and the rhea ring, as the Card component draws
-   them) inside its coloured plane group; the group carries the plane. Its state is the status
-   icon, plus a 1 px state-coloured ring only while it is active (pulsing), waiting (dashed) or
-   failed, so the one running node stands out. Done, idle, skipped and not built get no ring. */
+/* A node: a neutral card on its own surface (--node-surface, a warm bone paper, not the white
+   card), with shadow-sm and the rhea ring as the Card component draws them, inside its coloured
+   plane group; the group carries the plane. Its state is the status icon, plus a 1 px
+   state-coloured ring only while it is active (pulsing), waiting (dashed) or failed, so the one
+   running node stands out. Done, idle, skipped and not built get no ring. */
 .hw-node {
   --node-ring: color-mix(in oklab, var(--foreground) 5%, transparent);
   --node-shadow: 0 0 0 1px var(--node-ring), 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);

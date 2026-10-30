@@ -79,7 +79,7 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
   return (
     <Card
       className={cn(
-        'hw-node relative h-full w-full gap-0 rounded-[10px] py-2 pr-2 pl-2.5 text-left',
+        'hw-node relative h-full w-full gap-0 rounded-[10px] bg-node-surface py-2 pr-2 pl-2.5 text-left text-node-surface-foreground',
         isChild && 'py-1.5 pr-1.5 pl-2',
       )}
       style={planeStyle(node.group)}

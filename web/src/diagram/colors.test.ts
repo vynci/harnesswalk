@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest'
 
 // WCAG contrast of the diagram's colour tokens, read from index.css, in both themes:
 // 4.5:1 for text, 3:1 for the state icons and rings, the kind icons and the edge strokes. Nodes
-// are neutral cards (--card) inside their plane group, so node colours are checked on the card.
+// are neutral cards on their own warm surface (--node-surface) inside their plane group, so node
+// colours are checked on that surface.
 
 type RGB = [number, number, number]
 
@@ -22,12 +23,24 @@ function block(selector: string): Map<string, string> {
 function parse(value: string): RGB {
   const hex = value.match(/^#([0-9a-f]{6})$/i)
   if (hex) return [0, 2, 4].map((i) => parseInt(hex[1]!.slice(i, i + 2), 16) / 255) as RGB
-  // The neutral palette is achromatic oklch: lightness L gives linear luminance L^3.
-  const ok = value.match(/^oklch\(([\d.]+) 0 0\)$/)
+  // oklch(L C H) to sRGB through OKLab (Björn Ottosson's matrices); achromatic when C is 0.
+  const ok = value.match(/^oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)$/)
   if (ok) {
-    const lin = Number(ok[1]) ** 3
-    const srgb = lin <= 0.0031308 ? 12.92 * lin : 1.055 * lin ** (1 / 2.4) - 0.055
-    return [srgb, srgb, srgb]
+    const [L, C, H] = ok.slice(1).map(Number) as [number, number, number]
+    const a = C * Math.cos((H * Math.PI) / 180)
+    const b = C * Math.sin((H * Math.PI) / 180)
+    const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3
+    const linear = [
+      4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+      -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+      -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+    ]
+    return linear.map((x) => {
+      const v = Math.min(1, Math.max(0, x))
+      return v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055
+    }) as RGB
   }
   throw new Error(`cannot parse colour ${value}`)
 }
@@ -57,25 +70,31 @@ describe.each([
 
   it('plane headers and node text read at 4.5:1', () => {
     for (const p of PLANES) expect(contrast(c(`plane-${p}-ink`), c(`plane-${p}-group`)), `${p} header`).toBeGreaterThanOrEqual(4.5)
-    expect(contrast(c('foreground'), c('card')), 'node title').toBeGreaterThanOrEqual(4.5)
-    expect(contrast(c('muted-foreground'), c('card')), 'node stat').toBeGreaterThanOrEqual(4.5)
+    expect(contrast(c('node-surface-foreground'), c('node-surface')), 'node title').toBeGreaterThanOrEqual(4.5)
+    expect(contrast(c('muted-foreground'), c('node-surface')), 'node stat').toBeGreaterThanOrEqual(4.5)
   })
 
-  it('a lit store badge reads at 4.5:1 on every plane (index.css .hw-store-badge[data-lit])', () => {
+  it('store badges read at 4.5:1: unlit on the node surface, lit on every plane (.hw-store-badge)', () => {
+    expect(contrast(c('muted-foreground'), c('node-surface')), 'unlit badge').toBeGreaterThanOrEqual(4.5)
     for (const p of PLANES) expect(contrast(c(`plane-${p}-fill`), c(`plane-${p}-ink`)), `${p} lit badge`).toBeGreaterThanOrEqual(4.5)
   })
 
-  it('state icons and rings stand out at 3:1 on the node card', () => {
-    for (const s of STATES) expect(contrast(c(`state-${s}`), c('card')), `${s} on the card`).toBeGreaterThanOrEqual(3)
+  it('nodes sit on their own warm surface token, not the card colour other cards use', () => {
+    expect(tokens.get('node-surface')).toMatch(/^oklch\([\d.]+ 0\.0\d+ 85\)$/)
+    expect(tokens.get('node-surface')).not.toBe(tokens.get('card'))
+  })
+
+  it('state icons and rings stand out at 3:1 on the node surface', () => {
+    for (const s of STATES) expect(contrast(c(`state-${s}`), c('node-surface')), `${s} on the node`).toBeGreaterThanOrEqual(3)
   })
 
   it('the state rings stand out at 3:1 on every plane group around the card', () => {
     for (const p of PLANES) for (const s of RINGS) expect(contrast(c(`state-${s}`), c(`plane-${p}-group`)), `${s} ring on ${p}`).toBeGreaterThanOrEqual(3)
   })
 
-  it('kind icons stand out at 3:1 on their chip on the node card', () => {
+  it('kind icons stand out at 3:1 on their chip on the node surface', () => {
     for (const k of KINDS) {
-      const chip = mix(c(`kind-${k}`), c('card'), 0.13)
+      const chip = mix(c(`kind-${k}`), c('node-surface'), 0.13)
       expect(contrast(c(`kind-${k}`), chip), k).toBeGreaterThanOrEqual(3)
     }
   })
