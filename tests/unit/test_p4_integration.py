@@ -50,6 +50,7 @@ async def test_tenant_stream_carries_every_ops_event_in_order(tmp_path: Path) ->
         assert cursors == sorted(cursors) and len(set(cursors)) == len(cursors)
         assert {e["stream"] for e in got} == {OPS_STREAM, f"eval:{run['run_id']}"}
         assert got[0]["turn_id"] == turn_id and got[2]["summary"]["release_id"] == "r2"
+        assert got[2]["summary"]["previous_active"] == "r1"
         ids = [line[4:] for line in r.text.splitlines() if line.startswith("id: ")]
         assert ids == [str(x) for x in cursors]
 

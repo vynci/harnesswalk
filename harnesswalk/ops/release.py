@@ -571,7 +571,9 @@ class ReleaseManager:
         self.store.close()
 
 
-def released_summary(rel: Release, rollback_of: str | None = None) -> dict[str, Any]:
+def released_summary(
+    rel: Release, rollback_of: str | None = None, previous_active: str | None = None
+) -> dict[str, Any]:
     """The summary of an `artifact_released` ops event (events.md section 6)."""
     out: dict[str, Any] = {
         "release_id": rel.release_id,
@@ -584,6 +586,8 @@ def released_summary(rel: Release, rollback_of: str | None = None) -> dict[str, 
         out["note"] = rel.note[:200]
     if rollback_of is not None:
         out["rollback_of"] = rollback_of
+    if previous_active is not None:
+        out["previous_active"] = previous_active
     return out
 
 
@@ -651,10 +655,10 @@ def apply_create(harness: Any, tenant_id: str, *, note: str | None = None) -> di
     rm: ReleaseManager = harness.release
     if not rm.use_working_set and harness.busy():  # it changes what is served
         raise Busy("a turn or an eval run is running; try again when it ends")
+    before = rm.store.active_release_id(rm.pack)
     rel = rm.create(by=f"user:{tenant_id}", note=note)
-    harness.ops.emit(
-        tenant_id, OPS_STREAM, "artifact_released", "release", "done", released_summary(rel)
-    )
+    summary = released_summary(rel, previous_active=before)
+    harness.ops.emit(tenant_id, OPS_STREAM, "artifact_released", "release", "done", summary)
     _apply(harness)
     return rm.release_detail(rel.release_id) or rel.to_dict()
 
