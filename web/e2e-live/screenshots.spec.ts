@@ -114,3 +114,47 @@ test('the inspector code tab', async ({ page }) => {
   await settle(page)
   await page.screenshot({ path: out('inspector-code') })
 })
+
+test('the eval run and the release diff', async ({ page, request }) => {
+  // eval-run.png and release-diff.png: the P4 panels, once the API offers them.
+  const caps = (await (await request.get('/v1/capabilities')).json()) as { features: Record<string, boolean | undefined> }
+  test.skip(!(caps.features.evals && caps.features.release && caps.features.artifact_edit), 'the API has no P4 features yet')
+  test.setTimeout(120_000)
+  const inspector = page.getByTestId('inspector')
+  const releases = (await (await request.get('/v1/releases')).json()) as { releases?: { release_id: string; active: boolean }[] }
+  const base = releases.releases?.find((r) => r.active)?.release_id
+
+  await page.getByTestId('node-eval').click()
+  await inspector.getByTestId('eval-run-button').click()
+  await expect(inspector.getByTestId('eval-run-detail')).toHaveAttribute('data-status', 'done', { timeout: 60_000 })
+
+  await page.getByTestId('view-expert').click()
+  await page.getByTestId('node-procedural').click()
+  await inspector.getByRole('tab', { name: 'Prompt' }).click()
+  const editor = inspector.getByTestId('artifact-editor').and(page.locator('[data-name="order_status"]'))
+  await editor.getByTestId('artifact-edit').click()
+  const textarea = editor.getByTestId('artifact-textarea')
+  await textarea.fill((await textarea.inputValue()).replaceAll('lookup_order', 'find_order'))
+  await editor.getByTestId('artifact-save').click()
+  await expect(editor.getByTestId('artifact-saved')).toBeVisible()
+
+  await page.getByTestId('view-simple').click()
+  await page.getByTestId('legend-toggle').click()
+  await page.getByTestId('node-eval').click()
+  await inspector.getByTestId('eval-run-button').click()
+  const detail = inspector.getByTestId('eval-run-detail')
+  await expect(detail).toHaveAttribute('data-status', 'done', { timeout: 60_000 })
+  await detail.locator('[data-testid="eval-case"][data-regression="true"]').first().click()
+  await settle(page)
+  await page.screenshot({ path: out('eval-run') })
+
+  await page.getByTestId('node-release').click()
+  await inspector.getByTestId('release-note').fill('find_order experiment')
+  await inspector.getByTestId('release-create').click()
+  await inspector.getByTestId('release-commit').filter({ hasText: 'order_status' }).click()
+  await settle(page)
+  await page.screenshot({ path: out('release-diff') })
+
+  // Leave the harness as it was for any test after this one.
+  if (base) await request.post(`/v1/releases/${base}/rollback`, { data: {} })
+})
