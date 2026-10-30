@@ -322,8 +322,12 @@ export const useApp = create<AppState>()((set, get) => {
       bump()
       void get().refreshCapabilities()
     } else if (ev.type === 'feedback_recorded') {
-      // Feedback from another tab or browser on a turn of this chat.
-      if (ev.turn_id && get().turns[ev.turn_id]) void refreshSummary(ev.turn_id)
+      // Feedback from another tab or browser on a turn of this chat: the stored rating wins over
+      // what this tab pressed last.
+      const turnId = ev.turn_id
+      if (turnId && get().turns[turnId]) {
+        void refreshSummary(turnId).then(() => updateTurn(turnId, (t) => ({ ...t, feedback: t.summary?.feedback ?? t.feedback })))
+      }
     } else if (ev.type === 'eval_run_started') {
       const runId = String(summary.run_id ?? ev.run_id ?? '')
       if (runId) set({ opsRun: { runId, suite: String(summary.suite ?? ''), pack: String(summary.pack ?? ''), done: 0, total: typeof summary.total === 'number' ? summary.total : null } })

@@ -154,6 +154,7 @@ export function ArtifactEditor({
             onChange={(e) => setDraft({ ...draft, note: e.target.value })}
             placeholder="What changed and why (optional)"
             aria-label="Change note"
+            data-testid="artifact-note"
             className="h-8 text-xs"
           />
           {stats.added + stats.removed > 0 && (
