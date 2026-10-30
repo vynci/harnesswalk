@@ -650,8 +650,9 @@ export const useApp = create<AppState>()((set, get) => {
           const run = await api.evalRun(runId)
           set({ latestEval: run })
           const t = run.totals
+          // A failing case is a result, not an error (evaluator.md): an info notice either way.
           get().notify(
-            run.regressions > 0 ? 'error' : 'info',
+            'info',
             `${run.suite} run finished: ${t.passed} passed, ${t.failed} failed, ${t.skipped} skipped${run.regressions ? `, ${run.regressions} regression${run.regressions === 1 ? '' : 's'}` : ''}.`,
           )
         } catch (err) {

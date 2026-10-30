@@ -12,7 +12,7 @@ export interface OpsMark {
   afterTurnId: string | null
   at: string
   /** What the marker's Restore puts back, when there is something to put back. */
-  restore?: { type: 'artifact'; kind: string; name: string; version: number } | { type: 'release'; releaseId: string }
+  restore?: { type: 'artifact'; kind: string; name: string; version: number } | { type: 'rollback'; releaseId: string }
 }
 
 function capital(s: string): string {
@@ -44,7 +44,7 @@ export function releaseMark(releaseId: string, previous: string | null, rolledBa
     text: rolledBack ? `Rolled back: release ${releaseId} active` : `Release ${releaseId} active`,
     afterTurnId,
     at,
-    ...(previous && previous !== releaseId ? { restore: { type: 'release' as const, releaseId: previous } } : {}),
+    ...(previous && previous !== releaseId ? { restore: { type: 'rollback' as const, releaseId: previous } } : {}),
   }
 }
 

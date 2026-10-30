@@ -385,10 +385,9 @@ export interface StartEvalRequest {
   cases?: string[]
 }
 
-export type ArtifactKind = 'prompt' | 'skill' | 'policy' | 'context' | 'models' | 'tools'
-
 export interface ArtifactRef {
-  kind: ArtifactKind | string
+  /** prompt, skill, policy, context, models or tools (phase-4 CONTRACT.md). */
+  kind: string
   name: string
   version: number
   hash: string

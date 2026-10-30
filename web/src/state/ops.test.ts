@@ -26,7 +26,7 @@ describe('ops helpers', () => {
       restore: { type: 'artifact', kind: 'prompt', name: 'system_prompt', version: 2 },
     })
     expect(savedMark({ kind: 'skill', name: 'x', version: 1 }, null).restore).toBeUndefined()
-    expect(releaseMark('r4', 'r3', false, null)).toMatchObject({ text: 'Release r4 active', restore: { type: 'release', releaseId: 'r3' } })
+    expect(releaseMark('r4', 'r3', false, null)).toMatchObject({ text: 'Release r4 active', restore: { type: 'rollback', releaseId: 'r3' } })
     expect(releaseMark('r1', 'r2', true, null)).toMatchObject({ kind: 'rolled_back', text: 'Rolled back: release r1 active' })
     expect(releaseMark('r1', null, false, null).restore).toBeUndefined()
   })
