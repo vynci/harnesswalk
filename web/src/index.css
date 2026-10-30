@@ -385,10 +385,12 @@
   opacity: 0.7;
 }
 
+/* A lit badge fills with the plane's ink tone (darker than its stroke in light mode) so the
+   light lettering reads at 4.5:1 on every plane; colors.test.ts checks it. */
 .hw-store-badge[data-lit='true'] {
-  background: var(--plane-stroke);
+  background: var(--plane-ink);
   color: var(--plane-fill);
-  border-color: var(--plane-stroke);
+  border-color: var(--plane-ink);
 }
 
 @media (prefers-reduced-motion: reduce) {

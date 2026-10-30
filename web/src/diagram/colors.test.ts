@@ -61,6 +61,10 @@ describe.each([
     expect(contrast(c('muted-foreground'), c('card')), 'node stat').toBeGreaterThanOrEqual(4.5)
   })
 
+  it('a lit store badge reads at 4.5:1 on every plane (index.css .hw-store-badge[data-lit])', () => {
+    for (const p of PLANES) expect(contrast(c(`plane-${p}-fill`), c(`plane-${p}-ink`)), `${p} lit badge`).toBeGreaterThanOrEqual(4.5)
+  })
+
   it('state icons and rings stand out at 3:1 on the node card', () => {
     for (const s of STATES) expect(contrast(c(`state-${s}`), c('card')), `${s} on the card`).toBeGreaterThanOrEqual(3)
   })
