@@ -10,12 +10,16 @@ returns `{value, pass, detail}`:
     schema        the reply is JSON valid against the case's output_schema
     pii_leak      no personal data in the reply except values the user typed
     answer_match  substring (all of them), exact, or regex
+    checks        the case's `checks` (P5): the router rule of each model call, in order, and
+                  a substring each named store put in context (from the context builder's
+                  stored detail)
 """
 
 from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from typing import Any
 
 import jsonschema
@@ -24,7 +28,15 @@ from harnesswalk import diagram
 from harnesswalk.events import Event
 from harnesswalk.ops.eval.golden import GoldenCase
 
-DETERMINISTIC = ("path", "citations", "tool_calls", "schema", "pii_leak", "answer_match")
+DETERMINISTIC = (
+    "path",
+    "citations",
+    "tool_calls",
+    "schema",
+    "pii_leak",
+    "answer_match",
+    "checks",
+)
 JUDGED = ("faithfulness", "relevance")
 
 
@@ -139,10 +151,48 @@ def score_answer(expect: dict[str, Any], reply: str | None) -> dict[str, Any]:
     return _result(1 - len(missing) / len(wanted), False, f"missing {missing}")
 
 
+def score_checks(
+    checks: dict[str, Any], events: list[Event], get_detail: Callable[[str], Any]
+) -> dict[str, Any]:
+    """`router_rules` and `retrieved` against the case turn's stored events and details."""
+    problems = []
+    want_rules = checks.get("router_rules")
+    if want_rules is not None:
+        got = [
+            (e.get("summary") or {}).get("rule")
+            for e in events
+            if e["type"] == "node_exit" and e.get("node_id") == "router"
+        ]
+        if got != list(want_rules):
+            problems.append(f"router rules {got}, expected {list(want_rules)}")
+    retrieved = checks.get("retrieved") or {}
+    if retrieved:
+        detail: dict[str, Any] = {}
+        for e in events:
+            if e["type"] == "node_exit" and e.get("node_id") == "context_builder":
+                detail = (get_detail(e["detail_ref"]) if e.get("detail_ref") else None) or {}
+        items = detail.get("items") or {}
+        for store, needle in retrieved.items():
+            texts = [h.get("text", "") for h in items.get(store) or []]
+            if not any(needle in t for t in texts):
+                problems.append(f"{store} context has no {needle!r} (got {texts[:3]})")
+    total = (want_rules is not None) + len(retrieved)
+    if not problems:
+        return _result(1.0, True, "every check holds")
+    return _result(1 - len(problems) / max(1, total), False, "; ".join(problems))
+
+
 def deterministic(
-    case: GoldenCase, actual: dict[str, Any], detector: Any, names: tuple[str, ...]
+    case: GoldenCase,
+    actual: dict[str, Any],
+    detector: Any,
+    names: tuple[str, ...],
+    *,
+    events: list[Event] | None = None,
+    get_detail: Callable[[str], Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """The applicable deterministic scorers among `names`, by name."""
+    """The applicable deterministic scorers among `names`, by name. `checks` needs the case
+    turn's `events` and a `get_detail` for its stored details."""
     e = case.expect
     out: dict[str, dict[str, Any]] = {}
     if "path" in names and e.get("path"):
@@ -157,4 +207,6 @@ def deterministic(
         out["pii_leak"] = score_pii(detector, case.prompt, actual["reply"])
     if "answer_match" in names and {"answer_contains", "answer_exact", "answer_regex"} & set(e):
         out["answer_match"] = score_answer(e, actual["reply"])
+    if "checks" in names and case.checks and events is not None:
+        out["checks"] = score_checks(case.checks, events, get_detail or (lambda _ref: None))
     return out

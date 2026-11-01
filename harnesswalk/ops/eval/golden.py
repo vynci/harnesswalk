@@ -5,6 +5,10 @@ provider answers it (`fixture`), and what the turn must show (`expect`): the nod
 citations, the tool calls, a structured reply, the answer. `rubric` tells the judge what a good
 answer says. The P0 spellings (`input`, `path_includes`, `must_cite`, `judge.rubric`) are read
 as aliases.
+
+P5 integration: `checks` (router rules and retrieved memory, scored by the `checks` scorer),
+`modes` (the harness modes a case applies in; absent means every mode) and `after` (the
+earlier case whose memory this one reads; cases always run in file order).
 """
 
 from __future__ import annotations
@@ -28,6 +32,11 @@ EXPECT_KEYS = {
 }
 
 
+MODES = ("dev", "public", "private")
+CHECK_KEYS = ("router_rules", "retrieved")
+CHECK_STORES = ("semantic", "episodic", "knowledge")
+
+
 class GoldenError(ValueError):
     """The golden set cannot be read (a run cannot start)."""
 
@@ -44,9 +53,37 @@ class GoldenCase:
     approval: str = "deny"
     tags: list[str] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)
+    checks: dict[str, Any] | None = None
+    modes: list[str] | None = None
+    after: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return dict(self.raw)
+
+    def applies_in(self, mode: str) -> bool:
+        return self.modes is None or mode in self.modes
+
+
+def _checks(raw: Any, where: str, case_id: str) -> dict[str, Any] | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or set(raw) - set(CHECK_KEYS):
+        raise GoldenError(f"{where}: case {case_id} checks may only hold {list(CHECK_KEYS)}")
+    rules = raw.get("router_rules")
+    if rules is not None and (
+        not isinstance(rules, list) or not all(isinstance(r, str) for r in rules)
+    ):
+        raise GoldenError(f"{where}: case {case_id} checks.router_rules must be a list of ids")
+    retrieved = raw.get("retrieved")
+    if retrieved is not None and (
+        not isinstance(retrieved, dict)
+        or set(retrieved) - set(CHECK_STORES)
+        or not all(isinstance(v, str) and v for v in retrieved.values())
+    ):
+        raise GoldenError(
+            f"{where}: case {case_id} checks.retrieved maps {list(CHECK_STORES)} to a substring"
+        )
+    return dict(raw)
 
 
 def normalize(raw: dict[str, Any], where: str) -> GoldenCase:
@@ -84,6 +121,14 @@ def normalize(raw: dict[str, Any], where: str) -> GoldenCase:
     approval = raw.get("approval", "deny")
     if approval not in ("approve", "deny"):
         raise GoldenError(f"{where}: case {case_id} approval must be approve or deny")
+    modes = raw.get("modes")
+    if modes is not None and (
+        not isinstance(modes, list) or not modes or not set(modes) <= set(MODES)
+    ):
+        raise GoldenError(f"{where}: case {case_id} modes must be a list of {list(MODES)}")
+    after = raw.get("after")
+    if after is not None and (not isinstance(after, str) or not CASE_ID.match(after)):
+        raise GoldenError(f"{where}: case {case_id} after must be a case id")
     return GoldenCase(
         id=case_id,
         title=str(raw.get("title") or case_id),
@@ -95,6 +140,9 @@ def normalize(raw: dict[str, Any], where: str) -> GoldenCase:
         approval=approval,
         tags=list(raw.get("tags") or []),
         raw=raw,
+        checks=_checks(raw.get("checks"), where, case_id),
+        modes=list(modes) if modes is not None else None,
+        after=after,
     )
 
 
@@ -123,6 +171,11 @@ def load_golden(path: Path) -> list[GoldenCase]:
         case = normalize(raw, f"{path.name}:{n}")
         if case.id in seen:
             raise GoldenError(f"{path.name}:{n}: case id {case.id} is used twice")
+        if case.after is not None and case.after not in seen:
+            raise GoldenError(
+                f"{path.name}:{n}: case {case.id} runs after {case.after!r}, which must be an"
+                " earlier case"
+            )
         seen.add(case.id)
         cases.append(case)
     if not cases:

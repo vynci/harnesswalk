@@ -20,16 +20,15 @@ A pack is a directory `datasets/<id>/` with a `pack.yaml`. The validator checks,
                 matches the pack's content; prompts may only use reserved test values
     provenance  the provenance card exists, says CC0 and says synthetic
 
-`check_case` evaluates a case's `checks` (an additive key the eval scorers ignore) against
-the events of the turn that ran it: `router_rules` (the router rule of each model call, in
-order) and `retrieved` (a substring a store must have put in context).
+A case's `checks` (router rules, retrieved memory) are scored by the eval runner itself, as
+the `checks` scorer (harnesswalk/ops/eval/scorers.py); the validator only checks that they
+name known router rules and stores.
 """
 
 from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -92,8 +91,6 @@ CONTENT_GLOBS = (
 PROMPT_GLOBS = ("golden.jsonl", "fixtures/fake/*.jsonl", "prompts.md", "pack.yaml")
 RESERVED_EMAIL = re.compile(r"@(?:[a-z0-9-]+\.)*(?:example\.(?:com|net|org)|invalid|test)$", re.I)
 RESERVED_PHONE_DIGITS = "55501"  # the 555-01xx block is reserved for fiction
-CHECK_KEYS = {"router_rules", "retrieved"}
-STORES = ("semantic", "episodic", "knowledge")
 
 PACK_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -707,18 +704,9 @@ def _check_golden(pack: Pack, config_root: Path) -> list[Issue]:
         for cite in case.expect.get("citations") or []:
             if cite.get("doc") and cite["doc"] not in docs:
                 add(f"cites unknown document {cite['doc']!r}")
-        checks = case.raw.get("checks")
-        if checks is None:
-            continue
-        if not isinstance(checks, dict) or set(checks) - CHECK_KEYS:
-            add(f"checks may only hold {sorted(CHECK_KEYS)}")
-            continue
-        for rule in checks.get("router_rules") or []:
+        for rule in (case.checks or {}).get("router_rules") or []:
             if rule not in rules:
                 add(f"checks names unknown router rule {rule!r}")
-        for store in checks.get("retrieved") or {}:
-            if store not in STORES:
-                add(f"checks.retrieved names unknown store {store!r}")
     return out
 
 
@@ -756,38 +744,3 @@ def _check_pii(pack: Pack, packs: list[Pack]) -> list[Issue]:
             seen.add(key)
             unique.append(issue)
     return unique
-
-
-# -- golden-case checks (run after a turn) -------------------------------------------------------
-
-
-def check_case(
-    checks: dict[str, Any] | None,
-    events: list[dict[str, Any]],
-    get_detail: Callable[[str], Any],
-) -> list[str]:
-    """Problems with a finished case turn against its `checks`; empty when it passes."""
-    if not checks:
-        return []
-    problems = []
-    want_rules = checks.get("router_rules")
-    if want_rules is not None:
-        got = [
-            (e.get("summary") or {}).get("rule")
-            for e in events
-            if e["type"] == "node_exit" and e.get("node_id") == "router"
-        ]
-        if got != list(want_rules):
-            problems.append(f"router rules {got}, expected {list(want_rules)}")
-    retrieved = checks.get("retrieved") or {}
-    if retrieved:
-        detail: dict[str, Any] = {}
-        for e in events:
-            if e["type"] == "node_exit" and e.get("node_id") == "context_builder":
-                detail = (get_detail(e["detail_ref"]) if e.get("detail_ref") else None) or {}
-        items = detail.get("items") or {}
-        for store, needle in retrieved.items():
-            texts = [h.get("text", "") for h in items.get(store) or []]
-            if not any(needle in t for t in texts):
-                problems.append(f"{store} context has no {needle!r} (got {texts[:3]})")
-    return problems

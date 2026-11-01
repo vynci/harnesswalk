@@ -81,10 +81,10 @@ Every tool declares `action_class` and `timeout_ms`. A pack tool must not shadow
 (`calculator`, `read_skill`, `remember`, `read_doc`), and must be in `config/policy.yaml`
 `agent.allow_tools`, or policy denies it (rule `agent.allowlist`) and the model never sees it.
 
-## Golden cases: the `checks` extension
+## Golden cases: `checks`, `modes` and `after`
 
-A golden case may carry `checks`, which the eval scorers ignore and the pack suite (CI, and
-`tests/unit/test_packs.py`) evaluates on the stored events of the turn that ran the case:
+A golden case may carry `checks`, scored by the eval runner as the `checks` scorer
+(`spec/contracts/evaluator.md`) on the stored events of the turn that ran the case:
 
 - `router_rules`: the `router` node's `summary.rule` of each model call, in order. A one-tool
   lookup on the sports pack is `["default", "lookup"]`.
@@ -93,7 +93,10 @@ A golden case may carry `checks`, which the eval scorers ignore and the pack sui
   pack checks that a fact the previous case asked to `remember` reached the context.
 
 Cases run in file order in one scratch tenant, so a case may rely on what an earlier case's
-memory writer wrote; such pairs sit next to each other and say so in their titles.
+memory writer wrote; such a case names that case in `after` (the loader refuses an `after`
+that is not an earlier case). `modes` limits a case to some harness modes: the starter's
+`pii_redacted` expects the user's own email back, which only dev restores, so it is
+`"modes": ["dev"]` and the release gate can pass in private mode.
 
 ## Validation (`harnesswalk packs validate [<id>] [--profile <file>]`)
 
@@ -108,8 +111,8 @@ when:
 5. `guardrails.yaml`, when present, builds a PII detector;
 6. every golden case loads, names a fixture that exists (the pack's, or a conformance one),
    whose first turn calls exactly `expect.tool_calls`, only known tools, cites only existing
-   documents, has no unresolved `[[cite:doc]]` marker, and whose `checks` name known router
-   rules and stores;
+   documents, has no unresolved `[[cite:doc]]` marker, whose `checks` name known router
+   rules and stores, and whose `after` names an earlier case;
 7. no personal-data pattern matches the pack's content (system prompt, skills, documents
    including PDF text, PDF sources, seeds, tool tables). The patterns are the default detector's
    (email, Luhn-valid card, phone, US SSN, Canadian SIN) plus every pack's `guardrails.yaml`

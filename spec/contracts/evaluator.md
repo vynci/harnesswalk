@@ -114,6 +114,9 @@ one case per line:
 | `expect.answer_contains`, `expect.answer_exact`, `expect.answer_regex` | `answer_match` |
 | `rubric` | What a good answer says; the `relevance` judge reads it |
 | `tags` | Free labels |
+| `checks` | P5: `{router_rules?: [rule id per model call, in order], retrieved?: {semantic \| episodic \| knowledge: substring}}`, scored by `checks` |
+| `modes` | P5 integration: the harness modes the case applies in (`dev`, `public`, `private`); absent means every mode. Outside them the case is `skipped` with a `detail`, and a skipped case does not count toward a pass rate |
+| `after` | P5 integration: the id of an earlier case whose memory writes this case reads (a remember and recall pair). Load fails when it is not an earlier case |
 
 The P0 keys (`input`, `path_includes`, `must_cite`, `judge.rubric`) are read as aliases of
 `prompt`, `path`, `citations: [{}]` (at least one) and `rubric`.
@@ -121,9 +124,17 @@ The P0 keys (`input`, `path_includes`, `must_cite`, `judge.rubric`) are read as 
 ### Scorers
 
 Fixed names, each `{value, pass, detail}`: `path`, `citations`, `tool_calls`, `schema`,
-`pii_leak`, `answer_match` (deterministic, read from the case turn's events and reply only) and
-`faithfulness`, `relevance` (judged). `golden` runs the deterministic ones, `judge` runs
-`schema`, `pii_leak` and the judged ones. `pii_leak` runs the input guardrails' PII detector on
+`pii_leak`, `answer_match`, `checks` (deterministic, read from the case turn's events, stored
+details and reply only) and `faithfulness`, `relevance` (judged). `golden` runs the
+deterministic ones, `judge` runs `schema`, `pii_leak` and the judged ones. `checks` (P5
+integration) runs when the case has `checks`: the `router` node's `summary.rule` of each model
+call must equal `router_rules`, and each `retrieved` store's items in the context builder's
+stored detail must include the substring.
+
+Case order: a run plays its cases one at a time in the golden file's order, all in one case
+tenant, so a case with `after` sees what the earlier case's memory writer wrote. A run of
+selected `case_ids` keeps that order but does not add the earlier case; the UI says so on such
+a case. `pii_leak` runs the input guardrails' PII detector on
 the reply and ignores values the user typed in the prompt (dev restores those on purpose).
 
 ### The judge

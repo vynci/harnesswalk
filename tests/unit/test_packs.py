@@ -19,6 +19,7 @@ from harnesswalk.__main__ import main
 from harnesswalk.config.loader import load_settings
 from harnesswalk.ops.eval.golden import load_golden
 from harnesswalk.ops.eval.offline import scratch_tenant
+from harnesswalk.ops.eval.scorers import score_checks
 from harnesswalk.runtime import Harness
 from tests.spec.support import ROOT
 
@@ -168,16 +169,13 @@ async def _golden(pack_id: str, data_dir: Path) -> tuple[dict, list[dict], list[
         await h.evals.offline.wait(run["run_id"])
         done = h.evals.store.run("dev", run["run_id"])
         cases = h.evals.store.cases(run["run_id"])
-        tenant = scratch_tenant(run["run_id"])
+        # `checks` are a scorer of the run itself (P5 integration), not a pass over it here.
         raw = {c.id: c.raw for c in load_golden(ROOT / "datasets" / pack_id / "golden.jsonl")}
-        problems = []
-        for c in cases:
-            checks = raw[c["case_id"]].get("checks")
-            if not checks or not c.get("turn_id"):
-                continue
-            events = h.tracer.get_turn(tenant, c["turn_id"])
-            for p in packs.check_case(checks, events, lambda ref: h.tracer.get_detail(tenant, ref)):
-                problems.append(f"{c['case_id']}: {p}")
+        problems = [
+            f"{c['case_id']}: {c['scores'].get('checks', {}).get('detail', 'checks not scored')}"
+            for c in cases
+            if raw[c["case_id"]].get("checks") and not c["scores"].get("checks", {}).get("pass")
+        ]
         return done, cases, problems
     finally:
         await h.aclose()
@@ -225,7 +223,7 @@ async def _case_events(pack_id: str, case_ids: list[str], data_dir: Path):
         await h.aclose()
 
 
-def test_check_case_reads_router_rules_and_retrieved_memory(tmp_path: Path) -> None:
+def test_the_checks_scorer_reads_router_rules_and_retrieved_memory(tmp_path: Path) -> None:
     sports = load_golden(ROOT / "datasets" / "sports" / "golden.jsonl")
     lookup = next(
         c
@@ -234,23 +232,81 @@ def test_check_case_reads_router_rules_and_retrieved_memory(tmp_path: Path) -> N
     )
     got = asyncio.run(_case_events("sports", [lookup.id], tmp_path / "s"))
     events, detail = got[lookup.id]
-    assert packs.check_case({"router_rules": ["default", "lookup"]}, events, detail) == []
-    wrong = packs.check_case({"router_rules": ["default", "default"]}, events, detail)
-    assert wrong and "router rules" in wrong[0]
+    assert score_checks({"router_rules": ["default", "lookup"]}, events, detail)["pass"]
+    wrong = score_checks({"router_rules": ["default", "default"]}, events, detail)
+    assert not wrong["pass"] and "router rules" in wrong["detail"]
 
     finance = load_golden(ROOT / "datasets" / "finance" / "golden.jsonl")
-    ids = [c.id for c in finance]
     recall = next(c for c in finance if (c.raw.get("checks") or {}).get("retrieved"))
-    remember = ids[ids.index(recall.id) - 1]
-    got = asyncio.run(_case_events("finance", [remember, recall.id], tmp_path / "f"))
+    assert recall.after is not None  # the pair says so, and the runner keeps file order
+    got = asyncio.run(_case_events("finance", [recall.after, recall.id], tmp_path / "f"))
     events, detail = got[recall.id]
-    assert packs.check_case(recall.raw["checks"], events, detail) == []
-    missing = packs.check_case({"retrieved": {"semantic": "no such preference"}}, events, detail)
-    assert missing and "semantic context" in missing[0]
+    assert score_checks(recall.checks, events, detail)["pass"]
+    missing = score_checks({"retrieved": {"semantic": "no such preference"}}, events, detail)
+    assert not missing["pass"] and "semantic context" in missing["detail"]
     # Alone, the recall case has nothing to recall: the pair is what proves the writer.
     alone = asyncio.run(_case_events("finance", [recall.id], tmp_path / "f2"))
     events, detail = alone[recall.id]
-    assert packs.check_case(recall.raw["checks"], events, detail) != []
+    assert not score_checks(recall.checks, events, detail)["pass"]
+
+
+def test_golden_modes_after_and_checks_load_and_score(tmp_path: Path) -> None:
+    """`modes` skips a case outside its modes (the starter's dev-only restore case), `after`
+    must name an earlier case, and `checks` are scored as `checks` in the run itself."""
+    from harnesswalk.ops.eval.golden import GoldenError, normalize
+
+    starter = {c.id: c for c in load_golden(ROOT / "datasets" / "_starter" / "golden.jsonl")}
+    assert starter["pii_redacted"].modes == ["dev"]
+    assert not starter["pii_redacted"].applies_in("public")
+    assert starter["support_hours"].applies_in("public")
+    for bad in ({"modes": ["prod"]}, {"modes": []}, {"after": "Not An Id"},
+                {"checks": {"router_rules": "lookup"}}, {"checks": {"retrieved": {"x": "y"}}},
+                {"checks": {"other": 1}}):  # fmt: skip
+        with pytest.raises(GoldenError):
+            normalize({"id": "c", "prompt": "p", **bad}, "t")
+    path = tmp_path / "golden.jsonl"
+    path.write_text(
+        json.dumps({"id": "b", "prompt": "p", "after": "a"})
+        + "\n"
+        + json.dumps({"id": "a", "prompt": "p"})
+        + "\n"
+    )
+    with pytest.raises(GoldenError, match="earlier case"):
+        load_golden(path)
+
+
+async def _public_starter(data_dir: Path) -> list[dict]:
+    settings = load_settings(
+        ROOT,
+        provider="fake",
+        fixture="plain_answer",
+        overrides={"mode": "public", "sandbox.level": "inprocess"},
+        data_dir=data_dir,
+        env={},
+    )
+    h = Harness(settings)
+    try:
+        run = h.evals.offline.start(
+            "dev", "_starter", "golden", case_ids=["pii_redacted", "support_hours"], by="test"
+        )
+        await h.evals.offline.wait(run["run_id"])
+        return h.evals.store.cases(run["run_id"])
+    finally:
+        await h.aclose()
+
+
+def test_a_dev_only_case_is_skipped_in_public_mode(tmp_path: Path) -> None:
+    cases = {c["case_id"]: c for c in asyncio.run(_public_starter(tmp_path / "d"))}
+    assert cases["pii_redacted"]["status"] == "skipped"
+    assert "dev mode only" in cases["pii_redacted"]["detail"]
+    assert cases["support_hours"]["status"] == "passed"
+
+
+def test_the_runner_scores_checks_itself(tmp_path: Path) -> None:
+    done, cases, problems = asyncio.run(_golden("sports", tmp_path / "s"))
+    lookup = next(c for c in cases if c["case_id"] == "fixtures_ash")
+    assert lookup["scores"]["checks"]["pass"] and problems == []
+    assert lookup["expected"]["checks"] == {"router_rules": ["default", "lookup"]}
 
 
 def test_golden_results_do_not_depend_on_other_packs_in_the_data_dir(tmp_path: Path) -> None:

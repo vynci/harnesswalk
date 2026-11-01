@@ -3,7 +3,9 @@
 Contract: spec/contracts/evaluator.md (P4 additions), HTTP in http_api.md. Node:
 `offline_eval` (expert child of `eval`).
 
-A run is a sequence of case turns, one at a time. Each case is a real turn through the whole
+A run is a sequence of case turns, one at a time, always in the golden file's order (a case with
+`after` reads what that earlier case's memory writer wrote in the same case tenant, so the order
+is part of the contract). Each case is a real turn through the whole
 harness (gateway to trace), in its own session, in a scratch tenant for the run
 (`evalrun-<run_id>`), so a run never reads or writes the caller's memory and every run starts
 from the same state. On the `golden` suite the case answers from its `fake` fixture; on
@@ -316,6 +318,14 @@ class OfflineRunner:
         }
         if case.output_schema is not None:
             result["expected"]["output_schema"] = case.output_schema
+        if case.checks:
+            result["expected"]["checks"] = case.checks
+        if case.after:
+            result["after"] = case.after
+        mode = self.h.settings.mode
+        if not case.applies_in(mode):
+            result["detail"] = f"applies in {', '.join(case.modes or [])} mode only, not {mode}"
+            return result, Usage()
         request = self._turn_request(run, case)
         if request is None:
             result["detail"] = "no fixture and no model to answer with"
@@ -333,7 +343,15 @@ class OfflineRunner:
                 spent.add(Usage(c["input_tokens"], c["output_tokens"], 0, c["usd"]))
             names = DETERMINISTIC if run["suite"] == "golden" else JUDGE_DETERMINISTIC
             view = self._views.get(run["run_id"], (self.h, False))[0]
-            scores = deterministic(case, actual, view.input_guardrails.pii, names)
+            tenant = request.identity.tenant_id
+            scores = deterministic(
+                case,
+                actual,
+                view.input_guardrails.pii,
+                names,
+                events=events,
+                get_detail=lambda ref: self.h.tracer.get_detail(tenant, ref),
+            )
             if run["suite"] == "judge":
                 verdict = await self.judge.judge(
                     case.prompt,
