@@ -1,3 +1,5 @@
+<p align="center"><img src="web/public/favicon.svg" alt="The harnesswalk logo" width="96" height="96"></p>
+
 # harnesswalk
 
 [![CI](https://github.com/vynci/harnesswalk/actions/workflows/ci.yml/badge.svg)](https://github.com/vynci/harnesswalk/actions/workflows/ci.yml)
@@ -10,10 +12,9 @@
 The harness runs: a request walks the gateway, guardrails, context builder, memory, loop, model
 layer, tools, policy, approval, audit and trace, and every step is an event you can stream,
 store and replay. The web UI shows it: a chat beside a live diagram, step mode, approvals,
-replay and a code peek per node. Try it in your browser on the hosted sandbox at
-[harnesswalk.vynci.dev](https://harnesswalk.vynci.dev) (Claude Haiku, Claude Sonnet or the
-scripted fake model, nothing to install), or run it on your machine below. Where it stands:
-[Status](#status).
+replay and a code peek per node. A hosted sandbox at harnesswalk.vynci.dev (Claude Haiku,
+Claude Sonnet or the scripted fake model, nothing to install) is coming online; until then, run
+it on your machine below. Where it stands: [Status](#status).
 
 ![A finished turn: the chat on the left, every node it visited lit on the diagram](docs/screenshots/turn-done.png)
 
@@ -407,10 +408,10 @@ The connection comes from `HARNESSWALK_DATABASE_URL`, else from `POSTGRES_HOST`,
 
 ### Public mode
 
-The sandbox at harnesswalk.vynci.dev runs in public mode: an anonymous tenant per browser for
-two hours, then every row of it is deleted; Claude Haiku 5.5, Claude Sonnet 5.5 and the fake
-model, with a shared daily budget for the Claude models (bring your own key to skip it); rate
-limits, capped loops and pure tools only. To try it locally on the fake model, with the stores
+The hosted sandbox at harnesswalk.vynci.dev (coming online) runs in public mode: an anonymous
+tenant per browser for two hours, then every row of it is deleted; Claude Haiku 5.5, Claude
+Sonnet 5.5 and the fake model, with a shared daily budget for the Claude models (bring your own
+key to skip it); rate limits, capped loops and pure tools only. To try it locally on the fake model, with the stores
 in a scratch directory:
 
 ```sh
@@ -502,7 +503,8 @@ tools/      release prep, the wheel smoke, the fresh-clone check, pack generatio
 ## Status
 
 Alpha. Version 0.1.0 is the first release: the spec at 0.1.0, the reference harness with all
-29 nodes implemented, the web app, six packs, 21 lessons and the public sandbox. The spec may
+29 nodes implemented, the web app, six packs, 21 lessons and public mode (the hosted sandbox is
+coming online). The spec may
 still grow, under the additive rules of [spec/VERSIONING.md](spec/VERSIONING.md). What changed
 is in [CHANGELOG.md](CHANGELOG.md) (and [spec/CHANGELOG.md](spec/CHANGELOG.md) for the spec);
 what is next, and what is deliberately later (private mode, framework adapters, a second
