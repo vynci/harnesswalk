@@ -350,7 +350,7 @@ managed policy (for example `harnesswalk-deploy-owner`) and attach it to the use
     {"Sid": "HarnesswalkSessionDocument", "Effect": "Allow", "Action": "ssm:StartSession", "Resource": "arn:aws:ssm:us-east-1:111910761410:document/SSM-SessionManagerRunShell"},
     {"Sid": "HarnesswalkOwnSessions", "Effect": "Allow", "Action": ["ssm:TerminateSession", "ssm:ResumeSession"], "Resource": "arn:aws:ssm:us-east-1:111910761410:session/${aws:username}-*"},
     {"Sid": "HarnesswalkCommandResults", "Effect": "Allow", "Action": ["ssm:GetCommandInvocation", "ssm:ListCommandInvocations", "ssm:DescribeInstanceInformation"], "Resource": "*"},
-    {"Sid": "HarnesswalkInvalidate", "Effect": "Allow", "Action": ["cloudfront:CreateInvalidation", "cloudfront:GetInvalidation", "cloudfront:GetDistribution"], "Resource": "arn:aws:cloudfront::111910761410:distribution/*"},
+    {"Sid": "HarnesswalkInvalidate", "Effect": "Allow", "Action": ["cloudfront:CreateInvalidation", "cloudfront:GetInvalidation", "cloudfront:GetDistribution"], "Resource": "arn:aws:cloudfront::111910761410:distribution/E2MZ1BILR55F39"},
     {"Sid": "HarnesswalkWebBucket", "Effect": "Allow", "Action": ["s3:ListBucket"], "Resource": "arn:aws:s3:::harnesswalk-web-111910761410"},
     {"Sid": "HarnesswalkWebObjects", "Effect": "Allow", "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], "Resource": "arn:aws:s3:::harnesswalk-web-111910761410/*"},
     {"Sid": "HarnesswalkAlarmEmail", "Effect": "Allow", "Action": ["sns:Subscribe"], "Resource": "arn:aws:sns:us-east-1:111910761410:harnesswalk-alarms"},
