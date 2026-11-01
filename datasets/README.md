@@ -65,10 +65,12 @@ denied by policy and hidden from the model, and the validator says so.
 
 A golden case is a prompt, the fake fixture that answers it, and what the turn must show:
 the node path, the tool calls, the citations, a piece of the answer (spec/contracts/
-evaluator.md). Packs add one optional key, `checks`, evaluated on the stored events by the
-pack suite: `router_rules` (the router rule of each model call; the sports pack) and
-`retrieved` (a remembered fact that must reach the context; the finance pack). Cases run in
-file order in one scratch tenant, so a recall case can read what the case before it wrote.
+evaluator.md). Three optional keys: `checks`, scored by the eval runner as the `checks`
+scorer on the stored events: `router_rules` (the router rule of each model call; the sports
+pack) and `retrieved` (a remembered fact that must reach the context; the finance pack);
+`after`, the earlier case a recall reads (cases run in file order in one scratch tenant, so a
+recall case reads what that case wrote); and `modes`, the harness modes a case applies in (a
+case that expects a typed value restored in the reply is `["dev"]`, since only dev restores).
 
 Fake fixtures are JSON Lines: one line per chat turn of a session, each line
 `{"responses": [...]}` with responses shaped as in `spec/conformance/fixture.schema.json`.
