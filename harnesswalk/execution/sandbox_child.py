@@ -37,6 +37,7 @@ import os
 import sys
 import threading
 import time
+from collections.abc import Callable
 
 MEMORY_EXIT = 137
 SPAWN_EVENTS = (
@@ -101,6 +102,20 @@ def _limits(memory_mb: int, cpu_s: int) -> None:
             resource.setrlimit(limit, (soft, hard))
 
 
+def _resident_reader() -> Callable[[], int] | None:
+    """Linux: the current resident memory, from /proc/self/statm. ru_maxrss is no use there:
+    exec keeps the parent's high-water mark, so the child of a server that once held more than
+    the cap would start over it. The file is opened here, before the audit hook exists."""
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        fd = os.open("/proc/self/statm", os.O_RDONLY)
+    except OSError:
+        return None
+    page = os.sysconf("SC_PAGE_SIZE")
+    return lambda: int(os.pread(fd, 128, 0).split()[1]) * page
+
+
 def _memory_watcher(memory_mb: int) -> None:
     try:
         import resource
@@ -108,10 +123,13 @@ def _memory_watcher(memory_mb: int) -> None:
         return
     scale = 1 if sys.platform == "darwin" else 1024  # ru_maxrss: bytes on macOS, KiB on Linux
     cap = memory_mb * 1024 * 1024
+    resident = _resident_reader() or (
+        lambda: resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * scale
+    )
 
     def watch() -> None:
         while True:
-            if resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * scale > cap:
+            if resident() > cap:
                 os.write(2, f"harnesswalk sandbox: memory over {memory_mb} MB\n".encode())
                 os._exit(MEMORY_EXIT)
             time.sleep(0.005)
