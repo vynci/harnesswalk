@@ -173,6 +173,10 @@ async function onPack(page: Page, id: string) {
   await page.getByTestId('pack-picker').click()
   await page.locator(`[data-testid=pack-option][data-pack="${id}"]`).click()
   await expect(page.getByTestId('pack-picker')).toHaveAttribute('data-pack', id, { timeout: 30_000 })
+  // Focus goes back to the picker and its tooltip opens under it, over the canvas controls at
+  // the top right: Esc closes it.
+  await page.keyboard.press('Escape')
+  await page.mouse.move(0, 0)
 }
 
 async function done(page: Page) {
