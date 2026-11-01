@@ -262,6 +262,9 @@ export function waitText(seconds: number | null): string {
 /** The toast for a turn the API refused: the P6 public-mode refusals in words, the rest as is. */
 export function turnRefusal(err: unknown): string {
   if (err instanceof ApiError && err.status === 429) {
+    // P6 review: a 429 also guards how many Claude turns run at once; its body names the limit.
+    const limit = (err.body as { error?: { limit?: string } } | undefined)?.error?.limit
+    if (limit === 'running_turns') return `Too many Claude turns are running right now. Try again in ${waitText(err.retryAfter)}, or use the fake model.`
     return `Too many requests from this address this hour. Try again in ${waitText(err.retryAfter)}.`
   }
   if (err instanceof ApiError && err.code === 'budget_exhausted') {

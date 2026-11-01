@@ -121,6 +121,9 @@ describe('store: public mode', () => {
       "Today's shared budget for Claude models is spent. It resets at 00:00 UTC. Bring your own key or use the fake model.",
     )
     expect(turnRefusal(new ApiError(429, 'rate_limited', 'slow down', undefined, 40))).toContain('Try again in 40 s.')
+    expect(turnRefusal(new ApiError(429, 'rate_limited', 'busy', { error: { code: 'rate_limited', limit: 'running_turns' } }, 10))).toBe(
+      'Too many Claude turns are running right now. Try again in 10 s, or use the fake model.',
+    )
     expect(waitText(null)).toBe('a little while')
     expect(waitText(3600)).toBe('1 h')
   })
