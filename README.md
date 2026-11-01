@@ -1,24 +1,51 @@
-<p align="center"><img src="web/public/favicon.svg" alt="The harnesswalk logo" width="96" height="96"></p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/harnesswalk-wordmark-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/brand/harnesswalk-wordmark.svg">
+    <img src="docs/brand/harnesswalk-wordmark.svg" alt="Harnesswalk" width="360">
+  </picture>
+</p>
 
-# harnesswalk
+<p align="center"><strong>An interactive way to understand AI agent harnesses</strong></p>
 
-[![CI](https://github.com/vynci/harnesswalk/actions/workflows/ci.yml/badge.svg)](https://github.com/vynci/harnesswalk/actions/workflows/ci.yml)
-[![Licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-blue.svg)](LICENSE)
-<!-- After the first release is on PyPI (docs/RELEASING.md), add:
-[![PyPI](https://img.shields.io/pypi/v/harnesswalk.svg)](https://pypi.org/project/harnesswalk/) -->
+<p align="center">An open-source, interactive reference implementation of an AI agent harness.
+Understand, inspect and experiment with the infrastructure behind production AI agents.</p>
 
-**Walk through an AI harness, one node at a time.**
+<p align="center">
+  <a href="https://github.com/vynci/harnesswalk/actions/workflows/ci.yml"><img src="https://github.com/vynci/harnesswalk/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-Apache--2.0-blue.svg" alt="Licence: Apache-2.0"></a>
+  <a href="https://harnesswalk.vynci.dev"><img src="https://img.shields.io/badge/sandbox-harnesswalk.vynci.dev-0ea47a.svg" alt="Hosted sandbox: harnesswalk.vynci.dev"></a>
+</p>
+<!-- After the first release is on PyPI (docs/RELEASING.md), add inside the paragraph above:
+<a href="https://pypi.org/project/harnesswalk/"><img src="https://img.shields.io/pypi/v/harnesswalk.svg" alt="PyPI"></a> -->
 
 The harness runs: a request walks the gateway, guardrails, context builder, memory, loop, model
 layer, tools, policy, approval, audit and trace, and every step is an event you can stream,
 store and replay. The web UI shows it: a chat beside a live diagram, step mode, approvals,
-replay and a code peek per node. A hosted sandbox at harnesswalk.vynci.dev (Claude Haiku,
-Claude Sonnet or the scripted fake model, nothing to install) is coming online; until then, run
-it on your machine below. Where it stands: [Status](#status).
+replay and a code peek per node. The hosted sandbox at https://harnesswalk.vynci.dev runs it
+with nothing to install (Claude Haiku and Claude Sonnet under a shared daily budget, or the
+scripted fake model; every session is deleted after two hours), or run it on your machine
+below. Where it stands: [Status](#status).
 
 ![A finished turn: the chat on the left, every node it visited lit on the diagram](docs/screenshots/turn-done.png)
 
+## Why this exists
+
+Harnesswalk is an educational and developer-experience project, not another agent framework or
+boilerplate. Most agent projects show how to connect an LLM, define tools and build a loop, and
+the harness around that loop, where most of the engineering of a production agent lives, stays
+out of sight. Harnesswalk makes the entire harness visible and inspectable. Run an agent
+locally, watch a request travel through the components and read the code behind each one;
+pause execution, replay events and inspect memory; experiment with guardrails, policies,
+approvals, evaluations and releases, and see what each one changes.
+
+**What it is not.** Not a framework to build on, not a hosted product, and no lock-in: the
+[spec](spec/) and its [conformance suite](spec/conformance/README.md) let any other runtime, in
+any language, light the same diagram.
+
 ## Quickstart
+
+### Run it in two minutes
 
 No model key needed: the fake provider replays scripted turns, so the whole walk runs offline.
 You need [uv](https://docs.astral.sh/uv/) and Node 24 with pnpm 10 (`corepack enable`), or Docker.
@@ -36,7 +63,6 @@ Other ways to run it:
 
 ```sh
 HARNESSWALK_PROVIDER=fake make up          # Docker: api + web, postgres (pgvector) and ollama
-ollama pull llama3.1:8b && make run        # a real local model instead of the fake provider
 uv run harnesswalk turn "Where is order A-1001?" --provider fake --fixture tool_call   # no browser
 ```
 
@@ -49,15 +75,53 @@ pip install harnesswalk && harnesswalk serve --provider fake                  # 
 docker run --rm -p 8000:8000 -e HARNESSWALK_PROVIDER=fake ghcr.io/vynci/harnesswalk
 ```
 
+### Use a real model
+
+Bring your Anthropic key, any OpenAI-compatible endpoint, or a local model through Ollama. Each
+block runs after `make setup && make web-build`, and the fake provider is always there to fall
+back to with no key.
+
+With an Anthropic key (the router picks Claude Sonnet 5.5 or Claude Haiku 5.5 per call; the
+model menu in the message box, or `--model` on the command line, pins one):
+
+```sh
+export ANTHROPIC_API_KEY=...                 # in your shell only, never in a file
+make run PROVIDER=anthropic                  # the web app on http://127.0.0.1:8000
+uv run harnesswalk turn "Where is order A-1001?" --provider anthropic --model hosted-haiku
+```
+
+With an OpenAI-compatible endpoint (vLLM, llama.cpp, LM Studio, or a hosted API that speaks
+`/chat/completions`; the base URL includes the version prefix):
+
+```sh
+export OPENAI_BASE_URL=http://127.0.0.1:8001/v1   # your endpoint
+export OPENAI_API_KEY=...                         # if it needs one
+uv run harnesswalk serve --provider openai_compatible --set models.models.compat-default.name=<model>
+```
+
+With [Ollama](https://ollama.com), on your own machine:
+
+```sh
+ollama pull llama3.1:8b                      # about 5 GB, once
+make run PROVIDER=ollama                     # plain `make run` does the same while Ollama is up
+uv run harnesswalk turn "What are your support hours?" --provider ollama
+```
+
+Hosted providers are never used unless you select one: a key that merely sits in your shell
+routes nothing, because `config/models.yaml` keeps `anthropic` and `openai_compatible` off
+until `--provider` (or `HARNESSWALK_PROVIDER`) picks them. The automated tests (`make test`,
+`make e2e` and CI) never call a hosted model; they run on the fake provider. And to skip setup
+altogether, the hosted sandbox at https://harnesswalk.vynci.dev needs nothing installed.
+
 ## What this is
 
 An agent is a model inside a harness. The harness is everything else: the gateway that decides
 who is asking, the guardrails that check what goes in and out, the policy that decides which
 tools may run, the context builder that chooses what the model sees, the memory it reads and the
 gate that controls what it writes, the loop, the tools, the trace, the evals, the release
-process. Most teaching material shows the loop. The harness is where most of the engineering is.
+process.
 
-harnesswalk is an open-source, local-first harness built to be read. One command brings up
+Harnesswalk is an open-source, local-first harness built to be read. One command brings up
 a working agent and a web page with two panels: a chat, and a live systems diagram of the
 harness. Send a message and watch it travel. Every node lights up as the request passes through
 it. Click a node to see what is behind it: the code for a guardrail, the rules for policy, the
@@ -410,7 +474,7 @@ The connection comes from `HARNESSWALK_DATABASE_URL`, else from `POSTGRES_HOST`,
 
 ### Public mode
 
-The hosted sandbox at harnesswalk.vynci.dev (coming online) runs in public mode: an anonymous
+The hosted sandbox at https://harnesswalk.vynci.dev runs in public mode: an anonymous
 tenant per browser for two hours, then every row of it is deleted; Claude Haiku 5.5, Claude
 Sonnet 5.5 and the fake model, with a shared daily budget for the Claude models (bring your own
 key to skip it); rate limits, capped loops and pure tools only. To try it locally on the fake model, with the stores
@@ -506,8 +570,7 @@ tools/      release prep, the wheel smoke, the fresh-clone check, pack generatio
 
 Alpha. Version 0.1.0 is the first release: the spec at 0.1.0, the reference harness with all
 29 nodes implemented, the web app, six packs, 21 lessons and public mode (the hosted sandbox is
-coming online). The spec may
-still grow, under the additive rules of [spec/VERSIONING.md](spec/VERSIONING.md). What changed
+live at https://harnesswalk.vynci.dev). The spec may still grow, under the additive rules of [spec/VERSIONING.md](spec/VERSIONING.md). What changed
 is in [CHANGELOG.md](CHANGELOG.md) (and [spec/CHANGELOG.md](spec/CHANGELOG.md) for the spec);
 what is next, and what is deliberately later (private mode, framework adapters, a second
 implementation), is in [docs/ROADMAP.md](docs/ROADMAP.md).
