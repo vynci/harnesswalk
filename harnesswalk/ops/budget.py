@@ -105,5 +105,5 @@ class HostedBudget:
         return {
             "status": "exhausted" if today["exhausted"] else "ok",
             "resets_at": today["resets_at"],
-            "spent_fraction": round(fraction, 4),
+            "spent_fraction": round(fraction, 6),
         }
