@@ -75,6 +75,17 @@
           "$ref": "#/$defs/id"
         },
         "lesson": { "type": "string", "minLength": 40 },
+        "lesson_url": {
+          "description": "Optional (P5): the chapter that teaches this node, a path relative to the repo root, with a #section anchor for an expert node inside its group chapter.",
+          "type": "string",
+          "pattern": "^lessons/[0-9]{2}-[a-z0-9_-]+\\.md(#[a-z0-9-]+)?$"
+        },
+        "lesson_summary": {
+          "description": "Optional (P5): the one-line hook of the node's lesson, for lists and the lessons drawer.",
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 160
+        },
         "source_hint": {
           "description": "Planned module path in the reference implementation, relative to the repo root.",
           "type": "string",
