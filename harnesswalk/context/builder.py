@@ -46,6 +46,7 @@ from harnesswalk.context.stores import Memory
 from harnesswalk.context.stores.session import SessionStore, Turn
 from harnesswalk.context.tokens import estimate
 from harnesswalk.nodes import node, register
+from harnesswalk.ops import payloads
 from harnesswalk.types import Message, TurnContext
 
 register("context_builder", __name__)
@@ -136,7 +137,14 @@ class ContextBuilder:
         reserve = int(self.cfg.get("reserve_output_tokens", 1024))
         slice_budget = self.cfg.get("slices", {})
         budgets = {k: int(slice_budget.get(k, DEFAULT_SLICES[k])) for k in RETRIEVED}
-        async with node(ctx, "context_builder", budget_tokens=total) as span:
+        about = None
+        if payloads.capturing(ctx):  # what it is about to assemble a context for
+            about = {
+                "payload": payloads.record(
+                    "context_builder", "enter", input=payloads.text(user_text), budget_tokens=total
+                )
+            }
+        async with node(ctx, "context_builder", enter_detail=about, budget_tokens=total) as span:
             retrieved = await self.memory.retrieve_all(ctx, user_text, budgets)
             ctx.emit.edge("memory_to_context_builder")
             view = retrieved.session
@@ -194,13 +202,30 @@ class ContextBuilder:
             used = sum(slices.values())
 
             messages = [Message("system", always)]
+            sections = self._system_sections(retrieved.procedural, docs_index)
             for t in turns:
+                turn_no = t.index + 1
+                sections.append(
+                    self._section(len(messages), "user", "history", f"Turn {turn_no}, user", t.user)
+                )
                 messages.append(Message("user", t.user))
+                sections.append(
+                    self._section(
+                        len(messages), "assistant", "history", f"Turn {turn_no}, reply", t.assistant
+                    )
+                )
                 messages.append(Message("assistant", t.assistant))
             data = data_message([summary_text, *(self._format(k, hits[k]) for k in RETRIEVED)])
             if data:  # quoted, user role: memory never speaks with system authority (P6)
+                sections += self._data_sections(len(messages), summary_text, hits, through)
                 messages.append(Message("user", data))
+            sections.append(self._section(len(messages), "user", "user", "User message", user_text))
             messages.append(Message("user", user_text))
+            ctx.payload_context = {
+                "sections": sections,
+                "contents": [m.content for m in messages],
+                "estimator": self.estimator,
+            }
 
             citations = [
                 {
@@ -254,8 +279,108 @@ class ContextBuilder:
                 "items": {k: [h.to_dict() for h in hits[k]] for k in RETRIEVED},
                 "citations": citations,
                 "messages": [m.to_dict() for m in messages],
+                "payload": payloads.record(
+                    "context_builder",
+                    "exit",
+                    **payloads.sections_payload(sections),
+                    used_tokens=used,
+                    budget_tokens=total,
+                    limit_tokens=limit,
+                    reserve_output_tokens=reserve,
+                    token_estimator=self.estimator,
+                ),
             }
         return assembled
+
+    # -- payload sections (tracer.md "Payloads") ----------------------------------------------
+
+    def _section(
+        self,
+        message: int,
+        role: str,
+        kind: str,
+        label: str,
+        body: str,
+        sources: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        return payloads.section(message, role, kind, label, body, self.estimator, sources)
+
+    def _system_sections(self, procedural: str, docs_index: str) -> list[dict[str, Any]]:
+        """The system message in its parts, in order: the system prompt, the skills index, the
+        documents index, the data rule. Joined by blank lines they are the message."""
+        store = self.memory.procedural
+        index = store.index_text()
+        out: list[dict[str, Any]] = []
+        prompt_source = [{"label": store.prompt_version, "store": "procedural"}]
+        if index and store.system_prompt and procedural == f"{store.system_prompt}\n\n{index}":
+            out.append(
+                self._section(
+                    0, "system", "system", "System prompt", store.system_prompt, prompt_source
+                )
+            )
+            skills = [{"label": name, "store": "procedural"} for name in sorted(store.skills)]
+            out.append(self._section(0, "system", "skill", "Skills index", index, skills))
+        elif procedural:
+            out.append(
+                self._section(0, "system", "system", "System prompt", procedural, prompt_source)
+            )
+        if docs_index:
+            docs = [
+                {"label": doc_id, "store": "knowledge", "doc": doc_id}
+                for doc_id, _ in (
+                    self.memory.knowledge.pack_index() if self.memory.knowledge else []
+                )
+            ]
+            out.append(self._section(0, "system", "system", "Documents index", docs_index, docs))
+        out.append(self._section(0, "system", "system", "Data rule", DATA_RULE))
+        return out
+
+    def _data_sections(
+        self, message: int, summary_text: str, hits: dict[str, list[Hit]], through: int | None
+    ) -> list[dict[str, Any]]:
+        """The quoted retrieved-data message, one section per block, with the source of each
+        item (fact or event ids, the knowledge passages' citations)."""
+        out: list[dict[str, Any]] = []
+        if summary_text:
+            label = "Conversation summary"
+            src = [
+                {
+                    "label": f"turns 1-{through + 1}"
+                    if through is not None and through >= 0
+                    else "summary",
+                    "store": "session",
+                }
+            ]
+            out.append(self._section(message, "user", "history", label, summary_text, src))
+        labels = {"semantic": "Facts", "episodic": "Earlier events", "knowledge": "Knowledge"}
+        for kind in RETRIEVED:
+            if not hits[kind]:
+                continue
+            sources = []
+            for n, h in enumerate(hits[kind], start=1):
+                src: dict[str, Any] = {
+                    "label": h.source.title or h.source.id,
+                    "store": h.source.store,
+                    "id": h.source.id,
+                    "score": round(h.score, 4),
+                }
+                if kind == "episodic" and h.source.title:  # the title is the event's kind
+                    src["label"] = f"{h.source.id} ({h.source.title})"
+                if kind == "knowledge":
+                    src.update(n=n, doc=h.meta.get("doc"), chunk=h.meta.get("chunk"))
+                    src["label"] = f"[{n}] {h.meta.get('citation') or h.source.id}"
+                sources.append(src)
+            out.append(
+                self._section(
+                    message,
+                    "user",
+                    "retrieved",
+                    labels[kind],
+                    self._format(kind, hits[kind]),
+                    sources,
+                )
+            )
+        return out
 
     def _docs_index(self) -> str:
         knowledge = self.memory.knowledge

@@ -586,6 +586,7 @@ Additive. Every existing endpoint keeps its shape; new fields are listed where t
 | `POST /v1/releases/{release_id}/rollback` | Make a release active again | P4 |
 | `GET /v1/trace/turns` | Turn list with receipts, filtered | P4 |
 | `GET /v1/trace/turns/{turn_id}/receipt` | Per-turn receipt | P4 |
+| `GET /v1/trace/turns/{turn_id}/details/{event_id}` | One event's detail record (a hop's payload) | payloads |
 | `GET /v1/trace/ops-events` | Point events outside turns (feedback, artifact changes, releases) | P4 |
 | `GET /v1/events` | Every ops event of the tenant, live (SSE) | P4 integration |
 
@@ -748,6 +749,13 @@ The receipt route answers for those case turns too.
 nodes: {node_id: {ms, count, input_tokens, output_tokens, usd}}, calls: [{seq, step, provider,
 model, input_tokens, output_tokens, usd, ms, fallback}], scores: {node_id: {name: value}} |
 null, feedback }`. `total` equals `turn_end.cost` (`tracer.md`).
+
+`GET /v1/trace/turns/{turn_id}/details/{event_id}` (payloads): one event's detail record,
+`{ turn_id, event_id, detail_ref, detail }`, where `detail` is what the event's `detail_ref`
+points at (a payload, `tracer.md` "Payloads", for the content-bearing hops). Only for a turn of
+the caller's own tenant, or a case turn of one of its eval runs (as the receipt); otherwise
+`404 turn_not_found`. An event without a stored detail (none was recorded, or
+`trace.capture_content` is off) is `404 detail_not_found`. Every mode, public included.
 
 `GET /v1/trace/ops-events?type=&after=&limit=`: the caller's ops events (`events.md` section 10)
 from the `ops` stream, oldest first, `{ "events": [...], "next_after": <seq> | null }`.

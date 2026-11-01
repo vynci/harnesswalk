@@ -23,6 +23,7 @@ import { artifactLabel, releaseMark, savedMark, type OpsMark } from './ops'
 import { buildEdgeIndex, initialTurnState, reduceEvent, reduceEvents, type EdgeIndex, type TurnState } from './reducer'
 import { packTitle } from './packs'
 import { load, rememberMessage, recallMessages, save } from './persist'
+import { edgePayloadNode, payloadEvent } from '@/inspector/payload'
 
 export interface ChatTurn {
   turnId: string
@@ -183,6 +184,10 @@ export interface AppState {
   setPlaying: (playing: boolean) => void
   selectNode: (id: string | null) => void
   setInspectorTab: (node: string | null, tab: string) => void
+  /** Open the inspector of a node on its Payload tab. */
+  openPayload: (node: string) => void
+  /** An edge label's click: the end of the edge whose payload shows what it carries (payload.ts). */
+  openEdgePayload: (source: string, target: string) => void
   /** Select a node and open its inspector on a tab (a lesson from the drawer, say). */
   openInspector: (node: string, tab: string) => void
   setDraft: (text: string) => void
@@ -361,8 +366,10 @@ export const useApp = create<AppState>()((set, get) => {
           // The pack the turn runs on, as the harness says (P5): the session's pack from now on.
           if (ev.type === 'turn_start' && typeof ev.summary?.pack === 'string' && ev.summary.pack !== get().pack) setPack(ev.summary.pack)
           // Step mode keeps the inspector on the node the walk stopped at.
+          // A node with a payload opens on it, so the reader sees what is about to be sent.
           if (ev.type === 'node_paused' && ev.summary?.reason === 'breakpoint' && get().selectedNode && ev.node_id) {
-            set({ selectedNode: ev.node_id })
+            const held = payloadEvent(get().turns[turnId]?.state?.events ?? [], ev.node_id)
+            set(held ? { selectedNode: ev.node_id, inspectorTab: { node: ev.node_id, tab: 'payload' } } : { selectedNode: ev.node_id })
           }
         },
         onStatus: (status) => {
@@ -848,6 +855,19 @@ export const useApp = create<AppState>()((set, get) => {
 
     openInspector(node, tab) {
       set({ selectedNode: node, inspectorTab: { node, tab } })
+    },
+
+    openPayload(node) {
+      set({ selectedNode: node, inspectorTab: { node, tab: 'payload' } })
+    },
+
+    openEdgePayload(source, target) {
+      const s = get()
+      const id = selectDisplayTurnId(s)
+      const events = s.replay ? s.replay.events.slice(0, s.replay.cursor + 1) : id ? (s.turns[id]?.state?.events ?? []) : []
+      const node = edgePayloadNode(events, source, target)
+      if (node) get().openPayload(node)
+      else set({ selectedNode: target })
     },
 
     setDraft(draft) {

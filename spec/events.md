@@ -350,3 +350,16 @@ outside turns and reports through `diagnose_finished`.
 - `model_layer` `node_exit` summary: `notice: budget_exhausted` and `downgraded_from: <alias>`
   on the call the budget moved off a priced alias.
 - `loop` `node_exit` summary: `notices`, the reasons of the turn's notices, when there are any.
+
+## 13. Payloads
+
+Additive, no event changes shape. When `trace.capture_content` is on, the `node_enter` and
+`node_exit` of `gateway`, `input_guardrails`, `context_builder`, `model_layer` and
+`output_guardrails` carry a `detail_ref` to a typed record of what the hop carried: the message
+as received and after redaction, each input check, the assembled context as sections with
+token counts, the model request and reply, the answer before and after the output checks.
+Shapes, the 32 000-character cap and the public-mode rule are in `contracts/tracer.md`
+("Payloads"); `GET /v1/trace/turns/{turn_id}/details/{event_id}` serves them to the turn's
+tenant. A `node_enter` record is the node's input, stored before a breakpoint pauses there.
+The one summary key this adds is `has_payload: true`, on an event whose detail holds a
+payload.

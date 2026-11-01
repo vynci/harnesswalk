@@ -314,6 +314,10 @@ class TurnEmitter:
             ref = self.detail_sink(event["event_id"], detail)  # None: detail dropped, event kept
             if ref:
                 event["detail_ref"] = ref
+                if isinstance(detail, dict) and "payload" in detail:
+                    # The one summary key payloads add (tracer.md): the UI knows which events
+                    # hold a hop's payload without fetching every detail.
+                    event["summary"] = {**(event.get("summary") or {}), "has_payload": True}
         if self.validate:
             problems = validate_event(event)
             if problems:
@@ -360,13 +364,17 @@ class TurnEmitter:
 
     # -- spans ------------------------------------------------------------------------------
 
-    async def enter(self, node_id: str, summary: dict[str, Any] | None = None) -> Span:
+    async def enter(
+        self, node_id: str, summary: dict[str, Any] | None = None, detail: Any = None
+    ) -> Span:
+        """Open a span. `detail` is what the node is about to work on (its input payload,
+        tracer.md "Payloads"), stored before a breakpoint can pause on it."""
         self._check_node(node_id)
         parent = diagram.parent_of(node_id)
         if parent and parent not in [s.node_id for s in self.stack]:
             raise StreamError(f"expert node {node_id} entered outside its parent {parent}")
         span = Span(node_id, self.seq)
-        self._emit("node_enter", "active", node_id=node_id, summary=summary or None)
+        self._emit("node_enter", "active", node_id=node_id, summary=summary or None, detail=detail)
         self.stack.append(span)
         try:
             await self.breakpoints.hit(self, node_id)

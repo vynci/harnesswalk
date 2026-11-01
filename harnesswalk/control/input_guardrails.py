@@ -30,6 +30,7 @@ from typing import Any
 from harnesswalk.control import injection
 from harnesswalk.control.pii import PiiDetector, Vault
 from harnesswalk.nodes import node, register
+from harnesswalk.ops import payloads
 from harnesswalk.types import TurnContext
 
 register("input_guardrails", __name__)
@@ -70,6 +71,17 @@ class GuardrailResult:
         return next((r.reason for r in self.results if r.action == self.action and r.reason), None)
 
 
+def change_note(result: CheckResult) -> str | None:
+    """What a check did to the text, in words, counts only (never a matched value)."""
+    if result.action != "redact" or not result.findings:
+        return None
+    if result.check == "control":
+        n = result.findings.get("control", 0)
+        return f"removed {n} control character{'s' if n != 1 else ''}"
+    parts = [f"{n} {kind.replace('_', ' ')}" for kind, n in sorted(result.findings.items())]
+    return f"replaced {', '.join(parts)} with placeholders"
+
+
 def strip_control(text: str) -> tuple[str, int]:
     out, removed = [], 0
     for ch in text:
@@ -94,6 +106,7 @@ class InputGuardrails:
         pii_cfg = cfg.get("pii") or {}
         self.pii = PiiDetector(pii_cfg)
         self.pii_action = pii_cfg.get("action", "redact")
+        self.restore_modes = list(pii_cfg.get("restore_modes", ["dev"]))  # payloads keep raw text
         inj = cfg.get("injection") or {}
         self.block_threshold = float(inj.get("block_threshold", 0.8))
         actions = {**DEFAULT_INJECTION_ACTION, **(inj.get("action") or {})}
@@ -188,10 +201,77 @@ class InputGuardrails:
             elif "injection" not in result.warnings:
                 result.warnings.append("injection")
 
+    def would_change(self, text: str) -> bool:
+        """Whether the checks would change this text (control characters, personal data), so
+        a payload recorded before they ran knows whether the raw text is sensitive."""
+        if not self.enabled:
+            return False
+        try:
+            return bool(strip_control(text)[1]) or (
+                "pii" in self.checks and bool(self.pii.find(text))
+            )
+        except Exception:
+            return True
+
+    def _original(self, ctx: TurnContext, text: str, changed: bool) -> dict[str, Any]:
+        allowed = payloads.raw_allowed(ctx.mode, self.restore_modes)
+        kept, withheld = payloads.kept_original(text, changed, allowed)
+        return {"input": kept, "withheld": withheld, "chars": len(text)}
+
+    def payload(self, ctx: TurnContext, text: str, result: GuardrailResult) -> dict[str, Any]:
+        """The exit payload: the input (or withheld), each check with what it looked at, its
+        verdict and what it changed, and the clean text that goes on (tracer.md, Payloads)."""
+        checks: list[dict[str, Any]] = []
+        chars, stage = len(text), "received"
+        for r in result.results:
+            verdict = r.action
+            if r.check == "injection" and r.action == "pass" and "injection" in result.warnings:
+                verdict = "warn"
+            item: dict[str, Any] = {
+                "check": r.check,
+                "verdict": verdict,
+                "looked_at": {"stage": stage, "chars": chars},
+                "findings": dict(r.findings),
+                "change": change_note(r),
+                "reason": r.reason,
+            }
+            if r.check == "injection" and result.score is not None:
+                item["score"] = result.score
+            checks.append(item)
+            if r.replacement is not None:
+                chars, stage = len(r.replacement), f"after {r.check}"
+        blocked = result.action == "block"
+        return {
+            "payload": payloads.record(
+                "input_guardrails",
+                "exit",
+                **self._original(ctx, text, blocked or result.text != text),
+                output=None if blocked else payloads.text(result.text),
+                action=result.action,
+                blocked=blocked,
+                checks=checks,
+                warnings=list(result.warnings),
+                placeholders=payloads.placeholders(result.vault),
+            )
+        }
+
     async def run(self, ctx: TurnContext, text: str) -> GuardrailResult:
-        async with node(ctx, "input_guardrails") as span:
+        capture = payloads.capturing(ctx)
+        about = None
+        if capture:
+            about = {
+                "payload": payloads.record(
+                    "input_guardrails",
+                    "enter",
+                    **self._original(ctx, text, self.would_change(text)),
+                )
+            }
+        async with node(ctx, "input_guardrails", enter_detail=about) as span:
             if (not self.enabled or ctx.is_disabled("input_guardrails")) and ctx.mode != "public":
                 span.skip(disabled=True, action="pass")
+                if capture:
+                    span.detail = self.payload(ctx, text, GuardrailResult("pass", text, []))
+                    span.detail["payload"]["disabled"] = True
                 return GuardrailResult("pass", text, [])
             try:
                 result = self.check(text)
@@ -219,5 +299,7 @@ class InputGuardrails:
                 span.set(pending_checks=result.pending)
             if result.reason:
                 span.set(reason=result.reason)
+            if capture:
+                span.detail = self.payload(ctx, text, result)
         ctx.pii_vault = result.vault
         return result

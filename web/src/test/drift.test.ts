@@ -4,7 +4,7 @@ import { diagram } from './fixtures'
 // The drift rule (web/README.md): the UI draws whatever /v1/diagram returns and reads summary
 // keys, never node ids. The one node the code may name is the memory badge node (layout.ts).
 // Words that are also node ids but mean something else in the contract are listed with why.
-const sources = import.meta.glob(['../**/*.{ts,tsx}', '!../**/*.test.ts', '!../mock/**', '!../components/ui/**', '!../test/**'], {
+const sources = import.meta.glob(['../**/*.{ts,tsx}', '!../**/*.test.ts', '!../**/*.test.tsx', '!../mock/**', '!../components/ui/**', '!../test/**'], {
   query: '?raw',
   import: 'default',
   eager: true,
