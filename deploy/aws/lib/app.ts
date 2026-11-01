@@ -39,6 +39,7 @@ export function buildApp(app: cdk.App) {
     cloudFrontPrefixListId: required('cloudFrontPrefixListId', 'cdk.json pins pl-3b927c52.'),
     distributionId: edge.distribution.distributionId,
     instanceType: ctx('instanceType'),
+    createVpc: ctx('createVpc') === 'true',
     description: 'harnesswalk origin: one EC2 instance running the API with Docker compose',
   });
 
