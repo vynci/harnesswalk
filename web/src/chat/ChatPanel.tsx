@@ -1,4 +1,5 @@
-import { useMemo, useState, type ComponentProps, type ReactElement } from 'react'
+import { useCallback, useMemo, useState, type ComponentProps, type ReactElement } from 'react'
+import type { Citation } from '@/api/types'
 import { Eye, History, Info, MessagesSquare, OctagonX, Play, RefreshCcw, Route, TriangleAlert } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
@@ -36,7 +37,7 @@ import { OpsMarker } from './OpsMarker'
 import { ApprovalCard } from './ApprovalCard'
 import { Composer } from './Composer'
 import { StepControls } from './StepControls'
-import { ReplyText, Sources } from './Citations'
+import { ReplyMarkdown, Sources } from './Citations'
 import { Plan, Reasoning } from './Reasoning'
 import { InputGuardBadges, OutputGuardBadges } from './Guardrails'
 import { MemoryTrace, ToolTrace } from './ToolTrace'
@@ -51,6 +52,8 @@ const TRY_THESE = [
   'Please cancel order A-1002.',
   'Can I return order A-1003, the Trailhead backpack?',
 ]
+
+const NO_CITATIONS: Citation[] = []
 
 type Notice = { tone: 'info' | 'warn' | 'error'; text: string; reason?: string }
 
@@ -139,6 +142,7 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
   const pausedLabel = paused ? (diagram?.nodes.find((n) => n.id === paused.nodeId)?.label ?? paused.nodeId) : ''
   const started = turn.summary?.started_at ? new Date(turn.summary.started_at) : turn.createdAt ? new Date(turn.createdAt) : null
   const openDoc = useApp((s) => s.openDoc)
+  const onCite = useCallback((c: Citation) => openDoc(c.doc, c.chunk), [openDoc])
   const dev = useApp((s) => s.capabilities?.mode === 'dev')
   const feedbackOn = useApp((s) => s.capabilities?.features.feedback === true)
   const feedback = turn.feedback ?? turn.summary?.feedback ?? null
@@ -221,12 +225,12 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
           )}
           {reply && (
             <div
-              className="text-sm leading-relaxed whitespace-pre-wrap"
+              className="min-w-0 text-sm leading-relaxed"
               data-testid="assistant-message"
               data-masked={canReveal && !reveal ? 'true' : 'false'}
               aria-live={live ? 'polite' : undefined}
             >
-              {finished ? <ReplyText text={shownReply} citations={citations} onOpen={(c) => openDoc(c.doc, c.chunk)} /> : reply}
+              <ReplyMarkdown text={finished ? shownReply : reply} citations={finished ? citations : NO_CITATIONS} onOpen={onCite} />
             </div>
           )}
           {reply && finished && output && <OutputGuardBadges facts={output} />}

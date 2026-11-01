@@ -16,6 +16,7 @@ import type {
 } from '@/api/types'
 import { EXAMPLE_MESSAGES, EXAMPLE_NAMES, EXAMPLES, servedDiagram, type ExampleName } from './examples'
 import { MockLessons } from './lessons'
+import { MARKDOWN_PROMPT, MARKDOWN_REPLY } from './markdown'
 import { MockEvalEventSource, MockOps, MockOpsEventSource } from './ops'
 import { allFixtures, DEFAULT_PACK, PACK_IDS, packDetail, packFiles, packSummary } from './packs'
 import { repoFile, sourceFor } from './repo'
@@ -444,9 +445,13 @@ export class MockServer {
     const disabled = new Set((req.disable ?? []).filter((id) => this.diagram.nodes.some((n) => n.id === id && n.can_disable)))
     const turnNo = ++this.counter
     const approvalId = `apr_${String(turnNo).padStart(4, '0')}_${hex(4)}`
-    const templates = applyDisabled(EXAMPLES[name].map(toTemplate), disabled, this.diagram).map((t) =>
-      t.summary && typeof t.summary.approval_id === 'string' ? { ...t, summary: { ...t.summary, approval_id: approvalId } } : t,
-    )
+    // A message asking for a table or markdown gets the markdown reply on the plain answer's stream.
+    const markdown = name === 'plain_answer' && MARKDOWN_PROMPT.test(req.message)
+    const templates = applyDisabled(EXAMPLES[name].map(toTemplate), disabled, this.diagram).map((t) => {
+      if (markdown && t.type === 'turn_end') return { ...t, summary: { ...t.summary, reply: MARKDOWN_REPLY } }
+      if (markdown && t.type === 'node_exit' && t.node_id === 'gateway' && t.summary?.phase === 'reply') return { ...t, summary: { ...t.summary, reply_chars: MARKDOWN_REPLY.length } }
+      return t.summary && typeof t.summary.approval_id === 'string' ? { ...t, summary: { ...t.summary, approval_id: approvalId } } : t
+    })
     const first = templates.shift()!
     first.summary = { ...first.summary, step_mode: req.step === true, message_chars: req.message.length, pack }
     const pauseAt = templates.findIndex((t) => t.type === 'node_paused' && t.summary?.reason === 'approval')
