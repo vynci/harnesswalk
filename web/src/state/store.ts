@@ -18,10 +18,10 @@ import type {
   TurnSummary,
   View,
 } from '@/api/types'
-import { effectiveModel, modelReasonText, pickerModels } from './features'
+import { byoKeyOffered, effectiveModel, fixtureCatalog, fixtureGroups, fixtureVisible, modelReasonText, pickerModels, resetPhrase, scriptedModel, selectedModel } from './features'
 import { artifactLabel, releaseMark, savedMark, type OpsMark } from './ops'
 import { buildEdgeIndex, initialTurnState, reduceEvent, reduceEvents, type EdgeIndex, type TurnState } from './reducer'
-import { fixtureChoices, packTitle } from './packs'
+import { packTitle } from './packs'
 import { load, rememberMessage, recallMessages, save } from './persist'
 
 export interface ChatTurn {
@@ -138,11 +138,20 @@ export interface AppState {
   doc: { docId: string; chunk?: number } | null
   /** Bumped after a write the inspector should show (a memory proposal decided). */
   inspectorVersion: number
-  /** Dev mode composer options: a JSON Schema for the answer, and a model alias hint. */
+  /** Dev mode composer option: a JSON Schema for the answer. */
   outputSchema: string
-  modelHint: string | null
-  /** P6, public mode: the model the reader picked in the composer (null: the default). */
-  publicModel: string | null
+  /**
+   * The model the reader picked in the composer, every mode; null is Auto (the router decides,
+   * so the turn names no model).
+   */
+  pickedModel: string | null
+  /**
+   * When a turn of this tab fell through to the fake model (a `budget_exhausted` notice), until
+   * a later capabilities read says the shared budget is fine. The budget banner shows meanwhile.
+   */
+  budgetNoticeAt: number | null
+  /** The budget banner the reader closed, by its reset time (this tab's session only). */
+  budgetBannerDismissed: string | null
   /**
    * P6: the reader's own provider key. Held in this tab's memory only (never localStorage or a
    * cookie), sent as the provider key header on every turn, gone on reload.
@@ -195,8 +204,10 @@ export interface AppState {
   closeDoc: () => void
   decideProposal: (proposalId: string, decision: 'accept' | 'reject') => Promise<boolean>
   setOutputSchema: (text: string) => void
-  setModelHint: (alias: string | null) => void
-  setPublicModel: (alias: string | null) => void
+  /** Pick a model in the composer; null is Auto. */
+  pickModel: (alias: string | null) => void
+  /** Close the budget banner for this budget day, in this tab's session. */
+  dismissBudgetBanner: () => void
   setByoKey: (key: string | null) => void
   /** P6: the 5-minute warning before the sandbox session ends (once per expiry). */
   warnSandbox: (expiresAt: string) => void
@@ -260,7 +271,8 @@ export function waitText(seconds: number | null): string {
 }
 
 /** The toast for a turn the API refused: the P6 public-mode refusals in words, the rest as is. */
-export function turnRefusal(err: unknown): string {
+export function turnRefusal(err: unknown, capabilities?: Capabilities | null): string {
+  const ctx = { mode: capabilities?.mode, byo: byoKeyOffered(capabilities) }
   if (err instanceof ApiError && err.status === 429) {
     // P6 review: a 429 also guards how many Claude turns run at once; its body names the limit.
     const limit = (err.body as { error?: { limit?: string } } | undefined)?.error?.limit
@@ -269,9 +281,49 @@ export function turnRefusal(err: unknown): string {
   }
   if (err instanceof ApiError && err.code === 'budget_exhausted') {
     const resets = (err.body as { error?: { resets_at?: string } } | undefined)?.error?.resets_at
-    return modelReasonText('budget_exhausted', resets)
+    return modelReasonText('budget_exhausted', { ...ctx, resetsAt: resets })
   }
+  // Public mode never suggests a key of the reader's own (the key button arrives with accounts).
+  if (err instanceof ApiError && err.code === 'provider_not_configured' && capabilities?.mode !== 'dev') return modelReasonText('provider_unconfigured', ctx)
   return `Could not start the turn: ${describe(err)}`
+}
+
+function hasBudgetNotice(notices: unknown): boolean {
+  return Array.isArray(notices) && notices.some((n) => (n as { reason?: unknown } | null)?.reason === 'budget_exhausted')
+}
+
+/** Which budget day a dismissed banner belongs to: its reset time. */
+export function budgetBannerKey(capabilities: Capabilities | null | undefined): string {
+  return capabilities?.public?.budget?.resets_at ?? 'today'
+}
+
+/**
+ * The budget banner above the composer (public mode): shown while the shared budget is spent or
+ * after a turn fell through, until closed. Its reset time ('' when unknown), or null when hidden.
+ */
+export function selectBudgetBanner(s: Pick<AppState, 'capabilities' | 'budgetNoticeAt' | 'budgetBannerDismissed'>): string | null {
+  const caps = s.capabilities
+  if (caps?.mode !== 'public' || !caps.public) return null
+  const spent = caps.public.budget?.status === 'exhausted' || s.budgetNoticeAt !== null
+  if (!spent || s.budgetBannerDismissed === budgetBannerKey(caps)) return null
+  return caps.public.budget?.resets_at ?? ''
+}
+
+/** This tab's session only (sessionStorage), guarded like persist.ts: storage may be missing. */
+function loadSession(key: string): string | null {
+  try {
+    return globalThis.sessionStorage?.getItem(`harnesswalk.${key}`) ?? null
+  } catch {
+    return null
+  }
+}
+
+function saveSession(key: string, value: string): void {
+  try {
+    globalThis.sessionStorage?.setItem(`harnesswalk.${key}`, value)
+  } catch {
+    // A convenience; ignore failures.
+  }
 }
 
 function describe(err: unknown): string {
@@ -307,6 +359,8 @@ export const useApp = create<AppState>()((set, get) => {
       {
         onEvent: (ev) => {
           updateTurn(turnId, (t) => ({ ...t, state: reduceEvent(t.state ?? initialTurnState(), ev, get().edgeIndex) }))
+          // The turn fell through to the fake model: the budget banner shows (P6 picker fixes).
+          if (ev.type === 'turn_end' && hasBudgetNotice(ev.summary?.notices)) set({ budgetNoticeAt: Date.now() })
           // The pack the turn runs on, as the harness says (P5): the session's pack from now on.
           if (ev.type === 'turn_start' && typeof ev.summary?.pack === 'string' && ev.summary.pack !== get().pack) setPack(ev.summary.pack)
           // Step mode keeps the inspector on the node the walk stopped at.
@@ -345,6 +399,23 @@ export const useApp = create<AppState>()((set, get) => {
         },
       },
     )
+  }
+
+  /**
+   * The shared budget ran out: a Claude pick moves to the fake model, once, with a toast. Auto
+   * stays Auto (it follows the API's default), and nothing moves back when the budget returns.
+   */
+  const followBudget = () => {
+    const { capabilities, byoKey, pickedModel } = get()
+    const pub = capabilities?.public
+    if (!pickedModel || pub?.budget?.status !== 'exhausted') return
+    const models = pickerModels(capabilities, byoKey)
+    const picked = models.find((m) => m.alias === pickedModel)
+    if (!picked || picked.available || picked.reason !== 'budget_exhausted') return
+    const fake = scriptedModel(models)
+    if (!fake) return
+    set({ pickedModel: fake.alias })
+    get().notify('info', `Today's shared Claude budget is used up. You're on the scripted fake model until ${resetPhrase(pub.budget.resets_at)}.`)
   }
 
   const refreshSummary = async (turnId: string) => {
@@ -576,8 +647,9 @@ export const useApp = create<AppState>()((set, get) => {
     doc: null,
     inspectorVersion: 0,
     outputSchema: '',
-    modelHint: null,
-    publicModel: null,
+    pickedModel: null,
+    budgetNoticeAt: null,
+    budgetBannerDismissed: loadSession('budgetBanner'),
     byoKey: null,
     sandbox: { warnedFor: null, expiredFor: null },
     marks: [],
@@ -598,6 +670,7 @@ export const useApp = create<AppState>()((set, get) => {
         const [capabilities, diagram] = await Promise.all([api.capabilities(), api.diagram()])
         if (capabilities.features.packs) await bootPack(api, capabilities, sessionId)
         set({ capabilities, diagram, edgeIndex: buildEdgeIndex(diagram.edges), ready: true, bootError: null })
+        followBudget()
         if (get().pack && get().pack !== capabilities.packs?.default) void get().refreshCapabilities()
         if (capabilities.features.evals) void get().refreshLatestEval()
         if (capabilities.features.release || capabilities.features.evals || capabilities.features.feedback) openOps()
@@ -608,7 +681,7 @@ export const useApp = create<AppState>()((set, get) => {
     },
 
     async send(text) {
-      const { api, sessionId, stepMode, provider, fixture, disabled, capabilities, liveTurnId, turns, outputSchema, modelHint, pack, byoKey, publicModel } = get()
+      const { api, sessionId, stepMode, provider, fixture, disabled, capabilities, liveTurnId, turns, outputSchema, pack, byoKey, pickedModel } = get()
       const message = text.trim()
       if (!api || !message) return
       const dev = capabilities?.mode === 'dev'
@@ -622,9 +695,12 @@ export const useApp = create<AppState>()((set, get) => {
         get().notify('info', 'A turn is still running. Stop it or wait for it to finish.')
         return
       }
-      // P6: in public mode the turn names the picked model (or the default), when the API lists them.
-      const publicPick = capabilities?.mode === 'public' ? effectiveModel(pickerModels(capabilities, byoKey), publicModel) : null
-      const apiKey = capabilities?.features.byo_key && byoKey ? byoKey : null
+      // The turn names the picked model; Auto names none, so the router decides (every mode).
+      const models = pickerModels(capabilities, byoKey)
+      const pick = selectedModel(models, pickedModel)
+      // A fixture goes with a turn on the scripted model only (dev, and public since the picker fixes).
+      const withFixture = !!fixture && fixtureVisible(capabilities, effectiveModel(models, pickedModel), provider) && fixtureCatalog(capabilities).names.includes(fixture)
+      const apiKey = byoKeyOffered(capabilities) && byoKey ? byoKey : null
       get().exitReplay()
       set({ sending: true })
       const start = (session: string | null) =>
@@ -633,11 +709,10 @@ export const useApp = create<AppState>()((set, get) => {
           session_id: session ?? newSessionId(),
           ...(stepMode ? { step: true } : {}),
           ...(dev && provider ? { provider } : {}),
-          ...(dev && fixture ? { fixture } : {}),
+          ...(withFixture ? { fixture } : {}),
           ...(capabilities?.mode !== 'public' && capabilities?.features.disable_nodes !== false && disabled.length ? { disable: disabled } : {}),
           ...(parsed.schema ? { output_schema: parsed.schema } : {}),
-          ...(dev && modelHint ? { model: modelHint } : {}),
-          ...(publicPick ? { model: publicPick.alias } : {}),
+          ...(pick ? { model: pick.alias } : {}),
           // A new session starts on the chosen pack (P5); a session's pack is fixed after that.
           ...(!session && pack && capabilities?.features.packs ? { options: { pack } } : {}),
         }, { apiKey })
@@ -666,7 +741,7 @@ export const useApp = create<AppState>()((set, get) => {
         addTurn({ turnId: res.turn_id, userText: message, state: initialTurnState(), createdAt: Date.now() })
         follow(res.turn_id)
       } catch (err) {
-        get().notify('error', turnRefusal(err), err)
+        get().notify('error', turnRefusal(err, get().capabilities), err)
         // A refusal about models or limits changes what the picker and the limits card show.
         if (err instanceof ApiError && (err.status === 409 || err.status === 429 || err.code === 'invalid_request')) void get().refreshCapabilities()
       } finally {
@@ -863,12 +938,14 @@ export const useApp = create<AppState>()((set, get) => {
       set({ outputSchema })
     },
 
-    setModelHint(modelHint) {
-      set({ modelHint })
+    pickModel(pickedModel) {
+      set({ pickedModel })
     },
 
-    setPublicModel(publicModel) {
-      set({ publicModel })
+    dismissBudgetBanner() {
+      const key = budgetBannerKey(get().capabilities)
+      saveSession('budgetBanner', key)
+      set({ budgetBannerDismissed: key })
     },
 
     setByoKey(key) {
@@ -895,6 +972,7 @@ export const useApp = create<AppState>()((set, get) => {
       const api = get().api
       if (!api) return
       const before = get().capabilities?.release?.active_release_id ?? null
+      const asked = Date.now()
       try {
         let capabilities = await api.capabilities()
         // Releases are per pack: the capabilities describe the configured one, so a session on
@@ -908,6 +986,10 @@ export const useApp = create<AppState>()((set, get) => {
           }
         }
         set({ capabilities })
+        // The budget came back (or never ran out: other turns held it): the banner goes, the pick stays.
+        const notice = get().budgetNoticeAt
+        if (notice !== null && notice < asked && capabilities.public?.budget?.status !== 'exhausted') set({ budgetNoticeAt: null })
+        followBudget()
         const now = capabilities.release?.active_release_id ?? null
         // Without the ops stream (an older API), a release made elsewhere shows up here first.
         if (!get().opsLive && now && before && now !== before) addMark(releaseMark(now, before, false, afterTurn()))
@@ -1092,7 +1174,7 @@ export const useApp = create<AppState>()((set, get) => {
         setPack(info.pack, info.session_id)
         // A fixture of the old pack would not be found on this one.
         const fixture = get().fixture
-        if (fixture && !fixtureChoices(get().packs, get().capabilities?.fixtures ?? [], info.pack).all.includes(fixture)) set({ fixture: null })
+        if (fixture && !fixtureGroups(fixtureCatalog(get().capabilities), get().packs, info.pack).all.includes(fixture)) set({ fixture: null })
         set((s) => ({ packs: s.packs?.map((p) => (p.id === info.pack ? { ...p, loaded: true } : p)) ?? null }))
         void get().refreshCapabilities()
         void get().refreshLatestEval()

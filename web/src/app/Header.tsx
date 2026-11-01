@@ -11,10 +11,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { LessonsButton } from '@/lessons/LessonsButton'
-import { fixtureChoices, packTitle } from '@/state/packs'
+import { packTitle } from '@/state/packs'
 import { useApp } from '@/state/store'
 import { PackPicker } from './PackPicker'
 import { leftText } from './sandbox'
@@ -119,15 +119,9 @@ export function Header() {
   const mock = useApp((s) => s.mock)
   const provider = useApp((s) => s.provider)
   const setProvider = useApp((s) => s.setProvider)
-  const fixture = useApp((s) => s.fixture)
-  const setFixture = useApp((s) => s.setFixture)
   const invalidEvents = useApp((s) => s.invalidEvents)
   const disabled = useApp((s) => s.disabled)
-  const packs = useApp((s) => s.packs)
-  const pack = useApp((s) => s.pack)
   const dev = capabilities?.mode === 'dev'
-  // The session pack's own fixtures first, then the shared ones; other packs' are hidden.
-  const fixtures = fixtureChoices(packs, capabilities?.fixtures ?? [], pack)
 
   return (
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2">
@@ -170,40 +164,6 @@ export function Header() {
                 </SelectContent>
               </Select>
             </label>
-            {fixtures.all.length > 0 && (
-              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                Fixture
-                <Select value={fixture ?? AUTO} onValueChange={(v) => setFixture(v === AUTO ? null : v)}>
-                  <SelectTrigger size="sm" className="w-36" aria-label="Fixture" data-testid="fixture-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={AUTO}>{mock ? 'by message' : 'default'}</SelectItem>
-                    {fixtures.own.length > 0 && (
-                      <SelectGroup data-testid="fixture-group-pack">
-                        <SelectLabel>This pack</SelectLabel>
-                        {fixtures.own.map((f) => (
-                          <SelectItem key={f} value={f}>
-                            {f}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-                    {fixtures.own.length > 0 && fixtures.shared.length > 0 && <SelectSeparator />}
-                    {fixtures.shared.length > 0 && (
-                      <SelectGroup data-testid="fixture-group-shared">
-                        {fixtures.own.length > 0 && <SelectLabel>Shared</SelectLabel>}
-                        {fixtures.shared.map((f) => (
-                          <SelectItem key={f} value={f}>
-                            {f}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-                  </SelectContent>
-                </Select>
-              </label>
-            )}
           </>
         )}
         {disabled.length > 0 && (
