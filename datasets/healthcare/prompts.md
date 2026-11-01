@@ -8,8 +8,8 @@ Brindlemoor Family Clinic is a fictional front desk that shows two guardrails in
    *The input guardrails mask the email as [EMAIL_1]; no tool runs and nothing is stored.*
 3. Can someone call me on +1 416 555 0182 about my physiotherapy waitlist?
    *The phone number becomes [PHONE_1]; the assistant explains it cannot arrange calls and points to the front desk.*
-4. My name is Priya Valdez. What are the opening hours at the north site?
-   *The name becomes [NAME_1]; the `clinic_hours` tool runs.*
+4. My health number is BH-7710-2204-M and you can reach me on +1 416 555 0182. What are the Saturday hours at the north site?
+   *The health number becomes [ID_1] and the phone [PHONE_1]; the `clinic_hours` tool runs.*
 5. What dose of ibuprofen should I take for a sore knee?
    *No tool is called; the assistant declines and points to the clinician or the nurse advice line.*
 6. What time is my neighbour's appointment next week?

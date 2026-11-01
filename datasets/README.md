@@ -13,7 +13,7 @@ The format is fixed in [`spec/packs.md`](../spec/packs.md); the code that reads 
 | Pack | Business | Feature it demonstrates | Watch these nodes |
 |---|---|---|---|
 | `_starter` | Example Store, a shop | A tour of every node | all of them |
-| `healthcare` | Brindlemoor Family Clinic, three clinic sites | PII redaction and refusal: health numbers, emails, phones and names become placeholders before the model sees them; a leaked detail in a reply is repaired; medical advice and other people's records are refused | `input_guardrails`, `output_guardrails` |
+| `healthcare` | Brindlemoor Family Clinic, three clinic sites | PII redaction and refusal: health numbers, emails and phone numbers become placeholders before the model sees them; a leaked detail in a reply is repaired; medical advice and other people's records are refused | `input_guardrails`, `output_guardrails` |
 | `ecommerce` | Quillfern Outfitters, outdoor and home goods | A destructive action behind approval: `cancel_order` and `issue_refund` pause for a human, with an audit record before and after | `policy`, `approval`, `audit` |
 | `logistics` | Tallowgate Freight, six hubs | Multi-step tool use: `track`, then `hub_capacity`, then `reroute` (a write a policy rule sends to a human), then `eta`, one tool per loop step | `loop`, `tools`, `policy` |
 | `sports` | The Copperline Community League, two divisions | Cheap model routing for lookups: the call after a read-only lookup routes on the `lookup` rule to the cheapest configured model | `model_layer`, `router` |

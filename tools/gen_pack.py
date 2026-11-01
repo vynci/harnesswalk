@@ -57,8 +57,7 @@ DEFAULT_IDS = [
 ]
 GUARDRAILS: dict[str, dict[str, Any]] = {
     "healthcare": {
-        "comment": "Brindlemoor Health Numbers (BH-1234-5678-K) are national ids for this pack,"
-        ' and names after a cue ("my name is ...") are redacted too.',
+        "comment": "Brindlemoor Health Numbers (BH-1234-5678-K) are national ids for this pack.",
         "pii": {
             "national_id": {
                 "patterns": [
@@ -70,7 +69,6 @@ GUARDRAILS: dict[str, dict[str, Any]] = {
                     },
                 ]
             },
-            "names": {"enabled": True},
         },
     },
     "finance": {
