@@ -123,26 +123,30 @@ the repo root, with `AWS_PROFILE=default`:
    wherever the owner keeps it, then `deploy/aws/scripts/put-secrets.sh`. It generates
    `ORIGIN_VERIFY` the first time and prints only names.
 4. **Check.** `make deploy-test deploy-synth deploy-diff` (creates only, three stacks).
-5. **Stacks.** `deploy/aws/scripts/deploy-stacks.sh all` deploys Edge (with `ORIGIN_VERIFY` as a
-   NoEcho parameter read from SSM), then Origin, then Ci. Pass
-   `--context githubOidcProviderArn=arn:aws:iam::111910761410:oidc-provider/token.actions.githubusercontent.com`
-   when the account already has that provider (an account holds one per URL; the deploy user
-   cannot list them, so check in the console under IAM, Identity providers).
-6. **Alarms.** Subscribe the owner's email to the `AlarmTopicArn` output (console, or
+5. **Stacks.** If the account already has the GitHub OIDC provider (an account holds one per
+   URL; the deploy user cannot list them, so look in the console under IAM, Identity
+   providers), add `"githubOidcProviderArn":
+   "arn:aws:iam::111910761410:oidc-provider/token.actions.githubusercontent.com"` to
+   `deploy/aws/cdk.context.json`. Then `deploy/aws/scripts/deploy-stacks.sh all`: Edge (with
+   `ORIGIN_VERIFY` as a NoEcho parameter read from SSM), then Origin, then Ci. The instance boots
+   and waits for an image.
+6. **DNS step 2 (owner), right away.** In GoDaddy: `CNAME harnesswalk -> <DistributionDomainName>`
+   and `A origin.harnesswalk -> <ElasticIp>`, TTL 1 hour (`cdk deploy` printed both). The A
+   record must resolve before Caddy first starts, or its Let's Encrypt attempt backs off; check
+   with `dig +short origin.harnesswalk.vynci.dev`.
+7. **Alarms.** Subscribe the owner's email to the `AlarmTopicArn` output (console, or
    `aws sns subscribe --topic-arn <arn> --protocol email --notification-endpoint <email>`), then
    confirm the email AWS sends.
-7. **Image.** `deploy/aws/scripts/build-push.sh` (arm64 with buildx, tags `<sha>` and `latest`).
-8. **DNS step 2 (owner).** In GoDaddy: `CNAME harnesswalk -> <DistributionDomainName>` and
-   `A origin.harnesswalk -> <ElasticIp>`, TTL 1 hour (the `cdk deploy` output prints both).
-9. **Origin.** Once `dig +short origin.harnesswalk.vynci.dev` returns the Elastic IP:
-   `deploy/aws/scripts/deploy-origin.sh`. Caddy gets its certificate over HTTP-01 on the first
-   request it serves; until the A record resolves it cannot, and the box keeps retrying.
+8. **Image.** `deploy/aws/scripts/build-push.sh` (arm64 with buildx, tags `<sha>` and `latest`).
+9. **Origin.** `deploy/aws/scripts/deploy-origin.sh`. Caddy gets its certificate over HTTP-01 on
+   port 80 within a minute; `aws logs tail /harnesswalk/prod --log-stream-names caddy` shows
+   `certificate obtained successfully`.
 10. **Web.** `deploy/aws/scripts/deploy-web.sh`.
 11. **Smoke.** `deploy/aws/scripts/smoke.sh`: `/healthz`, `/readyz`, capabilities (public mode,
     three models), one `fake-small` turn followed to `turn_end` over SSE. Then by hand: one
-    Haiku and one Sonnet turn in the browser, and a forged
-    `curl -H 'X-Harnesswalk-Viewer-Ip: 1.2.3.4'` request whose rate-limit bucket must not
-    change (the viewer-ip function overwrites it).
+    Haiku and one Sonnet turn in the browser, and a request with a forged
+    `X-Harnesswalk-Viewer-Ip: 1.2.3.4` whose rate-limit count must not move to that address
+    (the viewer-ip function overwrites it).
 12. **GitHub.** Set the repository variables below; after the owner pushes `main`, every green
     `ci` run on `main` deploys through `.github/workflows/deploy.yml`.
 
