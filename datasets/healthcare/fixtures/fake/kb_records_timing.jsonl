@@ -1,0 +1,1 @@
+{"responses": [{"text": "The clinic answers every records request within 10 business days [1]. You can make the request through the patient portal or at the front desk.", "usage": {"input_tokens": 701, "output_tokens": 40}, "expect": {"last_message_role": "user"}}]}

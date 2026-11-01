@@ -1,0 +1,1 @@
+{"responses": [{"text": "Three classes are always refused: Class 1 explosives, Class 6.2 infectious substances and Class 7 radioactive material [1].", "usage": {"input_tokens": 810, "output_tokens": 36}, "expect": {"last_message_role": "user"}}]}

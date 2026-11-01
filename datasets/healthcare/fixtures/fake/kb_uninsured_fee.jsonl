@@ -1,0 +1,1 @@
+{"responses": [{"text": "A standard uninsured visit costs 85 dollars, and an extended visit costs 130 dollars [2].", "usage": {"input_tokens": 690, "output_tokens": 30}, "expect": {"last_message_role": "user"}}]}

@@ -1,0 +1,1 @@
+{"responses": [{"text": "A shipment more than 24 hours late is escalated to the shipper's account manager [1], and the shipper is told within 2 hours of the escalation.", "usage": {"input_tokens": 780, "output_tokens": 40}, "expect": {"last_message_role": "user"}}]}

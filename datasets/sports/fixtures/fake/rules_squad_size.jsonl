@@ -1,0 +1,1 @@
+{"responses": [{"text": "A matchday squad is at most 16 players: eleven starters and up to five substitutes [2].", "usage": {"input_tokens": 749, "output_tokens": 30}, "expect": {"last_message_role": "user"}}]}

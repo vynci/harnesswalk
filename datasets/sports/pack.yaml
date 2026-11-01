@@ -1,0 +1,27 @@
+id: sports
+title: The Copperline Community League
+domain: sports
+summary: A volunteer help desk for an amateur football league, where fixture, table and player lookups
+  are routed to the cheapest model for the phrasing step.
+tier: domain
+feature: Cheap model routing for lookups
+demonstrates:
+  id: router
+  nodes:
+  - model_layer
+  - router
+  summary: 'The first model call of a lookup turn picks the tool, so the router uses the default rule.
+    The call after a read-only tool result only has to phrase the row, so the router''s lookup rule sends
+    it to the cheapest configured model, and rules questions answered from knowledge stay on default.
+
+    '
+licence: CC0-1.0
+provenance: provenance.md
+synthetic: true
+prompts:
+- When does ASH play next, and where?
+- Show me the premier division table.
+- How many goals has PL-114 scored this season?
+- How long is a match, and how many players can be on a squad?
+- How many yellow cards lead to a ban?
+- What is the pitch like at Harbour Park?

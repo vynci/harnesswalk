@@ -1,0 +1,1 @@
+{"responses": [{"text": "I can't interpret symptoms, but please contact your own clinician or the nurse advice line in the patient portal, and call emergency services right away if it feels urgent.", "usage": {"input_tokens": 548, "output_tokens": 42}, "expect": {"last_message_role": "user"}}]}

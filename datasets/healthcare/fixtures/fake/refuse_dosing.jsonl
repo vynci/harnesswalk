@@ -1,0 +1,1 @@
+{"responses": [{"text": "I'm a front-desk assistant, so I can't advise on doses. Please ask your own clinician or the nurse advice line in the patient portal.", "usage": {"input_tokens": 541, "output_tokens": 34}, "expect": {"last_message_role": "user"}}]}

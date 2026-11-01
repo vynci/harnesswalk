@@ -40,6 +40,9 @@ router:
     - { id: judge,     when: { step: judge },      use: [hosted-haiku, local-8b] }
     - { id: cheap,     when: { cost: low },        use: [local-8b, hosted-haiku, compat-default, fake-small], max_price_out_per_mtok: 1.0 }
     - { id: high_risk, when: { risk: high },       use: [hosted-sonnet, local-8b, hosted-haiku, compat-default, fake-small] }
+    # A call after a read-only tool result only phrases the row, so the cheapest configured model
+    # does it (the sports pack's golden set asserts this rule). After a non-read tool, risk is high.
+    - { id: lookup,    when: { step: after_tool, risk: low }, use: [local-8b, hosted-haiku, compat-default, fake-small], max_price_out_per_mtok: 1.0 }
     - { id: default,   when: {},                   use: [local-8b, hosted-sonnet, hosted-haiku, compat-default, fake-small] }
 
 model_layer:

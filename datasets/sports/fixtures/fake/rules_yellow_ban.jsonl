@@ -1,0 +1,1 @@
+{"responses": [{"text": "Five yellow cards in a season earn a one-match ban, served in the club's next league fixture [2].", "usage": {"input_tokens": 758, "output_tokens": 32}, "expect": {"last_message_role": "user"}}]}

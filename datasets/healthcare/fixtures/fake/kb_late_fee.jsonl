@@ -1,0 +1,1 @@
+{"responses": [{"text": "A late cancellation, meaning less than 24 hours notice, costs 25 dollars [2].", "usage": {"input_tokens": 688, "output_tokens": 30}, "expect": {"last_message_role": "user"}}]}

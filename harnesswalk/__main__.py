@@ -8,6 +8,8 @@ harnesswalk turn "<prompt>" --cancel-after loop
 harnesswalk events <turn_id>              dump a stored turn as JSON Lines
 harnesswalk turns <session_id>            list a session's turns, newest first
 harnesswalk ingest [<pack>] [--force]     index a pack's docs and load its seed facts and events
+harnesswalk packs list|validate [<pack>]|ingest [<pack>]
+                                          the dataset packs: list them, check them, index them
 harnesswalk eval <pack> --suite golden    run the pack's golden set (fake provider) and score it
 harnesswalk eval <pack> --suite judge --model hosted-haiku
                                           answer on a model and score with the judge
@@ -253,8 +255,11 @@ def _ingest(args: argparse.Namespace) -> int:
         extra["dataset"] = args.pack
     settings = _settings(args, **extra)
     pack = settings.get("dataset", "_starter")
-    if not (settings.root / "datasets" / pack).is_dir():
-        print(f"no dataset pack {pack!r} under {settings.root / 'datasets'}", file=sys.stderr)
+    from harnesswalk.ops import pack_index
+
+    if pack_index.find(settings, pack) is None:  # any of packs.roots, not only datasets/
+        print(f"no dataset pack {pack!r} under {settings.get('packs.roots', ['datasets'])}",
+              file=sys.stderr)  # fmt: skip
         return 1
     harness = Harness(settings)
     try:
@@ -268,6 +273,52 @@ def _ingest(args: argparse.Namespace) -> int:
         f"seeded {seeded['facts']} facts and {seeded['episodes']} events; "
         f"embedder {out['embedder']}, vectors {out['vectors']}"
     )
+    return 0
+
+
+def _packs(args: argparse.Namespace) -> int:
+    """`packs list`, `packs validate [pack]` (exit 1 on any issue), `packs ingest [pack]`."""
+    from harnesswalk import packs
+    from harnesswalk.ops import pack_index
+
+    roots = pack_index.roots(_settings(args))  # packs.roots, so a profile can add its own
+    try:
+        everything = packs.discover(roots=roots)
+        chosen = [packs.get_pack(args.pack, roots=roots)] if args.pack else everything
+    except packs.PackError as exc:
+        print(f"harnesswalk packs: {exc}", file=sys.stderr)
+        return 2
+    if args.action == "list":
+        rows = [p.summary() for p in chosen]
+        if args.json:
+            print(json.dumps(rows, indent=2, ensure_ascii=False))
+            return 0
+        for r in rows:
+            feature = r["feature"] or "-"
+            print(
+                f"{r['id']:<16} {r['tier']:<8} {r['counts']['docs']:>2} docs  "
+                f"{len(r['tools'])} tools  "
+                f"{r['size_bytes'] / 1024:7.1f} KiB  {r['title']}: {feature}"
+            )
+        return 0
+    if args.action == "validate":
+        failed = 0
+        for p in chosen:
+            issues = packs.validate(p, everything)
+            failed += bool(issues)
+            print(f"{'ok  ' if not issues else 'FAIL'} {p.id} ({len(issues)} issue(s))")
+            for issue in issues:
+                print(
+                    f"       {issue.check}: {issue.message}"
+                    + (f" [{issue.path}]" if issue.path else "")
+                )
+        print(f"\n{len(chosen) - failed} of {len(chosen)} pack(s) valid")
+        return 1 if failed else 0
+    for p in chosen:  # ingest
+        sub = argparse.Namespace(**{**vars(args), "pack": p.id})
+        code = _ingest(sub)
+        if code:
+            return code
     return 0
 
 
@@ -519,6 +570,13 @@ def build_parser() -> argparse.ArgumentParser:
     ingest.add_argument("pack", nargs="?", help="dataset pack (default: the configured one)")
     ingest.add_argument("--force", action="store_true", help="index again even if unchanged")
 
+    pk = sub.add_parser("packs", help="list, validate or ingest the dataset packs")
+    common(pk)
+    pk.add_argument("action", choices=["list", "validate", "ingest"])
+    pk.add_argument("pack", nargs="?", help="one pack (default: every pack under datasets/)")
+    pk.add_argument("--force", action="store_true", help="ingest: index again even if unchanged")
+    pk.add_argument("--json", action="store_true", help="list: print the packs as JSON")
+
     turns = sub.add_parser("turns", help="list a session's turns, newest first")
     turns.add_argument("session_id")
     turns.add_argument("--tenant", default="dev")
@@ -543,6 +601,8 @@ def main(argv: list[str] | None = None) -> int:
         return _eval(args)
     if args.command == "release":
         return _release(args)
+    if args.command == "packs":
+        return _packs(args)
     build_parser().print_help()
     return 0
 

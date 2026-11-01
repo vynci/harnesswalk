@@ -1,0 +1,1 @@
+{"responses": [{"text": "Quarterly statements are posted to the investor portal 45 days after each quarter end. For Q3 2026 that means by 14 November 2026. [2]", "usage": {"input_tokens": 590, "output_tokens": 42}, "expect": {"last_message_role": "user"}}]}

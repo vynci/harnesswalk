@@ -1,0 +1,1 @@
+{"responses": [{"text": "A renewal takes 7 business days from the day your request is received in the patient portal [1]. It cannot be done in chat.", "usage": {"input_tokens": 697, "output_tokens": 38}, "expect": {"last_message_role": "user"}}]}

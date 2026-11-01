@@ -1,0 +1,1 @@
+{"responses": [{"text": "In the HCP-04 distribution, 55 percent is a return of capital and 45 percent is gains. Return of capital lowers your remaining cost basis in the fund. [2]", "usage": {"input_tokens": 630, "output_tokens": 48}, "expect": {"last_message_role": "user"}}]}

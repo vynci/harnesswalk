@@ -1,0 +1,21 @@
+id: _starter
+title: Example Store
+domain: ecommerce
+summary: The small hand-written pack the harness runs with by default, a fictional shop with orders, returns and three documents.
+tier: starter
+feature: A tour of every node
+demonstrates:
+  id: tour
+  nodes: [gateway, memory, tools, policy, approval, output_guardrails]
+  summary: >-
+    One pack that lights every store, a read tool, a destructive tool behind approval, a cited
+    answer and the memory writer. Start here, then pick a domain pack for one feature in depth.
+licence: CC0-1.0
+provenance: provenance.md
+synthetic: true
+prompts:
+  - Can I return order A-1003, the Trailhead backpack?
+  - Where is my order A-1001?
+  - Please cancel order A-1002.
+  - What is the return window for opened electronics?
+  - Please remember that my name is Sam.

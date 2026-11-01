@@ -1,0 +1,21 @@
+{"key": "ops_desk_hours", "value": "The operations desk runs 24/7. Account managers are available Monday to Friday, 7:00 to 19:00.", "entities": []}
+{"key": "hub_codes", "value": "The six hubs are KRN, MAV, HLM, TRB, WYN and ORS.", "entities": []}
+{"key": "claim_window", "value": "Cargo claims must be lodged within 21 days of delivery.", "entities": []}
+{"key": "delay_escalation_rule", "value": "A shipment more than 24 hours late is escalated to its account manager.", "entities": []}
+{"key": "cc17_liability", "value": "Contract CC-17 carries liability of 8.50 per kilogram.", "entities": []}
+{"key": "cc22_liability", "value": "Contract CC-22 carries liability of 12.00 per kilogram.", "entities": []}
+{"key": "cc31_liability", "value": "Contract CC-31 carries liability of 6.00 per kilogram.", "entities": []}
+{"key": "peak_surcharge", "value": "The peak season surcharge is 4.5 percent of the freight charge from 2026-11-16 to 2026-12-24.", "entities": []}
+{"key": "pallet_height_limit", "value": "Standard pallets may not exceed 1.8 metres in height including the load.", "entities": []}
+{"key": "christmas_closure", "value": "All hubs are closed on 2026-12-25.", "entities": []}
+{"key": "reroute_needs_approval", "value": "Every reroute needs a human approval before it takes effect.", "entities": []}
+{"key": "shipper_call_preference", "value": "The shipper on TG-604118 asked to be called about any delay longer than 12 hours.", "entities": ["TG-604118"]}
+{"key": "shipper_pallet_note", "value": "TG-604227 is two pallets of glazed tiles and must stay upright.", "entities": ["TG-604227"]}
+{"key": "shipper_fragile_note", "value": "TG-604305 carries fragile glassware and the shipper prefers the fewest hub handoffs.", "entities": ["TG-604305"]}
+{"key": "shipper_dock_hours", "value": "The consignee for TG-604412 accepts deliveries only between 8:00 and 17:00.", "entities": ["TG-604412"]}
+{"key": "delivered_signed", "value": "TG-604590 was delivered and signed for on 2026-10-12.", "entities": ["TG-604590"]}
+{"key": "shipper_contact_pref", "value": "The shipper on TG-604677 prefers updates through the customer portal, not by call.", "entities": ["TG-604677"]}
+{"key": "shipper_cold_note", "value": "TG-604733 is a temperature-sensitive load that must stay below 18 degrees.", "entities": ["TG-604733"]}
+{"key": "wyn_closure_note", "value": "The Wyncliff Rail Yard (WYN) is closed until further notice because of yard works.", "entities": []}
+{"key": "hlm_reroute_note", "value": "The Holmquay Port Terminal (HLM) is congested and does not accept reroutes.", "entities": []}
+{"key": "cutoff_rule", "value": "Freight arriving at a hub after its daily cutoff is sorted the next day.", "entities": []}

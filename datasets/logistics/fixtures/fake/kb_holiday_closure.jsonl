@@ -1,0 +1,1 @@
+{"responses": [{"text": "No. All six hubs are closed on 2026-12-25 [1], although the operations desk keeps running 24/7 on that day.", "usage": {"input_tokens": 780, "output_tokens": 36}, "expect": {"last_message_role": "user"}}]}

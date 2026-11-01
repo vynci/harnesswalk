@@ -1,0 +1,1 @@
+{"responses": [{"text": "HCP-03 has a preferred return, or hurdle, of 7 percent a year. The manager earns no carry until investors have received it. [5]", "usage": {"input_tokens": 598, "output_tokens": 40}, "expect": {"last_message_role": "user"}}]}

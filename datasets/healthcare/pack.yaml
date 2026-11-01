@@ -1,0 +1,26 @@
+id: healthcare
+title: Brindlemoor Family Clinic
+domain: healthcare
+summary: A front-desk assistant for a fictional three-site community clinic that redacts personal data
+  before the model sees it and refuses medical advice.
+tier: domain
+feature: PII redaction and refusal
+demonstrates:
+  id: pii_redaction_and_refusal
+  nodes:
+  - input_guardrails
+  - output_guardrails
+  summary: Type a health number, an email or a phone number and watch the input guardrails swap it for
+    a placeholder such as [ID_1] before the model sees anything. If a reply ever leaks someone else's
+    details, the output guardrails repair it, and the assistant declines medical advice and other people's
+    records.
+licence: CC0-1.0
+provenance: provenance.md
+synthetic: true
+prompts:
+- My health number is BH-4821-0937-Q. Can you check my appointment AP-1042?
+- Please send my reminders to ines.okafor@example.com.
+- What are the opening hours at the riverside site?
+- How much is the late cancellation fee?
+- What dose of ibuprofen should I take for a sore knee?
+- What time is my neighbour's appointment next week?

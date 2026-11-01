@@ -30,6 +30,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "fpdf2>=2.9.0",
     "opentelemetry-sdk>=1.27",
     "psycopg[binary]>=3.2",
     "pytest>=8.3",

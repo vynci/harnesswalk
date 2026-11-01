@@ -1,0 +1,1 @@
+{"responses": [{"text": "Opened electronics can only be returned within 14 days of delivery [1], so three weeks is too late for a refund. If the headlamp is defective, a warranty claim is still possible.", "usage": {"input_tokens": 780, "output_tokens": 50}, "expect": {"last_message_role": "user"}}]}

@@ -1,0 +1,1 @@
+{"responses": [{"text": "A league match is two halves of 40 minutes, with rolling substitutions [4].", "usage": {"input_tokens": 742, "output_tokens": 28}, "expect": {"last_message_role": "user"}}]}

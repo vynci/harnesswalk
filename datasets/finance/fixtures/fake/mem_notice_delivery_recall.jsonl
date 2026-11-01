@@ -1,0 +1,1 @@
+{"responses": [{"text": "You asked me to note that notices should come to the portal plus a courier copy.", "usage": {"input_tokens": 565, "output_tokens": 22}, "expect": {"last_message_role": "user"}}]}

@@ -1,0 +1,20 @@
+{"key": "desk hours", "value": "The investor relations desk is open Monday to Friday, 9:00 to 17:00, and is closed on public holidays.", "entities": []}
+{"key": "wire cut-off", "value": "Capital call wires must arrive by 15:00 on the due date to count as on time.", "entities": []}
+{"key": "late interest rate", "value": "Overdue capital call amounts accrue simple interest at 9 percent a year, counted daily from the due date.", "entities": []}
+{"key": "statement timing", "value": "Quarterly statements are posted to the portal 45 days after quarter end; audited annual accounts follow 120 days after year end.", "entities": []}
+{"key": "hcp01 management fee", "value": "HCP-01 charges 1.75 percent a year on commitments during the investment period, 20 percent carry over an 8 percent hurdle.", "entities": ["HCP-01"]}
+{"key": "hcp02 management fee", "value": "HCP-02 charges 1.25 percent a year on invested capital, 15 percent carry over a 6 percent hurdle.", "entities": ["HCP-02"]}
+{"key": "hcp03 management fee", "value": "HCP-03 charges 1.0 percent a year on invested capital, 12.5 percent carry over a 7 percent hurdle.", "entities": ["HCP-03"]}
+{"key": "hcp04 management fee", "value": "HCP-04 charges 1.5 percent a year on net invested capital, 20 percent carry over an 8 percent hurdle.", "entities": ["HCP-04"]}
+{"key": "hcp01 status", "value": "HCP-01 is still investing; it has called 78 percent of commitments to date.", "entities": ["HCP-01"]}
+{"key": "hcp02 status", "value": "HCP-02 is harvesting and is paying distributions from asset sales; it has called 96.5 percent of commitments.", "entities": ["HCP-02"]}
+{"key": "hcp03 status", "value": "HCP-03 is in its investment period; it has called 41.5 percent of commitments.", "entities": ["HCP-03"]}
+{"key": "hcp04 status", "value": "HCP-04 is harvesting and is in its final years; it has called 99.2 percent of commitments.", "entities": ["HCP-04"]}
+{"key": "hcp02 nav currency", "value": "HCP-02 states its NAV and distributions in euro; the other three funds use US dollars.", "entities": ["HCP-02"]}
+{"key": "transfer consent", "value": "Any transfer of a limited partner interest needs the general partner's written consent and 30 days notice.", "entities": []}
+{"key": "transfer admin fee", "value": "An administrative fee of 2,500 USD applies to each approved transfer of interest.", "entities": []}
+{"key": "portal notice time", "value": "Capital call and distribution notices are posted to the investor portal at 9:00 on the notice date.", "entities": []}
+{"key": "call notice period", "value": "Capital calls give investors 14 days between the notice date and the due date.", "entities": []}
+{"key": "no advice rule", "value": "The desk and this assistant do not give investment, tax or legal advice; investors go to their own advisers.", "entities": []}
+{"key": "bank change rule", "value": "Changes to bank details need a signed form uploaded in the investor portal; chat cannot change them.", "entities": []}
+{"key": "q3 statement date", "value": "Q3 2026 statements are due on the portal by 2026-11-14.", "entities": []}

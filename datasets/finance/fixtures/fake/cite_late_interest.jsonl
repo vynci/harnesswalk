@@ -1,0 +1,1 @@
+{"responses": [{"text": "An overdue capital call accrues simple interest at 9 percent a year, counted daily from the due date until the payment arrives. It is not compounded. [5]", "usage": {"input_tokens": 655, "output_tokens": 44}, "expect": {"last_message_role": "user"}}]}

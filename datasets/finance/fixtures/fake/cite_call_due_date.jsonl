@@ -1,0 +1,1 @@
+{"responses": [{"text": "Call 9 for HCP-01 is due on 2026-10-26, with the wire needing to arrive by 15:00 that day. The notice date was 2026-10-12. [1]", "usage": {"input_tokens": 640, "output_tokens": 46}, "expect": {"last_message_role": "user"}}]}

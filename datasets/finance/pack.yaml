@@ -1,0 +1,30 @@
+id: finance
+title: Hollowmere Capital Partners
+domain: finance
+summary: An investor relations assistant for the limited partners of four fictional closed-end private-markets
+  funds, answering from fund documents with citations and remembering each investor's standing preferences.
+tier: domain
+feature: Citations and the memory writer
+demonstrates:
+  id: citations_and_memory
+  nodes:
+  - knowledge
+  - output_guardrails
+  - memory_writer
+  - semantic
+  summary: 'Answers about fund terms, capital calls and distributions pull passages from the fund documents,
+    and the reply cites them as [1] and [2] while the output guardrails check that every citation points
+    at a retrieved passage. When you state a lasting preference, the assistant proposes it with remember,
+    the memory writer stores it after the reply, and a later session recalls it from semantic memory.
+
+    '
+licence: CC0-1.0
+provenance: provenance.md
+synthetic: true
+prompts:
+- What is the management fee for Hollowmere Growth Partners III?
+- When is the next capital call for HCP-03 due, and how much is it?
+- What share of the latest HCP-02 distribution is return of capital?
+- Please note that I want all my reports in euro from now on.
+- What does carry mean in a fund like this?
+- What is the NAV per unit for HCP-04?
