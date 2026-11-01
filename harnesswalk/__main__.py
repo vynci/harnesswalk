@@ -398,6 +398,8 @@ def _eval(args: argparse.Namespace) -> int:
                 print(f"          error: {err['code']} at {err['node_id']}: {err['message']}")
             if c.get("error"):
                 print(f"          error: {c['error']['code']}: {c['error']['message']}")
+            if c["status"] == "skipped" and c.get("detail"):
+                print(f"          {c['detail']}")
         t, cost = summary["totals"], summary["cost"]
         print(
             f"\nrun {summary['run_id']} ({summary['suite']}, pack {summary['pack']}): "

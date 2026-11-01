@@ -73,3 +73,27 @@ def test_national_id_patterns_per_pack_and_optional_names() -> None:
 def test_unknown_kind_is_a_config_error() -> None:
     with pytest.raises(ValueError):
         PiiDetector({"kinds": ["email", "dna"]})
+
+
+def test_name_cues_ignore_case_but_names_must_be_capitalised() -> None:
+    """Only the cue words ignore case (P5 integration fix): a pattern-wide IGNORECASE made
+    `[A-Z][a-z]+` match any word, so "I am looking" became `[NAME_1]`."""
+    d = PiiDetector({"names": {"enabled": True}})
+
+    def names(text: str) -> list[str]:
+        return [text[f.start : f.end] for f in d.find(text) if f.kind == "name"]
+
+    for prose in (
+        "I am looking for the riverside clinic.",
+        "I'm not sure when my appointment is.",
+        "This is the north site, right?",
+        "Hi, i am fine thanks.",
+        "Prism is a tool I use.",  # "is" inside a word is no cue
+    ):
+        assert names(prose) == [], prose
+    assert names("My name is Ines Okafor and I need help.") == ["Ines Okafor"]
+    assert names("MY NAME IS Tomas.") == ["Tomas"]
+    assert names("hi, i'm Maren") == ["Maren"]
+    assert names("Signed, Ana Diaz") == ["Ana Diaz"]
+    text = "I am looking for help, my name is Ines."
+    assert d.redact(text, d.find(text), Vault()) == "I am looking for help, my name is [NAME_1]."

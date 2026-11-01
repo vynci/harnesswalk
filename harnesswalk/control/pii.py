@@ -29,9 +29,12 @@ PHONE = re.compile(
     r"(?<![\w+])(?<!\d[ .-])(?:\+\d{1,3}[ .-]?)?(?:\(\d{2,4}\)[ .-]?)?\d[\d .-]{6,16}\d"
     r"(?!\w|[ .-]\d)"
 )
+# Only the cue words ignore case ("My name is", "I'M"); the name itself must be capitalised,
+# so "I am looking" or "I'm not sure" are not names. The flag is scoped to the cue group: a
+# pattern-wide IGNORECASE made `[A-Z][a-z]+` match any word (P5 integration fix).
 NAME_CUES = (
-    r"(?:my name is|my name's|i am|i'm|this is|name:|signed,?)\s+"
-    r"([A-Z][a-z]+(?:[ -][A-Z][a-z]+)?)"
+    r"(?<![\w'])(?i:my name is|my name's|i am|i'm|this is|name:|signed,?)\s+"
+    r"([A-Z][a-z]+(?:[ -][A-Z][a-z]+)?)\b"
 )
 PLACEHOLDER = re.compile(r"\[(EMAIL|CARD|ID|PHONE|NAME)_(\d+)\]")
 
@@ -118,7 +121,9 @@ class PiiDetector:
         names = cfg.get("names") or {}
         if names.get("enabled") and "name" not in self.kinds:
             self.kinds.append("name")
-        self.name_re = re.compile(names.get("cues", NAME_CUES), re.IGNORECASE)
+        # A configured `cues` pattern is compiled as written: scope any case-insensitivity to
+        # its cue words with `(?i:...)`, as NAME_CUES does.
+        self.name_re = re.compile(names.get("cues", NAME_CUES))
 
     def find(self, text: str) -> list[Finding]:
         """Non-overlapping findings, in text order. Placeholders are never findings."""

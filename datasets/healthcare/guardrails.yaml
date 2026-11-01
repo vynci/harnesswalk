@@ -1,7 +1,10 @@
 # Pack overrides for the input guardrails (spec/contracts/guardrail.md). The patterns
 # replace the defaults for this pack, so the US SSN and Canadian SIN ones are kept.
-# Brindlemoor Health Numbers (BH-1234-5678-K) are national ids for this pack.
+# Brindlemoor Health Numbers (BH-1234-5678-K) are national ids for this pack. Names after a
+# cue such as "my name is" are redacted too (only the cue words ignore case, so "I am looking"
+# is not a name).
 pii:
+  names: { enabled: true }
   national_id:
     patterns:
     - name: us_ssn
