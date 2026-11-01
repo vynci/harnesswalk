@@ -1,0 +1,58 @@
+name: Bug report
+description: The harness, the web app, a pack or the docs do something they should not.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. If this is a security problem, stop here and email
+        hello@vynci.dev instead (see SECURITY.md).
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - The harness (API, CLI, a node)
+        - The web app
+        - A dataset pack
+        - A lesson or the docs
+        - The spec or the conformance suite
+        - The hosted sandbox (harnesswalk.vynci.dev)
+        - Packaging, Docker or CI
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+      description: The reply, event, error code or screen you saw, and what the spec, a lesson or the README says should happen.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: The exact command, prompt, pack and fixture. A fake-provider reproduction is the most useful, since it runs the same everywhere.
+      placeholder: |
+        uv run harnesswalk turn "Cancel A-1002" --provider fake --fixture cancel_order
+    validations:
+      required: true
+  - type: textarea
+    id: events
+    attributes:
+      label: Events or logs
+      description: The output of `uv run harnesswalk events <turn_id>` or the relevant lines of the server log. Remove any keys or personal data.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`uv run harnesswalk --version`, or the commit (`git rev-parse --short HEAD`)."
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python, how you run it (make run, Docker, pip), provider and mode.
+      placeholder: macOS 26, Python 3.12, make run PROVIDER=fake, dev mode

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/vynci/harnesswalk/blob/main/SECURITY.md
+    about: Please email hello@vynci.dev instead of opening a public issue.
+  - name: Ask a question or share an idea
+    url: https://github.com/vynci/harnesswalk/discussions
+    about: Questions about the spec, the lessons or running the harness.
+  - name: Try the hosted sandbox
+    url: https://harnesswalk.vynci.dev
+    about: Walk a request through the harness in your browser, no install needed.

@@ -23,7 +23,7 @@ from typing import Any
 import yaml
 
 from harnesswalk.ops import release
-from harnesswalk.paths import PACKAGE_ROOT
+from harnesswalk.paths import PACKAGE_ROOT, default_data_dir
 from harnesswalk.types import ConfigError
 
 PROVIDERS = ("fake", "ollama", "anthropic", "openai_compatible")
@@ -220,7 +220,7 @@ def load_settings(
     for dotted, value in (overrides or {}).items():
         set_dotted(data, dotted, value)
 
-    data_dir = Path(data_dir or env.get("HARNESSWALK_DATA_DIR") or root / "data")
+    data_dir = Path(data_dir or env.get("HARNESSWALK_DATA_DIR") or default_data_dir(root))
     settings = Settings(
         data=data,
         root=root,

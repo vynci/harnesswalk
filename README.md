@@ -1,12 +1,19 @@
 # harnesswalk
 
+[![CI](https://github.com/vynci/harnesswalk/actions/workflows/ci.yml/badge.svg)](https://github.com/vynci/harnesswalk/actions/workflows/ci.yml)
+[![Licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-blue.svg)](LICENSE)
+<!-- After the first release is on PyPI (docs/RELEASING.md), add:
+[![PyPI](https://img.shields.io/pypi/v/harnesswalk.svg)](https://pypi.org/project/harnesswalk/) -->
+
 **Walk through an AI harness, one node at a time.**
 
-Status: **pre-alpha, P5 datasets and lessons done.** The harness runs: a request walks the gateway, guardrails,
-context builder, memory, loop, model layer, tools, policy, approval, audit and trace, and every
-step is an event you can stream, store and replay. The web UI shows it: a chat beside a live
-diagram, step mode, approvals, replay and a code peek per node. See
-[docs/ROADMAP.md](docs/ROADMAP.md).
+The harness runs: a request walks the gateway, guardrails, context builder, memory, loop, model
+layer, tools, policy, approval, audit and trace, and every step is an event you can stream,
+store and replay. The web UI shows it: a chat beside a live diagram, step mode, approvals,
+replay and a code peek per node. Try it in your browser on the hosted sandbox at
+[harnesswalk.vynci.dev](https://harnesswalk.vynci.dev) (Claude Haiku, Claude Sonnet or the
+scripted fake model, nothing to install), or run it on your machine below. Where it stands:
+[Status](#status).
 
 ![A finished turn: the chat on the left, every node it visited lit on the diagram](docs/screenshots/turn-done.png)
 
@@ -30,6 +37,15 @@ Other ways to run it:
 HARNESSWALK_PROVIDER=fake make up          # Docker: api + web, postgres (pgvector) and ollama
 ollama pull llama3.1:8b && make run        # a real local model instead of the fake provider
 uv run harnesswalk turn "Where is order A-1001?" --provider fake --fixture tool_call   # no browser
+```
+
+From a release, without cloning (the wheel carries the config, the spec, the packs, the
+lessons and the web app; its stores go to `./harnesswalk-data` unless `HARNESSWALK_DATA_DIR`
+says otherwise):
+
+```sh
+pip install harnesswalk && harnesswalk serve --provider fake                  # http://127.0.0.1:8000
+docker run --rm -p 8000:8000 -e HARNESSWALK_PROVIDER=fake ghcr.io/vynci/harnesswalk
 ```
 
 ## What this is
@@ -187,8 +203,11 @@ The contract is in [`spec/`](spec/), written before the code:
 | [spec/conformance/](spec/conformance/) | Black-box cases any implementation can run |
 
 The reference implementation is Python (FastAPI, no agent framework) in
-[`harnesswalk/`](harnesswalk/), and the TypeScript web UI is in [`web/`](web/). A
-TypeScript harness port is planned to prove the spec.
+[`harnesswalk/`](harnesswalk/), and the TypeScript web UI is in [`web/`](web/). Another
+implementation proves itself with the conformance suite, which runs against any HTTP harness
+(`tests/conformance/runner.py --command` or `--base-url`, see
+[spec/conformance/README.md](spec/conformance/README.md)); the spec's version rules are in
+[spec/VERSIONING.md](spec/VERSIONING.md).
 
 ## Try it
 
@@ -427,9 +446,12 @@ stop).
 ```sh
 make test          # unit tests, spec checks, conformance suite (offline, fake provider)
 make conformance   # one PASS or FAIL line per conformance case
+make conformance BASE_URL=http://127.0.0.1:8000   # the cases a running server can take
 make lint          # ruff
 make web-test      # eslint, tsc and Vitest for web/
 make e2e           # Playwright in Chromium against a real API with the fake provider
+make wheel-smoke   # build the wheel, install it in a clean venv outside the repo, run it
+make fresh-clone   # this README's Quickstart, make test and lint in a clean python:3.12 container (Docker)
 ```
 
 `make e2e` builds the app, starts `harnesswalk serve --provider fake` on a scratch port
@@ -454,9 +476,27 @@ web/        chat and diagram UI (React, TypeScript); web/README.md
 datasets/   the packs: _starter and five domain packs (healthcare, ecommerce, logistics, sports, finance)
 lessons/    the course: one chapter per node in walk order, then one per expert group
 deploy/     docker compose: dev and homelab profiles
-docs/       roadmap
+docs/       roadmap, releasing, screenshots
 tests/      unit tests, spec checks and the conformance runner
+tools/      release prep, the wheel smoke, the fresh-clone check, pack generation
 ```
+
+## Status
+
+Alpha. Version 0.1.0 is the first release: the spec at 0.1.0, the reference harness with all
+29 nodes implemented, the web app, six packs, 21 lessons and the public sandbox. The spec may
+still grow, under the additive rules of [spec/VERSIONING.md](spec/VERSIONING.md). What changed
+is in [CHANGELOG.md](CHANGELOG.md) (and [spec/CHANGELOG.md](spec/CHANGELOG.md) for the spec);
+what is next, and what is deliberately later (private mode, framework adapters, a second
+implementation), is in [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## Contributing
+
+Questions, spec corrections, lesson fixes, packs and conformance cases are all welcome.
+[CONTRIBUTING.md](CONTRIBUTING.md) has the five-command setup, the spec-first rule, and how to
+add a node, a tool, a pack, a lesson or a conformance case. Please read the
+[code of conduct](CODE_OF_CONDUCT.md); report security problems privately as
+[SECURITY.md](SECURITY.md) describes.
 
 ## Licence
 

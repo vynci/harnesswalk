@@ -1,16 +1,112 @@
 # Conformance suite
 
 A black-box test that any harnesswalk implementation, in any language, can run. If your harness
-passes it, the harnesswalk UI can drive it and the lessons apply to it.
+passes it, the harnesswalk web app can drive it, the hosted sandbox's lessons apply to it, and
+its event stream can be traced, replayed and evaluated by the same tools. The suite is the
+spec's executable half: `spec/harness.md`, `spec/events.md` and `spec/contracts/` say what a
+harness must do, and these cases check that it does, over HTTP only.
 
-Status: the protocol, cases and fixtures are from P0; the reference runner is
-`tests/conformance/runner.py` (P1). `make conformance` starts the reference harness once per
-case on a loopback port with the `fake` provider, drives it over HTTP, and prints one line per
-case. It also checks that the cases, fixtures and profile are well formed and that the recorded
-example streams in `spec/examples/` satisfy the matching cases. The runner touches the harness
-only to start it and to read the fake provider's unused responses for the warnings, so
-pointing it at another implementation means replacing `LiveHarness` with a process that serves
-the same API.
+## What a conforming runtime is
+
+A runtime conforms to spec version `X.Y` when, started with `profile.yaml` and the `fake`
+provider, it passes every case in `cases/` of that version, driven by
+`tests/conformance/runner.py` or any runner that follows the protocol below. In practice that
+means it:
+
+- serves the HTTP API in `spec/contracts/http_api.md` that the cases use (turns, the SSE event
+  stream, resume, cancel, approvals, `/healthz`, and the audit, artifact, release, eval,
+  session and pack routes the later cases call);
+- emits events that validate against `spec/events.schema.json` and keep the stream rules of
+  `spec/events.md` section 1, with node and edge ids from `spec/diagram/diagram.json`;
+- implements the `fake` provider exactly (`spec/contracts/model_provider.md`), reading the
+  fixtures in `fixtures/`, and registers the tools in `tools.yaml` and `harness_tools.yaml`;
+- reports `provider: fake`, its `fixture` and its `spec_version` at `GET /healthz`.
+
+Nothing else is required: the language, the storage, the framework (or none) and any extra
+nodes, summary keys or endpoints are yours. A runtime that passes a subset may say which cases
+it passes; it conforms only when it passes them all. The suite version is the spec version
+(`spec_version` in `profile.yaml` and in every case); `spec/VERSIONING.md` says what may change
+between versions.
+
+## Running the suite
+
+The runner is plain Python in this repository. Clone it and install it once (`make setup`,
+which is `uv sync`); the runner imports the reference harness only in the default mode.
+
+```sh
+make conformance                       # the reference harness, started in-process per case
+uv run python -m tests.conformance.runner --list            # the case ids
+uv run python -m tests.conformance.runner --case tool_call  # one case (repeat --case for more)
+```
+
+It prints one line per case and a total, and exits 1 when a case fails:
+
+```
+PASS approval_approve
+FAIL budget_limit turn 0: path: got [gateway, ...], expected [gateway, ...]
+SKIP release_rollback changes server-wide state at /v1/releases (use --command)
+21/22 cases passed, 1 skipped
+```
+
+### Against your implementation, one process per case (`--command`)
+
+The complete run. The runner starts your harness once per case from a command template, waits
+for `GET /healthz`, drives it, and stops it. A `two_process` case kills it with `SIGKILL` and
+runs the same command again on the same data directory.
+
+```sh
+uv run python -m tests.conformance.runner \
+  --command "./my-harness serve --port {port} --data {data_dir} --fixture {fixture} --mode {mode}"
+```
+
+The command runs from the repository root with your environment plus these variables, and the
+template may use the same values as placeholders (shell-quoted; write `{{` and `}}` for a
+literal brace):
+
+| Placeholder | Variable | Value |
+|---|---|---|
+| `{port}` | `HARNESSWALK_PORT` | A free loopback port to listen on (`127.0.0.1`) |
+| `{data_dir}` | `HARNESSWALK_DATA_DIR` | A fresh, empty directory for this case's stores; kept across a restart |
+| `{fixture}` | `HARNESSWALK_FIXTURE` | The case's fixture name |
+| `{mode}` | `HARNESSWALK_MODE` | `dev`, or the case's `mode` |
+| `{profile}` | `HARNESSWALK_PROFILE` | The absolute path of `spec/conformance/profile.yaml` |
+| `{config_json}` | `HARNESSWALK_CONFORMANCE_CONFIG` | The case's `config` overrides as a JSON object of dotted keys (`{}` for most cases) |
+| `{set_args}` | | The same overrides as `--set=key=<json>` arguments, the reference CLI's spelling |
+| `{root}`, `{python}` | | The repository root, and the Python running the runner |
+| | `HARNESSWALK_PROVIDER` | Always `fake` |
+
+The reference harness passes this way too, which is a useful check of the runner itself:
+
+```sh
+uv run python -m tests.conformance.runner --command \
+  "{python} -m harnesswalk serve --provider fake --fixture {fixture} --profile {profile} --mode {mode} --port {port} {set_args}"
+```
+
+### Against a running server (`--base-url`)
+
+A quick check while you build. Start your harness once in `dev` mode with `profile.yaml` and
+the `fake` provider, then:
+
+```sh
+uv run python -m tests.conformance.runner --base-url http://127.0.0.1:8000
+make conformance BASE_URL=http://127.0.0.1:8000           # the same, then the spec checks
+```
+
+The runner checks `GET /healthz` (status 200, `provider: fake`, a `spec_version` of the same
+major as the suite), then sends every turn with the case's fixture in the request body
+(`fixture`, a dev-only per-turn option in `spec/contracts/http_api.md`; a turn that names its
+own fixture in `options` keeps it). Each run appends a random suffix to the tenants
+(`conformance-<case id>-<suffix>`, or `--tenant-suffix`), so reruns against the same server do
+not see each other's audit records or memory. Cases that need a server of their own are
+reported as `SKIP` with the reason: another `mode`, `config` overrides, a restart, or requests
+to `/v1/artifacts` and `/v1/releases`, which change state the whole server shares. Today that
+leaves 9 of the 23 cases; use `--command` for the rest.
+
+For the reference harness:
+
+```sh
+HARNESSWALK_DATA_DIR=/tmp/hw-conf uv run harnesswalk serve --provider fake --profile spec/conformance/profile.yaml
+```
 
 ## Files
 
@@ -36,10 +132,11 @@ never imports the implementation.
    not say) with `profile.yaml`, the `fake` provider and the case's fixture, and the case's
    `config` overrides applied. The reference
    variables are `HARNESSWALK_MODE=dev`, `HARNESSWALK_PROVIDER=fake`,
-   `HARNESSWALK_FIXTURE=<fixture>` and `HARNESSWALK_PROFILE=spec/conformance/profile.yaml`. An
-   implementation MAY instead accept the dev-only header `X-Harnesswalk-Fixture` on the first
-   turn of a session, so one process can serve every case. Wait until `GET /healthz` returns
-   `200` with `provider: fake` and the expected `fixture`.
+   `HARNESSWALK_FIXTURE=<fixture>` and `HARNESSWALK_PROFILE=spec/conformance/profile.yaml`
+   (`--command` sets them, with the others in the table above). Wait until `GET /healthz`
+   returns `200` with `provider: fake` and the expected `fixture`. A shared server
+   (`--base-url`) is started once instead, and each turn names the case's fixture in its
+   request body (`fixture`, dev mode only); its `/healthz` must still say `provider: fake`.
 2. **Isolate.** Use the tenant `conformance-<case id>` (header `X-Harnesswalk-Tenant`) and a new
    session per case. All turns of a case share that session. In `public` mode the header is
    not honoured: the client keeps the anonymous tenant cookie the first response sets.
@@ -128,12 +225,47 @@ model would say. The fake provider fixes what the model says.
 The knowledge and memory cases need the expert children `knowledge` and `semantic`: an
 implementation that implements those stores emits their spans, so these cases assert them.
 
+## The fixture protocol
+
+The model is the one part of a harness a black-box test cannot pin, so the suite replaces it.
+Every case names a fixture in `fixtures/`, and the implementation's `fake` provider replays it
+(`spec/contracts/model_provider.md`, "The `fake` provider"):
+
+- A fixture has `turns`, one per chat turn of a session, and each turn has `responses`, one per
+  model call in that turn, in order: `text`, `tool_calls` (with optional `call_id`), or both,
+  and `usage` token counts.
+- Each session keeps its own cursor: turn `n` of the session reads `turns[n]`. A per-turn
+  fixture (`fixture` in the request, dev only) counts only the session's turns on that fixture.
+- A response may carry `expect`, checked against what the harness sent the model:
+  `tools_enabled`, `last_message_role`, `last_message_contains` and `system_contains`. A
+  mismatch fails the call with `fixture_mismatch`, so a fixture also asserts what the model
+  saw: the placeholder that replaced an email, a tool observation, the prompt version a
+  rollback restored.
+- A call past the script fails with `fixture_exhausted`; responses left unread are reported as
+  warnings by the in-process reference run.
+- No network, no clock (except `latency_ms`, a delay for step and timeout cases) and no
+  randomness: the same fixture and inputs give the same events every time, on every machine.
+  Embeddings are the deterministic `fake_embed` hash, so knowledge retrieval is the same too.
+
+`fixture.schema.json` is the shape. The knowledge cases ingest `docs/`, the eval cases read
+`golden.jsonl`, and the pack cases add `packs/conformance_alt`, all through `profile.yaml`.
+
 ## Adding a case
 
-1. Write the fixture first: what the model will say, call by call.
-2. Write the case: the message, the actions, and the smallest set of assertions that proves the
-   behaviour. Prefer `path` plus a few `events` matchers over long matcher lists.
-3. Run `make conformance`. In P0 this validates the files; from P1 it runs the case.
+1. Write the fixture first: what the model will say, call by call, with `expect` where the
+   case depends on what the model was shown.
+2. Write the case in `cases/<id>.yaml` (`id` equals the file stem; `case.schema.json` is the
+   shape): the message, the actions, and the smallest set of assertions that proves the
+   behaviour. Prefer `path` plus a few `events` matchers over long matcher lists, and never
+   assert what the spec leaves open (see "What the suite does not check").
+3. If the case needs configuration, override only keys listed in `profile.yaml`
+   `overridable`; adding a key there is a spec change (record it in `spec/CHANGELOG.md`).
+4. Add a row to the Cases table above, and run `make conformance` (or
+   `uv run python -m tests.conformance.runner --case <id>`) until the reference passes it.
+   `make test` runs it too, along with the checks that the cases, fixtures and profile are
+   well formed and that `spec/examples/` streams satisfy their cases.
+5. A case that asserts new behaviour is a spec change: it lands with the spec text it tests,
+   and under `spec/VERSIONING.md` it is added in a minor version.
 
 Cases and fixtures must read the same under YAML 1.1 and 1.2 parsers. Quote, or avoid, bare
 `on`, `off`, `yes`, `no`, `y` and `n` as keys and values, since YAML 1.1 reads them as booleans.
