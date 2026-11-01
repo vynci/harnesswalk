@@ -21,10 +21,16 @@ import type {
   Diagram,
   KnowledgeDoc,
   KnowledgeDocDetail,
+  Diagnosis,
+  GateFailure,
+  GoldenSet,
   Lesson,
   LessonList,
   LessonSource,
+  PackDetail,
+  PackFileText,
   PackSummary,
+  SessionInfo,
   MemoryProposal,
   NodeInfo,
   NodeSource,
@@ -96,7 +102,18 @@ function query(params: Record<string, string | number | undefined | null>): stri
 
 export type ResumeMode = 'step' | 'continue' | 'step_over'
 
+/** POST /v1/releases: the release, or the gate's refusal (409 gate_failed) with its failing cases. */
+export type CreateReleaseResult = { release: ReleaseDetail; gateFailed?: undefined } | { release?: undefined; gateFailed: GateFailure }
+
 export function createApi(t: Transport) {
+  /**
+   * The session's pack (P5): every pack-scoped call (nodes, artifacts, releases, evals,
+   * knowledge, proposals) sends it as `?pack=`, so switching packs switches what they show.
+   * Null sends nothing and the API uses its configured pack.
+   */
+  let pack: string | null = null
+  const scoped = (extra: Record<string, string | number | undefined | null> = {}) => query({ ...extra, pack })
+
   async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
     const res = await t.fetch(`${t.baseUrl}${path}`, {
       method,
@@ -137,13 +154,18 @@ export function createApi(t: Transport) {
       ),
     decide: (approvalId: string, decision: 'approve' | 'deny', reason?: string) =>
       call<unknown>('POST', `/v1/approvals/${encodeURIComponent(approvalId)}`, reason ? { decision, reason } : { decision }),
-    node: (nodeId: string) => call<NodeInfo>('GET', `/v1/nodes/${encodeURIComponent(nodeId)}`),
+    /** The pack the pack-scoped calls name; set by the store from the session. */
+    setPack: (p: string | null) => {
+      pack = p
+    },
+    pack: () => pack,
+    node: (nodeId: string) => call<NodeInfo>('GET', `/v1/nodes/${encodeURIComponent(nodeId)}${scoped()}`),
     nodeSource: (nodeId: string) => call<NodeSource>('GET', `/v1/nodes/${encodeURIComponent(nodeId)}/source`),
     // P3: the context plane's routes and the audit export.
-    knowledgeDocs: () => call<{ pack: string; docs: KnowledgeDoc[] }>('GET', '/v1/knowledge/docs'),
-    knowledgeDoc: (docId: string) => call<KnowledgeDocDetail>('GET', `/v1/knowledge/docs/${encodeURIComponent(docId)}`),
+    knowledgeDocs: () => call<{ pack: string; docs: KnowledgeDoc[] }>('GET', `/v1/knowledge/docs${scoped()}`),
+    knowledgeDoc: (docId: string) => call<KnowledgeDocDetail>('GET', `/v1/knowledge/docs/${encodeURIComponent(docId)}${scoped()}`),
     memoryProposals: (status: 'pending' | 'all' = 'pending') =>
-      call<{ proposals: MemoryProposal[] }>('GET', `/v1/memory/proposals?status=${status}`),
+      call<{ proposals: MemoryProposal[] }>('GET', `/v1/memory/proposals${scoped({ status })}`),
     decideProposal: (proposalId: string, decision: 'accept' | 'reject', reason?: string) =>
       call<MemoryProposal>(
         'POST',
@@ -156,17 +178,43 @@ export function createApi(t: Transport) {
     feedback: (turnId: string, rating: FeedbackRating, note?: string) =>
       call<FeedbackRecord>('POST', `/v1/turns/${encodeURIComponent(turnId)}/feedback`, note ? { rating, note } : { rating }),
     startEval: (req: StartEvalRequest) => call<{ run_id: string; events_url: string }>('POST', '/v1/evals/runs', req),
-    evalRuns: async (q: { pack?: string; limit?: number } = {}) => (await call<{ runs: EvalRunSummary[] }>('GET', `/v1/evals/runs${query(q)}`)).runs,
+    /** The runs of the session's pack (or of `q.pack`), newest first. */
+    evalRuns: async (q: { pack?: string; limit?: number } = {}) =>
+      (await call<{ runs: EvalRunSummary[] }>('GET', `/v1/evals/runs${query({ ...q, pack: q.pack ?? pack })}`)).runs,
+    golden: () => call<GoldenSet>('GET', `/v1/evals/golden${scoped()}`),
     evalRun: (runId: string) => call<EvalRunDetail>('GET', `/v1/evals/runs/${encodeURIComponent(runId)}`),
     evalRunEventsUrl: (runId: string) => `${t.baseUrl}/v1/evals/runs/${encodeURIComponent(runId)}/events`,
-    artifacts: (pack?: string) => call<ArtifactList>('GET', `/v1/artifacts${query({ pack })}`),
+    artifacts: () => call<ArtifactList>('GET', `/v1/artifacts${scoped()}`),
     artifact: (kind: string, name: string, version?: number) =>
-      call<Artifact>('GET', `/v1/artifacts/${encodeURIComponent(kind)}/${encodeURIComponent(name)}${query({ version })}`),
+      call<Artifact>('GET', `/v1/artifacts/${encodeURIComponent(kind)}/${encodeURIComponent(name)}${scoped({ version })}`),
     saveArtifact: (kind: string, name: string, body: string, note?: string) =>
-      call<ArtifactSaved>('PUT', `/v1/artifacts/${encodeURIComponent(kind)}/${encodeURIComponent(name)}`, note ? { body, note } : { body }),
-    releaseList: (pack?: string) => call<ReleaseList>('GET', `/v1/releases${query({ pack })}`),
+      call<ArtifactSaved>('PUT', `/v1/artifacts/${encodeURIComponent(kind)}/${encodeURIComponent(name)}${scoped()}`, note ? { body, note } : { body }),
+    releaseList: () => call<ReleaseList>('GET', `/v1/releases${scoped()}`),
+    /** Release ids are unique across packs, so one release needs no pack. */
     release: (releaseId: string) => call<ReleaseDetail>('GET', `/v1/releases/${encodeURIComponent(releaseId)}`),
-    createRelease: (note?: string) => call<ReleaseDetail>('POST', '/v1/releases', note ? { note } : {}),
+    /**
+     * POST /v1/releases on the session's pack. The eval gate runs first; a 409 gate_failed comes
+     * back as `gateFailed` (no release was made). `force` skips the gate: dev mode only, audited.
+     */
+    createRelease: async (note?: string, opts: { force?: boolean } = {}): Promise<CreateReleaseResult> => {
+      const body = { ...(note ? { note } : {}), ...(pack ? { pack } : {}), ...(opts.force ? { force: true } : {}) }
+      try {
+        return { release: await call<ReleaseDetail>('POST', '/v1/releases', body) }
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 409 && err.code === 'gate_failed') {
+          const data = (err.body ?? {}) as Partial<GateFailure> & { error?: { message?: string } }
+          return {
+            gateFailed: {
+              pack: pack ?? '',
+              message: data.error?.message ?? err.message,
+              gate: data.gate ?? { status: 'failed' },
+              cases: Array.isArray(data.cases) ? data.cases : [],
+            },
+          }
+        }
+        throw err
+      }
+    },
     rollback: (releaseId: string) => call<RollbackResult>('POST', `/v1/releases/${encodeURIComponent(releaseId)}/rollback`, {}),
     traceTurns: (q: TraceQuery = {}) => call<TraceTurnPage>('GET', `/v1/trace/turns${query({ ...q })}`),
     receipt: (turnId: string) => call<Receipt>('GET', `/v1/trace/turns/${encodeURIComponent(turnId)}/receipt`),
@@ -176,11 +224,20 @@ export function createApi(t: Transport) {
     lessons: () => call<LessonList>('GET', '/v1/lessons'),
     lesson: (slug: string) => call<Lesson>('GET', `/v1/lessons/${encodeURIComponent(slug)}`),
     lessonSource: (slug: string, path: string) => call<LessonSource>('GET', `/v1/lessons/${encodeURIComponent(slug)}/source${query({ path })}`),
-    /** P5: the packs, when `features.packs`. The envelope is `{packs}` or a bare list. */
+    /** P5: the packs, when `features.packs`. The envelope is `{default, packs}` or a bare list. */
     packs: async () => {
       const data = await call<{ packs?: PackSummary[] } | PackSummary[]>('GET', '/v1/packs')
       return Array.isArray(data) ? data : (data.packs ?? [])
     },
+    /** P5 integration: one pack's card and file tree, and one of its files as text. */
+    packDetail: (packId: string) => call<PackDetail>('GET', `/v1/packs/${encodeURIComponent(packId)}`),
+    packFile: (packId: string, path: string) =>
+      call<PackFileText>('GET', `/v1/packs/${encodeURIComponent(packId)}/files/${path.split('/').map(encodeURIComponent).join('/')}`),
+    /** P5: a new session on a pack (sets the session cookie too), and one session's pack. */
+    createSession: (packId?: string) => call<SessionInfo>('POST', '/v1/sessions', packId ? { pack: packId } : {}),
+    session: (sessionId: string) => call<SessionInfo>('GET', `/v1/sessions/${encodeURIComponent(sessionId)}`),
+    /** P5: the layer at fault for a failed eval case or a bad turn. */
+    diagnose: (target: { run_id?: string; case_id: string } | { turn_id: string }) => call<Diagnosis>('POST', '/v1/diagnose', target),
   }
 }
 
