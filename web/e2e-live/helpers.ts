@@ -23,8 +23,8 @@ export async function turnDone(page: Page) {
 }
 
 export async function newSession(page: Page) {
-  await page.getByRole('button', { name: 'Session actions' }).click()
-  await page.getByRole('menuitem', { name: 'New session' }).click()
+  await page.getByTestId('session-menu').click()
+  await page.getByTestId('session-popover').getByRole('button', { name: 'New session' }).click()
 }
 
 /** The last turn's events, read back from the API (rule 1: the stream is the source of truth). */

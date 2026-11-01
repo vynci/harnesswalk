@@ -272,8 +272,8 @@ test('history reloads, a past turn replays, and New session starts clean', async
   await page.getByTestId('replay-exit').click()
 
   // A new session is a new session on the server too, not the one in the cookie.
-  await page.getByRole('button', { name: 'Session actions' }).click()
-  await page.getByRole('menuitem', { name: 'New session' }).click()
+  await page.getByTestId('session-menu').click()
+  await page.getByTestId('session-popover').getByRole('button', { name: 'New session' }).click()
   await pickFixture(page, 'plain_answer')
   await send(page, 'What are your support hours?')
   await expect(status(page)).toHaveAttribute('data-phase', 'done')
