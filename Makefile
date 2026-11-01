@@ -50,12 +50,18 @@ web-e2e-mock: $(WEB_DEPS) ## Playwright smoke tests against a mock build (no API
 # stores in a scratch directory, and stops it when the run ends.
 E2E_PORT ?= 8765
 
+# An idle Mac goes to sleep in the middle of a live run when nobody touches it, and a sleep
+# freezes the browser, the API and Playwright's clock together: on wake the step that was
+# waiting has timed out. caffeinate keeps the machine awake while the suite runs (the display
+# may still sleep); where there is no caffeinate the runs start as they are.
+KEEP_AWAKE := $(shell command -v caffeinate >/dev/null 2>&1 && echo caffeinate -i)
+
 e2e: $(WEB_DEPS) ## Playwright in Chromium against a real API (fake provider) on a scratch port: make e2e E2E_PORT=8765
 	pnpm --dir web exec playwright install chromium
-	HARNESSWALK_E2E_PORT=$(E2E_PORT) pnpm --dir web test:e2e:live
+	$(KEEP_AWAKE) env HARNESSWALK_E2E_PORT=$(E2E_PORT) pnpm --dir web test:e2e:live
 
 screenshots: $(WEB_DEPS) ## Recapture docs/screenshots/*.png from the real API, light mode
-	HARNESSWALK_E2E_PORT=$(E2E_PORT) HARNESSWALK_SCREENSHOTS=1 pnpm --dir web test:e2e:live e2e-live/screenshots.spec.ts
+	$(KEEP_AWAKE) env HARNESSWALK_E2E_PORT=$(E2E_PORT) HARNESSWALK_SCREENSHOTS=1 pnpm --dir web test:e2e:live e2e-live/screenshots.spec.ts
 
 turn: ## One fake-provider turn printed as a walk: make turn FIXTURE=tool_call PROMPT="Where is A-1001?"
 	uv run harnesswalk turn "$(or $(PROMPT),What are your support hours?)" --provider fake --fixture $(or $(FIXTURE),plain_answer)

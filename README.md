@@ -439,8 +439,10 @@ step mode through the stores, and an approval that survives a restart, on a seco
 starts and kills itself), the P4 gate above in the browser (edit, golden run, regression,
 release, edit, rollback, the next turn on the old version), a release made with the CLI showing
 up live, feedback across tabs, step-over, the trace query, and a restart that keeps a paused
-turn's output schema, and stops the servers. `make web-e2e-mock` runs the smoke tests against the
-mock build, and `make screenshots` recaptures the pictures above.
+turn's output schema, and stops the servers. On macOS it runs under `caffeinate -i`, because
+an idle sleep in the middle of the run freezes the browser and the server and fails whichever
+test was waiting; run `pnpm test:e2e:live` by hand the same way. `make web-e2e-mock` runs the
+smoke tests against the mock build, and `make screenshots` recaptures the pictures above.
 
 ## Repository layout
 
