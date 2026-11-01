@@ -1,5 +1,6 @@
 # harnesswalk developer targets. Every target goes through uv.
-.PHONY: setup test conformance eval run turn lint format up down web-build web-dev web-mock web-test web-e2e-mock e2e screenshots
+.PHONY: setup test conformance eval run turn lint format up down web-build web-dev web-mock web-test web-e2e-mock e2e screenshots \
+	deploy-test deploy-synth deploy-diff deploy-web deploy-api deploy-rollback prod-up prod-down prod-smoke loadtest
 
 setup: ## Create .venv and install the package with dev tools
 	uv sync
@@ -79,3 +80,62 @@ up: ## Docker compose dev profile: api (its image builds web/ too), postgres and
 
 down: ## Stop the compose stack
 	docker compose -f deploy/docker-compose.yml --profile dev down
+
+# --- Deploy: harnesswalk.vynci.dev on AWS (deploy/README.md) ---------------------------------
+# The CDK app lives in deploy/aws (pnpm, pinned aws-cdk-lib). synth and diff read certArn from
+# deploy/aws/cdk.context.json (scripts/request-cert.sh writes it); CERT_ARN=... overrides it.
+DEPLOY_DEPS := deploy/aws/node_modules/.modules.yaml
+$(DEPLOY_DEPS): deploy/aws/package.json deploy/aws/pnpm-lock.yaml
+	pnpm --dir deploy/aws install --frozen-lockfile
+	@touch $@
+CDK := cd deploy/aws && pnpm exec cdk
+CDK_CERT := $(if $(CERT_ARN),--context certArn=$(CERT_ARN))
+
+deploy-test: $(DEPLOY_DEPS) ## CDK typecheck and unit tests (SG rules, OAC, behaviours, IAM scoping)
+	pnpm --dir deploy/aws typecheck
+	pnpm --dir deploy/aws test
+
+deploy-synth: $(DEPLOY_DEPS) ## cdk synth the three stacks (CERT_ARN=... before the certificate exists)
+	$(CDK) synth --quiet $(CDK_CERT)
+
+deploy-diff: $(DEPLOY_DEPS) ## cdk diff the three stacks against the account (AWS_PROFILE)
+	$(CDK) diff $(CDK_CERT) HarnesswalkEdge HarnesswalkOrigin HarnesswalkCi
+
+deploy-web: ## Build web/ for production, sync it to the edge bucket, invalidate index.html
+	deploy/aws/scripts/deploy-web.sh
+
+deploy-api: ## Build and push the arm64 api image (tag = git sha), then roll the origin onto it
+	deploy/aws/scripts/build-push.sh
+	deploy/aws/scripts/deploy-origin.sh
+
+deploy-rollback: ## Put the origin back on an earlier image: make deploy-rollback TAG=<sha>
+	@test -n "$(TAG)" || { echo "usage: make deploy-rollback TAG=<sha> (recent tags: deploy/aws/scripts/rollback.sh)"; exit 2; }
+	deploy/aws/scripts/rollback.sh $(TAG)
+
+# The prod profile on this machine (deploy/docker-compose.prod-local.yml): the image built from
+# this checkout, the fake provider, Caddy's internal CA on 127.0.0.1:8443, stores in a named
+# volume. HARNESSWALK_SECRET and ORIGIN_VERIFY are throwaway values made with openssl the first
+# time and kept, mode 0600, outside the repo; they are never printed.
+PROD_LOCAL_ENV ?= $(or $(TMPDIR),/tmp)/harnesswalk-prod-local.env
+PROD_LOCAL := docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.prod-local.yml --env-file $(PROD_LOCAL_ENV) --profile prod
+
+$(PROD_LOCAL_ENV):
+	@umask 077; { echo "HARNESSWALK_IMAGE=harnesswalk-api:local"; \
+	  echo "HARNESSWALK_SECRET=$$(openssl rand -hex 32)"; echo "ORIGIN_VERIFY=$$(openssl rand -hex 32)"; } > $@
+	@echo "wrote throwaway secrets to $@"
+
+prod-up: $(PROD_LOCAL_ENV) ## The prod profile locally (fake provider): https://origin.harnesswalk.vynci.dev:8443 via --resolve
+	GIT_SHA=$$(git rev-parse --short=12 HEAD) $(PROD_LOCAL) up -d --build
+	@echo "smoke it: make prod-smoke"
+
+prod-down: ## Stop the local prod profile (add V=1 to delete its volumes too)
+	$(PROD_LOCAL) down $(if $(V),--volumes)
+
+prod-smoke: ## smoke.sh against the local prod profile, through Caddy
+	@set -a; . $(PROD_LOCAL_ENV); set +a; \
+	BASE_URL=https://origin.harnesswalk.vynci.dev:8443 SMOKE_INSECURE=1 \
+	SMOKE_RESOLVE=origin.harnesswalk.vynci.dev:8443:127.0.0.1 deploy/aws/scripts/smoke.sh
+
+loadtest: ## k6 against the local prod profile: rate limit, 50 SSE viewers, sweeper, p95 and RSS (make prod-up first)
+	@command -v k6 >/dev/null || { echo "k6 is missing: brew install k6"; exit 1; }
+	@set -a; . $(PROD_LOCAL_ENV); set +a; deploy/loadtest/run.sh
