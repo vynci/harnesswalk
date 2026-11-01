@@ -7,8 +7,18 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as sns from 'aws-cdk-lib/aws-sns';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
-import { ECR_REPOSITORY, LOG_GROUP, ORIGIN_HOST, SSM_PARAMS, SSM_PREFIX } from './config';
+import {
+  DEPLOY_DOCUMENT,
+  ECR_REPOSITORY,
+  IMAGE_TAG_PATTERN,
+  LOG_GROUP,
+  ORIGIN_HOST,
+  ORIGIN_ROLE_TAG,
+  SSM_PARAMS,
+  SSM_PREFIX,
+} from './config';
 
 // The origin: one t4g.small running the API and Caddy with Docker compose, in a public subnet
 // of the account's default VPC (context createVpc=true: a small VPC of its own instead, two
@@ -237,7 +247,45 @@ export class OriginStack extends cdk.Stack {
       ],
     });
     cdk.Tags.of(this.instance).add('Name', 'harnesswalk-origin');
-    cdk.Tags.of(this.instance).add('harnesswalk:role', 'origin');
+    cdk.Tags.of(this.instance).add(ORIGIN_ROLE_TAG.key, ORIGIN_ROLE_TAG.value);
+
+    // The deploy command: harnesswalk-up for one image tag, then wait for /readyz. The tag is
+    // the only input and SSM checks it against allowedPattern before anything runs, so whoever
+    // may send this document can restart the stack on an image, and nothing else.
+    new ssm.CfnDocument(this, 'DeployDocument', {
+      name: DEPLOY_DOCUMENT,
+      documentType: 'Command',
+      documentFormat: 'JSON',
+      // A named document cannot be replaced in place; a content change is a new version.
+      updateMethod: 'NewVersion',
+      content: {
+        schemaVersion: '2.2',
+        description: 'harnesswalk: run harnesswalk-up on the origin for one image tag, then wait for /readyz',
+        parameters: {
+          tag: {
+            type: 'String',
+            description: 'Image tag (a git sha) already set in /harnesswalk/prod/IMAGE_TAG',
+            allowedPattern: IMAGE_TAG_PATTERN,
+          },
+        },
+        mainSteps: [
+          {
+            action: 'aws:runShellScript',
+            name: 'deploy',
+            precondition: { StringEquals: ['platformType', 'Linux'] },
+            inputs: {
+              timeoutSeconds: '900',
+              runCommand: [
+                "/usr/local/sbin/harnesswalk-up '{{ tag }}' || exit 1",
+                'for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/readyz && exit 0; sleep 2; done',
+                "echo 'harnesswalk-deploy: /readyz did not answer within 60 s' >&2",
+                'exit 1',
+              ],
+            },
+          },
+        ],
+      },
+    });
 
     new ec2.CfnEIPAssociation(this, 'EipAssociation', {
       allocationId: this.eip.attrAllocationId,

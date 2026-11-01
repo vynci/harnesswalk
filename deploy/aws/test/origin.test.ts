@@ -99,6 +99,38 @@ describe('HarnesswalkOrigin instance', () => {
   });
 });
 
+describe('HarnesswalkOrigin deploy document', () => {
+  const docs = Object.values(origin.findResources('AWS::SSM::Document')).map((d: any) => d.Properties);
+
+  it('is one Command document, harnesswalk-deploy, updated as a new version', () => {
+    expect(docs).toHaveLength(1);
+    expect(docs[0]).toMatchObject({ Name: 'harnesswalk-deploy', DocumentType: 'Command', UpdateMethod: 'NewVersion' });
+  });
+
+  it('takes only a git-sha tag and only runs harnesswalk-up and the /readyz wait', () => {
+    const content = docs[0].Content;
+    expect(Object.keys(content.parameters)).toEqual(['tag']);
+    expect(content.parameters.tag).toMatchObject({ type: 'String', allowedPattern: '^[0-9a-f]{7,40}$' });
+    const pattern = new RegExp(content.parameters.tag.allowedPattern);
+    for (const ok of ['0123abc', 'a29fd6a0c1d2', 'f'.repeat(40)]) expect(pattern.test(ok)).toBe(true);
+    for (const bad of ['latest', 'abc', 'a29fd6a-dirty', 'a29fd6a; reboot', 'A29FD6A', 'f'.repeat(41), "$(id)"]) {
+      expect(pattern.test(bad)).toBe(false);
+    }
+    expect(content.mainSteps).toHaveLength(1);
+    const run: string[] = content.mainSteps[0].inputs.runCommand;
+    expect(content.mainSteps[0].action).toBe('aws:runShellScript');
+    expect(run[0]).toBe("/usr/local/sbin/harnesswalk-up '{{ tag }}' || exit 1");
+    expect(run.join('\n').match(/\{\{[^}]*\}\}/g)).toEqual(['{{ tag }}']);
+    expect(run.join('\n')).toContain('curl -fsS http://127.0.0.1:8000/readyz');
+    for (const line of run.slice(1)) expect(line).toMatch(/^(for i in|echo '|exit 1$)/);
+  });
+
+  it('matches what harnesswalk-up itself accepts', () => {
+    const script = fs.readFileSync(path.join(__dirname, '..', 'lib', 'origin', 'user-data.sh'), 'utf8');
+    expect(script).toContain('[[ "$want" =~ ^[0-9a-f]{7,40}$ ]]');
+  });
+});
+
 describe('HarnesswalkOrigin IAM', () => {
   const st = statements(origin);
   const find = (sid: string) => st.find((s) => s.Sid === sid)!;
