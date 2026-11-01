@@ -16,13 +16,13 @@
         pattern: "^TG-[0-9]{6}$"
         description: Shipment id, for example TG-604118.
   table:
-    TG-604118: { shipment_id: TG-604118, status: in_transit, current_hub: KRN, origin: Brackwater, destination: Ashfold, contract: CC-17, alternate_hub: MAV, last_event: "Departed KRN linehaul on 2026-10-14 at 06:40" }
-    TG-604227: { shipment_id: TG-604227, status: delayed, current_hub: HLM, origin: Saltmarsh, destination: Dunmere, contract: CC-22, alternate_hub: TRB, last_event: "Waiting in the HLM berth queue since 2026-10-13 at 21:15" }
-    TG-604305: { shipment_id: TG-604305, status: held, current_hub: WYN, origin: Fennick, destination: Larchfield, contract: CC-17, alternate_hub: ORS, last_event: "Held at WYN after the yard closure on 2026-10-14 at 11:00" }
+    TG-604118: { shipment_id: TG-604118, status: in_transit, current_hub: KRN, origin: Brackwater, destination: Ashtrave, contract: CC-17, alternate_hub: MAV, last_event: "Departed KRN linehaul on 2026-10-14 at 06:40" }
+    TG-604227: { shipment_id: TG-604227, status: delayed, current_hub: HLM, origin: Saltmarsh, destination: Dunmarrow, contract: CC-22, alternate_hub: TRB, last_event: "Waiting in the HLM berth queue since 2026-10-13 at 21:15" }
+    TG-604305: { shipment_id: TG-604305, status: held, current_hub: WYN, origin: Fennick, destination: Larchwhistle, contract: CC-17, alternate_hub: ORS, last_event: "Held at WYN after the yard closure on 2026-10-14 at 11:00" }
     TG-604412: { shipment_id: TG-604412, status: in_transit, current_hub: MAV, origin: Corvane, destination: Pellam, contract: CC-31, alternate_hub: KRN, last_event: "Scanned out of MAV on 2026-10-14 at 09:05" }
-    TG-604590: { shipment_id: TG-604590, status: delivered, current_hub: TRB, origin: Ashfold, destination: Brackwater, contract: CC-22, alternate_hub: ORS, last_event: "Delivered and signed for on 2026-10-12 at 09:40" }
-    TG-604677: { shipment_id: TG-604677, status: delayed, current_hub: KRN, origin: Dunmere, destination: Saltmarsh, contract: CC-31, alternate_hub: WYN, last_event: "Linehaul cancelled at KRN on 2026-10-13 at 18:30" }
-    TG-604733: { shipment_id: TG-604733, status: in_transit, current_hub: ORS, origin: Larchfield, destination: Corvane, contract: CC-17, alternate_hub: HLM, last_event: "Sorted at ORS on 2026-10-14 at 13:20" }
+    TG-604590: { shipment_id: TG-604590, status: delivered, current_hub: TRB, origin: Ashtrave, destination: Brackwater, contract: CC-22, alternate_hub: ORS, last_event: "Delivered and signed for on 2026-10-12 at 09:40" }
+    TG-604677: { shipment_id: TG-604677, status: delayed, current_hub: KRN, origin: Dunmarrow, destination: Saltmarsh, contract: CC-31, alternate_hub: WYN, last_event: "Linehaul cancelled at KRN on 2026-10-13 at 18:30" }
+    TG-604733: { shipment_id: TG-604733, status: in_transit, current_hub: ORS, origin: Larchwhistle, destination: Corvane, contract: CC-17, alternate_hub: HLM, last_event: "Sorted at ORS on 2026-10-14 at 13:20" }
   missing: { error: not_found }
 
 - name: eta

@@ -5,4 +5,5 @@
 - Cue-based name redaction is off for this pack (the brief asked for it): the detector in
   `harnesswalk/control/pii.py` compiles its cue pattern case-insensitively, so "I am looking"
   or "I'm not sure" are taken as names. The `pii_name_hours` case became `pii_id_phone_hours`
-  (a health number and a phone together) until the detector is fixed.
+  (a health number and a phone together) until the detector is fixed. (Fixed in the P5
+  integration pass: names are redacted again and `pii_name_hours` is back.)

@@ -459,6 +459,12 @@ def write_provenance(pack: str, pack_dir: Path, pdfs: list[str]) -> None:
     title = (yaml.safe_load((pack_dir / "pack.yaml").read_text()) or {}).get("title", pack)
     notes = PROMPTS / f"{pack}.review.md"
     review = notes.read_text(encoding="utf-8").strip() if notes.exists() else "- none"
+    checked = PROMPTS / f"{pack}.content-review.md"  # the content review after generation
+    content_review = (
+        checked.read_text(encoding="utf-8").strip()
+        if checked.exists()
+        else "A maintainer's content review (safety, licence card, no PII) is still pending."
+    )
     rendered = ", ".join(f"`docs/{d}.pdf` (source `sources/{d}.md`)" for d in pdfs) or "none"
     text = f"""# Provenance: {pack}
 
@@ -502,8 +508,7 @@ the pack:
 
 {review}
 
-A maintainer's human review of the content (safety, licence card, no PII) is part of the P5
-integration pass.
+{content_review}
 """
     (pack_dir / "provenance.md").write_text(text, encoding="utf-8")
 
