@@ -9,29 +9,46 @@
 //    Inside a plane dagre lays the nodes out over the plane's own edges plus a chain in walk
 //    order, so a column reads top to bottom in the order a request meets it.
 // 3. In the expert view an expanded parent becomes a container and its expert children sit
-//    inside it in a two-column grid.
+//    inside it: where their own `layout` hints put them (relative to the parent's top-left), or
+//    else in a two-column grid. The padding and gaps leave room for an edge lane between them.
 // 4. The runtime columns share one top and one bottom; the ops row sits beneath them.
 // 5. An edge whose `layout` hint was drawn for these node boxes follows its hint: named sides,
-//    bend points (route.ts). Every other edge is routed automatically around the node boxes.
+//    bend points (route.ts). Every other edge is routed automatically around the node boxes,
+//    with clear air round every node it does not connect and a lane gap between parallel
+//    edges. In the expert view the edges inside one plane are routed first and the plane grows
+//    to hold their lanes; the edges between planes are routed after, through the gutters.
 // 6. In the simple view the edges to and from LLM Ops and the telemetry edges are optional: the
 //    renderer hides them by default and draws one bus per runtime plane into each ops node
 //    instead, clipped to start at the plane's border.
 import { Graph, layout as dagreLayout } from '@dagrejs/dagre'
 import type { Diagram, DiagramEdge, DiagramNode, EdgeKind, PlaneId, Side, View } from '@/api/types'
-import { autoRoute, clipRouteFrom, hintedRoute, labelSpot, RouteBook, type LabelSpot, type Obstacle, type Pt, type Rect } from './route'
+import { autoRoute, clipRouteFrom, hintedRoute, labelSpot, RouteBook, STUB, type LabelSpot, type Obstacle, type Pt, type Rect } from './route'
 
 export const NODE_W = 184
 export const NODE_H = 72
 export const CHILD_W = 144
 export const CHILD_H = 44
-export const CHILD_GAP = 10
-export const PARENT_HEADER = 64
+/** Inside an open group: padding round the children, and the gaps between them. */
+export const GROUP_PAD = 22
+export const GROUP_GAP_X = 30
+export const GROUP_GAP_Y = 28
+/** The group's own title and stat lines, above its children. */
+export const PARENT_HEADER = 62
+/** Where the title and stat lines end: an edge from a group to its own child starts there. */
+const GROUP_TITLE = 42
 export const PLANE_PAD = 22
 export const PLANE_HEADER = 34
 export const PLANE_GAP = 56
 /** Clearance the automatic router keeps from a top-level node and from a nested child. */
-const PAD_NODE = 10
-const PAD_CHILD = 3
+const PAD_NODE = 16
+const PAD_CHILD = 12
+/** How close an edge may run along a group border it crosses, or along a plane border. */
+const RAIL_GROUP = 12
+const RAIL_PLANE = 14
+/** Expert view: a plane grows to keep this much air round the lanes of its own edges. */
+const PLANE_LANE_MARGIN = 18
+/** The straight run out of a nested child before an edge may bend. */
+const CHILD_STUB = 12
 export const RANK_SEP = 36
 /** Planes drawn as a horizontal row under the runtime columns. */
 export const ROW_PLANES: ReadonlySet<PlaneId> = new Set<PlaneId>(['ops'])
@@ -159,16 +176,31 @@ interface Box {
   height: number
 }
 
+/**
+ * Where each shown child sits inside its open parent, relative to the parent's top-left: its
+ * own layout hint, or the next cell of a two-column grid.
+ */
+function childSlots(kids: DiagramNode[]): Map<string, Box & { x: number; y: number }> {
+  const cols = kids.length === 1 ? 1 : 2
+  const out = new Map<string, Box & { x: number; y: number }>()
+  kids.forEach((kid, i) => {
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    const at = kid.layout ?? { x: GROUP_PAD + col * (CHILD_W + GROUP_GAP_X), y: PARENT_HEADER + row * (CHILD_H + GROUP_GAP_Y) }
+    out.set(kid.id, { x: at.x, y: at.y, width: CHILD_W, height: CHILD_H })
+  })
+  return out
+}
+
 function sizeOf(diagram: Diagram, node: DiagramNode, visible: ReadonlySet<string>): Box & { expanded: boolean } {
   const kids = childrenOf(diagram, node.id).filter((c) => visible.has(c.id))
   if (kids.length === 0) {
     const badges = node.id === BADGE_NODE && childrenOf(diagram, node.id).length > 0
     return { width: NODE_W, height: NODE_H + (badges ? BADGE_ROW_H : 0), expanded: false }
   }
-  const cols = kids.length === 1 ? 1 : 2
-  const rows = Math.ceil(kids.length / cols)
-  const width = Math.max(NODE_W, cols * CHILD_W + (cols + 1) * CHILD_GAP)
-  const height = PARENT_HEADER + rows * CHILD_H + (rows + 1) * CHILD_GAP - CHILD_GAP / 2
+  const slots = [...childSlots(kids).values()]
+  const width = Math.max(NODE_W, ...slots.map((c) => c.x + c.width + GROUP_PAD))
+  const height = Math.max(NODE_H, ...slots.map((c) => c.y + c.height + GROUP_PAD))
   return { width, height, expanded: true }
 }
 
@@ -270,24 +302,19 @@ export function computeLayout(diagram: Diagram, opts: ViewOptions): DiagramLayou
   for (const parent of [...laid.values()]) {
     if (!parent.expanded) continue
     const kids = childrenOf(diagram, parent.id).filter((c) => visible.has(c.id))
-    const cols = kids.length === 1 ? 1 : 2
-    const innerW = parent.width - (cols + 1) * CHILD_GAP
-    const w = cols === 1 ? Math.min(innerW, CHILD_W * 1.4) : innerW / 2
-    kids.forEach((kid, i) => {
-      const col = i % cols
-      const row = Math.floor(i / cols)
-      laid.set(kid.id, {
-        id: kid.id,
-        node: kid,
-        x: parent.x + CHILD_GAP + col * (w + CHILD_GAP),
-        y: parent.y + PARENT_HEADER + row * (CHILD_H + CHILD_GAP),
-        width: w,
-        height: CHILD_H,
+    for (const [id, slot] of childSlots(kids)) {
+      laid.set(id, {
+        id,
+        node: kids.find((k) => k.id === id)!,
+        x: parent.x + slot.x,
+        y: parent.y + slot.y,
+        width: slot.width,
+        height: slot.height,
         parentId: parent.id,
         expanded: false,
         hasChildren: false,
       })
-    })
+    }
   }
 
   // Plane boxes are the bounding boxes of their members (layout hints included); the runtime
@@ -309,15 +336,7 @@ export function computeLayout(diagram: Diagram, opts: ViewOptions): DiagramLayou
       height: maxY - minY + 2 * PLANE_PAD + PLANE_HEADER,
     })
   }
-  const columns = planeBoxes.filter((p) => !ROW_PLANES.has(p.id))
-  if (columns.length > 1) {
-    const top = Math.min(...columns.map((p) => p.y))
-    const bottom = Math.max(...columns.map((p) => p.y + p.height))
-    for (const p of columns) {
-      p.y = top
-      p.height = bottom - top
-    }
-  }
+  alignColumns(planeBoxes)
 
   const edges = routeEdges(diagram, opts, visible, laid, planeBoxes)
 
@@ -338,6 +357,32 @@ export function computeLayout(diagram: Diagram, opts: ViewOptions): DiagramLayou
   const minX = Math.min(0, ...planeBoxes.map((p) => p.x))
   const minY = Math.min(0, ...planeBoxes.map((p) => p.y))
   return { nodes: ordered, planes: planeBoxes, edges, width: width - minX, height: height - minY }
+}
+
+/** The runtime columns share one top and one bottom so they read as one band. */
+function alignColumns(planeBoxes: PlaneBox[]): void {
+  const columns = planeBoxes.filter((p) => !ROW_PLANES.has(p.id))
+  if (columns.length < 2) return
+  const top = Math.min(...columns.map((p) => p.y))
+  const bottom = Math.max(...columns.map((p) => p.y + p.height))
+  for (const p of columns) {
+    p.y = top
+    p.height = bottom - top
+  }
+}
+
+/** Grow a plane box to hold `points` with PLANE_LANE_MARGIN of air round them. */
+function growPlane(p: PlaneBox, points: Pt[]): void {
+  if (points.length === 0) return
+  const m = PLANE_LANE_MARGIN
+  const x1 = Math.min(p.x, ...points.map((q) => q[0] - m))
+  const y1 = Math.min(p.y, ...points.map((q) => q[1] - m))
+  const x2 = Math.max(p.x + p.width, ...points.map((q) => q[0] + m))
+  const y2 = Math.max(p.y + p.height, ...points.map((q) => q[1] + m))
+  p.x = x1
+  p.y = y1
+  p.width = x2 - x1
+  p.height = y2 - y1
 }
 
 /** True when an edge belongs to LLM Ops or telemetry, which the simple view may hide. */
@@ -401,38 +446,107 @@ function routeEdges(
     }
     return out
   }
-  for (const { edge } of drawn) {
-    if (routes.has(edge.id)) continue
+  const topOf = (id: string) => {
+    let l = laid.get(id)!
+    while (l.parentId) l = laid.get(l.parentId)!
+    return l
+  }
+  const planeOf = (id: string) => topOf(id).node.group
+  const expert = opts.view === 'expert'
+  const routeAuto = (edge: DiagramEdge, planeRails: boolean) => {
+    const from = laid.get(edge.from)!
+    const to = laid.get(edge.to)!
+    // An edge from a group to one of its own children starts under the group's title, at the
+    // end of the title band away from the stat text.
+    const ownChild = to.parentId === from.id
+    const src: Rect = ownChild
+      ? { x: to.x + to.width / 2, y: from.y, width: to.width / 2, height: GROUP_TITLE }
+      : rectOf(edge.from)
+    const tgt = rectOf(edge.to)
+    const sourceStub = from.parentId || ownChild ? CHILD_STUB : undefined
+    const targetStub = to.parentId ? CHILD_STUB : undefined
     const skip = new Set([...ancestors(edge.from), ...ancestors(edge.to)])
     const obstacles: Obstacle[] = [...laid.values()]
       .filter((l) => !skip.has(l.id))
       .map((l) => ({ x: l.x, y: l.y, width: l.width, height: l.height, pad: l.parentId ? PAD_CHILD : PAD_NODE }))
-    // An edge out of a nested child leaves its open parent by a side, not across the title.
+    const rails: Obstacle[] = []
     for (const id of skip) {
       const l = laid.get(id)!
-      if (l.expanded && id !== edge.from && id !== edge.to) {
-        obstacles.push({ x: l.x + 1, y: l.y + 1, width: l.width - 2, height: PARENT_HEADER - CHILD_GAP - 4, pad: 0 })
+      if (!l.expanded || id === edge.from || id === edge.to) continue
+      // An edge out of a nested child leaves its open parent by a side, not across the title,
+      // and crosses the parent's border rather than running along it.
+      obstacles.push({ x: l.x + 1, y: l.y + 1, width: l.width - 2, height: PARENT_HEADER - 8, pad: 0 })
+      rails.push({ x: l.x, y: l.y, width: l.width, height: l.height, pad: RAIL_GROUP })
+    }
+    // Its own two boxes too, so a route never doubles back across the node it leaves.
+    if (expert) {
+      for (const [r, stub] of [
+        [src, sourceStub],
+        [tgt, targetStub],
+      ] as const) {
+        if (!ownChild || r !== src) obstacles.push({ ...r, pad: (stub ?? STUB) - 4 })
       }
     }
+    if (planeRails) for (const p of planeBoxes) rails.push({ x: p.x, y: p.y, width: p.width, height: p.height, pad: RAIL_PLANE })
+    // The hinted sides still say which way an edge should leave and arrive, where they were
+    // drawn for these boxes: a simple edge's sides fit the simple-view boxes, so the expert
+    // view, which moves and grows them, keeps only the sides of its own expert edges.
+    const sides = !expert || edge.view === 'expert' ? edge.layout?.handles : undefined
+    const parent = from.parentId && from.parentId === to.parentId ? laid.get(from.parentId)! : ownChild ? from : undefined
+    const within: Rect | undefined = parent
+      ? { x: parent.x + 6, y: parent.y + GROUP_TITLE, width: parent.width - 12, height: parent.height - GROUP_TITLE - 6 }
+      : undefined
     const r = autoRoute(
       {
         id: edge.id,
         sourceId: edge.from,
         targetId: edge.to,
-        src: rectOf(edge.from),
-        tgt: rectOf(edge.to),
-        // The hinted sides still say which way an edge should leave and arrive.
-        sourceSides: edge.layout?.handles?.source ? [edge.layout.handles.source] : undefined,
-        targetSides: edge.layout?.handles?.target ? [edge.layout.handles.target] : undefined,
+        src,
+        tgt,
+        sourceSides: sides?.source ? [sides.source] : ownChild ? ['bottom'] : undefined,
+        targetSides: sides?.target ? [sides.target] : undefined,
         obstacles,
         // Ops edges keep to a lane below the runtime planes instead of crossing them.
-        avoid: isOpsEdge(diagram, edge) ? planeBoxes.filter((p) => !ROW_PLANES.has(p.id)) : undefined,
-        sourceStub: laid.get(edge.from)!.parentId ? 6 : undefined,
-        targetStub: laid.get(edge.to)!.parentId ? 6 : undefined,
+        avoid: isOpsEdge(diagram, edge) && planeOf(edge.from) !== planeOf(edge.to) ? planeBoxes.filter((p) => !ROW_PLANES.has(p.id)) : undefined,
+        rails,
+        within,
+        sourceStub,
+        targetStub,
+        // An arrow onto an open group from the side lands on its title band, clear of the
+        // ports of the children inside.
+        targetBand: to.expanded ? PARENT_HEADER - 12 : undefined,
       },
       book,
     )
     routes.set(edge.id, { ...r, hinted: false })
+  }
+  // Shorter edges first: they take the direct lanes and the longer ones nest outside them.
+  const centre = (id: string) => {
+    const l = laid.get(id)!
+    return [l.x + l.width / 2, l.y + l.height / 2]
+  }
+  const span = (e: DiagramEdge) => {
+    const [ax, ay] = centre(e.from)
+    const [bx, by] = centre(e.to)
+    return Math.abs(ax! - bx!) + Math.abs(ay! - by!)
+  }
+  const pending = drawn
+    .filter(({ edge }) => !routes.has(edge.id))
+    .map(({ edge }) => edge)
+    .sort((a, b) => (expert ? span(a) - span(b) : 0))
+  if (expert) {
+    // Edges inside one plane first; the plane then grows to hold their lanes, and the edges
+    // between planes route through the gutters that are left.
+    const inner = pending.filter((e) => planeOf(e.from) === planeOf(e.to))
+    for (const e of inner) routeAuto(e, false)
+    for (const p of planeBoxes) {
+      const pts = inner.filter((e) => planeOf(e.from) === p.id).flatMap((e) => routes.get(e.id)!.points)
+      growPlane(p, pts)
+    }
+    alignColumns(planeBoxes)
+    for (const e of pending) if (!routes.has(e.id)) routeAuto(e, true)
+  } else {
+    for (const e of pending) routeAuto(e, false)
   }
 
   const simple = opts.view === 'simple'
