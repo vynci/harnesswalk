@@ -125,3 +125,77 @@ CLI: `harnesswalk release list|create [--note]|rollback <release_id>|diff <relea
 | `release.sqlite_path` | `data/releases.db` | |
 | `release.use_working_set` | `true` in dev, else `false` | Serve the working set instead of the active release |
 | `release.lease.heartbeat_s` | `5` | `serve`'s owner lock heartbeat (`data/owner.lock`) |
+
+## P5 additions: the eval gate, packs, a chained activation log
+
+Additive. The P4 shapes stay; new fields are listed where they appear.
+
+### The eval gate
+
+```yaml
+release:
+  gate:
+    enabled: true          # the switch; P0's release.require_gate is not read
+    suite: golden          # golden only in this version (judged runs need a hosted model)
+    min_pass_rate: 1.0     # passed / (cases - skipped), from 0 to 1
+    packs: all             # all, or a list of pack ids whose releases are gated
+```
+
+- `POST /v1/releases` (and `harnesswalk release create`) runs the gate before it snapshots the
+  working set. Releases are per pack, so the gate runs the golden set of the pack being
+  released, on the candidate: the pack's working set. Where the harness serves the working set
+  (dev) that is what turns already run on; where it serves the active release, a candidate
+  copy of the artifact-backed components is built from the working set for the gate's turns.
+- The gate is an ordinary eval run of the caller's tenant (`evaluator.md`), so its progress is
+  on the ops streams like any run (`eval_run_started.summary.purpose: release_gate`, then
+  `eval_case_finished` per case, `eval_run_finished`), and it is the previous run the next run
+  of that pack is diffed against. The request waits for it.
+- Outcome, recorded as the release's `gate`:
+
+| `gate.status` | When |
+|---|---|
+| `passed` | The run finished and its pass rate is at least `min_pass_rate` |
+| `failed` | The run errored, or its pass rate is below `min_pass_rate`, or the working set changed while the gate ran. No release is created: `409 gate_failed` |
+| `skipped` | The gate is off (`reason: disabled`), the pack is not in `packs` (`pack_not_gated`), the golden set has no case to run (`no_cases`), the release was forced (`forced`), or the harness made it at start-up (`startup`) |
+
+- `gate` is `{status, reason, suite, min_pass_rate, pass_rate, run_ids, failed_cases, forced}`
+  (`pass_rate` is `null` when nothing ran; `failed_cases` lists at most 20 case ids). When a
+  release carries `gate` it is part of the hashed fields (`release_hash` covers `gate` next to
+  the P4 fields), so a stored gate result cannot be altered without breaking the chain.
+  Releases made before P5 have no `gate` and verify as before.
+- `force: true` skips the gate: dev mode only (`403 forbidden_in_mode` in other modes),
+  recorded as `gate: {status: skipped, reason: forced, forced: true}` and in the audit log
+  (`action: release_forced`, the pack and the release id). `harnesswalk release create
+  --no-gate` is the same thing from the CLI, under the same mode rule.
+- A gate that ran an eval run, and a forced release, emit one `release_gated` ops event
+  (`events.md` section 11) before the release: status `done` for passed or skipped, `error`
+  for failed. The release's `artifact_released` then carries `summary.gate`.
+- A rollback is not gated: it makes a release active that was gated when it was created.
+
+### Packs
+
+Every artifact operation names a pack (`pack` in the body or query, default the configured
+`dataset`). Pack kinds (`prompt`, `skill`, `tools`) are per pack, global kinds (`policy`,
+`context`, `models`) are shared by every pack, as in P4. Each pack has its own releases, its own
+active release and its own served set; a pack that a session picks is seeded and released
+(`r<n>`, note `initial`) the first time it is loaded. An edit of a global kind changes the
+working set of every pack; the other packs pick it up before their next turn.
+
+### The activation log
+
+`activations` (which release became active, when, by whom, `rollback_of`) is hash-chained per
+pack from P5 on: each row has `prev_hash` and `hash` = sha256 of the canonical JSON of `{pack,
+release_id, at, by, rollback_of, prev_hash}`, the first row of a pack chaining from 64 zeros.
+Rows written before P5 are chained the first time a P5 harness opens the store. Verifying a
+pack checks both chains: `verify` gains `activations` (the count) and, when the activation
+chain is broken, `activation_broken_at` (the row's position, from 1).
+
+| Key | Default | Meaning |
+|---|---|---|
+| `release.gate.enabled` | `true` (`false` in the conformance profile) | Run the eval gate on release |
+| `release.gate.suite` | `golden` | |
+| `release.gate.min_pass_rate` | `1.0` | |
+| `release.gate.packs` | `all` | `all` or a list of pack ids |
+
+CLI: `harnesswalk release create [--note] [--pack ID] [--no-gate]` prints `created <id>` and the
+gate line, or `gate failed` with the failing cases and exits 1.

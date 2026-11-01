@@ -2,6 +2,7 @@
 the code peek, capabilities, per-turn options, web/dist serving and dev-mode CORS."""
 
 import asyncio
+import copy
 import json
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ SUMMARY_KEYS = {
     "message", "started_at", "ended_at", "cost", "event_count", "paused_at_node",
     "pending_approval_id",
     "feedback", "scores", "checkpoint", "release",  # P4
+    "pack", "diagnosis",  # P5
 }  # fmt: skip
 
 
@@ -310,7 +312,11 @@ async def test_node_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         assert text.splitlines()[names["Policy"]["line"] - 1].startswith("class Policy")
         assert (await c.get("/v1/nodes/memory/source")).json()["path"].endswith("__init__.py")
 
-        r = await c.get("/v1/nodes/diagnose/source")  # no file yet
+        # Every node has its file since P5 (diagnose): point one hint at a missing file.
+        nodes = copy.deepcopy(inspectors.diagram.nodes_by_id())
+        nodes["diagnose"]["source_hint"] = "harnesswalk/ops/eval/not_there.py"
+        monkeypatch.setattr(inspectors.diagram, "nodes_by_id", lambda: nodes)
+        r = await c.get("/v1/nodes/diagnose/source")
         assert r.status_code == 404 and r.json()["error"]["code"] == "source_not_found"
         r = await c.get("/v1/nodes/not_a_node/source")
         assert r.status_code == 404 and r.json()["error"]["code"] == "node_not_found"
@@ -362,7 +368,9 @@ async def test_capabilities_per_mode(tmp_path: Path) -> None:
         "byo_key": False, "disable_nodes": True, "knowledge": False, "memory_review": True,
         "evals": True, "judge": False, "release": True, "artifact_edit": True,
         "feedback": True, "step_over": True,
+        "packs": True, "diagnose": True,  # P5
     }  # fmt: skip
+    assert caps["packs"] == {"default": "_starter", "ids": ["_starter", "conformance_alt"]}
     assert caps["release"]["active_release_id"] == "r1"
     assert caps["release"]["working_set_dirty"] is False and caps["release"]["use_working_set"]
     assert caps["limits"]["max_steps"] == h.settings.get("loop.max_steps")

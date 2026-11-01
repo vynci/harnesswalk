@@ -1,0 +1,12 @@
+fixture: pack_switch
+description: P5. A fact remembered in a session on the default pack.
+model: fake-small
+turns:
+  - responses:
+      - tool_calls:
+          - { call_id: call_1, name: remember, arguments: { kind: fact, key: locker code, value: "4417" } }
+        usage: { input_tokens: 210, output_tokens: 28 }
+        expect: { last_message_role: user, last_message_contains: locker code }
+      - text: Noted, your locker code 4417 is saved.
+        usage: { input_tokens: 260, output_tokens: 11 }
+        expect: { last_message_role: tool }

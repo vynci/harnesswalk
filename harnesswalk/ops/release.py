@@ -88,6 +88,19 @@ POLICY_SCHEMA = {
 }
 
 
+# The gate of a release the harness makes itself when it seeds or imports files at start-up.
+STARTUP_GATE: dict[str, Any] = {
+    "status": "skipped",
+    "reason": "startup",
+    "suite": None,
+    "min_pass_rate": None,
+    "pass_rate": None,
+    "run_ids": [],
+    "failed_cases": [],
+    "forced": False,
+}
+
+
 class ArtifactInvalid(ValueError):
     """A candidate body that fails validation (HTTP 422 invalid_artifact)."""
 
@@ -163,7 +176,12 @@ def render_skill(item: dict[str, Any]) -> str:
 
 
 def sources(settings: Settings) -> list[Source]:
-    """Every artifact the files (or the inline profile values) define, for seeding."""
+    """Every artifact the files (or the inline profile values) define, for seeding.
+
+    P5: the pack's files come from its directory wherever it lives (`packs.roots`); they are
+    still named `datasets/<pack>/...` in the served set, which is how everything reads them."""
+    from harnesswalk.ops.pack_index import pack_dir
+
     root = settings.root
     pack = settings.get("dataset", "_starter")
     out: list[Source] = []
@@ -171,22 +189,25 @@ def sources(settings: Settings) -> list[Source]:
         if (root / rel).is_file():
             out.append(Source(kind, kind, (root / rel).read_text(encoding="utf-8"), rel))
     inline = settings.get("procedural", {}) or {}
-    pack_dir = root / "datasets" / pack
+    directory = pack_dir(settings, pack)
+
+    def shown(path: Path) -> str:
+        return str(path.relative_to(root)) if path.is_relative_to(root) else str(path)
+
     if "system_prompt" in inline:
         out.append(Source("prompt", PROMPT_NAME, str(inline["system_prompt"]), None))
-    elif (pack_dir / "system_prompt.md").is_file():
-        rel = f"datasets/{pack}/system_prompt.md"
-        out.append(Source("prompt", PROMPT_NAME, (root / rel).read_text(encoding="utf-8"), rel))
+    elif (directory / "system_prompt.md").is_file():
+        path = directory / "system_prompt.md"
+        out.append(Source("prompt", PROMPT_NAME, path.read_text(encoding="utf-8"), shown(path)))
     if "skills" in inline:
         for item in inline["skills"] or []:
             out.append(Source("skill", item["name"], render_skill(item), None))
     else:
-        for path in sorted((pack_dir / "skills").glob("*.md")):
-            rel = str(path.relative_to(root))
-            out.append(Source("skill", path.stem, path.read_text(encoding="utf-8"), rel))
-    if (pack_dir / "tools.yaml").is_file():
-        rel = f"datasets/{pack}/tools.yaml"
-        out.append(Source("tools", TOOLS_NAME, (root / rel).read_text(encoding="utf-8"), rel))
+        for path in sorted((directory / "skills").glob("*.md")):
+            out.append(Source("skill", path.stem, path.read_text(encoding="utf-8"), shown(path)))
+    if (directory / "tools.yaml").is_file():
+        path = directory / "tools.yaml"
+        out.append(Source("tools", TOOLS_NAME, path.read_text(encoding="utf-8"), shown(path)))
     return out
 
 
@@ -314,11 +335,14 @@ class ReleaseManager:
         self.store = ArtifactStore(str(path))
         self.imported = self.store.sync(self.pack, sources(settings))
         if self.store.active_release_id(self.pack) is None:
-            self.store.create_release(self.pack, by="seed", note="initial")
+            self.store.create_release(self.pack, by="seed", note="initial", gate=STARTUP_GATE)
         elif self.imported and not self.use_working_set:
             # Files are what was deployed: outside dev a changed file is released at start-up.
             names = ", ".join(f"{v.kind}/{v.name}" for v in self.imported)
-            self.store.create_release(self.pack, by="disk", note=f"imported at start-up: {names}")
+            self.store.create_release(
+                self.pack, by="disk", note=f"imported at start-up: {names}", gate=STARTUP_GATE
+            )
+        self._recorded: set[str] = set()
         self.seen_generation = self.store.generation()
         self.served = self._compute_served()
 
@@ -392,12 +416,36 @@ class ReleaseManager:
         return released != working
 
     def stamp(self) -> dict[str, Any]:
-        """What a turn runs on, for `turn_start.summary.release`."""
+        """What a turn runs on, for `turn_start.summary.release`. P5: the served set behind
+        the hash is kept in the store, so diagnose can name its artifact versions later."""
+        digest = self.served_hash(self._served_list())
+        if digest not in self._recorded:
+            self.store.record_served(digest, self.pack, self.served_refs())
+            self._recorded.add(digest)
         return {
             "release_id": self.store.active_release_id(self.pack),
             "working_set": self.use_working_set,
-            "artifacts_hash": self.served_hash(self._served_list()),
+            "artifacts_hash": digest,
         }
+
+    def served_refs(self) -> list[dict[str, Any]]:
+        """`{kind, name, version, hash}` of every artifact in the served set."""
+        out = []
+        for path, body in sorted(self.served.files.items()):
+            kind, name = self._kind_name(path)
+            out.append(
+                {
+                    "kind": kind,
+                    "name": name,
+                    "version": self.served.versions.get(path),
+                    "hash": sha256(body),
+                }
+            )
+        return out
+
+    def working_set_hash(self) -> str:
+        """The hash a release of the working set would serve (the gate checks it is unchanged)."""
+        return self.served_hash(self.store.working_set(self.pack))
 
     # -- reading ------------------------------------------------------------------------------
 
@@ -460,8 +508,8 @@ class ReleaseManager:
             )
         return out
 
-    def create(self, *, by: str, note: str | None) -> Release:
-        return self.store.create_release(self.pack, by=by, note=note)
+    def create(self, *, by: str, note: str | None, gate: dict[str, Any] | None = None) -> Release:
+        return self.store.create_release(self.pack, by=by, note=note, gate=gate)
 
     def rollback(self, release_id: str, *, by: str) -> tuple[Release, list[dict[str, Any]]]:
         rel = self.store.release(release_id)
@@ -604,11 +652,19 @@ def body_from_json(value: Any) -> str:
 
 
 def _apply(harness: Any) -> bool:
-    """Reload the harness when the served set changed. True when it did."""
+    """Reload the harness (or the pack view) when the served set changed. True when it did.
+
+    P5: an edit of a global kind (policy, context, models) changes every pack's working set,
+    so the other loaded packs pick it up now too, not only before their next turn."""
+    changed = False
     if harness.release.refresh():
         harness.reload()
-        return True
-    return False
+        changed = True
+    root = harness.__dict__.get("harness", harness)
+    for view in [root, *root.packs.values()]:
+        if view is not harness:
+            view.refresh_artifacts()
+    return changed
 
 
 def apply_edit(
@@ -649,15 +705,24 @@ def apply_edit(
     return out
 
 
-def apply_create(harness: Any, tenant_id: str, *, note: str | None = None) -> dict[str, Any]:
+def apply_create(
+    harness: Any,
+    tenant_id: str,
+    *,
+    note: str | None = None,
+    gate: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Snapshot the working set as a release, without the gate (see apply_create_gated)."""
     from harnesswalk.ops.ops_events import OPS_STREAM
 
     rm: ReleaseManager = harness.release
     if not rm.use_working_set and harness.busy():  # it changes what is served
         raise Busy("a turn or an eval run is running; try again when it ends")
     before = rm.store.active_release_id(rm.pack)
-    rel = rm.create(by=f"user:{tenant_id}", note=note)
+    rel = rm.create(by=f"user:{tenant_id}", note=note, gate=gate)
     summary = released_summary(rel, previous_active=before)
+    if gate is not None:
+        summary["gate"] = gate["status"]  # P5: passed or skipped (events.md section 11)
     harness.ops.emit(tenant_id, OPS_STREAM, "artifact_released", "release", "done", summary)
     _apply(harness)
     return rm.release_detail(rel.release_id) or rel.to_dict()
@@ -684,3 +749,206 @@ def apply_rollback(harness: Any, tenant_id: str, release_id: str) -> dict[str, A
     _apply(harness)
     detail = rm.release_detail(release_id) or rel.to_dict()
     return {**detail, "rollback_of": previous, "reset": reset, **rm.status()}
+
+
+# -- the eval gate (P5) -------------------------------------------------------------------------
+#
+# A release runs the pack's golden set on the candidate (the working set) first. The gate is an
+# ordinary eval run of the caller's tenant with `purpose: release_gate`; a release is made only
+# when it passes (or is skipped), and it records the result, which its hash covers.
+
+
+class GateFailed(Exception):
+    """The eval gate refused the release (HTTP 409 gate_failed). `detail` is the response."""
+
+    def __init__(self, message: str, detail: dict[str, Any]) -> None:
+        super().__init__(message)
+        self.detail = detail
+
+
+def gate_config(settings: Any) -> dict[str, Any]:
+    cfg = settings.get("release.gate", {}) or {}
+    packs = cfg.get("packs", "all")
+    return {
+        "enabled": bool(cfg.get("enabled", True)),
+        "suite": str(cfg.get("suite", "golden")),
+        "min_pass_rate": float(cfg.get("min_pass_rate", 1.0)),
+        "packs": packs if packs == "all" else [str(p) for p in packs or []],
+    }
+
+
+def _gate(cfg: dict[str, Any], status: str, reason: str | None, **extra: Any) -> dict[str, Any]:
+    return {
+        "status": status,
+        "reason": reason,
+        "suite": cfg["suite"],
+        "min_pass_rate": cfg["min_pass_rate"],
+        "pass_rate": None,
+        "run_ids": [],
+        "failed_cases": [],
+        "forced": False,
+        **extra,
+    }
+
+
+def _harness_of(view: Any) -> Any:
+    """The Harness behind a pack view (the view itself for the configured pack)."""
+    return view.__dict__.get("harness", view)
+
+
+async def run_gate(view: Any, tenant_id: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Run the pack's golden set on the release candidate. Returns (gate, failing cases)."""
+    from harnesswalk.ops.eval import EvalRequestError
+    from harnesswalk.ops.eval.golden import GoldenError
+
+    cfg = gate_config(view.settings)
+    pack = view.pack
+    if not cfg["enabled"]:
+        return _gate(cfg, "skipped", "disabled"), []
+    if cfg["packs"] != "all" and pack not in cfg["packs"]:
+        return _gate(cfg, "skipped", "pack_not_gated"), []
+    if cfg["suite"] != "golden":
+        raise ValueError("release.gate.suite must be golden in this version")
+    offline = view.evals.offline
+    try:
+        cases = offline.golden(pack)
+    except GoldenError:
+        cases = []
+    if not any(c.fixture for c in cases):
+        return _gate(cfg, "skipped", "no_cases"), []
+    harness = _harness_of(view)
+    candidate = harness.candidate(pack)
+    before = view.release.working_set_hash()
+    try:
+        run = offline.start(
+            tenant_id,
+            pack,
+            "golden",
+            by=f"gate:{tenant_id}",
+            purpose="release_gate",
+            runtime=candidate if candidate is not view else None,
+        )
+        await offline.wait(run["run_id"])
+    except EvalRequestError as exc:
+        raise Busy(f"the eval gate cannot run now: {exc.message}") from exc
+    finally:
+        if candidate is not view:
+            candidate.close()
+    store = view.evals.store
+    done = store.run(tenant_id, run["run_id"]) or run
+    results = store.cases(run["run_id"])
+    totals = done["totals"]
+    ran = totals["cases"] - totals["skipped"]
+    if ran <= 0:
+        return _gate(cfg, "skipped", "no_cases", run_ids=[run["run_id"]]), []
+    failing = [c for c in results if c["status"] in ("failed", "error")]
+    pass_rate = round(totals["passed"] / ran, 4)
+    status, reason = "passed", None
+    if done["status"] != "done":
+        status, reason = "failed", "run_error"
+    elif pass_rate < cfg["min_pass_rate"]:
+        status, reason = "failed", "below_min_pass_rate"
+    elif view.release.working_set_hash() != before:
+        status, reason = "failed", "working_set_changed"
+    gate = _gate(
+        cfg,
+        status,
+        reason,
+        pass_rate=pass_rate,
+        run_ids=[run["run_id"]],
+        failed_cases=[c["case_id"] for c in failing][:20],
+    )
+    shown = [
+        {
+            "case_id": c["case_id"],
+            "title": c.get("title"),
+            "status": c["status"],
+            "run_id": run["run_id"],
+            "events_url": c.get("events_url"),
+            "scores": {k: v for k, v in (c.get("scores") or {}).items() if not v.get("pass")},
+            "error": c.get("error"),
+            "diagnosis": (
+                {"layer": c["diagnosis"]["layer"], "suggestion": c["diagnosis"]["suggestion"]}
+                if c.get("diagnosis")
+                else None
+            ),
+        }
+        for c in failing[:20]
+    ]
+    return gate, shown
+
+
+def _emit_gated(view: Any, tenant_id: str, gate: dict[str, Any]) -> None:
+    from harnesswalk.ops.ops_events import OPS_STREAM
+
+    summary: dict[str, Any] = {
+        "pack": view.pack,
+        "gate": gate["status"],
+        "run_ids": gate["run_ids"],
+        "pass_rate": gate["pass_rate"],
+        "min_pass_rate": gate["min_pass_rate"],
+        "suite": gate["suite"],
+        "failed_cases": gate["failed_cases"],
+        "forced": gate["forced"],
+        "reason": gate["reason"],
+    }
+    status = "error" if gate["status"] == "failed" else "done"
+    view.ops.emit(
+        tenant_id,
+        OPS_STREAM,
+        "release_gated",
+        "release",
+        status,
+        {k: v for k, v in summary.items() if v is not None},
+    )
+
+
+def _audit_forced(view: Any, tenant_id: str, release_id: str, note: str | None) -> None:
+    from types import SimpleNamespace
+
+    from harnesswalk.control.audit import AuditEntry
+    from harnesswalk.events import new_trace_id
+
+    entry = AuditEntry(
+        action="release_forced",
+        actor=f"user:{tenant_id}",
+        turn_id="",
+        trace_id=new_trace_id(),
+        decision="forced",
+        extra={"pack": view.pack, "release_id": release_id, "note_chars": len(note or "")},
+    )
+    view.audit.append(SimpleNamespace(tenant_id=tenant_id), entry)
+
+
+async def apply_create_gated(
+    view: Any, tenant_id: str, *, note: str | None = None, force: bool = False
+) -> dict[str, Any]:
+    """POST /v1/releases and `harnesswalk release create`: the gate, then the release.
+
+    Raises GateFailed (no release made) when the gate fails, Busy as apply_create does. The
+    caller checks that `force` is allowed in this mode (dev only)."""
+    rm: ReleaseManager = view.release
+    if not rm.use_working_set and view.busy():
+        raise Busy("a turn or an eval run is running; try again when it ends")
+    if force:
+        cfg = gate_config(view.settings)
+        gate, failing = _gate(cfg, "skipped", "forced", forced=True), []
+    else:
+        gate, failing = await run_gate(view, tenant_id)
+    if gate["run_ids"] or gate["forced"]:  # the gate ran, or was skipped on purpose
+        _emit_gated(view, tenant_id, gate)
+    if gate["status"] == "failed":
+        failed = len(gate["failed_cases"])
+        what = {
+            "run_error": "the gate's eval run did not finish",
+            "working_set_changed": "the working set changed while the gate ran",
+        }.get(gate["reason"] or "", f"{failed} case(s) failed")
+        raise GateFailed(
+            f"The {gate['suite']} gate failed for pack {view.pack}: {what} (pass rate"
+            f" {gate['pass_rate']}, needs {gate['min_pass_rate']}).",
+            {"gate": gate, "cases": failing},
+        )
+    out = apply_create(view, tenant_id, note=note, gate=gate)
+    if force:
+        _audit_forced(view, tenant_id, out["release_id"], note)
+    return out
