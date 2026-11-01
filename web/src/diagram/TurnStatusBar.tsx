@@ -115,7 +115,7 @@ export function TurnStatusBar({ turn }: { turn: TurnState }) {
   return (
     <Card
       size="sm"
-      className="pointer-events-none absolute top-3 left-3 z-10 flex-row flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-card/95 px-3 py-1.5 text-xs"
+      className="pointer-events-none absolute top-3 left-3 z-10 max-w-[calc(100%-15rem)] flex-row flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-card/95 px-3 py-1.5 text-xs"
       data-testid="turn-status"
       data-phase={turn.phase}
     >
