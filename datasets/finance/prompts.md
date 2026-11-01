@@ -20,3 +20,5 @@ Hollowmere Capital Partners shows citations and the memory writer. Fund answers 
    *The glossary passage is retrieved and cited.*
 9. My account is LP-4417-2093-58. Can you see my balance?
    *Input guardrails replace the account number with a placeholder before the model sees it.*
+10. What is the latest NAV for HCP-02, and in which currency does the fund report it?
+   *The fund_nav tool gives the NAV; the reporting currency comes from the HCP-02 fact sheet, cited [1].*
