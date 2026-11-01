@@ -17,9 +17,9 @@ export function normalizePrompts(prompts: unknown): string[] {
   return out
 }
 
-/** The pack whose prompts to show: the one named, else `_starter`, else the first listed. */
+/** The pack whose prompts to show: the one named, else the API's default, else `_starter`, else the first listed. */
 export function pickPack(packs: PackSummary[], packId: string | null | undefined): PackSummary | undefined {
-  return packs.find((p) => p.id === packId) ?? packs.find((p) => p.id === '_starter') ?? packs[0]
+  return packs.find((p) => p.id === packId) ?? packs.find((p) => p.default) ?? packs.find((p) => p.id === '_starter') ?? packs[0]
 }
 
 const listed = new WeakMap<Api, Promise<PackSummary[]>>()

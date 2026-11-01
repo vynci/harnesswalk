@@ -350,6 +350,8 @@ export interface PackSummary {
   id: string
   title?: string
   prompts?: unknown
+  /** True for the configured `dataset` (GET /v1/packs, P5). */
+  default?: boolean
 }
 
 // ---------- Context plane (P3) ----------

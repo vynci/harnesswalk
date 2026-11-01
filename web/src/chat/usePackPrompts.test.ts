@@ -17,5 +17,6 @@ describe('pack prompts', () => {
     expect(pickPack(packs, null)!.id).toBe('_starter')
     expect(pickPack([{ id: 'clinic' }], 'nope')!.id).toBe('clinic')
     expect(pickPack([], null)).toBeUndefined()
+    expect(pickPack([{ id: '_starter' }, { id: 'clinic', default: true }], null)!.id).toBe('clinic')
   })
 })
