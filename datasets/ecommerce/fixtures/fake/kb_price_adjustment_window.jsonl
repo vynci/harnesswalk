@@ -1,0 +1,1 @@
+{"responses": [{"text": "Yes, if you ask within 7 days of purchase [2]. Contact support with your order id and the team will review it.", "usage": {"input_tokens": 765, "output_tokens": 36}, "expect": {"last_message_role": "user"}}]}

@@ -1,0 +1,20 @@
+{"key": "shop_name", "value": "Quillfern Outfitters sells outdoor and home goods online, with its own Quillridge, Fernpath, Emberhollow, Mothdown and Fernglow lines."}
+{"key": "support_hours", "value": "Support is open Monday to Saturday, 8:00 to 20:00 Eastern."}
+{"key": "return_window", "value": "The return window is 30 days from delivery for unused items."}
+{"key": "opened_electronics_window", "value": "Opened electronics can be returned within 14 days of delivery."}
+{"key": "return_label_fee", "value": "The return label fee is 6 dollars, waived for defects."}
+{"key": "free_shipping", "value": "Standard shipping is free on orders over 75 dollars."}
+{"key": "standard_shipping", "value": "Standard shipping takes 3 to 6 business days."}
+{"key": "express_shipping", "value": "Express shipping takes 1 to 2 business days."}
+{"key": "price_adjustment", "value": "Price adjustments are honoured within 7 days of purchase."}
+{"key": "tent_warranty", "value": "Tents and packs carry a 2 year warranty."}
+{"key": "cookware_warranty", "value": "Emberhollow cast iron carries a lifetime warranty."}
+{"key": "refund_timing", "value": "Refunds arrive in 5 business days after they are issued."}
+{"key": "cancel_rule", "value": "Only orders in processing status can be cancelled."}
+{"key": "approval_rule", "value": "Cancellations and refunds always need a human approval before they run."}
+{"key": "pref_QF-20417", "value": "Customer asked to be told when the Quillridge tent passes the sort hub. Prefers short replies.", "entities": ["QF-20417"]}
+{"key": "pref_QF-20388", "value": "Customer reported the lantern arrived with a cracked lens and wants money back, not a replacement.", "entities": ["QF-20388"]}
+{"key": "pref_QF-20402", "value": "Customer is considering returning the cookware set because the lid is too small for their stove.", "entities": ["QF-20402"]}
+{"key": "pref_QF-20430", "value": "Customer ordered the 45L pack by mistake and wants the 55L instead.", "entities": ["QF-20430"]}
+{"key": "pref_QF-20371", "value": "Customer asked about the tent warranty after a pole bent on a camping trip.", "entities": ["QF-20371"]}
+{"key": "gift_card_note", "value": "Gift cards never expire and cannot be refunded to cash."}

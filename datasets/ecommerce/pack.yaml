@@ -1,0 +1,26 @@
+id: ecommerce
+title: Quillfern Outfitters
+domain: ecommerce
+summary: An online outdoor and home goods shop where cancelling an order or issuing a refund pauses for
+  a human approval before anything changes.
+tier: domain
+feature:
+  id: approval
+  name: Destructive action behind approval
+  nodes:
+  - policy
+  - approval
+  - audit
+  summary: Cancelling an order and issuing a refund are destructive tools, so policy returns needs_approval
+    and the turn stops in the approval node. The audit node records the order before and after, and the
+    tool only runs if a human approves.
+licence: CC0-1.0
+provenance: provenance.md
+synthetic: true
+suggested_prompts:
+- Where is my order QF-20417?
+- Please cancel order QF-20430, I ordered the wrong size.
+- I want a refund for order QF-20388, the lantern arrived cracked.
+- Can I return an opened headlamp after three weeks?
+- Track shipment QT-58120394 for me.
+- How long is the warranty on a Quillridge tent?

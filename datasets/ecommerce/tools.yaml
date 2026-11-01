@@ -1,0 +1,87 @@
+# Quillfern Outfitters bundled data. These tables are synthetic and stand in for the
+# shop's order and shipping systems.
+- name: lookup_order
+  description: Look up an order by its id and return status, items, total and dates.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [order_id]
+    properties:
+      order_id:
+        type: string
+        pattern: "^QF-[0-9]{5}$"
+        description: Order id such as QF-20417.
+  table:
+    QF-20417: { order_id: QF-20417, status: shipped, items: "Quillridge 3-person tent", total: "289.00", placed_on: "2026-10-12", tracking_id: QT-58120394 }
+    QF-20388: { order_id: QF-20388, status: delivered, items: "Fernglow lantern", total: "42.50", placed_on: "2026-10-05", tracking_id: QT-58120112, delivered_on: "2026-10-11" }
+    QF-20402: { order_id: QF-20402, status: delivered, items: "Emberhollow 5-piece cookware set", total: "164.00", placed_on: "2026-10-08", tracking_id: QT-58120255, delivered_on: "2026-10-14" }
+    QF-20430: { order_id: QF-20430, status: processing, items: "Fernpath 45L backpack", total: "129.00", placed_on: "2026-10-28" }
+    QF-20433: { order_id: QF-20433, status: processing, items: "Mothdown 0C sleeping bag", total: "96.00", placed_on: "2026-10-29" }
+    QF-20371: { order_id: QF-20371, status: delivered, items: "Quillridge 2-person tent", total: "219.00", placed_on: "2026-09-02", tracking_id: QT-58119870, delivered_on: "2026-09-09" }
+    QF-20355: { order_id: QF-20355, status: cancelled, items: "Fernglow lantern, 2 pack", total: "79.00", placed_on: "2026-09-20" }
+  missing: { error: not_found }
+- name: track_shipment
+  description: Track a shipment by its tracking id and return the carrier, last scan, status and eta.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [tracking_id]
+    properties:
+      tracking_id:
+        type: string
+        pattern: "^QT-[0-9]{8}$"
+        description: Tracking id such as QT-58120394.
+  table:
+    QT-58120394: { tracking_id: QT-58120394, order_id: QF-20417, carrier: "Marlowe Freight", last_scan: "Harbour District sort hub, 2026-10-30 at 06:40", status: in_transit, eta: "2026-11-02" }
+    QT-58120112: { tracking_id: QT-58120112, order_id: QF-20388, carrier: "Marlowe Freight", last_scan: "Delivered to front porch, 2026-10-11 at 14:05", status: delivered, eta: "2026-10-11" }
+    QT-58120255: { tracking_id: QT-58120255, order_id: QF-20402, carrier: "Brindle Parcel", last_scan: "Delivered to parcel locker, 2026-10-14 at 11:20", status: delivered, eta: "2026-10-14" }
+    QT-58119870: { tracking_id: QT-58119870, order_id: QF-20371, carrier: "Brindle Parcel", last_scan: "Delivered to front desk, 2026-09-09 at 16:45", status: delivered, eta: "2026-09-09" }
+  missing: { error: not_found }
+- name: cancel_order
+  description: Cancel an order that is still processing and refund it to the original payment method. Needs human approval.
+  action_class: destructive
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  audit: { before: lookup_order }
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [order_id]
+    properties:
+      order_id:
+        type: string
+        pattern: "^QF-[0-9]{5}$"
+        description: Order id of a processing order, such as QF-20430.
+  table:
+    QF-20430: { order_id: QF-20430, status: cancelled, refund: "129.00", refund_to: "original payment method" }
+    QF-20433: { order_id: QF-20433, status: cancelled, refund: "96.00", refund_to: "original payment method" }
+  missing: { error: not_cancellable, reason: only processing orders can be cancelled }
+- name: issue_refund
+  description: Refund a delivered order that is inside the 30-day return window. Needs human approval.
+  action_class: destructive
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  audit: { before: lookup_order }
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [order_id]
+    properties:
+      order_id:
+        type: string
+        pattern: "^QF-[0-9]{5}$"
+        description: Order id of a delivered order inside the return window.
+  table:
+    QF-20388: { order_id: QF-20388, refund: "42.50", status: refund_issued, arrives_in: "5 business days" }
+    QF-20402: { order_id: QF-20402, refund: "164.00", status: refund_issued, arrives_in: "5 business days" }
+  missing: { error: not_refundable }

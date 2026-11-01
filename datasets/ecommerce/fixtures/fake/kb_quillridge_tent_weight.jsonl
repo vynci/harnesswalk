@@ -1,0 +1,1 @@
+{"responses": [{"text": "The Quillridge 3-person tent weighs 3.4 kg packed, including poles, pegs and stuff sacks [1].", "usage": {"input_tokens": 790, "output_tokens": 32}, "expect": {"last_message_role": "user"}}]}

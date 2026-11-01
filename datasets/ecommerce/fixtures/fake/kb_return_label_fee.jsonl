@@ -1,0 +1,1 @@
+{"responses": [{"text": "A return label costs 6 dollars, taken from your refund [2]. The fee is waived if the item arrived defective or damaged.", "usage": {"input_tokens": 760, "output_tokens": 38}, "expect": {"last_message_role": "user"}}]}

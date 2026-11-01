@@ -1,0 +1,1 @@
+{"responses": [{"text": "Standard shipping is free on orders over 75 dollars [2]. Express shipping is always charged at the rate shown at checkout.", "usage": {"input_tokens": 750, "output_tokens": 36}, "expect": {"last_message_role": "user"}}]}
