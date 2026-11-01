@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useFeature } from '@/state/hooks'
 import { parseOutputSchema, useApp } from '@/state/store'
-import { BudgetBanner, FixturePicker, ModelPicker } from './ModelPicker'
+import { BudgetBanner, ModelPicker } from './ModelPicker'
 import { ByoKeyButton } from './PublicControls'
 
 const EXAMPLE_SCHEMA = '{"type": "object", "required": ["answer"], "properties": {"answer": {"type": "string"}}}'
@@ -183,7 +183,6 @@ export function Composer({
             </>
           )}
           <ModelPicker />
-          <FixturePicker />
           {keyButton && <ByoKeyButton />}
           <span className="ml-auto flex items-center gap-2">
             <InputGroupText className={tooLong ? 'text-xs text-destructive tabular-nums' : 'text-xs tabular-nums'} aria-live="polite">

@@ -71,9 +71,10 @@ test('dev mode shares the picker: Auto first, the fixture select beside it on th
   await expect(page.getByTestId('model-reason')).toHaveText("This model's provider is not configured on this server.")
   await expect(menu.getByTestId('budget-line')).toHaveCount(0)
   await closeMenu(page)
-  // The dev fixture control moved from the header into the composer, beside the picker.
-  await expect(page.getByRole('banner').getByTestId('fixture-select')).toHaveCount(0)
-  const select = page.getByTestId('fixture-select')
+  // The fixture control lives in the header, left of the pack picker, while the fake model runs.
+  const select = page.getByRole('banner').getByTestId('fixture-select')
+  await expect(select).toHaveCount(1)
+  await expect(page.getByTestId('fixture-select')).toHaveCount(1)
   await expect(select).toContainText('by message')
   await select.click()
   await page.getByRole('option', { name: 'tool_call', exact: true }).click()
