@@ -1,0 +1,1 @@
+{"responses": [{"text": "You asked me to note that you want all your reports in euro.", "usage": {"input_tokens": 560, "output_tokens": 18}, "expect": {"last_message_role": "user"}}]}

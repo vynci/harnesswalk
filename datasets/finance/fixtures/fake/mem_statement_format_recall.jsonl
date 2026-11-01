@@ -1,0 +1,1 @@
+{"responses": [{"text": "You prefer your statements as a spreadsheet rather than a PDF.", "usage": {"input_tokens": 558, "output_tokens": 18}, "expect": {"last_message_role": "user"}}]}

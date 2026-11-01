@@ -1,0 +1,44 @@
+# The tables below are the pack's bundled data: fictional NAV and capital call figures.
+# Every row repeats its own key; an unknown key returns the `missing` row.
+- name: fund_nav
+  description: Look up the latest quarter-end NAV, NAV per unit, currency and status of a Hollowmere fund by fund id (HCP-01 to HCP-04).
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [fund_id]
+    properties:
+      fund_id:
+        type: string
+        pattern: "^HCP-0[1-4]$"
+        description: Fund id, HCP-01 to HCP-04.
+  table:
+    HCP-01: { fund_id: HCP-01, fund_name: "Hollowmere Growth Partners III", vintage: 2021, nav_date: "2026-09-30", nav_per_unit: 118.40, currency: USD, fund_nav: "412.6m", status: investing }
+    HCP-02: { fund_id: HCP-02, fund_name: "Hollowmere Harbour Infrastructure II", vintage: 2018, nav_date: "2026-09-30", nav_per_unit: 96.75, currency: EUR, fund_nav: "288.1m", status: harvesting }
+    HCP-03: { fund_id: HCP-03, fund_name: "Hollowmere Credit Partners I", vintage: 2023, nav_date: "2026-09-30", nav_per_unit: 104.20, currency: USD, fund_nav: "151.9m", status: investing }
+    HCP-04: { fund_id: HCP-04, fund_name: "Hollowmere Real Assets Fund II", vintage: 2016, nav_date: "2026-09-30", nav_per_unit: 71.30, currency: USD, fund_nav: "197.4m", status: harvesting }
+  missing: { error: not_found }
+- name: capital_calls
+  description: "Look up the latest capital call of a Hollowmere fund by fund id (HCP-01 to HCP-04): call number, notice date, due date, percent of commitment and purpose."
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [fund_id]
+    properties:
+      fund_id:
+        type: string
+        pattern: "^HCP-0[1-4]$"
+        description: Fund id, HCP-01 to HCP-04.
+  table:
+    HCP-01: { fund_id: HCP-01, latest_call: "Call 9", notice_date: "2026-10-12", due_date: "2026-10-26", call_pct: 6.0, purpose: "follow-on investments in two portfolio companies and Q4 management fee", called_to_date_pct: 78.0 }
+    HCP-02: { fund_id: HCP-02, latest_call: "Call 11", notice_date: "2026-10-05", due_date: "2026-10-19", call_pct: 1.5, purpose: "follow-on expenses and the Q4 management fee", called_to_date_pct: 96.5 }
+    HCP-03: { fund_id: HCP-03, latest_call: "Call 4", notice_date: "2026-11-02", due_date: "2026-11-16", call_pct: 8.5, purpose: "new loan originations and fund expenses", called_to_date_pct: 41.5 }
+    HCP-04: { fund_id: HCP-04, latest_call: "Call 12", notice_date: "2026-09-03", due_date: "2026-09-17", call_pct: 0.8, purpose: "fund expenses and the final management fee", called_to_date_pct: 99.2 }
+  missing: { error: not_found }

@@ -1,0 +1,1 @@
+{"responses": [{"text": "I cannot see balances or commitments for [ID_1]. Please check the investor portal or contact the investor relations desk, open Monday to Friday, 9:00 to 17:00.", "usage": {"input_tokens": 566, "output_tokens": 36}, "expect": {"last_message_role": "user", "last_message_contains": "[ID_1]"}}]}

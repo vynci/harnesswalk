@@ -1,0 +1,1 @@
+{"responses": [{"text": "The HCP-02 distribution is paid on 2026-11-13 to investors who hold units on the record date, 2026-10-30. [1]", "usage": {"input_tokens": 620, "output_tokens": 38}, "expect": {"last_message_role": "user"}}]}

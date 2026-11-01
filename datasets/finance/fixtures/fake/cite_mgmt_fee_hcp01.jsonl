@@ -1,0 +1,1 @@
+{"responses": [{"text": "HCP-01 charges a management fee of 1.75 percent a year on commitments during the investment period. [1]", "usage": {"input_tokens": 612, "output_tokens": 34}, "expect": {"last_message_role": "user"}}]}

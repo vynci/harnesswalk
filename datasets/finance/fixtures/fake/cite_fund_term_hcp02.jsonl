@@ -1,0 +1,1 @@
+{"responses": [{"text": "HCP-02 has a term of 12 years from the final closing, and extensions need the advisory committee's consent. [2]", "usage": {"input_tokens": 585, "output_tokens": 34}, "expect": {"last_message_role": "user"}}]}
