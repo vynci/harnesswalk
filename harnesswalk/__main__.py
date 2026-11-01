@@ -393,9 +393,10 @@ def _serve(args: argparse.Namespace) -> int:
             options = {"log_config": None, "access_log": False}
         # Ctrl+C must end the process even while a browser holds an event stream open: uvicorn
         # waits for every connection to close (asyncio's wait_closed on 3.12 ignores its own
-        # force-quit flag), so after this many seconds it cancels the open streams instead.
+        # force-quit flag). The signal first tells every stream to end (Harness.request_stop,
+        # control/sse.py); a stream still open after this many seconds is cancelled instead.
         grace = float(harness.settings.get("gateway.shutdown_grace_s", 2))
-        uvicorn.run(
+        config = uvicorn.Config(
             app,
             host=args.host,
             port=args.port,
@@ -403,6 +404,21 @@ def _serve(args: argparse.Namespace) -> int:
             timeout_graceful_shutdown=grace,
             **options,
         )
+
+        class StoppingServer(uvicorn.Server):
+            """Its shutdown signal also ends the harness's event streams."""
+
+            def handle_exit(self, sig: int, frame: Any) -> None:
+                harness.request_stop()
+                super().handle_exit(sig, frame)
+
+        server = StoppingServer(config)
+        # What uvicorn.run does for one process: the signal is raised again once the server
+        # has shut down, as a KeyboardInterrupt.
+        with contextlib.suppress(KeyboardInterrupt):
+            server.run()
+        if not server.started:
+            return 3  # uvicorn's STARTUP_FAILURE (the port is taken, for one)
     finally:
         lease.release()
     return 0

@@ -108,7 +108,7 @@ record ChannelReply { text: string, citations: [Citation], turn_id: string }
 | `gateway.stream_reply_chars` | `24` | Above 0, the reply is also sent as `message_delta` events of this many characters inside the `phase: reply` span; `0` turns streaming off |
 | `gateway.turn_state_max` | `500` | Finished turns whose in-process state is kept; the oldest beyond this are evicted |
 | `gateway.turn_state_ttl_seconds` | `3600` | A finished turn's in-process state is evicted this long after it ended |
-| `gateway.shutdown_grace_s` | `2` | On shutdown (Ctrl+C, SIGTERM) the server cuts event streams still open after this many seconds instead of waiting for them, so the process exits |
+| `gateway.shutdown_grace_s` | `2` | On shutdown (Ctrl+C, SIGTERM) every event stream is asked to end at once; one still open after this many seconds is cut off instead of waited for, so the process exits |
 
 ## P6 additions: public mode
 

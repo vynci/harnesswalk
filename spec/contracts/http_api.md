@@ -778,7 +778,8 @@ without polling.
   stored, including events another process wrote to the same data directory (it polls the store
   about once a second), and a `: keepalive` comment after 15 seconds of quiet. `follow=false`
   sends what is stored and closes.
-- The stream never closes on its own while following. Errors: `400` (a cursor that is not an
+- The stream never closes on its own while following, except when the server shuts down (see
+  "Event streams are bounded"). Errors: `400` (a cursor that is not an
   integer), `401`, `404`.
 
 ### Step-over and checkpoints
@@ -1090,6 +1091,10 @@ its stream ends. In public mode (P6 review) a slot also counts against the clien
 `GET /v1/events` draws on its own pool of `public.max_ops_streams` (default 20) so it never
 starves the turn streams; and a stream ends after `public.max_stream_s` (default 600) seconds
 (the browser's EventSource reconnects from its cursor).
+
+When the server shuts down (SIGINT or SIGTERM), every open stream ends at once with a complete
+response, so the server stops on the first signal even while a browser holds streams open. A
+stream still open `gateway.shutdown_grace_s` (default 2) seconds later is cut off.
 
 ### `GET /readyz`
 

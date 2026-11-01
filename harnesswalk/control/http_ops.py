@@ -40,6 +40,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from harnesswalk.control.gateway import GatewayError
+from harnesswalk.control.sse import until_stopped
 from harnesswalk.events import iso, parse_iso
 from harnesswalk.ops import release as rel
 from harnesswalk.ops.eval import EvalRequestError
@@ -301,7 +302,9 @@ def add_ops_routes(
             for event in events:
                 yield sse(event)
 
-        return StreamingResponse(stream(), media_type="text/event-stream", headers=SSE_HEADERS)
+        return StreamingResponse(
+            until_stopped(stream(), h.stopping), media_type="text/event-stream", headers=SSE_HEADERS
+        )
 
     @app.get("/v1/evals/golden")
     async def get_golden(request: Request, pack: str | None = None) -> JSONResponse:
