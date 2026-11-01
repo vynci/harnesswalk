@@ -20,6 +20,9 @@ import { OverviewTab } from './OverviewTab'
 import { useNodeData } from './useNodeData'
 import { ArtifactEditor } from './ArtifactEditor'
 import { useArtifacts } from './useOps'
+import { PackFiles } from './PackFiles'
+import { usePackDetail } from './usePackDetail'
+import { filesForNode } from '@/state/packs'
 import { LessonTab, type CodeTarget } from '@/lessons/LessonTab'
 import { LESSONS_TAB, useLessonSource } from '@/lessons/useLessons'
 
@@ -49,6 +52,9 @@ export function InspectorDrawer() {
   const turn = useDisplayTurn()
   const { info, source } = useNodeData(nodeId)
   const { artifacts } = useArtifacts()
+  // P5: the session pack's files this node reads (by their role), for the Files tab.
+  const { detail: packDetail } = usePackDetail()
+  const packFiles = useMemo(() => (packDetail && nodeId ? filesForNode(packDetail.files, nodeId) : []), [packDetail, nodeId])
   // The tab the reader picked (kept in the store, so the lessons drawer can open a tab); a node
   // with an LLM Ops panel opens on it.
   const pick = useApp((s) => s.inspectorTab)
@@ -80,7 +86,7 @@ export function InspectorDrawer() {
     info.data && info.data.inspector.type !== 'config' && info.data.inspector.type !== 'prompt' ? inspectorArtifact(info.data.inspector.artifact, artifacts) : undefined
   const tab = pick.node === nodeId ? pick.tab : role ? 'ops' : pick.tab === 'ops' || pick.tab === 'config' ? 'overview' : pick.tab
   const activeTab =
-    (tab === 'details' && !detailsLabel) || (tab === 'ops' && !role) || (tab === 'config' && !yamlArtifact) ? 'overview' : tab
+    (tab === 'details' && !detailsLabel) || (tab === 'ops' && !role) || (tab === 'config' && !yamlArtifact) || (tab === 'files' && packFiles.length === 0) ? 'overview' : tab
   const setTab = (t: string) => setInspectorTab(nodeId, t)
   const onCodeLink = useCallback(
     (target: CodeTarget) => {
@@ -168,6 +174,7 @@ export function InspectorDrawer() {
           {role && <TabsTrigger value="ops">{OPS_TAB[role]}</TabsTrigger>}
           {detailsLabel && <TabsTrigger value="details">{detailsLabel}</TabsTrigger>}
           {yamlArtifact && <TabsTrigger value="config">Config</TabsTrigger>}
+          {packFiles.length > 0 && <TabsTrigger value="files">Files</TabsTrigger>}
           <TabsTrigger value="code">Code</TabsTrigger>
           <TabsTrigger value="events">Events{events.length ? ` (${events.length})` : ''}</TabsTrigger>
         </TabsList>
@@ -212,6 +219,15 @@ export function InspectorDrawer() {
                   {node.artifact_hint ? <code className="font-mono">{node.artifact_hint}</code> : null} · the working set, shipped by a release
                 </p>
                 <ArtifactEditor artifact={yamlArtifact} language="yaml" />
+              </div>
+            </ScrollArea>
+          </TabsContent>
+        )}
+        {packFiles.length > 0 && (
+          <TabsContent value="files" className="min-h-0">
+            <ScrollArea className="h-full">
+              <div className="p-4">
+                <PackFiles files={packFiles} nodeLabel={node.label} />
               </div>
             </ScrollArea>
           </TabsContent>
