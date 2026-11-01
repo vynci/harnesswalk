@@ -1,5 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, X } from 'lucide-react'
+import { lazy, Suspense, useEffect, useMemo, useRef } from 'react'
+import { ArrowLeft, BookOpen, X } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -23,8 +23,8 @@ import { useArtifacts } from './useOps'
 import { PackFiles } from './PackFiles'
 import { usePackDetail } from './usePackDetail'
 import { filesForNode } from '@/state/packs'
-import { LessonTab, type CodeTarget } from '@/lessons/LessonTab'
-import { LESSONS_TAB, useLessonSource } from '@/lessons/useLessons'
+import { lessonFocusPending, openNodeChapter, useLessonSource } from '@/lessons/useLessons'
+import { usePanels } from '@/state/panels'
 
 // The LLM Ops panels, each its own chunk, picked by the node's role in the diagram.
 const EvalPanel = lazy(() => import('./EvalPanel').then((m) => ({ default: m.EvalPanel })))
@@ -32,6 +32,9 @@ const ReleasePanel = lazy(() => import('./ReleasePanel').then((m) => ({ default:
 const TracePanel = lazy(() => import('./TracePanel').then((m) => ({ default: m.TracePanel })))
 
 const OPS_TAB: Record<OpsRole, string> = { evals: 'Runs', releases: 'Releases', traces: 'Turns' }
+
+/** The inspector's tabs; any other value (a stale pick) falls back to Overview. */
+const TABS = new Set(['overview', 'ops', 'details', 'config', 'files', 'code', 'events'])
 
 function OpsPanel({ role }: { role: OpsRole }) {
   return (
@@ -41,7 +44,11 @@ function OpsPanel({ role }: { role: OpsRole }) {
   )
 }
 
-export function InspectorDrawer() {
+/**
+ * The node inspector. `compact`: it shares its column with the Guide (stacked), so the node's
+ * summary is cut to two lines (the chapter beside it says the rest) and the code view may be short.
+ */
+export function InspectorDrawer({ compact = false }: { compact?: boolean }) {
   const nodeId = useApp((s) => s.selectedNode)
   const diagram = useApp((s) => s.diagram)
   const selectNode = useApp((s) => s.selectNode)
@@ -54,15 +61,18 @@ export function InspectorDrawer() {
   // P5: the session pack's files this node reads (by their role), for the Files tab.
   const { detail: packDetail } = usePackDetail()
   const packFiles = useMemo(() => (packDetail && nodeId ? filesForNode(packDetail.files, nodeId) : []), [packDetail, nodeId])
-  // The tab the reader picked (kept in the store, so the lessons drawer can open a tab); a node
+  // The tab the reader picked (kept in the store, so the Guide can open the Code tab); a node
   // with an LLM Ops panel opens on it.
   const pick = useApp((s) => s.inspectorTab)
   const setInspectorTab = useApp((s) => s.setInspectorTab)
-  // A code walk link: the node's own file at a line, or another file the chapter links to.
-  const [jump, setJump] = useState<{ node: string; line: number | null; key: number } | null>(null)
-  const [peek, setPeek] = useState<{ node: string; target: CodeTarget; key: number } | null>(null)
-  const jumps = useRef(0)
-  const lessonPeek = peek && peek.node === nodeId ? peek : null
+  // A code walk link from the Guide: the node's own file at a line, or another file the chapter
+  // links to (a peek, with a way back).
+  const codeLink = usePanels((s) => s.codeLink)
+  const guideHere = usePanels((s) => s.guideOpen && s.guideNode === nodeId)
+  const clearCode = usePanels((s) => s.clearCode)
+  const link = codeLink && codeLink.node === nodeId ? codeLink : null
+  const lessonPeek = link && link.target.node_id !== nodeId ? link : null
+  const ownJump = link && link.target.node_id === nodeId ? { line: link.target.line, key: link.key } : null
   const peekSource = useLessonSource(lessonPeek?.target.slug ?? null, lessonPeek?.target.path ?? null)
   const role = opsRole(diagram, nodeId)
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -74,8 +84,12 @@ export function InspectorDrawer() {
     [turn.events, nodeId, childIds],
   )
 
+  // A node picked on the canvas (or nothing focused) moves focus here; one the Guide opened, or a
+  // Try button that filled the composer, leaves focus where it is.
   useEffect(() => {
-    if (nodeId) closeRef.current?.focus()
+    if (!nodeId || lessonFocusPending()) return
+    const active = document.activeElement
+    if (!active || active === document.body || active.closest('.react-flow, [data-testid=inspector]')) closeRef.current?.focus()
   }, [nodeId])
 
   const detailsLabel = info.data ? detailsTabLabel(info.data.inspector) : null
@@ -85,24 +99,11 @@ export function InspectorDrawer() {
     info.data && info.data.inspector.type !== 'config' && info.data.inspector.type !== 'prompt' ? inspectorArtifact(info.data.inspector.artifact, artifacts) : undefined
   const tab = pick.node === nodeId ? pick.tab : role ? 'ops' : pick.tab === 'ops' || pick.tab === 'config' ? 'overview' : pick.tab
   const activeTab =
-    (tab === 'details' && !detailsLabel) || (tab === 'ops' && !role) || (tab === 'config' && !yamlArtifact) || (tab === 'files' && packFiles.length === 0) ? 'overview' : tab
+    !TABS.has(tab) || (tab === 'details' && !detailsLabel) || (tab === 'ops' && !role) || (tab === 'config' && !yamlArtifact) || (tab === 'files' && packFiles.length === 0)
+      ? 'overview'
+      : tab
   const setTab = (t: string) => setInspectorTab(nodeId, t)
-  const onCodeLink = useCallback(
-    (target: CodeTarget) => {
-      if (!nodeId) return
-      const key = ++jumps.current
-      if (target.node_id === nodeId) {
-        setPeek(null)
-        setJump({ node: nodeId, line: target.line, key })
-      } else {
-        setPeek({ node: nodeId, target, key })
-      }
-      setInspectorTab(nodeId, 'code')
-    },
-    [nodeId, setInspectorTab],
-  )
   if (!nodeId || !node) return null
-  const ownJump = jump && jump.node === nodeId ? jump : null
   const parent = node.parent ? diagram?.nodes.find((n) => n.id === node.parent) : undefined
   const group = diagram?.groups.find((g) => g.id === node.group)
   const KindIcon = KIND_ICON[node.kind]
@@ -147,13 +148,21 @@ export function InspectorDrawer() {
           {node.implemented === false && <Badge variant="secondary">not yet built</Badge>}
           {node.stub && <Badge variant="secondary">stub</Badge>}
         </div>
-        <p className="text-sm leading-relaxed" data-testid="inspector-lesson">
+        <p className={`text-sm leading-relaxed ${compact ? 'line-clamp-2' : ''}`} title={compact ? node.lesson : undefined} data-testid="inspector-lesson">
           {node.lesson}
-          {node.lesson_url && activeTab !== LESSONS_TAB && (
+          {node.lesson_url && !guideHere && (
             <>
               {' '}
-              <Button type="button" variant="link" size="xs" className="h-auto p-0 text-muted-foreground hover:text-foreground" onClick={() => setTab(LESSONS_TAB)} data-testid="read-chapter">
-                Read the chapter
+              <Button
+                type="button"
+                variant="link"
+                size="xs"
+                className="h-auto p-0 text-muted-foreground hover:text-foreground"
+                onClick={() => openNodeChapter(node.id)}
+                data-testid="open-in-guide"
+              >
+                <BookOpen aria-hidden />
+                Open in Guide
               </Button>
             </>
           )}
@@ -177,7 +186,6 @@ export function InspectorDrawer() {
       <Tabs value={activeTab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
         <TabsList className="no-scrollbar mx-4 mt-3 max-w-[calc(100%-2rem)] justify-start overflow-x-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value={LESSONS_TAB}>Lessons</TabsTrigger>
           {role && <TabsTrigger value="ops">{OPS_TAB[role]}</TabsTrigger>}
           {detailsLabel && <TabsTrigger value="details">{detailsLabel}</TabsTrigger>}
           {yamlArtifact && <TabsTrigger value="config">Config</TabsTrigger>}
@@ -190,13 +198,6 @@ export function InspectorDrawer() {
             <div className="p-4">
               <OverviewTab run={turn.nodes[node.id]} info={info.data} />
               {info.status === 'error' && <p className="mt-3 text-xs text-destructive">Could not load node details: {info.error}</p>}
-            </div>
-          </ScrollArea>
-        </TabsContent>
-        <TabsContent value={LESSONS_TAB} className="min-h-0">
-          <ScrollArea className="h-full">
-            <div className="p-4">
-              <LessonTab node={node} onCodeLink={onCodeLink} />
             </div>
           </ScrollArea>
         </TabsContent>
@@ -243,7 +244,7 @@ export function InspectorDrawer() {
           {lessonPeek ? (
             <>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <Button type="button" variant="ghost" size="xs" className="-ml-2 text-muted-foreground" onClick={() => setPeek(null)} data-testid="code-back">
+                <Button type="button" variant="ghost" size="xs" className="-ml-2 text-muted-foreground" onClick={clearCode} data-testid="code-back">
                   <ArrowLeft aria-hidden />
                   Back to {source.data?.path ?? node.source_hint}
                 </Button>
@@ -264,7 +265,7 @@ export function InspectorDrawer() {
                     language={peekSource.data.language}
                     symbols={peekSource.data.symbols}
                     label={`Source of ${peekSource.data.path}`}
-                    className="min-h-[300px] flex-1"
+                    className={compact ? 'min-h-24 flex-1' : 'min-h-[300px] flex-1'}
                     jumpTo={{ line: lessonPeek.target.line, key: lessonPeek.key }}
                   />
                 </>
@@ -283,7 +284,7 @@ export function InspectorDrawer() {
                 language={source.data.language}
                 symbols={source.data.symbols}
                 label={`Source of ${source.data.path}`}
-                className="min-h-[300px] flex-1"
+                className={compact ? 'min-h-24 flex-1' : 'min-h-[300px] flex-1'}
                 jumpTo={ownJump}
               />
             </>

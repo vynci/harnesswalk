@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { LessonsButton } from '@/lessons/LessonsButton'
+import { GuideButton } from '@/lessons/GuideButton'
 import { fixtureChoices, packTitle } from '@/state/packs'
 import { useApp } from '@/state/store'
 import { PackPicker } from './PackPicker'
@@ -216,7 +216,7 @@ export function Header() {
         {(dev || disabled.length > 0) && <Separator orientation="vertical" className="my-1.5" />}
         <PackPicker />
         <div className="flex items-center gap-1">
-          <LessonsButton />
+          <GuideButton />
           <ThemeButton />
           <SessionMenu />
         </div>

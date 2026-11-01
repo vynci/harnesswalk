@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ArrowLeft, ArrowRight, FlaskConical, Play } from 'lucide-react'
-import type { DiagramNode, Lesson, LessonAlso, LessonCodeLink } from '@/api/types'
+import type { DiagramNode, Lesson, LessonAlso } from '@/api/types'
 import { Prose } from '@/components/prose'
 import { Button } from '@/components/ui/button'
 import { packTitle } from '@/state/packs'
+import { usePanels, type CodeTarget } from '@/state/panels'
 import { useApp } from '@/state/store'
 import { CheckYourself } from './CheckYourself'
 import { classifyLink } from './links'
@@ -16,9 +17,6 @@ import { openChapter, takeLessonFocus, useLesson, useOutline } from './useLesson
 import { useLessonProgress } from './useProgress'
 
 const reduceMotion = () => !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-
-/** A code walk link with the chapter it came from, for the Code tab. */
-export type CodeTarget = LessonCodeLink & { slug: string }
 
 const PROSE = '[&_h2]:mt-6 [&>h2:first-child]:mt-0 [&_h2]:scroll-mt-2 [&_h3]:mt-4 [&_h3]:scroll-mt-2'
 const LINK = 'underline underline-offset-4 hover:text-foreground'
@@ -150,11 +148,12 @@ function ChapterNav({ entry, outline }: { entry: OutlineEntry | undefined; outli
 }
 
 /**
- * The inspector's Lessons tab: the node's chapter (`lesson_url`), its markdown in Prose with
- * GitHub heading ids, the Check yourself section as a Questionnaire, and Previous and Next. An
- * expert node opens its group chapter at its own section.
+ * One chapter in the Guide: the node's chapter (`lesson_url`), its markdown in Prose with GitHub
+ * heading ids, the Try buttons, the Check yourself section as a Questionnaire, and Previous and
+ * Next. An expert node opens its group chapter at its own section. A code walk link opens the
+ * node's inspector on the Code tab.
  */
-export function LessonTab({ node, onCodeLink }: { node: DiagramNode; onCodeLink: (target: CodeTarget) => void }) {
+export function GuideChapter({ node }: { node: DiagramNode }) {
   const ref = lessonRef(node.lesson_url)
   const slug = ref?.slug ?? null
   const anchor = ref?.anchor ?? null
@@ -167,15 +166,22 @@ export function LessonTab({ node, onCodeLink }: { node: DiagramNode; onCodeLink:
   const data = lesson.status === 'ok' ? lesson.data : undefined
   const parsed = useMemo(() => (data ? parseLesson(data.markdown) : null), [data])
   const entry = outline.find((e) => e.slug === slug)
+  const onCodeLink = useCallback(
+    (target: CodeTarget) => {
+      useApp.getState().openInspector(node.id, 'code')
+      usePanels.getState().showCode(node.id, target)
+    },
+    [node.id],
+  )
 
   useEffect(() => {
     if (data) markRead(data.slug)
   }, [data, markRead])
 
-  // The drawer opened this chapter: focus its title once it shows.
+  // The chapter list or Open in Guide opened this chapter: focus its title once it shows.
   const shown = lesson.status === 'ok' || lesson.status === 'missing' || lesson.status === 'error'
   useEffect(() => {
-    if (shown && takeLessonFocus()) document.getElementById('lesson-title')?.focus()
+    if (shown && takeLessonFocus(slug)) document.getElementById('lesson-title')?.focus()
   }, [shown, slug])
 
   // An expert node starts at its own section of the group chapter.
@@ -222,7 +228,7 @@ export function LessonTab({ node, onCodeLink }: { node: DiagramNode; onCodeLink:
               data-symbol={link.symbol ?? ''}
             >
               {children}
-              <span className="sr-only"> (opens in the Code tab)</span>
+              <span className="sr-only"> (opens in the inspector's Code tab)</span>
             </button>
           )
         }
@@ -254,9 +260,9 @@ export function LessonTab({ node, onCodeLink }: { node: DiagramNode; onCodeLink:
   if (lesson.status === 'loading' || lesson.status === 'idle') return <p className="text-xs text-muted-foreground">Loading the chapter…</p>
   if (lesson.status === 'missing' || lesson.status === 'error' || !data || !parsed) {
     return (
-      <div className="flex flex-col gap-2" data-testid="lesson-tab" data-status={lesson.status}>
+      <div className="flex flex-col gap-2" data-testid="guide-chapter" data-status={lesson.status} data-slug={slug!}>
         <p className="text-xs text-muted-foreground tabular-nums">Chapter {slug!.slice(0, 2)}</p>
-        <h3 id="lesson-title" tabIndex={-1} className="text-base font-medium outline-none" data-testid="lesson-title">
+        <h3 id="lesson-title" tabIndex={-1} className="text-base font-medium outline-none" data-testid="lesson-title" data-slug={slug!}>
           {entry?.title ?? node.label}
         </h3>
         {lesson.status === 'error' ? (
@@ -275,13 +281,13 @@ export function LessonTab({ node, onCodeLink }: { node: DiagramNode; onCodeLink:
   const parent = data.group && data.node_id ? diagram?.nodes.find((n) => n.id === data.node_id) : undefined
   const checksId = parsed.checksHeading ? headingSlug(parsed.checksHeading) : null
   return (
-    <article ref={article} className="flex flex-col gap-4" aria-labelledby="lesson-title" data-testid="lesson-tab" data-status="ok" data-slug={data.slug}>
+    <article ref={article} className="flex flex-col gap-4" aria-labelledby="lesson-title" data-testid="guide-chapter" data-status="ok" data-slug={data.slug}>
       <header className="flex flex-col gap-1">
         <p className="text-xs text-muted-foreground tabular-nums">
           Chapter {String(data.n).padStart(2, '0')}
           {parent ? ` · inside ${parent.label}` : ''} · {Math.max(1, Math.round(data.words / 200))} min read
         </p>
-        <h3 id="lesson-title" tabIndex={-1} className="text-base font-medium outline-none" data-testid="lesson-title">
+        <h3 id="lesson-title" tabIndex={-1} className="text-base font-medium outline-none" data-testid="lesson-title" data-slug={data.slug}>
           {parsed.title || data.title}
         </h3>
         {(parsed.hook || data.hook) && <p className="text-sm text-muted-foreground">{parsed.hook || data.hook}</p>}
