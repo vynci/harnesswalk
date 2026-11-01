@@ -162,7 +162,8 @@ function FixtureItem({ name, description }: { name: string; description: string 
 /**
  * The Fixture select, beside the Model Selector while the next turn runs on the scripted model
  * (picked, or what Auto resolves to): which canned script the fake model plays. Its first entry
- * is the server's own (public_demo on the public site, the start-up fixture in dev).
+ * is the server's own (public_demo on the public site, the start-up fixture in dev). It sits in
+ * the header, left of the pack picker, while the next turn runs on the fake model.
  */
 export function FixturePicker() {
   const capabilities = useApp((s) => s.capabilities)
@@ -187,15 +188,15 @@ export function FixturePicker() {
   return (
     <Select value={value} onValueChange={(v) => setFixture(v === SERVER_DEFAULT ? null : v)}>
       <SelectPrimitive.Trigger asChild>
-        <InputGroupButton size="xs" className="max-w-52 text-muted-foreground" aria-label={`Fixture: ${shown} (the scripted answer of the fake model)`} data-testid="fixture-select" data-fixture={fixture ?? ''}>
+        <Button size="sm" variant="outline" className="max-w-56 text-muted-foreground" aria-label={`Fixture: ${shown} (the scripted answer of the fake model)`} data-testid="fixture-select" data-fixture={fixture ?? ''}>
           <FlaskConical aria-hidden />
           <span className="truncate">
             <SelectPrimitive.Value>{shown}</SelectPrimitive.Value>
           </span>
           <ChevronDown aria-hidden />
-        </InputGroupButton>
+        </Button>
       </SelectPrimitive.Trigger>
-      <SelectContent position="popper" side="top" align="start" className="max-h-80 w-72" data-testid="fixture-menu">
+      <SelectContent position="popper" side="bottom" align="end" className="max-h-80 w-72" data-testid="fixture-menu">
         <SelectItem value={SERVER_DEFAULT}>{serverDefault}</SelectItem>
         {groups.own.length > 0 && (
           <SelectGroup data-testid="fixture-group-pack">

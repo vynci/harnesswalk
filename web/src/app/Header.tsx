@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { GuideButton } from '@/lessons/GuideButton'
 import { useApp } from '@/state/store'
+import { FixturePicker } from '@/chat/ModelPicker'
 import { PackPicker } from './PackPicker'
 import { SessionChip } from './SessionChip'
 import { useDarkTheme } from './useTheme'
@@ -68,6 +69,7 @@ export function Header() {
         )}
         {disabled.length > 0 && <Separator orientation="vertical" className="my-1.5" />}
         <div className="flex min-w-0 items-center gap-2">
+          <FixturePicker />
           <PackPicker />
           <div className="flex shrink-0 items-center gap-1">
             <GuideButton />
