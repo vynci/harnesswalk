@@ -252,7 +252,14 @@ class OpsEvents:
                 yield event
                 if event["type"] == until:
                     return
-            if not live or self.list(tenant_id, stream, after=-1, limit=100000, type_=until):
+            if not live:
+                return
+            if self.list(tenant_id, stream, after=-1, limit=100000, type_=until):
+                # It finished while the stored events were being sent: the rest are stored too.
+                for event in self.list(tenant_id, stream, after=last, limit=100000):
+                    yield event
+                    if event["type"] == until:
+                        return
                 return
             while True:
                 try:
