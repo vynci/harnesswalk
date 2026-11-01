@@ -391,7 +391,18 @@ def _serve(args: argparse.Namespace) -> int:
             # Keep the JSON handler create_app installed; the request line replaces the access
             # log (ops/logs.py).
             options = {"log_config": None, "access_log": False}
-        uvicorn.run(app, host=args.host, port=args.port, log_level=args.log_level, **options)
+        # Ctrl+C must end the process even while a browser holds an event stream open: uvicorn
+        # waits for every connection to close (asyncio's wait_closed on 3.12 ignores its own
+        # force-quit flag), so after this many seconds it cancels the open streams instead.
+        grace = float(harness.settings.get("gateway.shutdown_grace_s", 2))
+        uvicorn.run(
+            app,
+            host=args.host,
+            port=args.port,
+            log_level=args.log_level,
+            timeout_graceful_shutdown=grace,
+            **options,
+        )
     finally:
         lease.release()
     return 0
