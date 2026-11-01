@@ -33,6 +33,25 @@ jobs:
         env:
           HARNESSWALK_DATA_DIR: ${{ runner.temp }}/harnesswalk-eval
 
+  packs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: uv sync --locked
+      - name: Validate every dataset pack (schema, sizes, fixtures, tools, PII, provenance)
+        run: uv run harnesswalk packs validate
+      - name: Golden suite of every pack (fake provider)
+        run: |
+          for pack in $(uv run harnesswalk packs list --json | python3 -c 'import json, sys; print(" ".join(p["id"] for p in json.load(sys.stdin)))'); do
+            echo "::group::$pack"
+            HARNESSWALK_DATA_DIR="$RUNNER_TEMP/eval-$pack" uv run harnesswalk eval "$pack" --suite golden
+            echo "::endgroup::"
+          done
+
   web:
     runs-on: ubuntu-latest
     defaults:
