@@ -1,0 +1,6 @@
+{"stage": "core", "model": "claude-sonnet-5-5", "date": "2026-11-01", "input_tokens": 4954, "output_tokens": 13043, "usd": 0.1403}
+{"stage": "docs[0]", "model": "claude-sonnet-5-5", "date": "2026-11-01", "input_tokens": 13249, "output_tokens": 3936, "usd": 0.0659}
+{"stage": "docs[1]", "model": "claude-sonnet-5-5", "date": "2026-11-01", "input_tokens": 13139, "output_tokens": 4577, "usd": 0.072}
+{"stage": "docs[2]", "model": "claude-sonnet-5-5", "date": "2026-11-01", "input_tokens": 13223, "output_tokens": 4642, "usd": 0.0729}
+{"stage": "docs[3]", "model": "claude-sonnet-5-5", "date": "2026-11-01", "input_tokens": 12897, "output_tokens": 2226, "usd": 0.0481}
+{"stage": "golden", "model": "claude-sonnet-5-5", "date": "2026-11-01", "input_tokens": 27715, "output_tokens": 24640, "usd": 0.3018}

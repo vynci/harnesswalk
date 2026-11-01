@@ -1,0 +1,1 @@
+{"responses": [{"text": "A pallet may not exceed 1.8 metres in height, including the pallet itself and the load [1]. Taller pallets are declined at pickup.", "usage": {"input_tokens": 770, "output_tokens": 38}, "expect": {"last_message_role": "user"}}]}

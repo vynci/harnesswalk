@@ -1,0 +1,1 @@
+{"responses": [{"text": "A claim must be lodged within 21 days of delivery [1]. For goods that never arrive, the 21 days run from the expected delivery date.", "usage": {"input_tokens": 790, "output_tokens": 38}, "expect": {"last_message_role": "user"}}]}

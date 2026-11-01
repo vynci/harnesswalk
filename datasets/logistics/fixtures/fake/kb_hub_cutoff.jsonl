@@ -1,0 +1,1 @@
+{"responses": [{"text": "The daily cutoff at Tarnwick Gate (TRB) is 19:00 [1]. Freight that arrives after it is sorted the next day.", "usage": {"input_tokens": 760, "output_tokens": 32}, "expect": {"last_message_role": "user"}}]}

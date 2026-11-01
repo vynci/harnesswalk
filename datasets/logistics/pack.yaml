@@ -1,0 +1,26 @@
+id: logistics
+title: Tallowgate Freight
+domain: logistics
+summary: An operations desk assistant for a regional freight forwarder that tracks, checks and reroutes
+  shipments one tool at a time.
+tier: domain
+feature:
+  id: multi_step_tools
+  name: Multi-step tool use
+  nodes:
+  - loop
+  - tools
+  - policy
+  summary: One question takes several trips round the loop, with one tool call per step. The learner watches
+    the model, tools and policy nodes light up again and again, and the reroute step stops at the approval
+    gate for a human.
+licence: CC0-1.0
+provenance: provenance.md
+synthetic: true
+suggested_prompts:
+- Where is shipment TG-604118 right now?
+- TG-604227 looks late. Can you check its alternate hub and reroute it if possible?
+- Track TG-604305, check whether its alternate hub can take it, reroute it, and give me the new ETA.
+- Why is TG-604677 delayed, and what is the new ETA?
+- Is the Wyncliff hub open, and does it accept reroutes?
+- What is the claim window if cargo arrives damaged?

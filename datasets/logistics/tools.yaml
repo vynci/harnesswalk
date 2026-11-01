@@ -1,0 +1,98 @@
+# Bundled data for the Tallowgate Freight pack: every table below is fictional.
+# Each table maps a lookup key to the row a tool returns; `missing` is the row for an unknown key.
+- name: track
+  description: Look up a shipment by id. Returns status, current hub, origin, destination, contract code, alternate hub and last event.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [shipment_id]
+    properties:
+      shipment_id:
+        type: string
+        pattern: "^TG-[0-9]{6}$"
+        description: Shipment id, for example TG-604118.
+  table:
+    TG-604118: { shipment_id: TG-604118, status: in_transit, current_hub: KRN, origin: Brackwater, destination: Ashfold, contract: CC-17, alternate_hub: MAV, last_event: "Departed KRN linehaul on 2026-10-14 at 06:40" }
+    TG-604227: { shipment_id: TG-604227, status: delayed, current_hub: HLM, origin: Saltmarsh, destination: Dunmere, contract: CC-22, alternate_hub: TRB, last_event: "Waiting in the HLM berth queue since 2026-10-13 at 21:15" }
+    TG-604305: { shipment_id: TG-604305, status: held, current_hub: WYN, origin: Fennick, destination: Larchfield, contract: CC-17, alternate_hub: ORS, last_event: "Held at WYN after the yard closure on 2026-10-14 at 11:00" }
+    TG-604412: { shipment_id: TG-604412, status: in_transit, current_hub: MAV, origin: Corvane, destination: Pellam, contract: CC-31, alternate_hub: KRN, last_event: "Scanned out of MAV on 2026-10-14 at 09:05" }
+    TG-604590: { shipment_id: TG-604590, status: delivered, current_hub: TRB, origin: Ashfold, destination: Brackwater, contract: CC-22, alternate_hub: ORS, last_event: "Delivered and signed for on 2026-10-12 at 09:40" }
+    TG-604677: { shipment_id: TG-604677, status: delayed, current_hub: KRN, origin: Dunmere, destination: Saltmarsh, contract: CC-31, alternate_hub: WYN, last_event: "Linehaul cancelled at KRN on 2026-10-13 at 18:30" }
+    TG-604733: { shipment_id: TG-604733, status: in_transit, current_hub: ORS, origin: Larchfield, destination: Corvane, contract: CC-17, alternate_hub: HLM, last_event: "Sorted at ORS on 2026-10-14 at 13:20" }
+  missing: { error: not_found }
+
+- name: eta
+  description: Get the estimated arrival window for a shipment, with a confidence level and the delay reason if any.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [shipment_id]
+    properties:
+      shipment_id:
+        type: string
+        pattern: "^TG-[0-9]{6}$"
+        description: Shipment id, for example TG-604118.
+  table:
+    TG-604118: { shipment_id: TG-604118, eta: "2026-10-16 between 10:00 and 14:00", confidence: high, delay_reason: none }
+    TG-604227: { shipment_id: TG-604227, eta: "2026-10-19 between 08:00 and 12:00", confidence: low, delay_reason: berth_queue_at_HLM }
+    TG-604305: { shipment_id: TG-604305, eta: "2026-10-20 between 12:00 and 18:00", confidence: low, delay_reason: yard_closure_at_WYN }
+    TG-604412: { shipment_id: TG-604412, eta: "2026-10-15 between 13:00 and 17:00", confidence: high, delay_reason: none }
+    TG-604590: { shipment_id: TG-604590, eta: "delivered on 2026-10-12 at 09:40", confidence: high, delay_reason: none }
+    TG-604677: { shipment_id: TG-604677, eta: "2026-10-17 between 14:00 and 18:00", confidence: medium, delay_reason: linehaul_driver_shortage }
+    TG-604733: { shipment_id: TG-604733, eta: "2026-10-16 between 16:00 and 20:00", confidence: medium, delay_reason: none }
+  missing: { error: not_found }
+
+- name: hub_capacity
+  description: Get a hub's current status, utilisation, whether it accepts reroutes and its daily cutoff time.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [hub_code]
+    properties:
+      hub_code:
+        type: string
+        pattern: "^[A-Z]{3}$"
+        description: Three-letter hub code, for example KRN.
+  table:
+    KRN: { hub_code: KRN, name: Kernmoor Central, utilisation_pct: 62, status: open, accepts_reroutes: "yes", cutoff: "17:30" }
+    MAV: { hub_code: MAV, name: Mavisgate Cross-dock, utilisation_pct: 78, status: open, accepts_reroutes: "yes", cutoff: "18:00" }
+    HLM: { hub_code: HLM, name: Holmquay Port Terminal, utilisation_pct: 91, status: congested, accepts_reroutes: "no", cutoff: "16:00" }
+    TRB: { hub_code: TRB, name: Tarnwick Gate Depot, utilisation_pct: 45, status: open, accepts_reroutes: "yes", cutoff: "19:00" }
+    WYN: { hub_code: WYN, name: Wyncliff Rail Yard, utilisation_pct: 0, status: closed, accepts_reroutes: "no", cutoff: "15:00" }
+    ORS: { hub_code: ORS, name: Orsley Park Sorting Centre, utilisation_pct: 69, status: open, accepts_reroutes: "yes", cutoff: "20:00" }
+  missing: { error: not_found }
+
+- name: reroute
+  description: Reroute a shipment through its alternate hub. Changes a live consignment and needs human approval.
+  action_class: write
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  audit: { before: track }
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [shipment_id]
+    properties:
+      shipment_id:
+        type: string
+        pattern: "^TG-[0-9]{6}$"
+        description: Shipment id, for example TG-604118.
+  table:
+    TG-604118: { shipment_id: TG-604118, status: rerouted, via: MAV, new_eta: "2026-10-16 between 12:00 and 16:00" }
+    TG-604227: { shipment_id: TG-604227, status: rerouted, via: TRB, new_eta: "2026-10-18 between 10:00 and 14:00" }
+    TG-604305: { shipment_id: TG-604305, status: rerouted, via: ORS, new_eta: "2026-10-19 between 09:00 and 13:00" }
+    TG-604412: { shipment_id: TG-604412, status: rerouted, via: KRN, new_eta: "2026-10-15 between 15:00 and 19:00" }
+  missing: { error: reroute_not_possible }

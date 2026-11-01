@@ -1,0 +1,1 @@
+{"responses": [{"text": "Liability under CC-22 is limited to 12.00 per kilogram of the damaged, lost or short-delivered goods [3], based on the gross weight on the delivery note.", "usage": {"input_tokens": 800, "output_tokens": 42}, "expect": {"last_message_role": "user"}}]}
