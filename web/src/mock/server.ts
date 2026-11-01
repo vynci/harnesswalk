@@ -19,6 +19,7 @@ import { MockLessons } from './lessons'
 import { MARKDOWN_PROMPT, MARKDOWN_REPLY } from './markdown'
 import { MockEvalEventSource, MockOps, MockOpsEventSource } from './ops'
 import { allFixtures, DEFAULT_PACK, PACK_IDS, packDetail, packFiles, packSummary } from './packs'
+import { payloadFor } from './payloads'
 import { repoFile, sourceFor } from './repo'
 
 export interface MockOptions {
@@ -81,6 +82,8 @@ interface MockTurn {
   stepOver?: boolean
   /** P5: the pack of the turn's session. */
   pack: string
+  /** Payload detail records by event id (GET /v1/trace/turns/{id}/details/{event_id}). */
+  details?: Map<string, unknown>
 }
 
 const TENANT = 'dev'
@@ -138,6 +141,38 @@ function pickExample(req: StartTurnRequest): ExampleName {
   if (/\bcancel\b/.test(m)) return 'approval_pause'
   if (/\b(where|track|order|status|lookup|look up)\b/.test(m)) return 'tool_call'
   return 'plain_answer'
+}
+
+/**
+ * The payload of each payload node's enter and exit in a recorded stream (mock/payloads.ts),
+ * keyed by the event or template object, counted per node and type as the recording was.
+ */
+function payloadsOf(name: ExampleName, items: Template[], message: string, reply: string | null): Map<Template, unknown> {
+  const out = new Map<Template, unknown>()
+  const seen = new Map<string, number>()
+  for (const t of items) {
+    if ((t.type !== 'node_enter' && t.type !== 'node_exit') || !t.node_id) continue
+    const key = `${t.node_id}:${t.type}`
+    const n = seen.get(key) ?? 0
+    seen.set(key, n + 1)
+    const detail = payloadFor(name, t, n, message, reply)
+    if (!detail) continue
+    out.set(t, detail)
+    t.summary = { ...t.summary, has_payload: true } // as the emitter flags it (tracer.md)
+  }
+  return out
+}
+
+/** Give a finished turn's events their payloads: a detail_ref each, and the records by event id. */
+function withPayloads(name: ExampleName, events: HarnessEvent[], message: string): Map<string, unknown> {
+  const reply = (events[events.length - 1]?.summary?.reply as string | undefined) ?? null
+  const details = new Map<string, unknown>()
+  for (const [ev, detail] of payloadsOf(name, events, message, reply)) {
+    const e = ev as HarnessEvent
+    e.detail_ref = `trace://${e.trace_id}/${e.event_id}`
+    details.set(e.event_id, detail)
+  }
+  return details
 }
 
 /** The rest of an approval stream as it would go if the human denied. */
@@ -216,6 +251,8 @@ export class MockServer {
   private loadedPacks = new Set<string>([DEFAULT_PACK])
   /** P6: sessions of a swept sandbox tenant: a turn naming one is another tenant's, so 404. */
   private sweptSessions = new Set<string>()
+  /** Payload records of templates still in a turn's queue, stored by event id when emitted. */
+  private pendingDetails = new WeakMap<Template, unknown>()
 
   constructor(opts: MockOptions = {}) {
     this.opts = { stepMs: opts.stepMs ?? 140, seed: opts.seed ?? true, messageDelta: opts.messageDelta ?? true, public: opts.public ?? null }
@@ -259,8 +296,10 @@ export class MockServer {
       } as HarnessEvent
     })
     const end = events[events.length - 1]!
+    const details = withPayloads(example, events, message)
     this.turns.set(id, {
       id,
+      details,
       message,
       sessionId,
       traceId,
@@ -295,14 +334,17 @@ export class MockServer {
       const events = EXAMPLES[name]
       const first = events[0]!
       const end = events[events.length - 1]!
+      const seeded = structuredClone(events)
+      const details = withPayloads(name, seeded, EXAMPLE_MESSAGES[name])
       this.turns.set(first.turn_id, {
         id: first.turn_id,
+        details,
         message: EXAMPLE_MESSAGES[name],
         sessionId: first.session_id,
         traceId: first.trace_id,
         tenantId: first.tenant_id,
         createdAt: Date.parse(first.ts),
-        events: structuredClone(events),
+        events: seeded,
         queue: [],
         denyQueue: null,
         status: 'done',
@@ -354,6 +396,15 @@ export class MockServer {
       const refused = this.publicRefusal(body as unknown as StartTurnRequest, header(init, 'x-harnesswalk-provider-key'))
       if (refused) return refused
       return this.startTurn(body as unknown as StartTurnRequest)
+    }
+    if ((m = p.match(/^\/v1\/trace\/turns\/([^/]+)\/details\/([^/]+)$/)) && method === 'GET') {
+      const turn = this.turns.get(decodeURIComponent(m[1]!))
+      if (!turn || turn.tenantId !== TENANT) return apiError(404, 'turn_not_found', 'No such turn for this tenant.')
+      const eventId = decodeURIComponent(m[2]!)
+      const ev = turn.events.find((e) => e.event_id === eventId)
+      const detail = turn.details?.get(eventId)
+      if (!ev?.detail_ref || detail === undefined) return apiError(404, 'detail_not_found', `No detail for event ${eventId}.`)
+      return json(200, { turn_id: turn.id, event_id: eventId, detail_ref: ev.detail_ref, detail })
     }
     if ((m = p.match(/^\/v1\/turns\/([^/]+)$/)) && method === 'GET') {
       const found = this.turns.get(decodeURIComponent(m[1]!))
@@ -619,6 +670,11 @@ export class MockServer {
     })
     const first = templates.shift()!
     first.summary = { ...first.summary, step_mode: req.step === true, message_chars: req.message.length, pack }
+    const endReply = (templates.find((t) => t.type === 'turn_end')?.summary?.reply as string | undefined) ?? null
+    for (const [t, detail] of payloadsOf(name, templates, req.message, endReply)) {
+      t.detail_ref = 'trace://pending'
+      this.pendingDetails.set(t, detail)
+    }
     const pauseAt = templates.findIndex((t) => t.type === 'node_paused' && t.summary?.reason === 'approval')
     const turn: MockTurn = {
       id: `turn_${String(turnNo).padStart(3, '0')}_${hex(6)}`,
@@ -640,6 +696,7 @@ export class MockServer {
       disabled,
       deltasSent: false,
       pack,
+      details: new Map(),
     }
     this.turns.set(turn.id, turn)
     this.emit(turn, first)
@@ -667,6 +724,9 @@ export class MockServer {
     if (ev.type === 'approval_requested' && ev.summary) {
       ev.summary.expires_at = new Date(Date.now() + 15 * 60_000).toISOString()
     }
+    const detail = this.pendingDetails.get(t)
+    if (detail) (turn.details ??= new Map()).set(ev.event_id, detail)
+    else if (ev.detail_ref === 'trace://pending') delete ev.detail_ref // a copy (the deny variant) without its record
     if (ev.detail_ref) ev.detail_ref = `trace://${turn.traceId}/${ev.event_id}`
     turn.events.push(ev)
     for (const s of turn.sources) s.deliver(ev)

@@ -11,6 +11,7 @@ import type {
   FeedbackRating,
   FeedbackRecord,
   Receipt,
+  EventDetail,
   ReleaseDetail,
   ReleaseList,
   RollbackResult,
@@ -250,6 +251,9 @@ export function createApi(t: Transport) {
     rollback: (releaseId: string) => call<RollbackResult>('POST', `/v1/releases/${encodeURIComponent(releaseId)}/rollback`, {}),
     traceTurns: (q: TraceQuery = {}) => call<TraceTurnPage>('GET', `/v1/trace/turns${query({ ...q })}`),
     receipt: (turnId: string) => call<Receipt>('GET', `/v1/trace/turns/${encodeURIComponent(turnId)}/receipt`),
+    /** One event's detail record: a hop's payload (tracer.md, "Payloads"). The turn's tenant only. */
+    detail: (turnId: string, eventId: string) =>
+      call<EventDetail>('GET', `/v1/trace/turns/${encodeURIComponent(turnId)}/details/${encodeURIComponent(eventId)}`),
     /** GET /v1/events: every ops event of the tenant, live (SSE). */
     opsEventsUrl: () => `${t.baseUrl}/v1/events`,
     // P5: the lesson chapters (harnesswalk/control/http_lessons.py).
