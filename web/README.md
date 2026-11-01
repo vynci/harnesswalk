@@ -136,8 +136,11 @@ run as against the real API. It:
 - P6: a message asking for a `table` or `markdown` gets the markdown reply of
   `src/mock/markdown.ts` (headings, lists, a table, code, a link). `?mode=public` serves the
   public site instead of dev: `capabilities.public` with Claude Sonnet out of today's budget
-  (`&budget=spent` for both Claude models), no seeded history, the model allowlist (400), 409
-  `budget_exhausted` for an unavailable model sent without the provider key header, a 429 with
+  (`&budget=spent` for both Claude models, the default moving to the fake model; `&budget=midturn`
+  for a first Claude turn that falls through mid-turn, after which the budget reads as spent),
+  no seeded history, the model allowlist (400), a `fixture` only on the fake model (400
+  otherwise), 409 `budget_exhausted` for an unavailable model sent without the provider key
+  header, a 429 with
   `Retry-After` once the requests left this hour run out (`&mockRemaining=0` for the first
   turn), and a sandbox session of `&mockTtl=` seconds (default 7200) after which every turn and
   session is gone.
@@ -204,15 +207,25 @@ edge's glow: `#0a7557` in light mode, where `#12d39d` falls under 3:1, `#12d39d`
 
 `useFeature(name)` (`src/state/hooks.ts` over `src/state/features.ts`) returns `{enabled,
 reason}` for `artifact_edit`, `uploads`, `memory_review`, `evals`, `judge`, `release`,
-`disable_nodes` and `diagnose`. In public mode every one is disabled with the contract's reason
+`disable_nodes`, `diagnose` and `byo_key_ui` (the key button). In public mode every one is disabled with the contract's reason
 ("Editing needs a private workspace. Coming later."), and the control stays on screen with
 `aria-disabled` and a Tooltip on its wrapper, never hidden; read-only views (trace, replay,
-audit, the releases list, lessons, packs) stay live. The composer's Model Selector lists
-`capabilities.public.models` (unavailable ones disabled with the reason as a tooltip, the
-default preselected), the key button holds a bring-your-own key in memory only and sends it as
-`X-Harnesswalk-Provider-Key` on each turn, the header's session chip counts down `session_expires_at`, and
-its popover (also opened by the status bar's budget readout) shows the requests left this hour,
-the step cap and the token cap. Capabilities are read again after every turn and every 60 s while the tab is visible.
+audit, the releases list, lessons, packs) stay live. The composer's Model Selector
+(`chat/ModelPicker.tsx`, the same one in every mode) starts with Auto, preselected: the turn
+names no model and the router decides, and the hint under it says what that is now (the alias
+`capabilities.public.models` flags `default`). The concrete models follow by provider,
+unavailable ones disabled with the reason as a tooltip ("Back at 00:00 UTC (7:00 PM your time)"
+when the shared budget is used up; never a key suggestion in public mode). While the next turn
+runs on the fake model a Fixture select sits beside it (`public.fixtures`: the session pack's
+own, then the shared ones, the server's default first). When the budget runs out a Claude pick
+moves to the fake model with a toast, and a slim banner above the composer says so with the
+reset time until the budget is back (closable for the tab's session). The key button is
+disabled in public mode ("Bring your own key arrives with accounts. Coming soon."); where it
+works (private mode) it holds the key in memory only and sends it as
+`X-Harnesswalk-Provider-Key` on each turn. The header's session chip counts down
+`session_expires_at`, and its popover (also opened by the status bar's budget readout) shows the
+requests left this hour, the step cap and the token cap. Capabilities are read again after every
+turn and every 60 s while the tab is visible.
 Replies and knowledge documents render as GitHub-flavoured markdown (`src/components/markdown.tsx`:
 react-markdown and remark-gfm, fenced code on the Code Block, links in a new tab, raw HTML
 dropped), the chat's citation chips and redaction placeholders included.
@@ -245,7 +258,7 @@ legend and diagram chrome read as one system:
 | AI Elements | Where | Notes |
 |---|---|---|
 | Chat (Message Scroller, Message, Bubble) | `chat/ChatPanel.tsx` | The person's turn is a muted Bubble on the right; the agent's reply has no bubble. One agent Message holds the turn's lines, prompts, reply, sources and notices |
-| Prompt Input (Input Group) | `chat/Composer.tsx` | Plus on the left (`aria-disabled`, tooltip "Attach, coming later"; attachments are P6), dev Options and a Model Selector menu for the model hint, the arrow-up send on the right that turns into Stop while a turn runs; Enter and Shift+Enter hints under it |
+| Prompt Input (Input Group) | `chat/Composer.tsx` | Plus on the left (`aria-disabled`, tooltip "Attach, coming later"; attachments are P6), dev Options, the Model Selector (Auto first) and the Fixture select on the fake model, the arrow-up send on the right that turns into Stop while a turn runs; Enter and Shift+Enter hints under it |
 | Message actions | `chat/ChatPanel.tsx`, `chat/Feedback.tsx` | Replay, then Good and Bad: ghost icon actions with tooltips, `aria-pressed`, the pressed one filled. A press records the rating, then a Popover offers an optional note; the note and the online judge scores (muted chips, "faithfulness 0.92") sit beside them |
 | Tool (Trace, Code Block) | `chat/ToolTrace.tsx` | One wrench line per call: running, waiting for approval, ran, denied, failed. The description is a short outcome and the duration; policy, why, budget, approval, sandbox chip and arguments open below |
 | Confirmation (Item) | `chat/ApprovalCard.tsx` | "Run X?" with the action class, reason, countdown and arguments; Deny then Approve. Once decided it goes and the tool line above says how |
@@ -274,12 +287,12 @@ the plus button and the Model Selector for your own key in P6; Subagent in P7.
 
 | App part | shadcn components |
 |---|---|
-| Header | Select (provider, fixture), the pack picker (a Dropdown Menu, sized to the pack's name), a ghost Button for the Guide, a ghost icon Button for the theme (Sun in dark, Moon in light; it follows `prefers-color-scheme` until pressed), the session chip at the far right (a Badge for the mode and, in public mode, the countdown) opening a Popover (the session's end in words, the session id with Copy, New session, the sandbox limits, the turn's budgets), Tooltip on every unlabelled control |
+| Header | Select (provider, dev only; the fixture select is in the composer), the pack picker (a Dropdown Menu, sized to the pack's name), a ghost Button for the Guide, a ghost icon Button for the theme (Sun in dark, Moon in light; it follows `prefers-color-scheme` until pressed), the session chip at the far right (a Badge for the mode and, in public mode, the countdown) opening a Popover (the session's end in words, the session id with Copy, New session, the sandbox limits, the turn's budgets), Tooltip on every unlabelled control |
 | Notices | Sonner toasts (errors carry `role="alert"`), plus a toast when the event stream drops and when it reconnects |
 | Chat | Message Scroller, Message, Bubble, Marker, Spinner, Empty, Button (suggestions, message actions), Tooltip |
 | Tool calls and memory | Trace lines opening to a Code Block, a Badge for the sandbox; a Memory Trace line per `remember` proposal (written, waiting, rejected) |
 | Citations and guardrails | Hover Card and Button (inline citations), Trace (Sources), Dialog (the document reader at the cited chunk, `GET /v1/knowledge/docs/{doc}`); secondary Badges for input guardrails (redactions, injection score, warnings) and output guardrails (citations, restored); placeholders as `mark`, a Switch revealing the restored reply (dev only) |
-| Composer | Input Group (Textarea, Buttons, Text), Dropdown Menu (model hint), Textarea (`output_schema`, dev only), Kbd, Tooltip, Spinner; Switch (Step mode) on the hint line under the input, right-aligned |
+| Composer | Input Group (Textarea, Buttons, Text), Dropdown Menu (Model Selector), Select (fixture), Textarea (`output_schema`, dev only), Kbd, Tooltip, Spinner; Switch (Step mode) on the hint line under the input, right-aligned |
 | Approval, step controls | Item (Media, Content, Title, Description, Actions, Footer), Code Block, Badge, Button |
 | Inspector | A Resizable pane docked beside the diagram (not a modal Sheet, so step mode keeps it open) with Tabs and Scroll Area; the LLM Ops tabs (Runs, Releases, Turns) with Input, Select, Toggle Group, Badge, Table and the Confirmation Item; artifact edits with Textarea, Input and the Code Block diff; Badge (kind, view); Events as a Trace opening to the event JSON in a Code Block; Code and config in a Code Block with line numbers; prompts in `Prose`; records in a Table; payload views picked by shape (`src/inspector/shapes.ts`): the audit chain with a Verify Button, store records with a scope Badge, the document list, memory writes as Cards with a diff and Accept/Reject, the context budget as Progress bars; Switch (disable next turn); Kbd (Esc) |
 | Diagram | Nodes are Cards (CardTitle, CardDescription) on their own warm surface (`--node-surface`) with Badges for the kind chip, store badges, the off and not-yet tags and the regressions chip on the node that runs evals; the canvas controls are one Card with two Switches (Expert view, Telemetry) and a Button opening the legend Dialog; the turn status bar is a Card with a budget readout that opens the session chip's popover. The canvas, edges and layout stay React Flow |
@@ -358,7 +371,7 @@ and says what it teaches in `lesson_summary`. The code is in `src/lessons/`.
   under the hook. With `disable` (every node there `can_disable`, mode dev or private,
   `features.disable_nodes` not false) it is "Disable <Label> and try it": it turns those nodes
   off for the next turn (the same state as the inspector's switch), picks the fixture in the
-  header (dev only, as fixtures are), puts the prompt in the composer and focuses it. The reader
+  composer's Fixture select (dev only), puts the prompt in the composer and focuses it. The reader
   presses send. With a prompt and no `disable` it is a plain "Try it" (dev only when it needs a
   fixture). The composer's text lives in the store (`draft`) for this.
 - **Check yourself** (`CheckYourself.tsx`, state in `quiz.ts`). Three questions, each

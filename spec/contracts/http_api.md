@@ -1008,7 +1008,12 @@ tenant's session); a body or header `session_id` that belongs to another tenant 
         "default": false, "available": true, "reason": null }
     ],
     "budget": { "status": "ok", "resets_at": "2026-11-02T00:00:00Z", "spent_fraction": 0.42 },
-    "byo_key_bypasses_budget": true
+    "byo_key_bypasses_budget": true,
+    "fixtures": [
+      { "name": "plain_answer", "description": null, "packs": ["_starter"] },
+      { "name": "public_demo", "description": "The scripted model a public server offers as fake-small (public.fake_fixture).", "packs": [] }
+    ],
+    "default_fixture": "public_demo"
   }
 }
 ```
@@ -1026,6 +1031,8 @@ tenant's session); a body or header `session_id` that belongs to another tenant 
 | `models[].available`, `reason` | Whether a site-paid turn can use the alias now. `reason`: `budget_exhausted`, `provider_unconfigured` (provider not built, or hosted with no site key and no BYO key), `provider_unhealthy` (P6 addition to the contract's list: the health probe or a failure marked the provider down), or `null` |
 | `budget` | Public: `status` (`ok` or `exhausted`), `resets_at` (the next 00:00 UTC) and `spent_fraction` (0 to 1). No dollar amount leaves the server. Elsewhere `{status: "ok", resets_at: null, spent_fraction: 0}` |
 | `byo_key_bypasses_budget` | Always `true`: a BYO key makes the hosted aliases available whatever the budget |
+| `fixtures` | The fake model's fixtures a turn may name (P6 picker fixes), every mode: `{name, description, packs}` sorted by name, the same names as the dev-mode top-level `fixtures` (every pack's own and the shared ones; a turn may use its session pack's own and the shared ones). `description` is the first sentence of the fixture file's `description` on one line (at most 140 characters, a leading phase mark such as `P5.` dropped), `null` for a file without one (every JSONL fixture). `packs`: the packs whose own `fixtures/fake` ships the name, `[]` for a shared one (the picker lists the session pack's own, then the shared ones; `GET /v1/packs` `fixtures` stays dev only). No path leaves the server. The top-level `fixtures` stays empty outside dev mode |
+| `default_fixture` | The fixture a fake-model turn without `fixture` plays: `models.providers.fake.fixture` (`--fixture`, else `public.fake_fixture` in public mode), else `plain_answer` |
 
 The top-level `providers[].configured` in public mode is true exactly for the providers the
 server built from `public.models`.
@@ -1059,6 +1066,16 @@ server built from `public.models`.
 - A public turn is cancelled (exit `cancelled`) once it has existed for `public.max_turn_wall_s`
   (default 600) seconds of wall-clock time, paused time included (P6 review), so a step-mode
   turn cannot hold its session and stream forever.
+- `fixture` (P6 picker fixes): accepted when the turn runs on the scripted model, an unpriced
+  alias of the `fake` provider (`fake-small`): named by `model`, or picked by the router without
+  a `model` (the alias a turn without a hint would run on now, `models[].default`, for example
+  while the shared budget is spent or no site key is set). The name must be one of the fixtures
+  of the session's pack and the shared ones, else `400 invalid_request "no fixture named
+  '<name>'"` (no path in the message). Any other case, a `fixture` on a hosted or priced alias
+  (named, or picked by the router while the budget lasts) and a `provider` in any case, keeps the
+  dev-only refusal `400 invalid_request "provider and fixture can only be chosen in dev mode"`.
+  The turn's fake model counts turns per session on that fixture (as in dev mode) and the
+  turn's `turn_start.summary.fixture` names it.
 - `max_steps`, `budget_tokens`, `budget_usd`, `timeout_s` and `stuck_repeats`, at the top level
   or in `options`, are `400 invalid_request "<key> cannot be changed in public mode"`.
 - Rate limits (per IP from `gateway.rate_limit.per_ip_per_hour`, per tenant from

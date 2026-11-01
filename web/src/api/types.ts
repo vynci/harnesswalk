@@ -225,6 +225,22 @@ export interface PublicInfo {
   models: PublicModel[]
   budget: { status: 'ok' | 'exhausted'; resets_at: string | null; spent_fraction: number }
   byo_key_bypasses_budget: boolean
+  /**
+   * The fake model's fixtures a turn may name, every mode (picker fixes): in public mode when
+   * the turn runs on the scripted model. Absent on an API from before.
+   */
+  fixtures?: FixtureInfo[]
+  /** The fixture a fake-model turn without `fixture` plays (public_demo on a public server). */
+  default_fixture?: string | null
+}
+
+/** One entry of `capabilities.public.fixtures`. */
+export interface FixtureInfo {
+  name: string
+  /** The first sentence of the fixture file's description, null when it has none. */
+  description: string | null
+  /** The packs whose own fixtures/fake ships it; empty for a shared one. */
+  packs?: string[]
 }
 
 export type TurnStatus = 'running' | 'paused' | 'done'

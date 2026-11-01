@@ -18,7 +18,7 @@ import { EXAMPLE_MESSAGES, EXAMPLE_NAMES, EXAMPLES, servedDiagram, type ExampleN
 import { MockLessons } from './lessons'
 import { MARKDOWN_PROMPT, MARKDOWN_REPLY } from './markdown'
 import { MockEvalEventSource, MockOps, MockOpsEventSource } from './ops'
-import { allFixtures, DEFAULT_PACK, PACK_IDS, packDetail, packFiles, packSummary } from './packs'
+import { allFixtures, DEFAULT_PACK, fixtureInfo, PACK_IDS, packDetail, packFiles, packSummary } from './packs'
 import { repoFile, sourceFor } from './repo'
 
 export interface MockOptions {
@@ -36,8 +36,9 @@ export interface MockOptions {
 export interface MockPublicOptions {
   /**
    * `spent`: both Claude models are out of today's shared budget. Default: only Sonnet is.
-   * `midturn`: as the default, but a Claude turn runs out between two calls, so its reply falls
-   * through to the fake model and `turn_end.summary.notices` says so.
+   * `midturn`: as the default, but the first Claude turn runs out between two calls, so its reply
+   * falls through to the fake model and `turn_end.summary.notices` says so; from then on the
+   * budget reads as spent, as on the real server.
    */
   budget?: 'ok' | 'spent' | 'midturn'
   /** Sonnet's provider is marked down (`provider_unhealthy`) instead of out of budget. */
@@ -48,12 +49,13 @@ export interface MockPublicOptions {
   ttlS?: number
 }
 
-/** The public site's models (phase-6 CONTRACT section 2). */
+/** The public site's models (phase-6 CONTRACT section 2), the default model first. */
 const PUBLIC_MODELS = [
-  { alias: 'hosted-haiku', label: 'Claude Haiku 5.5', provider: 'anthropic', default: true },
-  { alias: 'hosted-sonnet', label: 'Claude Sonnet 5.5', provider: 'anthropic', default: false },
-  { alias: 'fake-small', label: 'Fake model (scripted)', provider: 'fake', default: false },
+  { alias: 'hosted-haiku', label: 'Claude Haiku 5.5', provider: 'anthropic' },
+  { alias: 'hosted-sonnet', label: 'Claude Sonnet 5.5', provider: 'anthropic' },
+  { alias: 'fake-small', label: 'Fake model (scripted)', provider: 'fake' },
 ] as const
+const DEV_ONLY = 'provider and fixture can only be chosen in dev mode'
 const PER_HOUR = 30
 
 type Template = Omit<HarnessEvent, 'seq' | 'ts' | 'event_id' | 'trace_id' | 'turn_id' | 'session_id' | 'tenant_id'>
@@ -216,6 +218,10 @@ export class MockServer {
   private loadedPacks = new Set<string>([DEFAULT_PACK])
   /** P6: sessions of a swept sandbox tenant: a turn naming one is another tenant's, so 404. */
   private sweptSessions = new Set<string>()
+  /** `budget=midturn`: the first Claude turn spent the budget; it reads as spent from then on. */
+  private spentMidTurn = false
+  /** Every POST /v1/turns body, in order: the mock e2e tests read what the UI sent. */
+  readonly turnRequests: StartTurnRequest[] = []
 
   constructor(opts: MockOptions = {}) {
     this.opts = { stepMs: opts.stepMs ?? 140, seed: opts.seed ?? true, messageDelta: opts.messageDelta ?? true, public: opts.public ?? null }
@@ -351,6 +357,7 @@ export class MockServer {
     if (method === 'GET' && p === '/v1/capabilities') return json(200, this.capabilities())
     if (method === 'GET' && p === '/v1/diagram') return json(200, this.diagram)
     if (method === 'POST' && p === '/v1/turns') {
+      this.turnRequests.push(structuredClone(body) as unknown as StartTurnRequest)
       const refused = this.publicRefusal(body as unknown as StartTurnRequest, header(init, 'x-harnesswalk-provider-key'))
       if (refused) return refused
       return this.startTurn(body as unknown as StartTurnRequest)
@@ -464,14 +471,22 @@ export class MockServer {
     return this.sandbox
   }
 
+  /** Today's shared budget is spent: `budget=spent`, or after the `midturn` fall-through. */
+  private budgetSpent(): boolean {
+    return this.opts.public?.budget === 'spent' || this.spentMidTurn
+  }
+
   private publicModels(): { alias: string; label: string; provider: string; default: boolean; available: boolean; reason: 'budget_exhausted' | 'provider_unhealthy' | null }[] {
-    const spent = this.opts.public?.budget === 'spent'
+    const spent = this.budgetSpent()
     const unhealthy = this.opts.public?.unhealthy === true
-    return PUBLIC_MODELS.map((m) => {
+    const models = PUBLIC_MODELS.map((m) => {
       const out = (m.alias === 'hosted-sonnet' || spent) && m.provider === 'anthropic'
-      const reason = !out ? null : unhealthy && m.alias === 'hosted-sonnet' ? 'provider_unhealthy' : 'budget_exhausted'
+      const reason: 'budget_exhausted' | 'provider_unhealthy' | null = !out ? null : unhealthy && m.alias === 'hosted-sonnet' ? 'provider_unhealthy' : 'budget_exhausted'
       return { ...m, available: !out, reason }
     })
+    // `default`: what a turn without a model runs on now (the fake model once the budget is spent).
+    const auto = models.find((m) => m.available)
+    return models.map((m) => ({ ...m, default: m === auto }))
   }
 
   private publicInfo(): NonNullable<Capabilities['public']> {
@@ -479,7 +494,7 @@ export class MockServer {
     const ttl = this.opts.public?.ttlS ?? 7200
     const midnight = new Date()
     midnight.setUTCHours(24, 0, 0, 0)
-    const spent = this.opts.public?.budget === 'spent'
+    const spent = this.budgetSpent()
     return {
       session_expires_at: new Date(box.startedAt + ttl * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z'),
       ttl_s: ttl,
@@ -487,6 +502,8 @@ export class MockServer {
       models: this.publicModels(),
       budget: { status: spent ? 'exhausted' : 'ok', resets_at: midnight.toISOString().replace(/\.\d{3}Z$/, 'Z'), spent_fraction: spent ? 1 : 0.42 },
       byo_key_bypasses_budget: true,
+      fixtures: fixtureInfo(true),
+      default_fixture: 'public_demo',
     }
   }
 
@@ -501,6 +518,12 @@ export class MockServer {
     if (!entry.available && entry.reason === 'provider_unhealthy') return apiError(503, 'provider_unavailable', 'The provider for this model is not answering.')
     if (!entry.available && !key) {
       return errorResponse(409, { error: { code: 'budget_exhausted', message: "Today's shared budget for Claude models is spent.", resets_at: this.publicInfo().budget.resets_at } })
+    }
+    // A fixture only for a turn on the scripted model (named, or what Auto runs on now).
+    if (req.provider !== undefined) return apiError(400, 'invalid_request', DEV_ONLY)
+    if (req.fixture !== undefined) {
+      if (entry.provider !== 'fake') return apiError(400, 'invalid_request', DEV_ONLY)
+      if (!fixtureInfo(true).some((f) => f.name === req.fixture)) return apiError(400, 'invalid_request', `no fixture named '${req.fixture}'`)
     }
     if (box.remaining <= 0) {
       return errorResponse(429, { error: { code: 'rate_limited', message: 'Too many requests from this address this hour.', retry_after: 720 } }, { 'Retry-After': '720' })
@@ -522,6 +545,21 @@ export class MockServer {
       ],
       // P5: the shared fixture and every pack's own (GET /v1/packs says which are whose).
       fixtures: allFixtures(),
+      // Every mode has `public` (as the real API): every model, an ok budget, no session clock.
+      public: {
+        session_expires_at: null,
+        ttl_s: 7200,
+        limits: { per_ip_per_hour: PER_HOUR, remaining_this_hour: PER_HOUR, max_steps: 8, budget_tokens: 16000, max_message_chars: 4000 },
+        models: [
+          { alias: 'fake-small', label: 'fake-small', provider: 'fake', default: true, available: true, reason: null },
+          { alias: 'llama3.1:8b', label: 'llama3.1:8b', provider: 'ollama', default: false, available: false, reason: 'provider_unconfigured' },
+        ],
+        budget: { status: 'ok', resets_at: null, spent_fraction: 0 },
+        byo_key_bypasses_budget: true,
+        fixtures: fixtureInfo(false),
+        // The mock picks its recorded stream by the message when no fixture is named.
+        default_fixture: null,
+      },
       features: {
         step_mode: true,
         approvals: true,
@@ -609,8 +647,10 @@ export class MockServer {
     const approvalId = `apr_${String(turnNo).padStart(4, '0')}_${hex(4)}`
     // A message asking for a table or markdown gets the markdown reply on the plain answer's stream.
     const markdown = name === 'plain_answer' && MARKDOWN_PROMPT.test(req.message)
-    // P6, `budget=midturn`: a Claude turn crosses the shared budget between two calls.
-    const fellThrough = this.opts.public?.budget === 'midturn' && HOSTED.has(req.model ?? 'hosted-haiku')
+    // P6, `budget=midturn`: the first Claude turn crosses the shared budget between two calls.
+    const routed = this.opts.public ? (req.model ?? this.publicModels().find((m) => m.default)?.alias ?? '') : ''
+    const fellThrough = this.opts.public?.budget === 'midturn' && !this.spentMidTurn && HOSTED.has(routed)
+    if (fellThrough) this.spentMidTurn = true
     const templates = applyDisabled(EXAMPLES[name].map(toTemplate), disabled, this.diagram).map((t) => {
       if (fellThrough && t.type === 'turn_end') t = { ...t, summary: { ...t.summary, notices: [{ reason: 'budget_exhausted', message: BUDGET_NOTICE }] } }
       if (markdown && t.type === 'turn_end') return { ...t, summary: { ...t.summary, reply: MARKDOWN_REPLY } }
