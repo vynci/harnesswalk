@@ -57,7 +57,7 @@ function Contents({ current, onGo }: { current: string | null; onGo: (entry: Out
         disabled={!e.nodeId}
         aria-current={e.slug === current ? 'true' : undefined}
         className={cn(
-          'flex w-full cursor-pointer flex-col gap-1 rounded-2xl px-3 py-2.5 text-left transition-colors duration-200 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:opacity-50',
+          'flex w-full cursor-pointer flex-col gap-1 rounded-md px-3 py-2.5 text-left transition-colors duration-200 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:opacity-50',
           e.slug === current && 'bg-muted',
         )}
         data-testid="lesson-row"

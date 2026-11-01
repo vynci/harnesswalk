@@ -75,7 +75,7 @@ export function DocReader() {
                   <li
                     key={c.position}
                     ref={cited ? (el) => void (target.current = el) : undefined}
-                    className={cn('rounded-2xl border p-3 text-sm', cited && 'border-transparent bg-kind-store/10')}
+                    className={cn('rounded-lg border p-3 text-sm', cited && 'border-transparent bg-kind-store/10')}
                     data-testid="doc-chunk"
                     data-position={c.position}
                     data-cited={cited ? 'true' : 'false'}

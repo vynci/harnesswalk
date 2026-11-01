@@ -485,7 +485,7 @@ export function EvalPanel() {
             <div key={r.run_id} role="listitem">
               <button
                 type="button"
-                className="flex w-fit max-w-full min-w-0 rounded-lg text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+                className="flex w-fit max-w-full min-w-0 rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
                 onClick={() => setChosen(r.run_id)}
                 aria-current={r.run_id === selected ? 'true' : undefined}
                 data-testid="eval-run-row"

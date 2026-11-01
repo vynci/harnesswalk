@@ -2,12 +2,12 @@ import type { CSSProperties } from 'react'
 import { Code, Cpu, Database, ListOrdered, MessageSquareText, SlidersHorizontal, type LucideIcon } from 'lucide-react'
 import type { EdgeKind, NodeKind, PlaneId } from '@/api/types'
 
-/** CSS variables that colour a node or group by its plane (see index.css). */
+/** CSS variables that colour a node or plane by its plane's four roles (see index.css). */
 export function planeStyle(plane: PlaneId): CSSProperties {
   return {
     ['--plane-stroke' as string]: `var(--plane-${plane})`,
     ['--plane-fill' as string]: `var(--plane-${plane}-fill)`,
-    ['--plane-group' as string]: `var(--plane-${plane}-group)`,
+    ['--plane-border' as string]: `var(--plane-${plane}-border)`,
     ['--plane-ink' as string]: `var(--plane-${plane}-ink)`,
   }
 }

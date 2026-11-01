@@ -21,7 +21,7 @@ import {
 import { cn } from '@/lib/utils'
 
 /** The number of a citation as a small round chip, shared by the inline citation and Sources. */
-const NUMBER = 'h-5 min-w-5 rounded-full px-1.5 font-mono text-xs tabular-nums'
+const NUMBER = 'h-5 min-w-5 rounded-xs px-1.5 font-mono text-xs tabular-nums'
 
 /**
  * One `[n]` in the reply: the AI Elements Inline Citation. Hovering shows the passage's citation

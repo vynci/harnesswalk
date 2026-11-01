@@ -18,7 +18,7 @@ export function CanvasControls() {
       size="sm"
       role="group"
       aria-label="Diagram controls"
-      className="absolute top-3 right-3 z-10 flex-row items-center gap-3 rounded-2xl bg-card/95 py-1.5 pr-1.5 pl-3 text-xs"
+      className="absolute top-3 right-3 z-10 flex-row items-center gap-3 bg-card/95 py-1.5 pr-1.5 pl-3 text-xs"
       data-testid="canvas-controls"
     >
       <Hint label="Expand each group into its parts and draw every edge." side="bottom">

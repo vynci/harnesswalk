@@ -83,7 +83,7 @@ export function CheckYourself({ slug, questions }: { slug: string; questions: Ch
                       {item.correct ? <CircleCheck className="size-4 text-state-done" aria-hidden /> : <CircleX className="size-4" aria-hidden />}
                       {item.correct ? 'Right.' : `Not quite. The answer is ${choiceLetter(item.rightIndex)}.`}
                     </p>
-                    <div className="[&_code]:rounded-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:font-mono [&_code]:text-[0.85em]">
+                    <div className="[&_code]:rounded-xs [&_code]:bg-muted [&_code]:px-1 [&_code]:font-mono [&_code]:text-[0.85em]">
                       <ReactMarkdown>{sentence(q.answer)}</ReactMarkdown>
                     </div>
                   </div>

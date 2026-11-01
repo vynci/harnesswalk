@@ -419,7 +419,7 @@ export function CitationList({ citations }: { citations: (Citation & { text?: st
     <ol className="flex flex-col gap-1" data-testid="context-citations">
       {citations.map((c) => (
         <li key={c.n} className="flex items-center gap-1.5 text-xs">
-          <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-secondary px-1.5 font-mono text-xs tabular-nums">{c.n}</span>
+          <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-xs bg-secondary px-1.5 font-mono text-xs tabular-nums">{c.n}</span>
           <span className="min-w-0 truncate" title={c.text}>
             {c.citation}
           </span>

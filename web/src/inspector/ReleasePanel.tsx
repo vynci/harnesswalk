@@ -110,7 +110,7 @@ function GateFailedView({ failure, busy, onForce, onDismiss }: { failure: GateFa
   const enterReplay = useApp((s) => s.enterReplay)
   const gate = failure.gate
   return (
-    <section className="flex flex-col gap-3 rounded-2xl p-3 ring-1 ring-foreground/10" role="alert" aria-label="The eval gate refused the release" data-testid="gate-failed">
+    <section className="flex flex-col gap-3 rounded-lg p-3 ring-1 ring-foreground/10" role="alert" aria-label="The eval gate refused the release" data-testid="gate-failed">
       <div className="flex items-start gap-2">
         <ShieldX className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
         <div className="flex min-w-0 flex-col gap-0.5">
@@ -419,7 +419,7 @@ export function ReleasePanel() {
             <div key={r.release_id} role="listitem">
               <button
                 type="button"
-                className="flex w-fit max-w-full min-w-0 rounded-lg text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+                className="flex w-fit max-w-full min-w-0 rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
                 onClick={() => setChosen(r.release_id)}
                 aria-current={r.release_id === selected ? 'true' : undefined}
                 data-testid="release-row"

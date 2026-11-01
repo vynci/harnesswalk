@@ -2,10 +2,12 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-// WCAG contrast of the diagram's colour tokens, read from index.css, in both themes:
+// WCAG contrast of the diagram's colour tokens, read from index.css, in both themes and for both
+// plane palettes (candidate A in :root and .dark, candidate B in the [data-planes='b'] block):
 // 4.5:1 for text, 3:1 for the state icons and rings, the kind icons and the edge strokes. Nodes
-// are neutral cards on their own warm surface (--node-surface) inside their plane group, so node
-// colours are checked on that surface.
+// are neutral cards on their own warm surface (--node-surface) on their plane's fill, so node
+// colours are checked on that surface. The dashed plane border is decoration (the fill, the label
+// and the Legend carry the plane), so it has no contrast floor, only the family rule below.
 
 type RGB = [number, number, number]
 
@@ -55,6 +57,8 @@ const mix = (a: RGB, b: RGB, t: number): RGB => [0, 1, 2].map((i) => a[i]! * t +
 
 const light = block(':root')
 const dark = new Map([...light, ...block('.dark')])
+const lightB = new Map([...light, ...block(":root[data-planes='b']")])
+const darkB = new Map([...dark, ...block(":root.dark[data-planes='b']")])
 const PLANES = ['control', 'context', 'execution', 'ops']
 const STATES = ['active', 'waiting', 'done', 'error', 'idle', 'skipped']
 // Only these states draw a ring on the node (index.css .hw-node).
@@ -63,13 +67,15 @@ const KINDS = ['code', 'config', 'prompt', 'store', 'queue', 'model']
 const EDGES = ['data', 'control', 'telemetry', 'release']
 
 describe.each([
-  ['light', light],
-  ['dark', dark],
-])('%s theme', (_name, tokens) => {
+  ['light, palette A', light],
+  ['dark, palette A', dark],
+  ['light, palette B', lightB],
+  ['dark, palette B', darkB],
+])('%s', (_name, tokens) => {
   const c = (name: string) => parse(tokens.get(name)!)
 
   it('plane headers and node text read at 4.5:1', () => {
-    for (const p of PLANES) expect(contrast(c(`plane-${p}-ink`), c(`plane-${p}-group`)), `${p} header`).toBeGreaterThanOrEqual(4.5)
+    for (const p of PLANES) expect(contrast(c(`plane-${p}-ink`), c(`plane-${p}-fill`)), `${p} header`).toBeGreaterThanOrEqual(4.5)
     expect(contrast(c('node-surface-foreground'), c('node-surface')), 'node title').toBeGreaterThanOrEqual(4.5)
     expect(contrast(c('muted-foreground'), c('node-surface')), 'node stat').toBeGreaterThanOrEqual(4.5)
   })
@@ -88,8 +94,8 @@ describe.each([
     for (const s of STATES) expect(contrast(c(`state-${s}`), c('node-surface')), `${s} on the node`).toBeGreaterThanOrEqual(3)
   })
 
-  it('the state rings stand out at 3:1 on every plane group around the card', () => {
-    for (const p of PLANES) for (const s of RINGS) expect(contrast(c(`state-${s}`), c(`plane-${p}-group`)), `${s} ring on ${p}`).toBeGreaterThanOrEqual(3)
+  it('the state rings stand out at 3:1 on every plane fill around the card', () => {
+    for (const p of PLANES) for (const s of RINGS) expect(contrast(c(`state-${s}`), c(`plane-${p}-fill`)), `${s} ring on ${p}`).toBeGreaterThanOrEqual(3)
   })
 
   it('kind icons stand out at 3:1 on their chip on the node surface', () => {
@@ -103,8 +109,25 @@ describe.each([
     const strokes = [...EDGES.map((e) => `edge-${e}`), ...PLANES.map((p) => `plane-${p}`)]
     for (const s of strokes) {
       expect(contrast(c(s), c('background')), `${s} on canvas`).toBeGreaterThanOrEqual(3)
-      for (const p of PLANES) expect(contrast(c(s), c(`plane-${p}-group`)), `${s} on ${p}`).toBeGreaterThanOrEqual(3)
+      for (const p of PLANES) expect(contrast(c(s), c(`plane-${p}-fill`)), `${s} on ${p}`).toBeGreaterThanOrEqual(3)
     }
+  })
+
+  it('the four planes are one family: each role at one lightness and chroma, one hue per plane', () => {
+    const lch = (name: string) => tokens.get(name)!.match(/^oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)$/)!.slice(1).map(Number)
+    for (const role of ['', '-fill', '-border', '-ink']) {
+      const [first, ...rest] = PLANES.map((p) => lch(`plane-${p}${role}`))
+      for (const other of rest) expect(other.slice(0, 2), `plane${role}`).toEqual(first!.slice(0, 2))
+    }
+    for (const p of PLANES) {
+      const hues = ['', '-fill', '-border', '-ink'].map((role) => lch(`plane-${p}${role}`)[2])
+      expect(new Set(hues).size, `${p} roles share a hue`).toBe(1)
+    }
+  })
+
+  it('a plane fill sits under the node surface, so the cards stay lifted off it', () => {
+    const L = (name: string) => Number(tokens.get(name)!.match(/^oklch\(([\d.]+)/)![1])
+    for (const p of PLANES) expect(L(`plane-${p}-fill`), p).toBeLessThan(L('node-surface'))
   })
 })
 

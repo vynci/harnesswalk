@@ -55,7 +55,7 @@ function ReceiptView({ turnId }: { turnId: string }) {
   )
   return (
     <div className="flex flex-col gap-3" data-testid="trace-receipt">
-      <div className="rounded-xl ring-1 ring-foreground/5">
+      <div className="rounded-lg ring-1 ring-foreground/5">
         <Table className="text-xs">
           <TableCaption className="sr-only">Receipt per node</TableCaption>
           <TableHeader>

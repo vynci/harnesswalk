@@ -201,7 +201,23 @@ of it, `--border`, `--input` and `--muted` `#e6e6e6`, `--foreground` and the dar
 `#111111`, the light background `#ffffff`, `--state-active` (the lit node's glow and the active
 edge's glow: `#0a7557` in light mode, where `#12d39d` falls under 3:1, `#12d39d` in dark) and
 `::selection`. `--brand` colours the header mark (`src/components/logo.tsx`, the same path as
-`public/favicon.svg`). The plane hues and the bone node surface are unchanged.
+`public/favicon.svg`). The brand green is kept for the active and done states (`--state-done`
+is the same green), so a lit node pops on any plane; no plane uses it.
+
+The four planes are one family in oklch: one hue per plane and four roles from it, each role at
+one lightness and chroma for all four planes (`-fill` the backdrop tint, `-border` the dashed
+outline, `-ink` the label and lit store badges at 4.5:1 on the fill, and the bare `--plane-*`
+the request-edge stroke at 3:1 on the canvas and every fill). The light fills sit a step under
+the bone node surface so the cards stay lifted. `colors.test.ts` checks the family rule and the
+contrast. A second palette (candidate B, `[data-planes='b']` in `index.css`) is there for review
+only; the comment above it says how to ship it or drop it.
+
+Radii are one scale in `index.css` (`@theme`): `xs` 4px chips and badges, `sm` 6px inputs and
+small buttons, `md` 8px buttons and menu rows, `lg` 12px cards, nodes, planes, popovers and
+menus, `xl` 16px panels and dialogs, `full` only for switches, sliders, progress and avatars.
+Nested surfaces follow the concentric rule (inner = outer minus the gap) where the gap is
+tighter than the outer radius; the comment in `index.css` lists each nesting, and
+`src/test/radius.test.ts` fails on any `rounded-*` class off the scale.
 
 ### Public mode and private-only controls (P6)
 
@@ -244,8 +260,10 @@ legend and diagram chrome read as one system:
 - **Borders.** Trace lines have none; open content gets one hairline on the left. Bubbles are
   fills. Items are a 1 px outline. Raised surfaces (cards, menus, hover cards) use
   `ring-1 ring-foreground/5` and a shadow.
-- **Radii (rhea).** Buttons, inputs, the input group, items, code blocks, menus and badges
-  `rounded-2xl`; bubbles `rounded-3xl`; the composer's round buttons `rounded-full`.
+- **Radii.** One scale for the components and the diagram (see Tokens): badges and chips
+  `rounded-xs`, inputs and small buttons `rounded-sm`, buttons and menu rows `rounded-md`,
+  cards, nodes, planes, menus, popovers, items, code blocks and bubbles `rounded-lg`, the
+  composer and dialogs `rounded-xl`; inner radius = outer minus the gap where they nest.
 - **Type.** `text-sm` for body and lines, `text-xs` as the floor: no 10 or 11 px text anywhere.
   `font-medium` for titles only, no `font-semibold`, no uppercase eyebrows; `tabular-nums` for
   numbers; mono only for code, ids, paths and commands.
@@ -404,9 +422,9 @@ strokes.
 
 | Channel | Drawn as | Values |
 |---|---|---|
-| Plane | group box background, dashed border and header (the node inside is a neutral card on `bg-node-surface`, a warm bone paper in light mode and a slightly warm lift of the card in dark, with `shadow-sm` and `ring-1 ring-foreground/5`) | control amber, context blue, execution green, LLM Ops purple |
+| Plane | group box background, dashed border and header (the node inside is a neutral card on `bg-node-surface`, a warm bone paper in light mode and a slightly warm lift of the card in dark, with `shadow-sm` and `ring-1 ring-foreground/5`) | one oklch family at equal lightness and chroma: control warm (hue 65), context blue (258), execution green (152), LLM Ops violet (325) |
 | Node kind (purpose) | icon chip (the Badge `kind` variant) after the title; the kind word stays for screen readers | code slate, config amber, prompt violet, store teal, queue orange, model indigo |
-| Node state | the status icon, plus a 1 px ring in the state colour while active, waiting or failed | idle neutral grey, active blue with a pulsing ring, waiting amber (dashed ring), done green (icon only), error red (ring), skipped grey and faded, not yet built muted with a "not yet" pill |
+| Node state | the status icon, plus a 1 px ring in the state colour while active, waiting or failed | idle neutral grey, active brand green with a pulsing ring, waiting amber (dashed ring), done brand green (check icon only), error red (ring), skipped grey and faded, not yet built muted with a "not yet" pill |
 | Edge kind | stroke colour and dash | request solid in the source plane's colour, reply (a request back against walk order) a lighter tint of it, data solid teal, control dashed amber, telemetry dotted thin grey, release dashed purple |
 | Edge state | opacity and motion | idle 40 percent, flowing full opacity with moving dashes and a dot, used this turn 70 percent |
 

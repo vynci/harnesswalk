@@ -29,7 +29,7 @@ export function safeUrl(url: string): string {
 /** A citation marker or a redaction placeholder, in one pass over a text run. */
 const MARKS = /\[(\d{1,3})\]|\[[A-Z][A-Z_]*_\d+\]/g
 
-const PLACEHOLDER_CLASS = 'rounded-md bg-state-waiting/15 px-1 font-mono text-[0.92em] text-foreground'
+const PLACEHOLDER_CLASS = 'rounded-xs bg-state-waiting/15 px-1 font-mono text-[0.92em] text-foreground'
 
 /**
  * A rehype plugin for a reply: outside code, every `[n]` the turn cited becomes a span the chip

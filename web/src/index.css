@@ -6,10 +6,12 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --radius: 0.625rem;
+  /* Third-party code that reads --radius (the sonner toasts) gets the card step. */
+  --radius: 12px;
   /* Brand (P6, the owner's palette): #0ea47a primary, #12d39d accent and active states, #0a7557
      primary hover, text-safe green on light and the dark-mode primary, #e6e6e6 borders and muted
-     surfaces, #111111 ink, #ffffff paper. The plane hues and the node surface stay as they were. */
+     surfaces, #111111 ink, #ffffff paper. The brand green is reserved for the active and done
+     states; no plane uses it. */
   --brand: #0ea47a;
   --brand-accent: #12d39d;
   --brand-strong: #0a7557;
@@ -38,32 +40,39 @@
   --ring: #12d39d;
   --selection: color-mix(in oklab, #12d39d 32%, transparent);
 
-  /* Planes: stroke colour, tinted fill and text-safe ink. */
-  --plane-control: #b26a00;
-  --plane-control-fill: #fdf3e4;
-  --plane-control-group: #fbeed9;
-  --plane-context: #1f5fa8;
-  --plane-context-fill: #e8f0fa;
-  --plane-context-group: #e2ecf8;
-  --plane-execution: #2e7d32;
-  --plane-execution-fill: #e9f5ea;
-  --plane-execution-group: #e3f1e4;
-  --plane-ops: #6a1b9a;
-  --plane-ops-fill: #f3e8f8;
-  --plane-ops-group: #efe3f5;
+  /* Planes, candidate A "harmonised hues" (shipped). One hue per plane (Control warm 65, Context
+     blue 258, Execution green 152, LLM Ops violet 325) and four roles from it, each role at one
+     lightness and chroma for all four planes so they read as one family:
+       -fill    the backdrop, a light tint (L 0.955: the widest chroma blue holds in sRGB there,
+                and a step under the bone node surface so the cards stay lifted)
+       -border  the dashed outline, a muted mid tone
+       -ink     the plane label and the lit store badge, 4.5:1 on the fill
+       (bare)   the stroke of request edges and the plane accent bar, 3:1 on the canvas and every fill
+     Candidate B is the marked block after .dark; colors.test.ts checks both. */
+  --plane-control: oklch(0.53 0.11 65);
+  --plane-control-fill: oklch(0.955 0.018 65);
+  --plane-control-border: oklch(0.75 0.065 65);
+  --plane-control-ink: oklch(0.45 0.095 65);
+  --plane-context: oklch(0.53 0.11 258);
+  --plane-context-fill: oklch(0.955 0.018 258);
+  --plane-context-border: oklch(0.75 0.065 258);
+  --plane-context-ink: oklch(0.45 0.095 258);
+  --plane-execution: oklch(0.53 0.11 152);
+  --plane-execution-fill: oklch(0.955 0.018 152);
+  --plane-execution-border: oklch(0.75 0.065 152);
+  --plane-execution-ink: oklch(0.45 0.095 152);
+  --plane-ops: oklch(0.53 0.11 325);
+  --plane-ops-fill: oklch(0.955 0.018 325);
+  --plane-ops-border: oklch(0.75 0.065 325);
+  --plane-ops-ink: oklch(0.45 0.095 325);
 
-  /* Plane header ink: the plane hue, dark enough for small text on the plane background. */
-  --plane-control-ink: #8a5200;
-  --plane-context-ink: #1f5fa8;
-  --plane-execution-ink: #23662a;
-  --plane-ops-ink: #6a1b9a;
-
-  /* Node states. Active is the brand green: #0a7557 here, since #12d39d is under 3:1 on the
-     bone node surface and the light plane groups (colors.test.ts). */
+  /* Node states. Active and done are the brand green: #0a7557 here, since #12d39d is under 3:1
+     on the bone node surface and the light plane fills (colors.test.ts). The icon (spinner or
+     check) and the pulsing ring tell them apart. */
   --state-idle: #7a7f88;
   --state-active: #0a7557;
   --state-waiting: #b26f00;
-  --state-done: #2e7d32;
+  --state-done: #0a7557;
   --state-error: #c62828;
   --state-skipped: #7b7b7b;
 
@@ -109,28 +118,28 @@
   --ring: #12d39d;
   --selection: color-mix(in oklab, #12d39d 30%, transparent);
 
-  --plane-control: #f0a640;
-  --plane-control-fill: #3a2a12;
-  --plane-control-group: #2a2014;
-  --plane-context: #6aa6ee;
-  --plane-context-fill: #16273d;
-  --plane-context-group: #141f2e;
-  --plane-execution: #6cc070;
-  --plane-execution-fill: #17301a;
-  --plane-execution-group: #142417;
-  --plane-ops: #c08ae0;
-  --plane-ops-fill: #2e1a3a;
-  --plane-ops-group: #23162b;
-
-  --plane-control-ink: #f0a640;
-  --plane-context-ink: #6aa6ee;
-  --plane-execution-ink: #6cc070;
-  --plane-ops-ink: #c08ae0;
+  /* Candidate A, dark: fill L 0.22 (between the canvas and the node surface), border 0.45, ink 0.8. */
+  --plane-control: oklch(0.74 0.11 65);
+  --plane-control-fill: oklch(0.22 0.025 65);
+  --plane-control-border: oklch(0.45 0.065 65);
+  --plane-control-ink: oklch(0.8 0.095 65);
+  --plane-context: oklch(0.74 0.11 258);
+  --plane-context-fill: oklch(0.22 0.025 258);
+  --plane-context-border: oklch(0.45 0.065 258);
+  --plane-context-ink: oklch(0.8 0.095 258);
+  --plane-execution: oklch(0.74 0.11 152);
+  --plane-execution-fill: oklch(0.22 0.025 152);
+  --plane-execution-border: oklch(0.45 0.065 152);
+  --plane-execution-ink: oklch(0.8 0.095 152);
+  --plane-ops: oklch(0.74 0.11 325);
+  --plane-ops-fill: oklch(0.22 0.025 325);
+  --plane-ops-border: oklch(0.45 0.065 325);
+  --plane-ops-ink: oklch(0.8 0.095 325);
 
   --state-idle: #7d838c;
   --state-active: #12d39d;
   --state-waiting: #f2b33d;
-  --state-done: #6cc070;
+  --state-done: #12d39d;
   --state-error: #ff6b6b;
   --state-skipped: #9a9a9a;
 
@@ -149,11 +158,109 @@
   --edge-reply-amount: 62%;
 }
 
+/* ==== Plane palette, candidate B "brand family" (REVIEW ONLY) ==============================
+   Hues around the brand green (166) and its complements: Control sand 80, Context slate 250,
+   Execution mint 165, LLM Ops plum 335, with the same lightness per role as A and a lower
+   chroma, so the planes read as tinted neutrals next to the bone nodes; the node kind chips and
+   the edge kinds move onto the same hues (equal lightness, code and telemetry near neutral).
+   Review: set data-planes="b" on <html> (devtools, or the review screenshots do it).
+   Ship B with one edit: add data-planes="b" to the <html> tag in web/index.html. Clean-up
+   afterwards: move these values into :root and .dark above and delete this block.
+   Ship A: delete this block. colors.test.ts checks this block too. */
+:root[data-planes='b'] {
+  --plane-control: oklch(0.53 0.085 80);
+  --plane-control-fill: oklch(0.955 0.015 80);
+  --plane-control-border: oklch(0.75 0.04 80);
+  --plane-control-ink: oklch(0.45 0.065 80);
+  --plane-context: oklch(0.53 0.085 250);
+  --plane-context-fill: oklch(0.955 0.015 250);
+  --plane-context-border: oklch(0.75 0.04 250);
+  --plane-context-ink: oklch(0.45 0.065 250);
+  --plane-execution: oklch(0.53 0.085 165);
+  --plane-execution-fill: oklch(0.955 0.015 165);
+  --plane-execution-border: oklch(0.75 0.04 165);
+  --plane-execution-ink: oklch(0.45 0.065 165);
+  --plane-ops: oklch(0.53 0.085 335);
+  --plane-ops-fill: oklch(0.955 0.015 335);
+  --plane-ops-border: oklch(0.75 0.04 335);
+  --plane-ops-ink: oklch(0.45 0.065 335);
+
+  --kind-code: oklch(0.5 0.03 250);
+  --kind-config: oklch(0.5 0.085 80);
+  --kind-prompt: oklch(0.5 0.085 335);
+  --kind-store: oklch(0.5 0.085 185);
+  --kind-queue: oklch(0.5 0.085 40);
+  --kind-model: oklch(0.5 0.085 280);
+
+  --edge-data: oklch(0.52 0.085 185);
+  --edge-control: oklch(0.52 0.085 75);
+  --edge-telemetry: oklch(0.52 0.02 250);
+  --edge-release: oklch(0.52 0.085 320);
+}
+
+:root.dark[data-planes='b'] {
+  --plane-control: oklch(0.74 0.08 80);
+  --plane-control-fill: oklch(0.22 0.018 80);
+  --plane-control-border: oklch(0.45 0.04 80);
+  --plane-control-ink: oklch(0.8 0.06 80);
+  --plane-context: oklch(0.74 0.08 250);
+  --plane-context-fill: oklch(0.22 0.018 250);
+  --plane-context-border: oklch(0.45 0.04 250);
+  --plane-context-ink: oklch(0.8 0.06 250);
+  --plane-execution: oklch(0.74 0.08 165);
+  --plane-execution-fill: oklch(0.22 0.018 165);
+  --plane-execution-border: oklch(0.45 0.04 165);
+  --plane-execution-ink: oklch(0.8 0.06 165);
+  --plane-ops: oklch(0.74 0.08 335);
+  --plane-ops-fill: oklch(0.22 0.018 335);
+  --plane-ops-border: oklch(0.45 0.04 335);
+  --plane-ops-ink: oklch(0.8 0.06 335);
+
+  --kind-code: oklch(0.8 0.03 250);
+  --kind-config: oklch(0.8 0.09 80);
+  --kind-prompt: oklch(0.8 0.09 335);
+  --kind-store: oklch(0.8 0.09 185);
+  --kind-queue: oklch(0.8 0.09 40);
+  --kind-model: oklch(0.8 0.09 280);
+
+  --edge-data: oklch(0.76 0.085 185);
+  --edge-control: oklch(0.76 0.085 75);
+  --edge-telemetry: oklch(0.76 0.02 250);
+  --edge-release: oklch(0.76 0.085 320);
+}
+/* ==== end of candidate B ================================================================= */
+
+/* ---------- Radius: one scale for the shadcn components and the diagram ----------
+   xs   4px  chips and badges: kind chips, store badges, kbd, inline code, edge labels
+   sm   6px  inputs, small buttons (xs, sm, icon-xs, icon-sm), tab triggers, focus rings on text
+   md   8px  buttons, menu and select rows, tooltips, toggles, small inner records
+   lg  12px  cards, diagram nodes, planes and open groups, popovers, menus, code blocks, items,
+             chat bubbles, the floating canvas bars (status, controls, replay)
+   xl  16px  panels and dialogs: the composer, dialogs, sheets
+   full      only what is round by nature: switches, slider, progress, scroll thumbs, avatars
+   Nesting, the concentric rule: inner = outer - gap, to the nearest step, wherever the gap is
+   smaller than the outer radius (a tight wrapper): composer xl 16 with an 8px inset -> its
+   buttons md 8; menu lg 12 with p-1 -> rows md 8; canvas controls lg 12 with a 6px inset ->
+   buttons sm 6; node lg 12 with 8px padding -> kind chip xs 4; tabs list md 8 with 3px ->
+   triggers sm 6. A loose container whose gap is larger than its radius (a plane 22px round its
+   nodes, an open group 22px round its children, a dialog with 24px padding) takes the step of
+   what it holds: plane = group = node = lg 12. Concentric there would be 34px, and its children
+   do not sit in its corners anyway. No pills for chrome: the status bar, session chip and canvas
+   controls are lg cards like the rest.
+   The rhea names 2xl, 3xl and 4xl stay as aliases on the scale so a stray class cannot leave it
+   (2xl -> lg, 3xl and 4xl -> xl); new code uses xs to xl. */
+@theme {
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 12px;
+  --radius-3xl: 16px;
+  --radius-4xl: 16px;
+}
+
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -232,7 +339,7 @@
 
 .react-flow {
   --xy-background-color: transparent;
-  --xy-node-border-radius: 10px;
+  --xy-node-border-radius: var(--radius-lg);
   --xy-edge-stroke: color-mix(in oklab, var(--foreground) 28%, transparent);
   --xy-edge-stroke-selected: var(--foreground);
   --xy-attribution-background-color: color-mix(in oklab, var(--background) 70%, transparent);
@@ -244,11 +351,18 @@
 .react-flow__attribution a {
   color: var(--muted-foreground);
 }
+/* The zoom buttons, bottom left: one md group on the scale, not square. */
+.react-flow__controls {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
 
+/* A plane: a light tint of its hue with a muted dashed outline, the node radius (see the radius
+   scale: a loose container takes the step of what it holds). */
 .hw-group {
-  border-radius: 16px;
-  border: 1.5px dashed var(--plane-stroke);
-  background: var(--plane-group);
+  border-radius: var(--radius-lg);
+  border: 1.5px dashed var(--plane-border);
+  background: var(--plane-fill);
 }
 
 .hw-plane-label {
