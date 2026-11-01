@@ -86,7 +86,7 @@ function TryDemo({ demo, also = false }: { demo: LessonAlso; also?: boolean }) {
         type="button"
         size="sm"
         variant="outline"
-        className="self-start"
+        className="h-auto min-h-7 max-w-full self-start py-1 text-left whitespace-normal"
         onClick={() => void run()}
         aria-disabled={switching ? true : undefined}
         data-testid={also ? 'lesson-also-button' : 'lesson-try-button'}
