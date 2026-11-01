@@ -4,7 +4,7 @@
 // sandbox's limits, and the turn shown (its exit, duration, tool calls, events, release, budgets
 // and the policy's sentence). The status bar's budget readout opens it too.
 import { useMemo, useState } from 'react'
-import { Check, Copy, Hourglass, RotateCcw } from 'lucide-react'
+import { Check, ChevronDown, CircleUserRound, Copy, Hourglass, RotateCcw } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -126,7 +126,9 @@ export function SessionChip() {
     <Popover open={open} onOpenChange={setOpen}>
       <Hint label={session ? endsSentence(session.left, session.end) : 'Session'}>
         <PopoverTrigger asChild>
-          <Button size="sm" variant="ghost" className="gap-1.5 px-1.5" aria-label={label} data-testid="session-menu">
+          <Button size="sm" variant="outline" className="gap-1.5 pr-1.5 pl-2 text-muted-foreground" aria-label={label} data-testid="session-menu">
+            <CircleUserRound className="size-4" aria-hidden />
+            <span className="text-xs font-medium text-foreground">Session</span>
             <Badge variant="outline" className="font-mono" data-testid="mode-badge">
               {mode}
             </Badge>
@@ -141,6 +143,7 @@ export function SessionChip() {
                 {short}
               </span>
             )}
+            <ChevronDown className="size-3.5 opacity-70" aria-hidden />
           </Button>
         </PopoverTrigger>
       </Hint>
