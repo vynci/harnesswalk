@@ -87,6 +87,10 @@ services:
       HARNESSWALK_TRUST_PROXY: "1"
       HARNESSWALK_LOG_FORMAT: json
       HARNESSWALK_VECTORS: sqlite
+      # Unset in effect (CONTRACT section 7): the image sets /app/web/dist for single-box runs,
+      # and empty here means the API's default. On the site the web app comes from S3 and Caddy
+      # only forwards the API paths.
+      HARNESSWALK_WEB_DIST: ""
       # Optional; empty means the config value (public.hosted_budget_usd_per_day).
       HARNESSWALK_PUBLIC_BUDGET_USD: ${HARNESSWALK_PUBLIC_BUDGET_USD:-}
       # Empty on the box (the configured router); the local run sets fake.
@@ -122,7 +126,8 @@ services:
 
   caddy:
     profiles: [prod]
-    image: caddy:2.11.7-alpine
+    # Tag and multi-arch index digest (resolved 2026-11-01).
+    image: caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
     depends_on:
       api-prod:
         condition: service_started

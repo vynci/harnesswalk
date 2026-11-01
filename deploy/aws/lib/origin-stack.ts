@@ -7,19 +7,33 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as sns from 'aws-cdk-lib/aws-sns';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
-import { ECR_REPOSITORY, LOG_GROUP, ORIGIN_HOST, SSM_PARAMS, SSM_PREFIX } from './config';
+import {
+  DEPLOY_DOCUMENT,
+  ECR_REPOSITORY,
+  IMAGE_TAG_PATTERN,
+  LOG_GROUP,
+  ORIGIN_HOST,
+  ORIGIN_ROLE_TAG,
+  SSM_PARAMS,
+  SSM_PREFIX,
+} from './config';
 
-// The origin: one t4g.small running the API and Caddy with Docker compose, in its own small
-// VPC (two public subnets, no NAT, no private subnets). No SSH: shell access is SSM Session
-// Manager. The SQLite stores live on a separate EBS volume the instance attaches to itself at
+// The origin: one t4g.small running the API and Caddy with Docker compose, in a public subnet
+// of the account's default VPC (context createVpc=true: a small VPC of its own instead, two
+// public subnets, no NAT; the account's VPC quota was full when this was written). No SSH:
+// shell access is SSM Session Manager. The SQLite stores live on a separate EBS volume the instance attaches to itself at
 // boot, so a replaced instance (new AMI, new user data) picks up the same data.
 
 export interface OriginStackProps extends cdk.StackProps {
   // Pinned Amazon Linux 2023 arm64 AMI. Pinned so a new AMI never replaces the box by surprise.
   amiId: string;
-  // Two AZs for the subnets; the instance and its data volume use the first.
+  // The instance and its data volume use the first AZ; createVpc puts a subnet in each.
   availabilityZones: [string, string];
+  // true: create a VPC of its own (10.79.0.0/24). Default: the account's default VPC, found
+  // with a context lookup (cdk.context.json holds the result).
+  createVpc?: boolean;
   // com.amazonaws.global.cloudfront.origin-facing in this region.
   cloudFrontPrefixListId: string;
   // For the edge 5xx alarm (the distribution's own metric, us-east-1 only).
@@ -35,15 +49,27 @@ export class OriginStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: OriginStackProps) {
     super(scope, id, props);
 
-    const vpc = new ec2.Vpc(this, 'Vpc', {
-      ipAddresses: ec2.IpAddresses.cidr('10.79.0.0/24'),
-      availabilityZones: props.availabilityZones,
-      natGateways: 0,
-      subnetConfiguration: [{ name: 'public', subnetType: ec2.SubnetType.PUBLIC, cidrMask: 26 }],
-      // The default-SG lockdown is a custom resource (a Lambda); this stack has no Lambda.
-      // Nothing uses the VPC's default security group.
-      restrictDefaultSecurityGroup: false,
-    });
+    const vpc: ec2.IVpc = props.createVpc
+      ? new ec2.Vpc(this, 'Vpc', {
+          ipAddresses: ec2.IpAddresses.cidr('10.79.0.0/24'),
+          availabilityZones: props.availabilityZones,
+          natGateways: 0,
+          subnetConfiguration: [{ name: 'public', subnetType: ec2.SubnetType.PUBLIC, cidrMask: 26 }],
+          // The default-SG lockdown is a custom resource (a Lambda); this stack has no Lambda.
+          // Nothing uses the VPC's default security group.
+          restrictDefaultSecurityGroup: false,
+        })
+      : ec2.Vpc.fromLookup(this, 'Vpc', { isDefault: true });
+
+    // The public subnet in the first AZ. Before the lookup has run, CDK hands out a dummy VPC
+    // (vpc-12345, AZs dummy1a/dummy1b) and synthesizes again once cdk.context.json has the
+    // answer, so only a real VPC without such a subnet is an error.
+    const az = props.availabilityZones[0];
+    const inAz = vpc.selectSubnets({ subnetType: ec2.SubnetType.PUBLIC, availabilityZones: [az] }).subnets;
+    if (inAz.length === 0 && vpc.vpcId !== 'vpc-12345') {
+      throw new Error(`${vpc.vpcId} has no public subnet in ${az}`);
+    }
+    const subnet = inAz[0] ?? vpc.publicSubnets[0];
 
     const sg = new ec2.SecurityGroup(this, 'OriginSg', {
       vpc,
@@ -67,7 +93,6 @@ export class OriginStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    const subnet = vpc.publicSubnets[0];
     const dataVolume = new ec2.Volume(this, 'DataVolume', {
       availabilityZone: subnet.availabilityZone,
       size: cdk.Size.gibibytes(20),
@@ -108,16 +133,26 @@ export class OriginStack extends cdk.Stack {
         resources: [repoArn],
       }),
     );
+    const prodParameters = cdk.Arn.format(
+      { service: 'ssm', resource: 'parameter', resourceName: `${SSM_PREFIX.slice(1)}/*` },
+      this,
+    );
     role.addToPolicy(
       new iam.PolicyStatement({
         sid: 'ReadProdParameters',
         actions: ['ssm:GetParameter', 'ssm:GetParameters'],
-        resources: [
-          cdk.Arn.format(
-            { service: 'ssm', resource: 'parameter', resourceName: `${SSM_PREFIX.slice(1)}/*` },
-            this,
-          ),
-        ],
+        resources: [prodParameters],
+      }),
+    );
+    // AmazonSSMManagedInstanceCore allows ssm:GetParameter(s) on every parameter in the
+    // account, which other projects share. An explicit Deny outside /harnesswalk/prod/* wins
+    // over it (the SSM agent itself reads no parameters).
+    role.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'DenyOtherParameters',
+        effect: iam.Effect.DENY,
+        actions: ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath'],
+        notResources: [prodParameters],
       }),
     );
     role.addToPolicy(
@@ -125,7 +160,11 @@ export class OriginStack extends cdk.Stack {
         sid: 'DecryptProdParameters',
         actions: ['kms:Decrypt'],
         resources: ['*'], // the AWS managed aws/ssm key, only through SSM
-        conditions: { StringEquals: { 'kms:ViaService': `ssm.${this.region}.amazonaws.com` } },
+        conditions: {
+          StringEquals: { 'kms:ViaService': `ssm.${this.region}.amazonaws.com` },
+          // SSM puts the parameter's ARN in the encryption context: only our parameters.
+          StringLike: { 'kms:EncryptionContext:PARAMETER_ARN': prodParameters },
+        },
       }),
     );
     role.addToPolicy(
@@ -208,7 +247,45 @@ export class OriginStack extends cdk.Stack {
       ],
     });
     cdk.Tags.of(this.instance).add('Name', 'harnesswalk-origin');
-    cdk.Tags.of(this.instance).add('harnesswalk:role', 'origin');
+    cdk.Tags.of(this.instance).add(ORIGIN_ROLE_TAG.key, ORIGIN_ROLE_TAG.value);
+
+    // The deploy command: harnesswalk-up for one image tag, then wait for /readyz. The tag is
+    // the only input and SSM checks it against allowedPattern before anything runs, so whoever
+    // may send this document can restart the stack on an image, and nothing else.
+    new ssm.CfnDocument(this, 'DeployDocument', {
+      name: DEPLOY_DOCUMENT,
+      documentType: 'Command',
+      documentFormat: 'JSON',
+      // A named document cannot be replaced in place; a content change is a new version.
+      updateMethod: 'NewVersion',
+      content: {
+        schemaVersion: '2.2',
+        description: 'harnesswalk: run harnesswalk-up on the origin for one image tag, then wait for /readyz',
+        parameters: {
+          tag: {
+            type: 'String',
+            description: 'Image tag (a git sha) already set in /harnesswalk/prod/IMAGE_TAG',
+            allowedPattern: IMAGE_TAG_PATTERN,
+          },
+        },
+        mainSteps: [
+          {
+            action: 'aws:runShellScript',
+            name: 'deploy',
+            precondition: { StringEquals: ['platformType', 'Linux'] },
+            inputs: {
+              timeoutSeconds: '900',
+              runCommand: [
+                "/usr/local/sbin/harnesswalk-up '{{ tag }}' || exit 1",
+                'for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/readyz && exit 0; sleep 2; done',
+                "echo 'harnesswalk-deploy: /readyz did not answer within 60 s' >&2",
+                'exit 1',
+              ],
+            },
+          },
+        ],
+      },
+    });
 
     new ec2.CfnEIPAssociation(this, 'EipAssociation', {
       allocationId: this.eip.attrAllocationId,

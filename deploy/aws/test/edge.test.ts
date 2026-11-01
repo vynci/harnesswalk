@@ -116,7 +116,7 @@ describe('HarnesswalkEdge', () => {
     expect(JSON.stringify(edge.toJSON())).not.toMatch(/X-Origin-Verify","HeaderValue":"[^{]/);
   });
 
-  it('uses the ACM certificate, the domain alias, TLS 1.2_2021, HTTP/2+3 and price class 100', () => {
+  it('uses the ACM certificate, the domain alias, TLS 1.2_2021, HTTP/2+3, price class 100, IPv4 only', () => {
     expect(dist()).toMatchObject({
       Aliases: ['harnesswalk.vynci.dev'],
       ViewerCertificate: {
@@ -126,7 +126,7 @@ describe('HarnesswalkEdge', () => {
       },
       HttpVersion: 'http2and3',
       PriceClass: 'PriceClass_100',
-      IPV6Enabled: true,
+      IPV6Enabled: false,
     });
     edge.hasOutput('DistributionDomainName', {});
     edge.hasOutput('WebBucketName', {});

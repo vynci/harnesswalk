@@ -4,6 +4,7 @@ name: release
 # sdist and the wheel with the web app inside, proves the wheel in a clean venv, publishes it to
 # PyPI with trusted publishing, pushes a multi-arch image to ghcr.io, and creates the GitHub
 # Release with the changelog section. Steps and the one-time setup: docs/RELEASING.md.
+# Every action is pinned to a full commit SHA (the comment names the release).
 
 on:
   push:
@@ -27,8 +28,8 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
           python-version: "3.12"
       - name: The tag names the project version
@@ -55,10 +56,10 @@ jobs:
             echo '```'
           } >> notes/release-notes.md
           cat notes/release-notes.md
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           package_json_file: web/package.json
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: "24"
           cache: pnpm
@@ -77,12 +78,12 @@ jobs:
           uvx twine check --strict dist/*
       - name: Install the wheel in a clean venv and run it on the fake provider
         run: uv run --no-project python tools/wheel_smoke.py dist/*.whl --web
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dist
           path: dist/
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: notes
           path: notes/
@@ -97,11 +98,11 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: dist
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
 
   image:
     name: Push the image to ghcr.io (linux/amd64, linux/arm64)
@@ -111,16 +112,16 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v5
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ env.IMAGE }}
           # 0.1.0 and 0.1 on every release; latest only on a final release (not a, b or rc).
@@ -133,7 +134,7 @@ jobs:
             org.opencontainers.image.title=harnesswalk
             org.opencontainers.image.description=Walk through an AI harness, one node at a time: the reference harness and its web app
             org.opencontainers.image.licenses=Apache-2.0
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: deploy/api.Dockerfile
@@ -151,11 +152,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: dist
           path: dist/
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: notes
           path: notes/

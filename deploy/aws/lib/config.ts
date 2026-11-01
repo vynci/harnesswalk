@@ -27,3 +27,12 @@ export const API_PATH_PATTERNS = ['/v1/*', '/healthz', '/readyz'] as const;
 export const webBucketName = (account: string) => `harnesswalk-web-${account}`;
 
 export const TAGS = { project: 'harnesswalk', stage: 'prod' } as const;
+
+// The origin instance carries this tag; the deploy role and the owner may run commands only on
+// an instance that has it, and the deploy scripts find the instance by it.
+export const ORIGIN_ROLE_TAG = { key: 'harnesswalk:role', value: 'origin' } as const;
+// The one SSM Run Command document the deploys use (no AWS-RunShellScript): it runs
+// /usr/local/sbin/harnesswalk-up for an image tag and waits for /readyz.
+export const DEPLOY_DOCUMENT = 'harnesswalk-deploy';
+// An image tag the origin may run: a git sha (build-push.sh tags with 12 characters).
+export const IMAGE_TAG_PATTERN = '^[0-9a-f]{7,40}$';

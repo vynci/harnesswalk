@@ -2,17 +2,39 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Match } from 'aws-cdk-lib/assertions';
 import { describe, expect, it } from 'vitest';
-import { asList, statements, synth } from './helpers';
+import { asList, CONTEXT, joined, statements, synth } from './helpers';
 
 const { origin } = synth();
 
+// The committed default-VPC lookup (cdk.context.json).
+const lookup = Object.entries(CONTEXT).find(([k]) => k.startsWith('vpc-provider:') && k.includes('filter.isDefault=true'))![1] as any;
+const defaultSubnet1a = lookup.subnetGroups
+  .flatMap((g: any) => (g.type === 'Public' ? g.subnets : []))
+  .find((s: any) => s.availabilityZone === 'us-east-1a');
+
 describe('HarnesswalkOrigin network', () => {
-  it('has two public subnets in two AZs, no NAT and no private subnets', () => {
-    origin.resourceCountIs('AWS::EC2::Subnet', 2);
-    origin.resourceCountIs('AWS::EC2::NatGateway', 0);
-    const subnets = Object.values(origin.findResources('AWS::EC2::Subnet')).map((s: any) => s.Properties);
+  it('uses the default VPC by default: no VPC of its own, the public subnet in us-east-1a', () => {
+    expect(lookup.vpcCidrBlock).toBe('172.31.0.0/16');
+    for (const type of ['AWS::EC2::VPC', 'AWS::EC2::Subnet', 'AWS::EC2::InternetGateway', 'AWS::EC2::NatGateway']) {
+      origin.resourceCountIs(type, 0);
+    }
+    origin.hasResourceProperties('AWS::EC2::Instance', { SubnetId: defaultSubnet1a.subnetId });
+    origin.hasResourceProperties('AWS::EC2::SecurityGroup', { VpcId: lookup.vpcId });
+  });
+
+  it('creates two public subnets in two AZs, no NAT and no private subnets with createVpc=true', () => {
+    const { origin: own } = synth({ createVpc: 'true' });
+    own.resourceCountIs('AWS::EC2::VPC', 1);
+    own.hasResourceProperties('AWS::EC2::VPC', { CidrBlock: '10.79.0.0/24' });
+    own.resourceCountIs('AWS::EC2::Subnet', 2);
+    own.resourceCountIs('AWS::EC2::NatGateway', 0);
+    const subnets = Object.values(own.findResources('AWS::EC2::Subnet')).map((s: any) => s.Properties);
     expect(new Set(subnets.map((s) => s.AvailabilityZone))).toEqual(new Set(['us-east-1a', 'us-east-1b']));
     for (const s of subnets) expect(s.MapPublicIpOnLaunch).toBe(true);
+    const inst = Object.values(own.findResources('AWS::EC2::Instance'))[0].Properties;
+    const subnet = own.toJSON().Resources[inst.SubnetId.Ref].Properties;
+    expect(subnet.AvailabilityZone).toBe('us-east-1a');
+    own.resourceCountIs('AWS::EC2::EIP', 1);
   });
 
   it('opens 443 to the CloudFront prefix list only, 80 to anyone, and nothing else', () => {
@@ -54,9 +76,8 @@ describe('HarnesswalkOrigin instance', () => {
     });
     const vol = Object.values(origin.findResources('AWS::EC2::Volume'))[0].Properties;
     const inst = Object.values(origin.findResources('AWS::EC2::Instance'))[0].Properties;
-    const subnetId = inst.SubnetId.Ref;
-    const subnet = origin.toJSON().Resources[subnetId].Properties;
-    expect(vol.AvailabilityZone).toBe(subnet.AvailabilityZone);
+    expect(inst.SubnetId).toBe(defaultSubnet1a.subnetId);
+    expect(vol.AvailabilityZone).toBe('us-east-1a');
     // The instance attaches it itself at boot (no VolumeAttachment to fight a replacement).
     origin.resourceCountIs('AWS::EC2::VolumeAttachment', 0);
   });
@@ -69,12 +90,49 @@ describe('HarnesswalkOrigin instance', () => {
     origin.hasOutput('AlarmTopicArn', {});
   });
 
+  it('exports nothing, so no other stack pins the instance or the data volume', () => {
+    const outputs = Object.values(origin.toJSON().Outputs ?? {}) as any[];
+    expect(outputs.filter((o) => o.Export)).toEqual([]);
+  });
+
   it('boots without echoing secrets and installs a checksummed compose plugin', () => {
     const script = fs.readFileSync(path.join(__dirname, '..', 'lib', 'origin', 'user-data.sh'), 'utf8');
     expect(script).not.toMatch(/^\s*set\s+-[a-z]*x/m);
     expect(script).toMatch(/sha256sum -c -/);
     expect(script).toMatch(/--profile prod up -d/);
     expect(script).toMatch(/systemctl enable harnesswalk\.service/);
+  });
+});
+
+describe('HarnesswalkOrigin deploy document', () => {
+  const docs = Object.values(origin.findResources('AWS::SSM::Document')).map((d: any) => d.Properties);
+
+  it('is one Command document, harnesswalk-deploy, updated as a new version', () => {
+    expect(docs).toHaveLength(1);
+    expect(docs[0]).toMatchObject({ Name: 'harnesswalk-deploy', DocumentType: 'Command', UpdateMethod: 'NewVersion' });
+  });
+
+  it('takes only a git-sha tag and only runs harnesswalk-up and the /readyz wait', () => {
+    const content = docs[0].Content;
+    expect(Object.keys(content.parameters)).toEqual(['tag']);
+    expect(content.parameters.tag).toMatchObject({ type: 'String', allowedPattern: '^[0-9a-f]{7,40}$' });
+    const pattern = new RegExp(content.parameters.tag.allowedPattern);
+    for (const ok of ['0123abc', 'a29fd6a0c1d2', 'f'.repeat(40)]) expect(pattern.test(ok)).toBe(true);
+    for (const bad of ['latest', 'abc', 'a29fd6a-dirty', 'a29fd6a; reboot', 'A29FD6A', 'f'.repeat(41), "$(id)"]) {
+      expect(pattern.test(bad)).toBe(false);
+    }
+    expect(content.mainSteps).toHaveLength(1);
+    const run: string[] = content.mainSteps[0].inputs.runCommand;
+    expect(content.mainSteps[0].action).toBe('aws:runShellScript');
+    expect(run[0]).toBe("/usr/local/sbin/harnesswalk-up '{{ tag }}' || exit 1");
+    expect(run.join('\n').match(/\{\{[^}]*\}\}/g)).toEqual(['{{ tag }}']);
+    expect(run.join('\n')).toContain('curl -fsS http://127.0.0.1:8000/readyz');
+    for (const line of run.slice(1)) expect(line).toMatch(/^(for i in|echo '|exit 1$)/);
+  });
+
+  it('matches what harnesswalk-up itself accepts', () => {
+    const script = fs.readFileSync(path.join(__dirname, '..', 'lib', 'origin', 'user-data.sh'), 'utf8');
+    expect(script).toContain('[[ "$want" =~ ^[0-9a-f]{7,40}$ ]]');
   });
 });
 
@@ -90,12 +148,25 @@ describe('HarnesswalkOrigin IAM', () => {
     });
   });
 
+  const prodArn = 'arn:aws:ssm:us-east-1:111910761410:parameter/harnesswalk/prod/*';
+
   it('reads only /harnesswalk/prod/* parameters, decrypting only through SSM', () => {
     expect(JSON.stringify(find('ReadProdParameters').Resource)).toContain(':parameter/harnesswalk/prod/*');
-    expect(find('DecryptProdParameters')).toMatchObject({
+    const decrypt = find('DecryptProdParameters');
+    expect(decrypt).toMatchObject({
+      Effect: 'Allow',
       Action: 'kms:Decrypt',
       Condition: { StringEquals: { 'kms:ViaService': 'ssm.us-east-1.amazonaws.com' } },
     });
+    expect(joined(decrypt.Condition.StringLike['kms:EncryptionContext:PARAMETER_ARN'])).toBe(prodArn);
+  });
+
+  it('denies every other parameter in the account, over the SSM core managed policy', () => {
+    const deny = find('DenyOtherParameters');
+    expect(deny.Effect).toBe('Deny');
+    expect(asList(deny.Action).sort()).toEqual(['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath']);
+    expect(deny.Resource).toBeUndefined();
+    expect(joined(deny.NotResource)).toBe(prodArn);
   });
 
   it('pulls only harnesswalk/api and writes only to /harnesswalk/prod logs', () => {

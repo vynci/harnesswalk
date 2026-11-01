@@ -39,6 +39,7 @@ export function buildApp(app: cdk.App) {
     cloudFrontPrefixListId: required('cloudFrontPrefixListId', 'cdk.json pins pl-3b927c52.'),
     distributionId: edge.distribution.distributionId,
     instanceType: ctx('instanceType'),
+    createVpc: ctx('createVpc') === 'true',
     description: 'harnesswalk origin: one EC2 instance running the API with Docker compose',
   });
 
@@ -46,7 +47,6 @@ export function buildApp(app: cdk.App) {
     env,
     bucketArn: edge.bucket.bucketArn,
     distributionId: edge.distribution.distributionId,
-    instanceId: origin.instance.instanceId,
     githubOidcProviderArn: ctx('githubOidcProviderArn'),
     description: 'harnesswalk CI: ECR repository and the GitHub OIDC deploy role',
   });

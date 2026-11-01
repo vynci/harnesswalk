@@ -6,15 +6,48 @@
 # local run (Caddy's own CA).
 {
 	skip_install_trust
+	# The default log carries the error entries (a 502 logs the whole request) to CloudWatch
+	# in a shared account: never the CloudFront secret, a visitor's own key or cookie, and
+	# never a full viewer address (masked to /24 and /64).
+	log default {
+		format filter {
+			wrap json
+			fields {
+				request>headers>X-Origin-Verify delete
+				request>headers>X-Harnesswalk-Api-Key delete
+				request>headers>X-Harnesswalk-Provider-Key delete
+				# Caddy already redacts these two by default; explicit in case log_credentials
+				# is ever turned on.
+				request>headers>Cookie delete
+				request>headers>Authorization delete
+				request>client_ip ip_mask {
+					ipv4 24
+					ipv6 64
+				}
+				request>headers>X-Harnesswalk-Viewer-Ip ip_mask {
+					ipv4 24
+					ipv6 64
+				}
+				request>headers>Cloudfront-Viewer-Address ip_mask {
+					ipv4 24
+					ipv6 64
+				}
+				request>headers>X-Forwarded-For ip_mask {
+					ipv4 24
+					ipv6 64
+				}
+			}
+		}
+	}
 	servers {
 		# Port 443 only admits CloudFront's origin-facing prefix list (security group), and the
 		# site below only answers requests carrying X-Origin-Verify, so the peer is always our
-		# distribution. The viewer's address comes from X-Harnesswalk-Viewer-Ip, which the
-		# distribution's viewer-ip function sets (overwriting any value the viewer sent), then
-		# CloudFront-Viewer-Address (ip:port); never from X-Forwarded-For, whose first hop the
-		# viewer can write.
+		# distribution. The viewer's address comes from X-Harnesswalk-Viewer-Ip alone, which
+		# the distribution's viewer-ip function sets (overwriting any value the viewer sent);
+		# never from X-Forwarded-For, whose first hop the viewer can write, nor from
+		# CloudFront-Viewer-Address. Without the header {client_ip} is the CloudFront peer.
 		trusted_proxies static 0.0.0.0/0 ::/0
-		client_ip_headers X-Harnesswalk-Viewer-Ip CloudFront-Viewer-Address
+		client_ip_headers X-Harnesswalk-Viewer-Ip
 	}
 }
 
@@ -44,8 +77,15 @@
 	handle @from_cloudfront {
 		handle @api {
 			reverse_proxy api:8000 {
-				# One hop the API can trust (HARNESSWALK_TRUST_PROXY=1): the viewer address.
+				# One hop the API can trust (HARNESSWALK_TRUST_PROXY=1): the viewer address, in
+				# the single X-Forwarded-For the API reads. The other address headers go, so no
+				# viewer-written value reaches it.
 				header_up X-Forwarded-For {client_ip}
+				header_up -X-Harnesswalk-Viewer-Ip
+				header_up -CloudFront-Viewer-Address
+				# The viewer spoke HTTPS to CloudFront; its own X-Forwarded-* say nothing true.
+				header_up X-Forwarded-Proto https
+				header_up -X-Forwarded-Host
 				header_up -X-Origin-Verify
 				# SSE: write every event as it arrives.
 				flush_interval -1

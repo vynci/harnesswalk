@@ -47,7 +47,10 @@ if docker exec "$cid" harnesswalk sweep --help >/dev/null 2>&1; then
   (
     while :; do
       s=$(date +%s)
-      if docker exec "$cid" harnesswalk sweep >>"$OUT/sweeps.log" 2>&1; then r=ok; else r=failed; fi
+      # The exec inherits the container's HARNESSWALK_FIXTURE, so it needs the server's
+      # fixture directory too (compose.loadtest.yml), or the config refuses the fixture name.
+      if docker exec "$cid" harnesswalk sweep --set models.providers.fake.fixture_dir=/loadtest/fixtures \
+        >>"$OUT/sweeps.log" 2>&1; then r=ok; else r=failed; fi
       echo "sweep $r in $(( $(date +%s) - s )) s" >>"$OUT/sweeps.log"
       sleep 10
     done
@@ -65,7 +68,7 @@ set -e
 kill "$sampler" ${sweeper:+"$sweeper"} 2>/dev/null || true
 wait 2>/dev/null || true
 
-grep -h 'rate_limit:' "$OUT/k6.log" | sed 's/.*msg="\(.*\)".*/\1/' || true
+grep -h 'rate_limit:' "$OUT/k6.log" | sed 's/.*msg="\(.*\)".*/\1/; s/\\"/"/g' || true
 peak="$(tail -n +2 "$OUT/rss.csv" | cut -d, -f2 | sort -n | tail -1)"
 peak_cg="$(tail -n +2 "$OUT/rss.csv" | cut -d, -f3 | sort -h | tail -1)"
 echo "api VmRSS: baseline $((baseline / 1024)) MiB, peak $((${peak:-0} / 1024)) MiB (cgroup peak $peak_cg, limit 1.5 GiB)"
