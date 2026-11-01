@@ -7,7 +7,8 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 import { Harness, lastTurnEvents, node, pickFixture, send, settleTurns, status, turnDone } from './helpers'
 
 // Phase 4 against the real harness (fake provider): the gate (edit a skill, run golden, see the
-// regression; release, edit again, roll back, see the old version served), and the ops seams:
+// regression; the P5 eval gate refuses the release, Release anyway forces it and the audit log
+// records it; edit again, roll back, see the old version served), and the ops seams:
 // the tenant's ops stream (a CLI release and feedback from another tab show up live), eval case
 // turns replayed from their events_url, step-over, the trace query, and a restart that keeps a
 // paused turn's output schema.
@@ -119,11 +120,24 @@ test('the P4 gate: a skill edit regresses a golden case; release, edit again, ro
   await expect(inspector.getByRole('tab', { name: 'Releases' })).toHaveAttribute('aria-selected', 'true')
   await inspector.getByTestId('release-note').fill('returns: 14 days')
   await inspector.getByTestId('release-create').click()
+  // The P5 eval gate runs the golden set first and refuses the regressed skill: nothing released.
+  const refused = inspector.getByTestId('gate-failed')
+  await expect(refused).toBeVisible({ timeout: 60_000 })
+  await expect(refused.locator('[data-testid="gate-case"][data-case="returns_window"]')).toBeVisible()
+  expect(await activeRelease(request)).toBe(base)
+  // Release anyway: dev mode only, and audited.
+  await expect(refused.getByTestId('gate-force-note')).toHaveText('Release anyway skips the gate. Dev mode only, and audited: the audit log records it as release_forced.')
+  await refused.getByTestId('release-force').click()
+  await expect(inspector.getByTestId('release-forced-note')).toContainText('The audit log records it as release_forced')
   await expect(page.getByTestId('ops-marker-text').last()).toHaveText(/^Release r\d+ active$/)
   const created = await activeRelease(request)
   expect(created).not.toBe(base)
   await expect(inspector.getByTestId('release-commit').filter({ hasText: 'Skill returns' })).toBeVisible()
   await expect(inspector.getByTestId('release-verify')).toHaveAttribute('data-ok', 'true')
+  await expect(inspector.getByTestId('release-activations')).toHaveAttribute('data-ok', 'true')
+  await expect(inspector.locator(`[data-testid="release-row"][data-release="${created}"]`).getByTestId('release-gate')).toHaveAttribute('data-status', 'forced')
+  const audit = (await (await request.get('/v1/audit?limit=20')).json()) as { records: { entry: { action: string; extra?: { release_id?: string } } }[] }
+  expect(audit.records.some((r) => r.entry.action === 'release_forced' && r.entry.extra?.release_id === created)).toBe(true)
 
   // 4. Edit again, then roll back to the release from before the first edit.
   await editSkill(page, 'returns', 'within 14 days of delivery', 'within 7 days of delivery')
