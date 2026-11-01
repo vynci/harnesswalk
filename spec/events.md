@@ -361,4 +361,5 @@ token counts, the model request and reply, the answer before and after the outpu
 Shapes, the 32 000-character cap and the public-mode rule are in `contracts/tracer.md`
 ("Payloads"); `GET /v1/trace/turns/{turn_id}/details/{event_id}` serves them to the turn's
 tenant. A `node_enter` record is the node's input, stored before a breakpoint pauses there.
-Nothing new goes into a `summary`.
+The one summary key this adds is `has_payload: true`, on an event whose detail holds a
+payload.

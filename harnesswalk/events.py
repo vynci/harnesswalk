@@ -314,6 +314,10 @@ class TurnEmitter:
             ref = self.detail_sink(event["event_id"], detail)  # None: detail dropped, event kept
             if ref:
                 event["detail_ref"] = ref
+                if isinstance(detail, dict) and "payload" in detail:
+                    # The one summary key payloads add (tracer.md): the UI knows which events
+                    # hold a hop's payload without fetching every detail.
+                    event["summary"] = {**(event.get("summary") or {}), "has_payload": True}
         if self.validate:
             problems = validate_event(event)
             if problems:

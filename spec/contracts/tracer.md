@@ -91,7 +91,9 @@ child (summary `input_tokens`, `output_tokens`, `usd`). Edges: `loop_to_trace`, 
 
 Every content-bearing hop of a chat turn records what it actually carried as a typed detail
 record, when `trace.capture_content` is on (no detail is stored when it is off). The event
-keeps only its small `summary` and a `detail_ref`: nothing here goes into a summary.
+keeps only its small `summary` and a `detail_ref`; the one summary key payloads add is
+`has_payload: true` on an event whose detail holds a payload, so a reader knows which events to
+fetch without fetching every detail.
 Implementation: `harnesswalk/ops/payloads.py`; the UI shows them on the inspector's Payload
 tab.
 
@@ -103,11 +105,13 @@ record is an object with a `payload` key (beside the keys a node already kept th
 the context builder's `items` and `messages`, or the model layer's `route` and `request`):
 
 ```
-payload = { node, at: "enter" | "exit", version: 1, ...shape per node }
+payload = { node, shape, at: "enter" | "exit", version: 1, ...fields per shape }
 Text    = { text: string, chars: int, truncated: bool }   // text is cut at 32 000 characters
 ```
 
-`chars` is the full length and `truncated` says whether `text` was cut. Tool-call arguments
+`shape` names the fields, so a reader renders by shape and never by node id (`message` for the
+gateway, `input_checks`, `context`, `model_call`, `output_checks` in the order of the table
+below). `chars` is the full length and `truncated` says whether `text` was cut. Tool-call arguments
 whose JSON is longer than the cap come as `arguments: null` with `arguments_text: Text`.
 
 | Node | `at` | Shape |

@@ -25,6 +25,7 @@ def payload_of(h: Any, events: list[dict], node_id: str, at: str = "exit", n: in
     record = h.tracer.get_detail(event["tenant_id"], event["detail_ref"])
     payload = record["payload"]
     assert payload["node"] == node_id and payload["at"] == at and payload["version"] == 1
+    assert payload["shape"] == payloads.SHAPES[node_id] and event["summary"]["has_payload"] is True
     return payload
 
 
@@ -46,10 +47,12 @@ async def test_gateway_keeps_received_and_redacted_with_the_placeholder_count(
     assert reply["redacted"]["text"] == "Where is order A-1001? Mail me at [EMAIL_1]"
     assert reply["placeholders"] == {"count": 1, "kinds": {"email": 1}, "tokens": ["[EMAIL_1]"]}
     assert reply["reply"]["text"] == events[-1]["summary"]["reply"]
-    # Events stay small: the summaries carry no text and no new keys.
+    # Events stay small: no text in a summary, and one flag on the events with a payload.
     for e in events:
         assert EMAIL not in json.dumps(e.get("summary") or {}) or e["type"] == "turn_end"
-        assert "has_payload" not in (e.get("summary") or {})
+        flagged = (e.get("summary") or {}).get("has_payload") is True
+        expected = e.get("node_id") in payloads.NODES and e["type"] in ("node_enter", "node_exit")
+        assert flagged == expected, e
 
 
 @pytest.mark.anyio
@@ -205,6 +208,7 @@ async def test_no_payloads_when_content_capture_is_off(tmp_path: Path) -> None:
     h = harness(tmp_path, "tool_call", overrides={"trace.capture_content": False})
     events = await run_turn(h, MESSAGE)
     assert not [e for e in events if e.get("node_id") in payloads.NODES and e.get("detail_ref")]
+    assert not [e for e in events if (e.get("summary") or {}).get("has_payload")]
 
 
 @pytest.mark.anyio

@@ -15,7 +15,8 @@ Spec 0.1.0 is still the draft below until the first package release (`v0.1.0`).
   builder, the model layer and the output guardrails record what each hop carried as a typed
   detail record on their `node_enter` and `node_exit` (texts capped at 32 000 characters with a
   `truncated` flag), and `GET /v1/trace/turns/{turn_id}/details/{event_id}` serves one to the
-  turn's own tenant (`contracts/http_api.md`, Trace). Events and summaries are unchanged.
+  turn's own tenant (`contracts/http_api.md`, Trace). Those events gain one summary key,
+  `has_payload: true`; nothing else in the stream changes.
 
 ## [0.1.0] - draft, frozen at the v0.1.0 release
 

@@ -5,14 +5,16 @@ the context builder, the model layer and the output guardrails call it to build 
 they hand to their span (`span.detail`, or `enter_detail` on `node()`), and the emitter stores
 it through the tracer's `put_detail` when `trace.capture_content` is on.
 
-Every record is `{"payload": {...}}` (beside whatever keys the node already kept in its detail),
-with `node`, `at` (`enter` or `exit`) and `version`. Every text is a `Text` object: `text`
-(at most `MAX_CHARS` characters), `chars` (the full length) and `truncated`.
+Every record is `{"payload": {...}}` (beside whatever keys the node already kept in its
+detail), with `node`, `shape` (what a reader renders by), `at` (`enter` or `exit`) and
+`version`. Every text is a `Text` object: `text` (at most `MAX_CHARS` characters), `chars` (the
+full length) and `truncated`.
 
-Events stay small: nothing here goes into a summary. A payload is the user's own text after the
-input guardrails replaced their personal data with placeholders; the text as typed is kept only
-where the PII restore rule is on for the mode (`input_guardrails.pii.restore_modes`, dev by
-default, never public), or when the guardrails did not change it.
+Events stay small: the emitter adds one summary key, `has_payload: true`, and nothing else. A
+payload is the user's own text after the input guardrails replaced their personal data with
+placeholders; the text as typed is kept only where the PII restore rule is on for the mode
+(`input_guardrails.pii.restore_modes`, dev by default, never public), or when the guardrails did
+not change it.
 """
 
 from __future__ import annotations
@@ -40,8 +42,18 @@ def text(value: str | None) -> dict[str, Any]:
     return {"text": value[:MAX_CHARS], "chars": len(value), "truncated": len(value) > MAX_CHARS}
 
 
+# The shape of each node's payload, so a reader renders by shape, never by node id.
+SHAPES = {
+    "gateway": "message",
+    "input_guardrails": "input_checks",
+    "context_builder": "context",
+    "model_layer": "model_call",
+    "output_guardrails": "output_checks",
+}
+
+
 def record(node_id: str, at: str, **fields: Any) -> dict[str, Any]:
-    return {"node": node_id, "at": at, "version": VERSION, **fields}
+    return {"node": node_id, "shape": SHAPES[node_id], "at": at, "version": VERSION, **fields}
 
 
 def raw_allowed(mode: str, restore_modes: list[str] | tuple[str, ...]) -> bool:
