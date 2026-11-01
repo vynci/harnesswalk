@@ -1,10 +1,10 @@
-# harnesswalk harness specification
+# Harnesswalk harness specification
 
 Spec version: **0.1.0** (draft, P0). Status: normative for P1 onward.
 
-This document describes what a harnesswalk harness is, independent of language. The reference
+This document describes what a Harnesswalk harness is, independent of language. The reference
 implementation lives in `harnesswalk/` (Python). Any other implementation that passes the
-conformance suite in `spec/conformance/` is a harnesswalk harness and can drive the same diagram
+conformance suite in `spec/conformance/` is a Harnesswalk harness and can drive the same diagram
 and UI.
 
 The key words MUST, MUST NOT, SHOULD, SHOULD NOT and MAY are used as in RFC 2119 and RFC 8174

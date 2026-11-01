@@ -170,6 +170,6 @@ jobs:
           if [[ "$PRERELEASE" == true ]]; then flags+=(--prerelease); fi
           gh release create "$GITHUB_REF_NAME" dist/* \
             --repo "$GITHUB_REPOSITORY" \
-            --title "harnesswalk $VERSION" \
+            --title "Harnesswalk $VERSION" \
             --notes-file notes/release-notes.md \
             --verify-tag "${flags[@]}"

@@ -1,6 +1,6 @@
 # Changelog
 
-Every notable change to harnesswalk, the reference harness, its web app and its packs. The
+Every notable change to Harnesswalk, the reference harness, its web app and its packs. The
 format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the package follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Changes to the language-agnostic
 spec (`spec/`) are recorded in [spec/CHANGELOG.md](spec/CHANGELOG.md) under their own version

@@ -1,7 +1,7 @@
 // The dataset packs of the in-browser mock (P5): the starter pack and one domain pack (finance),
 // with their cards, their files from the repo (bundled into mock builds only) and their own fake
 // fixtures, in the shapes of GET /v1/packs, GET /v1/packs/{id} and GET /v1/packs/{id}/files/{path}.
-import type { PackDetail, PackFile, PackSummary } from '@/api/types'
+import type { FixtureInfo, PackDetail, PackFile, PackSummary } from '@/api/types'
 import { repoFile, repoFilesUnder } from './repo'
 
 export const DEFAULT_PACK = '_starter'
@@ -30,7 +30,7 @@ function promptsOf(path: string): string[] {
 const PACKS: MockPack[] = [
   {
     id: '_starter',
-    title: 'Example Store',
+    title: 'Sample Shop',
     domain: 'ecommerce',
     feature: 'A tour of every node',
     summary: 'A small outdoor gear shop that touches every node of the harness once.',
@@ -58,6 +58,24 @@ export const PACK_IDS = PACKS.map((p) => p.id)
 /** Every fixture a turn may ask for (capabilities.fixtures): the shared ones and every pack's. */
 export function allFixtures(): string[] {
   return [...SHARED_FIXTURES, ...PACKS.flatMap((p) => p.fixtures)]
+}
+
+/** One-line descriptions, as the API reads them from the YAML fixtures (JSONL ones have none). */
+const FIXTURE_DESCRIPTIONS: Record<string, string> = {
+  plain_answer: 'A plain question answered from the system prompt, no tool.',
+  tool_call: 'One read-only tool call, allowed by policy, then an answer.',
+  approval_pause: 'A destructive tool call that pauses for approval.',
+  public_demo: 'The scripted model a public server offers as fake-small (public.fake_fixture).',
+}
+
+/**
+ * `capabilities.public.fixtures`: every fixture with its description and the packs that ship it
+ * (none for a shared one). The public site also has `public_demo`, its scripted model's own.
+ */
+export function fixtureInfo(publicSite: boolean): FixtureInfo[] {
+  const shared = publicSite ? [...SHARED_FIXTURES, 'public_demo'] : SHARED_FIXTURES
+  const names = [...shared, ...PACKS.flatMap((p) => p.fixtures)].sort()
+  return names.map((name) => ({ name, description: FIXTURE_DESCRIPTIONS[name] ?? null, packs: PACKS.filter((p) => p.fixtures.includes(name)).map((p) => p.id) }))
 }
 
 /** A pack file's role, by its path, as the API assigns it. */

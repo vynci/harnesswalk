@@ -176,14 +176,14 @@
       "label": "System prompt",
       "sources": [
        {
-        "label": "system_prompt@7f88ec6e",
+        "label": "system_prompt@9af56801",
         "store": "procedural"
        }
       ],
-      "tokens": 109,
+      "tokens": 108,
       "index": 0,
-      "text": "You are the support assistant for Example Store, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
-      "chars": 433,
+      "text": "You are the support assistant for Sample Shop, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
+      "chars": 431,
       "truncated": false
      },
      {
@@ -256,7 +256,7 @@
        {
         "label": "support email",
         "store": "semantic",
-        "id": "fact_596c23dcea2a44f5",
+        "id": "fact_d7119254cfaf4d86",
         "score": 0.5145
        }
       ],
@@ -273,15 +273,15 @@
       "label": "Earlier events",
       "sources": [
        {
-        "label": "ep_54e3b22065544cba (support)",
+        "label": "ep_7fbff39d93914064 (support)",
         "store": "episodic",
-        "id": "ep_54e3b22065544cba",
-        "score": 0.3765
+        "id": "ep_7fbff39d93914064",
+        "score": 0.3764
        },
        {
-        "label": "ep_8f0a53384d984254 (support)",
+        "label": "ep_e961747c36bc4485 (support)",
         "store": "episodic",
-        "id": "ep_8f0a53384d984254",
+        "id": "ep_e961747c36bc4485",
         "score": 0.2452
        }
       ],
@@ -304,7 +304,7 @@
       "truncated": false
      }
     ],
-    "total_tokens": 388,
+    "total_tokens": 387,
     "messages": 3,
     "used_tokens": 388,
     "budget_tokens": 16000,
@@ -332,14 +332,14 @@
        "label": "System prompt",
        "sources": [
         {
-         "label": "system_prompt@7f88ec6e",
+         "label": "system_prompt@9af56801",
          "store": "procedural"
         }
        ],
-       "tokens": 109,
+       "tokens": 108,
        "index": 0,
-       "text": "You are the support assistant for Example Store, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
-       "chars": 433,
+       "text": "You are the support assistant for Sample Shop, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
+       "chars": 431,
        "truncated": false
       },
       {
@@ -412,7 +412,7 @@
         {
          "label": "support email",
          "store": "semantic",
-         "id": "fact_596c23dcea2a44f5",
+         "id": "fact_d7119254cfaf4d86",
          "score": 0.5145
         }
        ],
@@ -429,15 +429,15 @@
        "label": "Earlier events",
        "sources": [
         {
-         "label": "ep_54e3b22065544cba (support)",
+         "label": "ep_7fbff39d93914064 (support)",
          "store": "episodic",
-         "id": "ep_54e3b22065544cba",
-         "score": 0.3765
+         "id": "ep_7fbff39d93914064",
+         "score": 0.3764
         },
         {
-         "label": "ep_8f0a53384d984254 (support)",
+         "label": "ep_e961747c36bc4485 (support)",
          "store": "episodic",
-         "id": "ep_8f0a53384d984254",
+         "id": "ep_e961747c36bc4485",
          "score": 0.2452
         }
        ],
@@ -460,7 +460,7 @@
        "truncated": false
       }
      ],
-     "total_tokens": 388,
+     "total_tokens": 387,
      "messages": 3,
      "tools": [
       "calculator",
@@ -494,14 +494,14 @@
        "label": "System prompt",
        "sources": [
         {
-         "label": "system_prompt@7f88ec6e",
+         "label": "system_prompt@9af56801",
          "store": "procedural"
         }
        ],
-       "tokens": 109,
+       "tokens": 108,
        "index": 0,
-       "text": "You are the support assistant for Example Store, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
-       "chars": 433,
+       "text": "You are the support assistant for Sample Shop, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
+       "chars": 431,
        "truncated": false
       },
       {
@@ -574,7 +574,7 @@
         {
          "label": "support email",
          "store": "semantic",
-         "id": "fact_596c23dcea2a44f5",
+         "id": "fact_d7119254cfaf4d86",
          "score": 0.5145
         }
        ],
@@ -591,15 +591,15 @@
        "label": "Earlier events",
        "sources": [
         {
-         "label": "ep_54e3b22065544cba (support)",
+         "label": "ep_7fbff39d93914064 (support)",
          "store": "episodic",
-         "id": "ep_54e3b22065544cba",
-         "score": 0.3765
+         "id": "ep_7fbff39d93914064",
+         "score": 0.3764
         },
         {
-         "label": "ep_8f0a53384d984254 (support)",
+         "label": "ep_e961747c36bc4485 (support)",
          "store": "episodic",
-         "id": "ep_8f0a53384d984254",
+         "id": "ep_e961747c36bc4485",
          "score": 0.2452
         }
        ],
@@ -622,7 +622,7 @@
        "truncated": false
       }
      ],
-     "total_tokens": 388,
+     "total_tokens": 387,
      "messages": 3,
      "tools": [
       "calculator",
@@ -935,14 +935,14 @@
       "label": "System prompt",
       "sources": [
        {
-        "label": "system_prompt@7f88ec6e",
+        "label": "system_prompt@9af56801",
         "store": "procedural"
        }
       ],
-      "tokens": 109,
+      "tokens": 108,
       "index": 0,
-      "text": "You are the support assistant for Example Store, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
-      "chars": 433,
+      "text": "You are the support assistant for Sample Shop, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
+      "chars": 431,
       "truncated": false
      },
      {
@@ -1015,13 +1015,13 @@
        {
         "label": "order A-1001 delivery note",
         "store": "semantic",
-        "id": "fact_b00816dd199545d3",
+        "id": "fact_0e2cd2483db7456e",
         "score": 1.0
        },
        {
         "label": "order A-1002 gift",
         "store": "semantic",
-        "id": "fact_ee4862df05e24599",
+        "id": "fact_019112e6e6484675",
         "score": 0.3651
        }
       ],
@@ -1038,21 +1038,21 @@
       "label": "Earlier events",
       "sources": [
        {
-        "label": "ep_83e5affd29dc4235 (support)",
+        "label": "ep_be05db6e2c54441e (support)",
         "store": "episodic",
-        "id": "ep_83e5affd29dc4235",
+        "id": "ep_be05db6e2c54441e",
         "score": 0.9272
        },
        {
-        "label": "ep_17cbc860ec844d87 (support)",
+        "label": "ep_d15fe9e236ae44e5 (support)",
         "store": "episodic",
-        "id": "ep_17cbc860ec844d87",
+        "id": "ep_d15fe9e236ae44e5",
         "score": 0.3763
        },
        {
-        "label": "ep_863b8f3719074227 (support)",
+        "label": "ep_f80e8ec77d56493e (support)",
         "store": "episodic",
-        "id": "ep_863b8f3719074227",
+        "id": "ep_f80e8ec77d56493e",
         "score": 0.2452
        }
       ],
@@ -1075,7 +1075,7 @@
       "truncated": false
      }
     ],
-    "total_tokens": 441,
+    "total_tokens": 440,
     "messages": 3,
     "used_tokens": 441,
     "budget_tokens": 16000,
@@ -1103,14 +1103,14 @@
        "label": "System prompt",
        "sources": [
         {
-         "label": "system_prompt@7f88ec6e",
+         "label": "system_prompt@9af56801",
          "store": "procedural"
         }
        ],
-       "tokens": 109,
+       "tokens": 108,
        "index": 0,
-       "text": "You are the support assistant for Example Store, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
-       "chars": 433,
+       "text": "You are the support assistant for Sample Shop, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
+       "chars": 431,
        "truncated": false
       },
       {
@@ -1183,13 +1183,13 @@
         {
          "label": "order A-1001 delivery note",
          "store": "semantic",
-         "id": "fact_b00816dd199545d3",
+         "id": "fact_0e2cd2483db7456e",
          "score": 1.0
         },
         {
          "label": "order A-1002 gift",
          "store": "semantic",
-         "id": "fact_ee4862df05e24599",
+         "id": "fact_019112e6e6484675",
          "score": 0.3651
         }
        ],
@@ -1206,21 +1206,21 @@
        "label": "Earlier events",
        "sources": [
         {
-         "label": "ep_83e5affd29dc4235 (support)",
+         "label": "ep_be05db6e2c54441e (support)",
          "store": "episodic",
-         "id": "ep_83e5affd29dc4235",
+         "id": "ep_be05db6e2c54441e",
          "score": 0.9272
         },
         {
-         "label": "ep_17cbc860ec844d87 (support)",
+         "label": "ep_d15fe9e236ae44e5 (support)",
          "store": "episodic",
-         "id": "ep_17cbc860ec844d87",
+         "id": "ep_d15fe9e236ae44e5",
          "score": 0.3763
         },
         {
-         "label": "ep_863b8f3719074227 (support)",
+         "label": "ep_f80e8ec77d56493e (support)",
          "store": "episodic",
-         "id": "ep_863b8f3719074227",
+         "id": "ep_f80e8ec77d56493e",
          "score": 0.2452
         }
        ],
@@ -1243,7 +1243,7 @@
        "truncated": false
       }
      ],
-     "total_tokens": 441,
+     "total_tokens": 440,
      "messages": 3,
      "tools": [
       "calculator",
@@ -1277,14 +1277,14 @@
        "label": "System prompt",
        "sources": [
         {
-         "label": "system_prompt@7f88ec6e",
+         "label": "system_prompt@9af56801",
          "store": "procedural"
         }
        ],
-       "tokens": 109,
+       "tokens": 108,
        "index": 0,
-       "text": "You are the support assistant for Example Store, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
-       "chars": 433,
+       "text": "You are the support assistant for Sample Shop, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
+       "chars": 431,
        "truncated": false
       },
       {
@@ -1357,13 +1357,13 @@
         {
          "label": "order A-1001 delivery note",
          "store": "semantic",
-         "id": "fact_b00816dd199545d3",
+         "id": "fact_0e2cd2483db7456e",
          "score": 1.0
         },
         {
          "label": "order A-1002 gift",
          "store": "semantic",
-         "id": "fact_ee4862df05e24599",
+         "id": "fact_019112e6e6484675",
          "score": 0.3651
         }
        ],
@@ -1380,21 +1380,21 @@
        "label": "Earlier events",
        "sources": [
         {
-         "label": "ep_83e5affd29dc4235 (support)",
+         "label": "ep_be05db6e2c54441e (support)",
          "store": "episodic",
-         "id": "ep_83e5affd29dc4235",
+         "id": "ep_be05db6e2c54441e",
          "score": 0.9272
         },
         {
-         "label": "ep_17cbc860ec844d87 (support)",
+         "label": "ep_d15fe9e236ae44e5 (support)",
          "store": "episodic",
-         "id": "ep_17cbc860ec844d87",
+         "id": "ep_d15fe9e236ae44e5",
          "score": 0.3763
         },
         {
-         "label": "ep_863b8f3719074227 (support)",
+         "label": "ep_f80e8ec77d56493e (support)",
          "store": "episodic",
-         "id": "ep_863b8f3719074227",
+         "id": "ep_f80e8ec77d56493e",
          "score": 0.2452
         }
        ],
@@ -1417,7 +1417,7 @@
        "truncated": false
       }
      ],
-     "total_tokens": 441,
+     "total_tokens": 440,
      "messages": 3,
      "tools": [
       "calculator",
@@ -1464,14 +1464,14 @@
        "label": "System prompt",
        "sources": [
         {
-         "label": "system_prompt@7f88ec6e",
+         "label": "system_prompt@9af56801",
          "store": "procedural"
         }
        ],
-       "tokens": 109,
+       "tokens": 108,
        "index": 0,
-       "text": "You are the support assistant for Example Store, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
-       "chars": 433,
+       "text": "You are the support assistant for Sample Shop, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
+       "chars": 431,
        "truncated": false
       },
       {
@@ -1544,13 +1544,13 @@
         {
          "label": "order A-1001 delivery note",
          "store": "semantic",
-         "id": "fact_b00816dd199545d3",
+         "id": "fact_0e2cd2483db7456e",
          "score": 1.0
         },
         {
          "label": "order A-1002 gift",
          "store": "semantic",
-         "id": "fact_ee4862df05e24599",
+         "id": "fact_019112e6e6484675",
          "score": 0.3651
         }
        ],
@@ -1567,21 +1567,21 @@
        "label": "Earlier events",
        "sources": [
         {
-         "label": "ep_83e5affd29dc4235 (support)",
+         "label": "ep_be05db6e2c54441e (support)",
          "store": "episodic",
-         "id": "ep_83e5affd29dc4235",
+         "id": "ep_be05db6e2c54441e",
          "score": 0.9272
         },
         {
-         "label": "ep_17cbc860ec844d87 (support)",
+         "label": "ep_d15fe9e236ae44e5 (support)",
          "store": "episodic",
-         "id": "ep_17cbc860ec844d87",
+         "id": "ep_d15fe9e236ae44e5",
          "score": 0.3763
         },
         {
-         "label": "ep_863b8f3719074227 (support)",
+         "label": "ep_f80e8ec77d56493e (support)",
          "store": "episodic",
-         "id": "ep_863b8f3719074227",
+         "id": "ep_f80e8ec77d56493e",
          "score": 0.2452
         }
        ],
@@ -1642,7 +1642,7 @@
        "truncated": false
       }
      ],
-     "total_tokens": 463,
+     "total_tokens": 462,
      "messages": 5,
      "tools": [
       "calculator",
@@ -1676,14 +1676,14 @@
        "label": "System prompt",
        "sources": [
         {
-         "label": "system_prompt@7f88ec6e",
+         "label": "system_prompt@9af56801",
          "store": "procedural"
         }
        ],
-       "tokens": 109,
+       "tokens": 108,
        "index": 0,
-       "text": "You are the support assistant for Example Store, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
-       "chars": 433,
+       "text": "You are the support assistant for Sample Shop, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
+       "chars": 431,
        "truncated": false
       },
       {
@@ -1756,13 +1756,13 @@
         {
          "label": "order A-1001 delivery note",
          "store": "semantic",
-         "id": "fact_b00816dd199545d3",
+         "id": "fact_0e2cd2483db7456e",
          "score": 1.0
         },
         {
          "label": "order A-1002 gift",
          "store": "semantic",
-         "id": "fact_ee4862df05e24599",
+         "id": "fact_019112e6e6484675",
          "score": 0.3651
         }
        ],
@@ -1779,21 +1779,21 @@
        "label": "Earlier events",
        "sources": [
         {
-         "label": "ep_83e5affd29dc4235 (support)",
+         "label": "ep_be05db6e2c54441e (support)",
          "store": "episodic",
-         "id": "ep_83e5affd29dc4235",
+         "id": "ep_be05db6e2c54441e",
          "score": 0.9272
         },
         {
-         "label": "ep_17cbc860ec844d87 (support)",
+         "label": "ep_d15fe9e236ae44e5 (support)",
          "store": "episodic",
-         "id": "ep_17cbc860ec844d87",
+         "id": "ep_d15fe9e236ae44e5",
          "score": 0.3763
         },
         {
-         "label": "ep_863b8f3719074227 (support)",
+         "label": "ep_f80e8ec77d56493e (support)",
          "store": "episodic",
-         "id": "ep_863b8f3719074227",
+         "id": "ep_f80e8ec77d56493e",
          "score": 0.2452
         }
        ],
@@ -1854,7 +1854,7 @@
        "truncated": false
       }
      ],
-     "total_tokens": 463,
+     "total_tokens": 462,
      "messages": 5,
      "tools": [
       "calculator",
@@ -2167,14 +2167,14 @@
       "label": "System prompt",
       "sources": [
        {
-        "label": "system_prompt@7f88ec6e",
+        "label": "system_prompt@9af56801",
         "store": "procedural"
        }
       ],
-      "tokens": 109,
+      "tokens": 108,
       "index": 0,
-      "text": "You are the support assistant for Example Store, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
-      "chars": 433,
+      "text": "You are the support assistant for Sample Shop, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
+      "chars": 431,
       "truncated": false
      },
      {
@@ -2247,7 +2247,7 @@
        {
         "label": "order A-1002 gift",
         "store": "semantic",
-        "id": "fact_aa4b26bae3644902",
+        "id": "fact_7867d1a70ab54da1",
         "score": 1.0
        }
       ],
@@ -2264,9 +2264,9 @@
       "label": "Earlier events",
       "sources": [
        {
-        "label": "ep_6c7657bdffd1442d (support)",
+        "label": "ep_9ea6026229fb4118 (support)",
         "store": "episodic",
-        "id": "ep_6c7657bdffd1442d",
+        "id": "ep_9ea6026229fb4118",
         "score": 0.9113
        }
       ],
@@ -2311,7 +2311,7 @@
       "truncated": false
      }
     ],
-    "total_tokens": 452,
+    "total_tokens": 451,
     "messages": 3,
     "used_tokens": 452,
     "budget_tokens": 16000,
@@ -2339,14 +2339,14 @@
        "label": "System prompt",
        "sources": [
         {
-         "label": "system_prompt@7f88ec6e",
+         "label": "system_prompt@9af56801",
          "store": "procedural"
         }
        ],
-       "tokens": 109,
+       "tokens": 108,
        "index": 0,
-       "text": "You are the support assistant for Example Store, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
-       "chars": 433,
+       "text": "You are the support assistant for Sample Shop, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
+       "chars": 431,
        "truncated": false
       },
       {
@@ -2419,7 +2419,7 @@
         {
          "label": "order A-1002 gift",
          "store": "semantic",
-         "id": "fact_aa4b26bae3644902",
+         "id": "fact_7867d1a70ab54da1",
          "score": 1.0
         }
        ],
@@ -2436,9 +2436,9 @@
        "label": "Earlier events",
        "sources": [
         {
-         "label": "ep_6c7657bdffd1442d (support)",
+         "label": "ep_9ea6026229fb4118 (support)",
          "store": "episodic",
-         "id": "ep_6c7657bdffd1442d",
+         "id": "ep_9ea6026229fb4118",
          "score": 0.9113
         }
        ],
@@ -2483,7 +2483,7 @@
        "truncated": false
       }
      ],
-     "total_tokens": 452,
+     "total_tokens": 451,
      "messages": 3,
      "tools": [
       "calculator",
@@ -2517,14 +2517,14 @@
        "label": "System prompt",
        "sources": [
         {
-         "label": "system_prompt@7f88ec6e",
+         "label": "system_prompt@9af56801",
          "store": "procedural"
         }
        ],
-       "tokens": 109,
+       "tokens": 108,
        "index": 0,
-       "text": "You are the support assistant for Example Store, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
-       "chars": 433,
+       "text": "You are the support assistant for Sample Shop, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
+       "chars": 431,
        "truncated": false
       },
       {
@@ -2597,7 +2597,7 @@
         {
          "label": "order A-1002 gift",
          "store": "semantic",
-         "id": "fact_aa4b26bae3644902",
+         "id": "fact_7867d1a70ab54da1",
          "score": 1.0
         }
        ],
@@ -2614,9 +2614,9 @@
        "label": "Earlier events",
        "sources": [
         {
-         "label": "ep_6c7657bdffd1442d (support)",
+         "label": "ep_9ea6026229fb4118 (support)",
          "store": "episodic",
-         "id": "ep_6c7657bdffd1442d",
+         "id": "ep_9ea6026229fb4118",
          "score": 0.9113
         }
        ],
@@ -2661,7 +2661,7 @@
        "truncated": false
       }
      ],
-     "total_tokens": 452,
+     "total_tokens": 451,
      "messages": 3,
      "tools": [
       "calculator",
@@ -2708,14 +2708,14 @@
        "label": "System prompt",
        "sources": [
         {
-         "label": "system_prompt@7f88ec6e",
+         "label": "system_prompt@9af56801",
          "store": "procedural"
         }
        ],
-       "tokens": 109,
+       "tokens": 108,
        "index": 0,
-       "text": "You are the support assistant for Example Store, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
-       "chars": 433,
+       "text": "You are the support assistant for Sample Shop, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
+       "chars": 431,
        "truncated": false
       },
       {
@@ -2788,7 +2788,7 @@
         {
          "label": "order A-1002 gift",
          "store": "semantic",
-         "id": "fact_aa4b26bae3644902",
+         "id": "fact_7867d1a70ab54da1",
          "score": 1.0
         }
        ],
@@ -2805,9 +2805,9 @@
        "label": "Earlier events",
        "sources": [
         {
-         "label": "ep_6c7657bdffd1442d (support)",
+         "label": "ep_9ea6026229fb4118 (support)",
          "store": "episodic",
-         "id": "ep_6c7657bdffd1442d",
+         "id": "ep_9ea6026229fb4118",
          "score": 0.9113
         }
        ],
@@ -2890,7 +2890,7 @@
        "truncated": false
       }
      ],
-     "total_tokens": 467,
+     "total_tokens": 466,
      "messages": 5,
      "tools": [
       "calculator",
@@ -2924,14 +2924,14 @@
        "label": "System prompt",
        "sources": [
         {
-         "label": "system_prompt@7f88ec6e",
+         "label": "system_prompt@9af56801",
          "store": "procedural"
         }
        ],
-       "tokens": 109,
+       "tokens": 108,
        "index": 0,
-       "text": "You are the support assistant for Example Store, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
-       "chars": 433,
+       "text": "You are the support assistant for Sample Shop, a fictional shop used to learn how an AI\nharness works. Answer briefly and plainly.\n\nSupport hours are 9am to 5pm Eastern, Monday to Friday. Orders have ids like A-1001.\n\nUse the tools you are given to look things up instead of guessing. If a skill in the index\nmatches the question, read it first with the read_skill tool. Never claim an action happened\nunless a tool result says so.",
+       "chars": 431,
        "truncated": false
       },
       {
@@ -3004,7 +3004,7 @@
         {
          "label": "order A-1002 gift",
          "store": "semantic",
-         "id": "fact_aa4b26bae3644902",
+         "id": "fact_7867d1a70ab54da1",
          "score": 1.0
         }
        ],
@@ -3021,9 +3021,9 @@
        "label": "Earlier events",
        "sources": [
         {
-         "label": "ep_6c7657bdffd1442d (support)",
+         "label": "ep_9ea6026229fb4118 (support)",
          "store": "episodic",
-         "id": "ep_6c7657bdffd1442d",
+         "id": "ep_9ea6026229fb4118",
          "score": 0.9113
         }
        ],
@@ -3106,7 +3106,7 @@
        "truncated": false
       }
      ],
-     "total_tokens": 467,
+     "total_tokens": 466,
      "messages": 5,
      "tools": [
       "calculator",

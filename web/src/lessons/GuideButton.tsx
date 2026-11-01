@@ -1,4 +1,4 @@
-import { BookOpen } from 'lucide-react'
+import { Compass } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Button } from '@/components/ui/button'
 import { usePanels } from '@/state/panels'
@@ -26,7 +26,7 @@ export function GuideButton() {
         }}
         data-testid="guide-button"
       >
-        <BookOpen aria-hidden />
+        <Compass aria-hidden />
         <span className="hidden sm:inline">Guide</span>
       </Button>
     </Hint>

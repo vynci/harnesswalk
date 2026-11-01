@@ -1,6 +1,6 @@
 # Security policy
 
-harnesswalk runs model-chosen tool calls, holds tenants' memory and serves a public sandbox, so
+Harnesswalk runs model-chosen tool calls, holds tenants' memory and serves a public sandbox, so
 we take reports seriously and fix them before anything else.
 
 ## Reporting a vulnerability

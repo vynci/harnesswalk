@@ -126,7 +126,7 @@ def prep(version: str, date: str, dry_run: bool) -> int:
     print(f"\nversion {current} -> {version}; CHANGELOG.md has a [{version}] - {date} section.")
     print("Check the diff, run make test and make lint, then (the owner, by hand):\n")
     print(f'  git commit -am "chore(release): v{version}"')
-    print(f'  git tag -a v{version} -m "harnesswalk {version}"')
+    print(f'  git tag -a v{version} -m "Harnesswalk {version}"')
     print(f"  git push origin main v{version}")
     print("\nThe tag starts .github/workflows/release.yml: PyPI, ghcr.io and the GitHub Release.")
     return 0

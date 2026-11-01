@@ -3,7 +3,7 @@ import { afterNote, gateText, layerLabel } from '@/inspector/p5View'
 import { artifactOfFile, buildTree, docIdOf, filesForNode, fixtureChoices, packTitle, pdfSource } from './packs'
 
 const packs = [
-  { id: '_starter', title: 'Example Store', fixtures: ['tool_call'] },
+  { id: '_starter', title: 'Sample Shop', fixtures: ['tool_call'] },
   { id: 'finance', title: 'Hollowmere Capital Partners', fixtures: ['cite_fee', 'mem_set'] },
   { id: 'sports', fixtures: ['table'] },
 ]

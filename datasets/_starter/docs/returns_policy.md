@@ -1,6 +1,6 @@
 # Returns policy
 
-Example Store is a fictional shop. This policy is synthetic and exists so a learner can watch
+Sample Shop is a fictional shop. This policy is synthetic and exists so a learner can watch
 knowledge retrieval and citations work.
 
 ## Return window

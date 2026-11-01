@@ -21,7 +21,7 @@ models:
 
 procedural:
   system_prompt: |
-    You are the support assistant for Example Store, a fictional shop used for conformance tests.
+    You are the support assistant for Sample Shop, a fictional shop used for conformance tests.
     Support hours are 9am to 5pm Eastern, Monday to Friday.
   skills: []
 

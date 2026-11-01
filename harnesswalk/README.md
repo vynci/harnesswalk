@@ -1,4 +1,4 @@
-# harnesswalk (reference implementation)
+# Harnesswalk (reference implementation)
 
 The Python reference implementation of the spec in `../spec/`. The distribution and the import
 package are both named `harnesswalk`. Each module below registers under one node id; the same

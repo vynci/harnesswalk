@@ -33,7 +33,7 @@ test.beforeEach(async ({ page }) => {
 test('the pack picker starts a session on finance: its prompts, its fixtures and its turns', async ({ page }) => {
   const picker = page.getByTestId('pack-picker')
   await expect(picker).toHaveAttribute('data-pack', '_starter')
-  await expect(picker).toContainText('Example Store')
+  await expect(picker).toContainText('Sample Shop')
   await picker.click()
   const options = page.getByTestId('pack-option')
   await expect(options).toHaveCount(2)
@@ -208,7 +208,7 @@ test('a lesson’s demonstration on a domain pack starts a session on that pack 
   const asked = await page.evaluate((id) => [...(globalThis as unknown as { __harnesswalkMock: { getTurn: (id: string) => { disabled: Set<string>; pack: string } } }).__harnesswalkMock.getTurn(id!).disabled], turnId)
   expect(asked).toEqual(['memory_writer'])
   // The chapter's own Try it is on the starter pack: it switches back.
-  await expect(chapter.getByTestId('lesson-try-button')).toHaveText('Disable Memory writer and try it on Example Store')
+  await expect(chapter.getByTestId('lesson-try-button')).toHaveText('Disable Memory writer and try it on Sample Shop')
 })
 
 test('replay names the control that released each pause', async ({ page }) => {

@@ -10,7 +10,7 @@ turns:
         save: { first: active_release_id }
       - method: PUT
         path: /v1/artifacts/prompt/system_prompt
-        body: { body: "You are the support assistant for Example Store, a fictional shop used for conformance tests.\nSupport hours are 8am to 4pm Eastern.\n" }
+        body: { body: "You are the support assistant for Sample Shop, a fictional shop used for conformance tests.\nSupport hours are 8am to 4pm Eastern.\n" }
         match: { version: 2, previous_version: 1 }
       - method: POST
         path: /v1/releases

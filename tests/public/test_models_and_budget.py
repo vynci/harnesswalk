@@ -22,6 +22,7 @@ from harnesswalk.types import ConfigError
 from tests.public.support import (
     SITE_KEY_ENV,
     client,
+    dumps,
     every_file_bytes,
     mock_anthropic,
     node_exits,
@@ -82,7 +83,8 @@ async def test_capabilities_public_object_in_public_mode(tmp_path: Path) -> None
         assert "harnesswalk_tenant" in c.cookies  # the session clock starts at first load
     pub = caps["public"]
     assert set(pub) == {
-        "session_expires_at", "ttl_s", "limits", "models", "budget", "byo_key_bypasses_budget"
+        "session_expires_at", "ttl_s", "limits", "models", "budget", "byo_key_bypasses_budget",
+        "fixtures", "default_fixture",
     }  # fmt: skip
     assert pub["session_expires_at"].endswith("Z") and pub["ttl_s"] == 7200
     assert pub["limits"] == {
@@ -108,6 +110,20 @@ async def test_capabilities_public_object_in_public_mode(tmp_path: Path) -> None
     assert pub["budget"]["status"] == "ok" and pub["budget"]["spent_fraction"] == 0
     assert pub["budget"]["resets_at"].endswith("T00:00:00Z")
     assert "usd" not in str(pub["budget"]) and pub["byo_key_bypasses_budget"] is True
+    # The scripted model's fixtures, in public mode too: names and one-line descriptions only.
+    fixtures = {f["name"]: f for f in pub["fixtures"]}
+    assert pub["default_fixture"] == "public_demo" and "public_demo" in fixtures
+    assert all(set(f) == {"name", "description", "packs"} for f in pub["fixtures"])
+    assert (
+        fixtures["public_demo"]["packs"] == [] and "finance" in fixtures["tool_nav_hcp02"]["packs"]
+    )
+    assert fixtures["approval_approve"]["description"] == (
+        "A destructive tool call that needs approval; the human approves."
+    )
+    assert fixtures["public_demo"]["description"].startswith("The scripted model a public")
+    assert "\n" not in fixtures["public_demo"]["description"]
+    assert fixtures["golden_pii"]["description"] is None  # a JSONL fixture has none
+    assert str(ROOT) not in dumps(pub["fixtures"])
 
 
 @pytest.mark.anyio
@@ -170,6 +186,81 @@ async def test_model_allowlist(tmp_path: Path) -> None:
         # The provider and fixture choices stay dev only.
         r = await c.post("/v1/turns", json={"message": "hi", "provider": "fake"})
         assert r.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_a_public_turn_on_the_scripted_model_may_name_a_fixture(tmp_path: Path) -> None:
+    h = public_harness(tmp_path)  # no site key: Auto resolves to fake-small too
+    async with client(h) as c:
+        body = {"message": "Where is order A-1001?", "model": "fake-small", "fixture": "tool_call"}
+        out = await run(c, h, body)
+        assert out["response"].status_code == 202
+        events = out["events"]
+        assert check_stream(events) == []
+        assert events[0]["summary"]["fixture"] == "tool_call"
+        models = [e["summary"]["model"] for e in node_exits(events, "model_layer")]
+        assert models == ["fake-small", "fake-small"]
+        assert events[-1]["summary"]["reply"] == (
+            "Order A-1001 shipped on 24 October and is due to arrive on 30 October."
+        )
+        # Auto (no hint) while the router would pick the scripted model: accepted as well.
+        auto = await run(
+            c, h, {"message": "What are your support hours?", "fixture": "plain_answer"}
+        )
+        assert auto["response"].status_code == 202
+        assert "9am to 5pm" in auto["events"][-1]["summary"]["reply"]
+        # Without a fixture the turn plays the server's own (public_demo).
+        plain = await run(c, h, {"message": "Hello?", "model": "fake-small"})
+        assert "scripted fake model" in plain["events"][-1]["summary"]["reply"]
+
+
+@pytest.mark.anyio
+async def test_a_public_fixture_is_refused_off_the_scripted_model_or_by_an_unknown_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(SITE_KEY_ENV, "site-key-value")
+    h = public_harness(tmp_path, hosted=True)
+    seen = mock_anthropic(h)
+    dev_only = {
+        "code": "invalid_request",
+        "message": "provider and fixture can only be chosen in dev mode",
+    }
+    async with client(h) as c:
+        # A hosted model, named or picked by Auto (the budget is fine): the dev-only refusal.
+        for body in ({"model": "hosted-haiku"}, {}):
+            r = await c.post("/v1/turns", json={"message": "hi", "fixture": "tool_call", **body})
+            assert r.status_code == 400 and r.json()["error"] == dev_only, body
+        # The provider stays dev only, fixture or not.
+        r = await c.post(
+            "/v1/turns", json={"message": "hi", "model": "fake-small", "provider": "fake"}
+        )
+        assert r.status_code == 400 and r.json()["error"] == dev_only
+        # On the scripted model the name must be one of the pack's fixtures; no path leaks.
+        for name in ("nope", "../etc/passwd"):
+            r = await c.post(
+                "/v1/turns", json={"message": "hi", "model": "fake-small", "fixture": name}
+            )
+            assert r.status_code == 400 and r.json()["error"]["code"] == "invalid_request"
+            assert str(ROOT) not in r.text and "fixtures" not in r.json()["error"]["message"]
+        r = await c.post(
+            "/v1/turns", json={"message": "hi", "model": "fake-small", "fixture": "nope"}
+        )
+        assert r.json()["error"]["message"] == "no fixture named 'nope'"
+    assert seen == []  # nothing reached the hosted model
+
+
+@pytest.mark.anyio
+async def test_auto_with_the_budget_spent_takes_a_fixture(tmp_path: Path) -> None:
+    h = public_harness(tmp_path, priced=True, overrides={"public.hosted_budget_usd_per_day": 0.01})
+    async with client(h) as c:
+        body = {"message": "What are your support hours?", "fixture": "plain_answer"}
+        r = await c.post("/v1/turns", json=body)
+        assert r.status_code == 400  # Auto runs on the priced alias while the budget lasts
+        h.hosted_budget.charge(1.0)
+        out = await run(c, h, body)
+    assert out["response"].status_code == 202
+    assert node_exits(out["events"], "model_layer")[0]["summary"]["model"] == "fake-small"
+    assert "9am to 5pm" in out["events"][-1]["summary"]["reply"]
 
 
 @pytest.mark.anyio

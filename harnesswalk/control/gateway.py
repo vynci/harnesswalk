@@ -24,7 +24,9 @@ P6 (public mode, control/public.py): a turn's `model` must be one of `public.mod
 otherwise), a priced alias with the shared daily budget spent and no BYO key is a 409
 `budget_exhausted`, the anonymous tenant is registered with its expiry for the TTL sweeper, the
 rate-limit table is bounded, and the turn's notices (`budget_exhausted` when it fell through to
-the fake model) end up on `turn_end.summary.notices`.
+the fake model) end up on `turn_end.summary.notices`. A public turn may name a `fixture` when it
+runs on the scripted model (`fake-small`, by its hint or by the router while the budget is
+spent); the name must be one of the turn's pack's fixtures.
 """
 
 from __future__ import annotations
@@ -46,6 +48,7 @@ from harnesswalk.control.public import (
     PROVIDER_UNCONFIGURED,
     RateLimited,
     RateLimiter,
+    pack_fixture_names,
     rate_key,
 )
 from harnesswalk.events import Breakpoints, TurnEmitter, new_trace_id, uuid7
@@ -105,7 +108,7 @@ class TurnRequest:
     channel: str = "web"
     api_key: str | None = field(default=None, repr=False)  # BYO key: this turn only
     provider: str | None = None  # dev mode only: run this turn on one provider
-    fixture: str | None = None  # dev mode only: the fake provider's fixture for this turn
+    fixture: str | None = None  # the fake provider's fixture: dev, or public on fake-small
     output_schema: dict[str, Any] | None = None  # a structured reply (output guardrails check it)
     model: str | None = None  # a router alias hint: any alias in dev, public.models in public
     # P4: a turn the harness starts for itself (an eval case). It may pick a provider and a
@@ -290,7 +293,7 @@ class Gateway:
                 raise GatewayError(400, "invalid_request", "output_schema is not valid") from exc
         if req.provider is None and req.fixture is None:
             return
-        if self.h.settings.mode != "dev" and not req.internal:
+        if self.h.settings.mode != "dev" and not req.internal and not self._public_fixture(req):
             raise GatewayError(
                 400, "invalid_request", "provider and fixture can only be chosen in dev mode"
             )
@@ -306,13 +309,27 @@ class Gateway:
                 422, "provider_not_configured", f"provider {req.provider!r} is not configured"
             )
 
+    def _public_fixture(self, req: TurnRequest) -> bool:
+        """Public mode: a `fixture` (and no `provider`) on a turn that runs on the scripted
+        model, named by its hint or picked by the router now (the budget is spent)."""
+        if self.h.settings.mode != "public" or req.provider is not None or req.fixture is None:
+            return False
+        public = self.h.public_models
+        alias = req.model if isinstance(req.model, str) else None
+        return public.scripted(alias or public.effective_default(byo=bool(req.api_key)))
+
     def _turn_providers(self, req: TurnRequest, pack: str) -> dict[str, Any] | None:
         if req.provider is None and req.fixture is None:
             return None
+        public = self.h.settings.mode == "public" and not req.internal
+        if public and req.fixture not in pack_fixture_names(self.h, pack):
+            # Checked by name first, so the refusal names no server path.
+            raise GatewayError(400, "invalid_request", f"no fixture named {req.fixture!r}")
         try:
             return self.h.turn_providers(req.provider, req.fixture, pack)
         except ConfigError as exc:
-            raise GatewayError(400, "invalid_request", str(exc)) from exc
+            message = f"fixture {req.fixture!r} cannot be loaded" if public else str(exc)
+            raise GatewayError(400, "invalid_request", message) from exc
 
     async def start_turn(self, req: TurnRequest, client_ip: str = "") -> TurnState:
         self._validate(req)

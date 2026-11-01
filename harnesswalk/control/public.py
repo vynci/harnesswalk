@@ -20,6 +20,8 @@ Not a node: the gateway, the HTTP surface and the model layer call into it
 - `PublicModels`: the allowlist `public.models` and whether each alias can answer right now:
   its provider is built, a hosted provider has the site's key or the turn brings its own, the
   provider is healthy, and a priced alias still fits the shared daily budget (`ops/budget.py`).
+- `fixture_catalog`: the fake model's fixtures a turn may name, with a one-line description
+  (capabilities `public.fixtures`; a public turn may name one when it runs on the fake model).
 """
 
 from __future__ import annotations
@@ -33,11 +35,16 @@ import secrets
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Any
 
+import yaml
+
+from harnesswalk import packs as packs_mod
 from harnesswalk.adapters.storage.sqlite import Database
 from harnesswalk.config.loader import HOSTED_PROVIDERS, Settings
 from harnesswalk.events import iso
+from harnesswalk.execution.providers.fake import find_fixture, list_fixtures
 
 TENANT_PREFIX = "anon-"
 TENANT_ID = re.compile(r"^anon-[0-9a-f]{16}$")
@@ -287,6 +294,13 @@ class PublicModels:
         ordered = self.ordered()
         return next((a for a in ordered if self.reason(a, byo=byo) is None), None)
 
+    def scripted(self, alias: str | None) -> bool:
+        """An alias of the fake provider with no price: a public turn on it may name a
+        fixture (the scripted model costs nothing and reads no message)."""
+        if alias is None or not self.allowed(alias):
+            return False
+        return self._cfg(alias).get("provider") == "fake" and not self.metered(alias)
+
     def ordered(self) -> list[str]:
         aliases = self.aliases()
         default = self.settings.get("public.default_model", None)
@@ -374,6 +388,95 @@ class StreamSlots:
         return len(self._open)
 
 
+# path -> (mtime_ns, the one-line description), so capabilities does not reparse every poll.
+_DESCRIPTIONS: dict[Path, tuple[int, str | None]] = {}
+_PHASE_MARK = re.compile(r"^P\d+\b[^.]*\.\s+")  # "P5. ", "P4, two-process. "
+DESCRIPTION_CHARS = 140
+
+
+def _one_line(text: str) -> str | None:
+    flat = _PHASE_MARK.sub("", " ".join(text.split()))
+    if not flat:
+        return None
+    end = flat.find(". ")
+    first = flat[: end + 1] if end >= 0 else flat
+    if len(first) > DESCRIPTION_CHARS:
+        first = first[: DESCRIPTION_CHARS - 1].rstrip() + "\u2026"
+    return first
+
+
+def fixture_description(path: Path) -> str | None:
+    """A fixture file's `description` as one short line: its first sentence. JSONL fixtures
+    carry none. Cached by modification time."""
+    if path.suffix != ".yaml":
+        return None
+    try:
+        mtime = path.stat().st_mtime_ns
+    except OSError:
+        return None
+    hit = _DESCRIPTIONS.get(path)
+    if hit is not None and hit[0] == mtime:
+        return hit[1]
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        data = None
+    raw = data.get("description") if isinstance(data, dict) else None
+    text = _one_line(raw) if isinstance(raw, str) else None
+    _DESCRIPTIONS[path] = (mtime, text)
+    return text
+
+
+def _pack_fixture_dirs(h: Any) -> dict[str, Path]:
+    """Each pack's own fixture directory (`fixtures/fake`), the configured pack's first."""
+    own = {h.pack: packs_mod.pack_dir(h.settings, h.pack) / "fixtures" / "fake"}
+    for pack_id, info in packs_mod.discover(h.settings).items():
+        own.setdefault(pack_id, info.path / "fixtures" / "fake")
+    return own
+
+
+# A public server answers capabilities on every poll: the catalog is kept on the harness a while.
+CATALOG_TTL_S = 30.0
+
+
+def fixture_catalog(h: Any) -> list[dict[str, Any]]:
+    """`public.fixtures`: every fixture name a turn may ask for (the same set as
+    `Harness.fixtures()`), sorted, with the first sentence of its `description` (null when the
+    file has none) and the packs that ship it (`[]` for a shared one). No path leaves the
+    server. Cached for a little while in public mode."""
+    public = h.settings.mode == "public"
+    hit = getattr(h, "_fixture_catalog", None) if public else None
+    if hit is not None and time.monotonic() - hit[0] < CATALOG_TTL_S:
+        return hit[1]
+    own = _pack_fixture_dirs(h)
+    dirs = list(h._fixture_dirs(h.settings, h.pack))
+    dirs += [d for d in own.values() if d not in dirs]
+    shipped: dict[str, list[str]] = {}
+    for pack_id, directory in own.items():
+        for name in list_fixtures([directory]):
+            shipped.setdefault(name, []).append(pack_id)
+    out = []
+    for name in list_fixtures(dirs):
+        path = find_fixture(name, dirs)  # the file a turn naming it would run
+        out.append(
+            {
+                "name": name,
+                "description": fixture_description(path),
+                "packs": sorted(shipped.get(name, [])),
+            }
+        )
+    if public:
+        h._fixture_catalog = (time.monotonic(), out)
+    return out
+
+
+def pack_fixture_names(h: Any, pack: str) -> list[str]:
+    """The fixtures a turn of one pack can run: the pack's own and the shared ones."""
+    view = h.view(pack)
+    settings = view.settings if pack != h.pack else h.settings
+    return list_fixtures(h._fixture_dirs(settings, pack))
+
+
 def _when(ts: float | None) -> str | None:
     return None if ts is None else iso(ts).split(".")[0] + "Z"
 
@@ -448,6 +551,10 @@ def capabilities_block(h: Any, identity: Any = None, ip: str | None = None) -> d
         "models": models,
         "budget": budget,
         "byo_key_bypasses_budget": True,
+        # The fake model's fixtures a turn may name: any in dev mode, and in public mode when
+        # the turn runs on the scripted model (http_api.md, P6 additions).
+        "fixtures": fixture_catalog(h),
+        "default_fixture": s.fixture() or "plain_answer",
     }
 
 

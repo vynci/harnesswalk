@@ -1,6 +1,6 @@
 # Provenance: _starter
 
-**Example Store** is the hand-written starter pack of harnesswalk. Synthetic, no real people,
+**Sample Shop** is the hand-written starter pack of Harnesswalk. Synthetic, no real people,
 companies or identifiers: the shop, its orders, products and people are invented, and the one
 email address is on the reserved `example.invalid` domain.
 

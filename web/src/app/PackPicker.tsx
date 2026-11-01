@@ -6,6 +6,7 @@
 import { ChevronDown, Database } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +19,16 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { packTitle } from '@/state/packs'
 import { selectTurnRunning, useApp } from '@/state/store'
+
+/** The menu's order (owner's choice): the starter shop first, then the domain packs in a fixed walk; unknown packs follow by title. */
+const PACK_ORDER = ['_starter', 'healthcare', 'logistics', 'ecommerce', 'sports', 'finance']
+function orderPacks<T extends { id: string; title?: string }>(packs: T[]): T[] {
+  const rank = (p: T) => {
+    const i = PACK_ORDER.indexOf(p.id)
+    return i === -1 ? PACK_ORDER.length : i
+  }
+  return [...packs].sort((a, b) => rank(a) - rank(b) || (a.title ?? a.id).localeCompare(b.title ?? b.id))
+}
 
 export function PackPicker() {
   const packs = useApp((s) => s.packs)
@@ -35,8 +46,8 @@ export function PackPicker() {
         <DropdownMenuTrigger asChild>
           <Button
             size="sm"
-            variant="outline"
-            className="w-auto max-w-[min(24rem,40vw)] min-w-0 shrink gap-1.5 max-sm:max-w-40"
+            variant="default"
+            className="w-auto max-w-[min(24rem,40vw)] min-w-0 shrink gap-1.5 font-medium shadow-xs max-sm:max-w-40"
             aria-label={`Dataset pack: ${title}`}
             aria-disabled={running || switching ? true : undefined}
             onClick={(e) => {
@@ -66,17 +77,19 @@ export function PackPicker() {
             if (id && id !== pack && !running) void choosePack(id)
           }}
         >
-          {packs.map((p) => (
+          {orderPacks(packs).map((p) => (
             <DropdownMenuRadioItem key={p.id} value={p.id} className="items-start" data-testid="pack-option" data-pack={p.id} disabled={running}>
-              <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="truncate">
-                  {p.title || p.id}
-                  {p.default && <span className="text-muted-foreground"> · default</span>}
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-medium">{p.title || p.id}</span>
+                  {p.domain && (
+                    <Badge variant="outline" className="shrink-0 font-normal text-muted-foreground capitalize" data-testid="pack-domain">
+                      {p.domain}
+                    </Badge>
+                  )}
+                  {p.default && <span className="shrink-0 text-xs text-muted-foreground">default</span>}
                 </span>
-                <span className="text-xs text-muted-foreground">
-                  {p.feature ?? p.domain ?? 'a dataset pack'}
-                  {p.domain && p.feature ? ` · ${p.domain}` : ''}
-                </span>
+                <span className="text-xs text-muted-foreground">{p.feature ?? 'a dataset pack'}</span>
               </span>
             </DropdownMenuRadioItem>
           ))}

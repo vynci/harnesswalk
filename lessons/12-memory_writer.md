@@ -21,7 +21,7 @@ also:
 
 Reading memory is easy to get right; writing it is where agents go wrong. If the model could
 write to memory directly, one confused or manipulated turn could plant a "fact" that every later
-turn retrieves and trusts. So in harnesswalk nothing writes semantic or episodic memory except
+turn retrieves and trusts. So in Harnesswalk nothing writes semantic or episodic memory except
 this node. The model can only propose: it calls the `remember` tool (typed arguments, class
 `memory.write`, checked by policy like any tool), and the loop turns each successful call into a
 proposal. The turn itself proposes one short episode ("Asked: ... Answered: ...") when it ends.

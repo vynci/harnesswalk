@@ -1,6 +1,6 @@
 # Provenance: healthcare
 
-**Brindlemoor Family Clinic** is a synthetic dataset pack for harnesswalk. Synthetic, no real people, companies
+**Brindlemoor Family Clinic** is a synthetic dataset pack for Harnesswalk. Synthetic, no real people, companies
 or identifiers: every business, product, place, person, id and number in it is invented.
 
 | | |
