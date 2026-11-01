@@ -107,3 +107,39 @@ describe.each([
     }
   })
 })
+
+describe('brand palette (P6)', () => {
+  const c = (tokens: Map<string, string>, name: string) => parse(tokens.get(name)!)
+
+  it('the light theme takes the owner palette as given', () => {
+    expect(light.get('primary')).toBe('#0ea47a')
+    expect(light.get('primary-hover')).toBe('#0a7557')
+    expect(light.get('ring')).toBe('#12d39d')
+    expect(light.get('border')).toBe('#e6e6e6')
+    expect(light.get('foreground')).toBe('#111111')
+    expect(light.get('background')).toBe('#ffffff')
+    expect(dark.get('background')).toBe('#111111')
+    expect(dark.get('primary')).toBe('#0a7557')
+  })
+
+  it('primary fills keep their text at 3:1 (button labels and icons), and the dark primary at 4.5:1', () => {
+    // #0ea47a with white is 3.2:1: fine for icons and the large-text rule, short of 4.5:1 for
+    // small labels. The report names the trade-off; the dark primary passes 4.5:1.
+    expect(contrast(c(light, 'primary-foreground'), c(light, 'primary'))).toBeGreaterThanOrEqual(3)
+    expect(contrast(c(light, 'primary-foreground'), c(light, 'primary-hover'))).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(c(dark, 'primary-foreground'), c(dark, 'primary'))).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('the text-safe green reads at 4.5:1 on white, the accent is a fill (under 3:1 on white)', () => {
+    expect(contrast(c(light, 'brand-strong'), c(light, 'background'))).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(c(light, 'brand-accent'), c(light, 'background'))).toBeLessThan(3)
+    expect(contrast(c(light, 'accent-foreground'), c(light, 'accent'))).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(c(dark, 'accent-foreground'), c(dark, 'accent'))).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(c(light, 'muted-foreground'), c(light, 'muted'))).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('the header mark is the brand green at 3:1 on the background in both themes', () => {
+    expect(contrast(c(light, 'brand'), c(light, 'background'))).toBeGreaterThanOrEqual(3)
+    expect(contrast(c(dark, 'brand'), c(dark, 'background'))).toBeGreaterThanOrEqual(3)
+  })
+})

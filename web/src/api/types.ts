@@ -184,6 +184,38 @@ export interface Capabilities {
     max_steps: number
     session_ttl_seconds: number | null
   }
+  /** P6: the public site's models, limits, shared budget and sandbox session (null-ish outside public). */
+  public?: PublicInfo
+}
+
+/** Why a model cannot be picked: the shared budget is spent, or no key reaches its provider. */
+export type ModelUnavailableReason = 'budget_exhausted' | 'provider_unconfigured'
+
+/** One entry of `capabilities.public.models`: what the composer's model picker lists. */
+export interface PublicModel {
+  alias: string
+  label: string
+  provider: string
+  default: boolean
+  available: boolean
+  reason: ModelUnavailableReason | null
+}
+
+/** `capabilities.public` (phase-6 CONTRACT section 2). No dollar amounts leave the server. */
+export interface PublicInfo {
+  /** When this browser's anonymous tenant and everything in it is deleted; null outside public. */
+  session_expires_at: string | null
+  ttl_s: number
+  limits: {
+    per_ip_per_hour: number
+    remaining_this_hour: number
+    max_steps: number
+    budget_tokens: number
+    max_message_chars: number
+  }
+  models: PublicModel[]
+  budget: { status: 'ok' | 'exhausted'; resets_at: string | null; spent_fraction: number }
+  byo_key_bypasses_budget: boolean
 }
 
 export type TurnStatus = 'running' | 'paused' | 'done'

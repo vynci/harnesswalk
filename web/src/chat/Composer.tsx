@@ -15,7 +15,9 @@ import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { useFeature } from '@/state/hooks'
 import { parseOutputSchema, useApp } from '@/state/store'
+import { ByoKeyButton, PublicModelPicker } from './PublicControls'
 
 const NO_HINT = '__none__'
 const EXAMPLE_SCHEMA = '{"type": "object", "required": ["answer"], "properties": {"answer": {"type": "string"}}}'
@@ -129,6 +131,9 @@ export function Composer({
   const input = useRef<HTMLTextAreaElement>(null)
   const [options, setOptions] = useState(false)
   const dev = useApp((s) => s.capabilities?.mode === 'dev')
+  const isPublic = useApp((s) => s.capabilities?.mode === 'public')
+  const byoKey = useApp((s) => s.capabilities?.features.byo_key === true)
+  const uploads = useFeature('uploads')
   // P5: the pack the next message goes to names the placeholder; the starter pack keeps its own.
   const packName = useApp((s) => {
     const p = s.packs?.find((x) => x.id === s.pack)
@@ -185,13 +190,13 @@ export function Composer({
           data-testid="composer-input"
         />
         <InputGroupAddon align="block-end" className="gap-1.5 pt-1">
-          <Hint label="Attach, coming later" side="top">
+          <Hint label={uploads.reason ?? 'Attach files'} side="top">
             <InputGroupButton
               size="icon-sm"
               variant="outline"
               className="rounded-full aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
               aria-disabled="true"
-              aria-label="Attach files (coming later)"
+              aria-label={`Attach files (${uploads.reason ?? 'coming later'})`}
               onClick={(e) => e.preventDefault()}
               data-testid="attach-button"
             >
@@ -214,6 +219,8 @@ export function Composer({
               <ModelHint />
             </>
           )}
+          {isPublic && <PublicModelPicker />}
+          {byoKey && <ByoKeyButton />}
           <span className="ml-auto flex items-center gap-2">
             <InputGroupText className={tooLong ? 'text-xs text-destructive tabular-nums' : 'text-xs tabular-nums'} aria-live="polite">
               {text.length > maxChars * 0.8 ? `${text.length} / ${maxChars}` : ''}

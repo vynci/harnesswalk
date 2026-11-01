@@ -11,8 +11,11 @@ first (the spec is the contract), and closes with an end-to-end check on the run
 | P3 Full planes | Input guardrails, Policy + Approval (HITL card), Memory writer, Semantic, Episodic, Knowledge (pgvector), Model router rules, Audit | E-commerce "cancel order" demo pauses for approval; finance demo cites |
 | P4 Ops | Trace viewer, golden-set runner (CLI + CI), online judge + thumbs, Release (versioned artifacts, diff, rollback), step mode and replay | Changing a skill creates a version; eval run flags a regression |
 | P5 Datasets and lessons | Five packs generated and committed, lessons for all 14 nodes, "disable a node" demos | Each pack's golden set passes on the default model |
-| P6 Sandbox and hosting | Public and private modes, limits, budgets, BYO key, auth, TTL cleanup, deploy to harnesswalk.vynci.dev, homelab model backend | Load test within ceilings; abuse checklist passes |
-| P7 Community | CONTRIBUTING, conformance suite documented, adapter examples (LangGraph, MCP server), TypeScript harness port as proof of the spec | External implementation passes conformance |
+| P6 Sandbox and hosting (**in progress**) | Public mode hardened (limits, a shared daily budget for the hosted models, BYO key, session TTL cleanup) and deployed to harnesswalk.vynci.dev with Claude Haiku, Claude Sonnet and the fake model | Load test within ceilings; abuse checklist passes |
+| P7 Community (**in progress**) | CONTRIBUTING and the community files, the conformance suite documented for any HTTP implementation, spec versioning rules, the PyPI package and image, the release workflow, a fresh-clone check | A stranger can clone, run, test and extend it; the first tagged release |
+
+The owner narrowed P6 and P7 on 2026-11-01: private mode, the homelab model backend, the
+framework adapters, the TypeScript port and the blog episodes moved to [Later](#later).
 
 Note: the plan counts 14 nodes; the spec's simple view has 15 ids because the Memory group is
 itself a node. Lessons cover all 15.
@@ -147,6 +150,27 @@ Deferred from P5:
 | The owner's read of the 21 chapters and of the pack content reviews (done by the integration builder, an agent) | owner |
 | The judge suite and a hosted smoke run on the new packs (this pass made no hosted call) | owner |
 
+**P6 and P7 are in progress** (2026-11-01). P6 hardens public mode and deploys the hosted
+sandbox at [harnesswalk.vynci.dev](https://harnesswalk.vynci.dev); private mode stays visible
+in the UI but disabled. P7 makes the repo something a stranger can clone, run, test, extend
+and trust: [CONTRIBUTING.md](../CONTRIBUTING.md), the conformance suite as a product
+(`--command` and `--base-url` for any HTTP implementation), [spec/VERSIONING.md](../spec/VERSIONING.md),
+a wheel that runs on its own, the release workflow ([RELEASING.md](RELEASING.md)) and the
+fresh-clone check in CI. Version 0.1.0 is the first tagged release.
+
+## Later
+
+Deferred by the owner (2026-11-01), each to a plan of its own:
+
+| Item | One line |
+|---|---|
+| Private mode | Sign-in, uploads, per-tenant overrides, persistence, export and delete; the UI shows the controls disabled until then |
+| Homelab model backend | The sandbox's own GPU box behind the router as a cheaper default than the hosted models |
+| Framework adapters | Examples that show where LangGraph, an MCP server and the Claude Agent SDK plug into the harness, outside the core |
+| TypeScript harness port | A second implementation that passes the conformance suite, as proof that the spec is enough |
+| Blog episodes | One write-up per phase, from the reports |
+| Improvements list | The items each phase deferred instead of building: the ops push channel instead of polling, an opt-in for message content in OpenTelemetry, per-tenant pack search statistics, the edit-lock race, audit ordering, diagnoses in a `gate_failed` body, a per-call budget ledger, read walls in the sandbox, lower authority for retrieved memory, a model-based claim check for uncited tool answers, dev-only golden cases outside dev, and an `after` case pulling in the case it reads |
+
 ## P6: public mode (2026-11-01)
 
 Public mode for harnesswalk.vynci.dev: the `public:` block (allowlist `hosted-haiku`,
@@ -159,10 +183,8 @@ Deferred from P6 (API side):
 
 | Item | Phase |
 |---|---|
-| Private mode: sign-in, uploads, overrides, persistence, export, delete-my-data | later |
 | A per-IP cap on open event streams (the cap is global, 50) | later |
-| The first `X-Forwarded-For` hop is client-controlled behind CloudFront; `CloudFront-Viewer-Address` is preferred when the proxy forwards it | deploy |
+| The API trusts the first `X-Forwarded-For` hop (or `CloudFront-Viewer-Address`) under `HARNESSWALK_TRUST_PROXY=1`; deploy/caddy/Caddyfile writes that one hop from the viewer address, and any other proxy in front must do the same | deploy |
 | A made-up `session_id` on `POST /v1/turns` starts a session while another tenant's is a 404, so a session id's existence is observable (ids are random, turns are rate-limited) | later |
 | The shared ledger checks before each call, so concurrent turns can overshoot the daily budget by the calls in flight | later |
 | The sweeper runs inline on the event loop (fine at public scale) and deletes per tenant; batch deletes and a vacuum schedule | later |
-| Homelab model backend for public mode | later |

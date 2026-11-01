@@ -1,19 +1,15 @@
 // The knowledge document reader: GET /v1/knowledge/docs/{doc}, every chunk with its heading and
-// citation string, scrolled to (and marking) the chunk a citation named. Opened from a citation
+// citation string, rendered as markdown (the chat's renderer), scrolled to (and marking) the chunk a citation named. Opened from a citation
 // chip in the chat or from the document list of the Knowledge inspector.
 import { useEffect, useRef, useState } from 'react'
 import { FileText } from 'lucide-react'
 import type { KnowledgeDocDetail } from '@/api/types'
+import { Markdown } from '@/components/markdown'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { useApp } from '@/state/store'
-
-/** Markdown source wraps lines at a fixed width: join those, keep paragraphs and list items. */
-function unwrap(text: string): string {
-  return text.replace(/([^\n])\n(?!\n|\s*[-*+]\s|\s*\d+\.\s)/g, '$1 ')
-}
 
 type Loaded = { key: string; doc?: KnowledgeDocDetail; error?: string }
 
@@ -96,7 +92,7 @@ export function DocReader() {
                       )}
                       <span className="ml-auto italic">{c.citation}</span>
                     </div>
-                    <p className="leading-relaxed whitespace-pre-wrap">{unwrap(c.text)}</p>
+                    <Markdown text={c.text} />
                   </li>
                 )
               })}

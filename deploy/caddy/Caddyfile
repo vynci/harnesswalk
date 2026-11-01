@@ -1,0 +1,62 @@
+# harnesswalk origin (compose prod profile). TLS for origin.harnesswalk.vynci.dev, requests
+# from CloudFront only, the API paths only, streamed without buffering for SSE.
+#
+# Environment (compose passes it): ORIGIN_VERIFY (required), HARNESSWALK_ORIGIN_HOST, and
+# CADDY_TLS: tls_acme on the box (Let's Encrypt over HTTP-01 on port 80), tls_internal for a
+# local run (Caddy's own CA).
+{
+	skip_install_trust
+	servers {
+		# Port 443 only admits CloudFront's origin-facing prefix list (security group), and the
+		# site below only answers requests carrying X-Origin-Verify, so the peer is always our
+		# distribution. The viewer's address comes from X-Harnesswalk-Viewer-Ip, which the
+		# distribution's viewer-ip function sets (overwriting any value the viewer sent), then
+		# CloudFront-Viewer-Address (ip:port); never from X-Forwarded-For, whose first hop the
+		# viewer can write.
+		trusted_proxies static 0.0.0.0/0 ::/0
+		client_ip_headers X-Harnesswalk-Viewer-Ip CloudFront-Viewer-Address
+	}
+}
+
+(tls_acme) {
+	tls {
+		issuer acme {
+			# 443 is closed to Let's Encrypt; HTTP-01 on 80 is the only challenge that works.
+			disable_tlsalpn_challenge
+		}
+	}
+}
+
+(tls_internal) {
+	tls internal
+}
+
+{$HARNESSWALK_ORIGIN_HOST:origin.harnesswalk.vynci.dev} {
+	import {$CADDY_TLS:tls_acme}
+
+	request_body {
+		max_size 1MB
+	}
+
+	@from_cloudfront header X-Origin-Verify {$ORIGIN_VERIFY}
+	@api path /v1/* /healthz /readyz
+
+	handle @from_cloudfront {
+		handle @api {
+			reverse_proxy api:8000 {
+				# One hop the API can trust (HARNESSWALK_TRUST_PROXY=1): the viewer address.
+				header_up X-Forwarded-For {client_ip}
+				header_up -X-Origin-Verify
+				# SSE: write every event as it arrives.
+				flush_interval -1
+			}
+		}
+		handle {
+			respond 404
+		}
+	}
+
+	handle {
+		respond "forbidden" 403
+	}
+}

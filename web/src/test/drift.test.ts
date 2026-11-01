@@ -23,6 +23,10 @@ const ALLOWED: Record<string, string> = {
   'api/types.ts:eval': 'the trace query kind eval (GET /v1/trace/turns?kind=eval)',
   'inspector/TracePanel.tsx:eval': 'the trace query kind eval',
   'chat/ToolTrace.tsx:sandbox': 'a field of ToolCallView',
+  'state/features.ts:diagnose': 'the capabilities feature name diagnose (P6 useFeature)',
+  'state/features.ts:release': 'the capabilities feature name release (P6 useFeature)',
+  'inspector/Diagnosis.tsx:diagnose': "useFeature('diagnose'), the feature flag",
+  'state/ops.ts:release': "featureState(capabilities, 'release'), the feature flag",
 }
 
 describe('drift rule', () => {

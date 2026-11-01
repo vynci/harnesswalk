@@ -1,0 +1,47 @@
+name: Feature or spec change
+description: Propose a new behaviour, node, endpoint, event field or conformance case.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The spec is the contract: a change in behaviour starts as a change to `spec/`.
+        Read CONTRIBUTING.md and spec/VERSIONING.md, then describe the change here before
+        you build it.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What a learner or an implementer cannot do, or cannot see, today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: The proposal
+      description: What changes, in the spec first (which documents, fields, events or nodes) and then in the reference harness or the web app.
+    validations:
+      required: true
+  - type: dropdown
+    id: compatibility
+    attributes:
+      label: Compatibility (spec/VERSIONING.md)
+      options:
+        - No spec change (implementation or docs only)
+        - Additive (minor)
+        - Breaking (major)
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Principles
+      options:
+        - label: It keeps the core framework-free and readable in one sitting.
+        - label: It emits events for the work it does, so the diagram, trace and evals can see it.
+        - label: I am willing to open the pull request.

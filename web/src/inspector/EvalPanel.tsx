@@ -438,7 +438,8 @@ function GoldenSetView({ blocked, onStart }: { blocked: string | null; onStart: 
 export function EvalPanel() {
   const api = useApp((s) => s.api)
   const capabilities = useApp((s) => s.capabilities)
-  const on = capabilities?.features.evals === true
+  // Public mode keeps the panel (the runs list is read-only); Run is disabled with its reason.
+  const on = capabilities?.features.evals === true || capabilities?.mode === 'public'
   const version = useApp((s) => s.inspectorVersion)
   const liveEval = useApp((s) => s.liveEval)
   const opsRun = useApp((s) => s.opsRun)

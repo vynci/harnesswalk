@@ -63,6 +63,13 @@ export async function stepThrough(page: Page, max = 120): Promise<string[]> {
 const repo = fileURLToPath(new URL('../..', import.meta.url))
 const dist = fileURLToPath(new URL('../dist-e2e', import.meta.url))
 
+/** P6: a harness in another mode (public), on another fixture, with extra environment. */
+export interface HarnessOptions {
+  mode?: 'dev' | 'public'
+  fixture?: string
+  env?: Record<string, string>
+}
+
 /**
  * A second harness of its own, for tests that restart the server or need another config: the
  * same build and fake provider as the suite's server, on its own port and scratch data dir.
@@ -77,6 +84,7 @@ export class Harness {
   constructor(
     readonly port: number,
     private readonly profile = 'web/e2e-live/profile.yaml',
+    private readonly options: HarnessOptions = {},
   ) {
     this.url = `http://127.0.0.1:${port}`
     this.data = mkdtempSync(join(tmpdir(), `harnesswalk-e2e-${port}-`))
@@ -85,7 +93,7 @@ export class Harness {
   async start() {
     this.proc = spawn(
       'uv',
-      ['run', 'harnesswalk', 'serve', '--mode', 'dev', '--provider', 'fake', '--fixture', 'plain_answer', '--host', '127.0.0.1', '--port', String(this.port)],
+      ['run', 'harnesswalk', 'serve', '--mode', this.options.mode ?? 'dev', '--provider', 'fake', '--fixture', this.options.fixture ?? 'plain_answer', '--host', '127.0.0.1', '--port', String(this.port)],
       {
         cwd: repo,
         detached: true,
@@ -98,6 +106,7 @@ export class Harness {
           HARNESSWALK_PROFILE: this.profile,
           HARNESSWALK_DATASET: '',
           HARNESSWALK_OLLAMA_URL: '',
+          ...this.options.env,
         },
       },
     )

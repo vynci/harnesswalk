@@ -16,6 +16,7 @@ import type {
 } from '@/api/types'
 import { EXAMPLE_MESSAGES, EXAMPLE_NAMES, EXAMPLES, servedDiagram, type ExampleName } from './examples'
 import { MockLessons } from './lessons'
+import { MARKDOWN_PROMPT, MARKDOWN_REPLY } from './markdown'
 import { MockEvalEventSource, MockOps, MockOpsEventSource } from './ops'
 import { allFixtures, DEFAULT_PACK, PACK_IDS, packDetail, packFiles, packSummary } from './packs'
 import { repoFile, sourceFor } from './repo'
@@ -27,7 +28,27 @@ export interface MockOptions {
   seed?: boolean
   /** Split the reply into message_delta events inside the reply gateway span. */
   messageDelta?: boolean
+  /** P6: serve public mode (the site): `capabilities.public`, the model allowlist, limits. */
+  public?: MockPublicOptions | null
 }
+
+/** The public-mode fixture's knobs (bootstrap reads them from `?mode=public&budget=spent...`). */
+export interface MockPublicOptions {
+  /** `spent`: both Claude models are out of today's shared budget. Default: only Sonnet is. */
+  budget?: 'ok' | 'spent'
+  /** Requests left this hour before a 429 (default 27 of 30). */
+  remaining?: number
+  /** Sandbox session lifetime in seconds (default 7200). */
+  ttlS?: number
+}
+
+/** The public site's models (phase-6 CONTRACT section 2). */
+const PUBLIC_MODELS = [
+  { alias: 'hosted-haiku', label: 'Claude Haiku 5.5', provider: 'anthropic', default: true },
+  { alias: 'hosted-sonnet', label: 'Claude Sonnet 5.5', provider: 'anthropic', default: false },
+  { alias: 'fake-small', label: 'Fake model (scripted)', provider: 'fake', default: false },
+] as const
+const PER_HOUR = 30
 
 type Template = Omit<HarnessEvent, 'seq' | 'ts' | 'event_id' | 'trace_id' | 'turn_id' | 'session_id' | 'tenant_id'>
 
@@ -63,6 +84,16 @@ function hex(n: number): string {
   let out = ''
   while (out.length < n) out += Math.floor(Math.random() * 16).toString(16)
   return out === '0'.repeat(n) ? hex(n) : out
+}
+
+/** A request header from a fetch init, case-insensitively. */
+function header(init: RequestInit | undefined, name: string): string | null {
+  const h = init?.headers
+  if (!h) return null
+  if (h instanceof Headers) return h.get(name)
+  const entries = Array.isArray(h) ? h : Object.entries(h)
+  const found = entries.find(([k]) => k.toLowerCase() === name)
+  return found ? String(found[1]) : null
 }
 
 function json(status: number, body: unknown): Response {
@@ -152,7 +183,9 @@ function summarize(turn: MockTurn, index?: number): TurnSummary {
 }
 
 export class MockServer {
-  readonly opts: Required<MockOptions>
+  readonly opts: Required<Omit<MockOptions, 'public'>> & { public: MockPublicOptions | null }
+  /** P6, public mode: this browser's anonymous tenant, its requests left, and when it ends. */
+  private sandbox: { startedAt: number; remaining: number } | null = null
   readonly diagram: Diagram = servedDiagram()
   private turns = new Map<string, MockTurn>()
   private counter = 0
@@ -163,7 +196,8 @@ export class MockServer {
   private loadedPacks = new Set<string>([DEFAULT_PACK])
 
   constructor(opts: MockOptions = {}) {
-    this.opts = { stepMs: opts.stepMs ?? 140, seed: opts.seed ?? true, messageDelta: opts.messageDelta ?? true }
+    this.opts = { stepMs: opts.stepMs ?? 140, seed: opts.seed ?? true, messageDelta: opts.messageDelta ?? true, public: opts.public ?? null }
+    if (this.opts.public) this.sandbox = { startedAt: Date.now(), remaining: this.opts.public.remaining ?? 27 }
     // P4: the LLM Ops nodes are served by the ops half of the mock.
     for (const n of this.diagram.nodes) if (n.group === 'ops') n.implemented = true
     this.lessons = new MockLessons(this.diagram)
@@ -294,7 +328,11 @@ export class MockServer {
     if (method === 'GET' && p === '/healthz') return json(200, { status: 'ok', mode: 'dev', provider: 'fake' })
     if (method === 'GET' && p === '/v1/capabilities') return json(200, this.capabilities())
     if (method === 'GET' && p === '/v1/diagram') return json(200, this.diagram)
-    if (method === 'POST' && p === '/v1/turns') return this.startTurn(body as unknown as StartTurnRequest)
+    if (method === 'POST' && p === '/v1/turns') {
+      const refused = this.publicRefusal(body as unknown as StartTurnRequest, header(init, 'x-harnesswalk-provider-key'))
+      if (refused) return refused
+      return this.startTurn(body as unknown as StartTurnRequest)
+    }
     if ((m = p.match(/^\/v1\/turns\/([^/]+)$/)) && method === 'GET') {
       const found = this.turns.get(decodeURIComponent(m[1]!))
       // Eval case turns live in their run's scratch tenant, so the caller cannot read them here.
@@ -386,7 +424,69 @@ export class MockServer {
     return apiError(404, 'not_found', `No route ${method} ${p} in the mock.`)
   }
 
+  // ---------- P6 public mode ----------
+
+  /** The sandbox's end; past it, the tenant and everything in it is gone and a fresh one starts. */
+  private sandboxNow(): { startedAt: number; remaining: number } | null {
+    const pub = this.opts.public
+    if (!pub || !this.sandbox) return null
+    const ttl = (pub.ttlS ?? 7200) * 1000
+    if (Date.now() >= this.sandbox.startedAt + ttl) {
+      // Swept: every turn and session of the tenant is deleted.
+      this.turns.clear()
+      this.sessions.clear()
+      this.sandbox = { startedAt: Date.now(), remaining: pub.remaining ?? 27 }
+    }
+    return this.sandbox
+  }
+
+  private publicModels(): { alias: string; label: string; provider: string; default: boolean; available: boolean; reason: 'budget_exhausted' | null }[] {
+    const spent = this.opts.public?.budget === 'spent'
+    return PUBLIC_MODELS.map((m) => {
+      const out = (m.alias === 'hosted-sonnet' || spent) && m.provider === 'anthropic'
+      return { ...m, available: !out, reason: out ? 'budget_exhausted' : null }
+    })
+  }
+
+  private publicInfo(): NonNullable<Capabilities['public']> {
+    const box = this.sandboxNow()!
+    const ttl = this.opts.public?.ttlS ?? 7200
+    const midnight = new Date()
+    midnight.setUTCHours(24, 0, 0, 0)
+    const spent = this.opts.public?.budget === 'spent'
+    return {
+      session_expires_at: new Date(box.startedAt + ttl * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+      ttl_s: ttl,
+      limits: { per_ip_per_hour: PER_HOUR, remaining_this_hour: box.remaining, max_steps: 8, budget_tokens: 16000, max_message_chars: 8000 },
+      models: this.publicModels(),
+      budget: { status: spent ? 'exhausted' : 'ok', resets_at: midnight.toISOString().replace(/\.\d{3}Z$/, 'Z'), spent_fraction: spent ? 1 : 0.42 },
+      byo_key_bypasses_budget: true,
+    }
+  }
+
+  /** The public-mode checks before a turn starts: the model allowlist, the budget, the rate limit. */
+  private publicRefusal(req: StartTurnRequest, key: string | null): Response | null {
+    const box = this.sandboxNow()
+    if (!box) return null
+    const models = this.publicModels()
+    const model = req.model ?? models.find((m) => m.default)!.alias
+    const entry = models.find((m) => m.alias === model)
+    if (!entry) return apiError(400, 'invalid_request', 'model not available in public mode')
+    if (!entry.available && !key) {
+      return json(409, { error: { code: 'budget_exhausted', message: "Today's shared budget for Claude models is spent.", resets_at: this.publicInfo().budget.resets_at } })
+    }
+    if (box.remaining <= 0) {
+      return new Response(JSON.stringify({ error: { code: 'rate_limited', message: 'Too many requests from this address this hour.', retry_after: 720 } }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json', 'Retry-After': '720' },
+      })
+    }
+    box.remaining -= 1
+    return null
+  }
+
   capabilities(): Capabilities {
+    if (this.opts.public) return this.publicCapabilities()
     return {
       mode: 'dev',
       version: '0.2.0-mock',
@@ -422,6 +522,44 @@ export class MockServer {
     }
   }
 
+  /** Public mode: the site's capabilities, private-only features off, the `public` block. */
+  private publicCapabilities(): Capabilities {
+    const pub = this.publicInfo()
+    return {
+      mode: 'public',
+      version: '0.2.0-mock',
+      spec_version: '0.1.0',
+      providers: [
+        { name: 'anthropic', configured: true, default: true, models: ['hosted-haiku', 'hosted-sonnet'] },
+        { name: 'fake', configured: true, default: false, models: ['fake-small'] },
+      ],
+      fixtures: [],
+      features: {
+        step_mode: true,
+        approvals: true,
+        message_delta: this.opts.messageDelta,
+        cancel: true,
+        byo_key: true,
+        disable_nodes: false,
+        knowledge: true,
+        memory_review: false,
+        evals: false,
+        judge: false,
+        release: true,
+        artifact_edit: false,
+        feedback: true,
+        step_over: true,
+        packs: true,
+        diagnose: false,
+      },
+      packs: { default: DEFAULT_PACK, ids: [...PACK_IDS] },
+      repo_url: 'https://github.com/vynci/harnesswalk',
+      limits: { max_message_chars: pub.limits.max_message_chars, max_steps: pub.limits.max_steps, session_ttl_seconds: pub.ttl_s },
+      release: this.ops.releaseState(),
+      public: pub,
+    }
+  }
+
   // ---------- turns ----------
 
   private startTurn(req: StartTurnRequest): Response {
@@ -444,9 +582,13 @@ export class MockServer {
     const disabled = new Set((req.disable ?? []).filter((id) => this.diagram.nodes.some((n) => n.id === id && n.can_disable)))
     const turnNo = ++this.counter
     const approvalId = `apr_${String(turnNo).padStart(4, '0')}_${hex(4)}`
-    const templates = applyDisabled(EXAMPLES[name].map(toTemplate), disabled, this.diagram).map((t) =>
-      t.summary && typeof t.summary.approval_id === 'string' ? { ...t, summary: { ...t.summary, approval_id: approvalId } } : t,
-    )
+    // A message asking for a table or markdown gets the markdown reply on the plain answer's stream.
+    const markdown = name === 'plain_answer' && MARKDOWN_PROMPT.test(req.message)
+    const templates = applyDisabled(EXAMPLES[name].map(toTemplate), disabled, this.diagram).map((t) => {
+      if (markdown && t.type === 'turn_end') return { ...t, summary: { ...t.summary, reply: MARKDOWN_REPLY } }
+      if (markdown && t.type === 'node_exit' && t.node_id === 'gateway' && t.summary?.phase === 'reply') return { ...t, summary: { ...t.summary, reply_chars: MARKDOWN_REPLY.length } }
+      return t.summary && typeof t.summary.approval_id === 'string' ? { ...t, summary: { ...t.summary, approval_id: approvalId } } : t
+    })
     const first = templates.shift()!
     first.summary = { ...first.summary, step_mode: req.step === true, message_chars: req.message.length, pack }
     const pauseAt = templates.findIndex((t) => t.type === 'node_paused' && t.summary?.reason === 'approval')

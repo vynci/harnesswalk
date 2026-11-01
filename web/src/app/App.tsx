@@ -8,6 +8,7 @@ import { layoutStorage } from '@/state/persist'
 import { useApp } from '@/state/store'
 import { Header } from './Header'
 import { Notices } from './Notices'
+import { useSandbox } from './useSandbox'
 import { useThemeClass } from './useTheme'
 
 // React Flow and the layout router are the biggest part of the app: their own chunk, fetched in
@@ -20,6 +21,7 @@ const InspectorDrawer = lazy(() => import('@/inspector/InspectorDrawer').then((m
 
 export function App() {
   useThemeClass()
+  useSandbox()
   const ready = useApp((s) => s.ready)
   const bootError = useApp((s) => s.bootError)
 

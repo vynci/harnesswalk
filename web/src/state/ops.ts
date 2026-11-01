@@ -2,6 +2,7 @@
 // edit is blocked right now, and the artifact an inspector edits (the API's `inspector.artifact`,
 // never guessed from the node).
 import type { ArtifactRef, Capabilities, InspectorArtifact } from '@/api/types'
+import { featureState } from './features'
 
 /** A marker in the chat timeline: a save to the working set, or a release becoming active. */
 export interface OpsMark {
@@ -59,29 +60,22 @@ export function releaseMark(
   }
 }
 
-/** Why the working set cannot be edited right now, or null when it can. */
+/** Why the working set cannot be edited right now, or null when it can (features.ts says why not). */
 export function editBlockReason(capabilities: Capabilities | null, turnRunning: boolean): string | null {
-  if (!capabilities) return 'Connecting to the API.'
-  if (capabilities.mode === 'public') return 'Editing is off in public mode: shared artifacts change only in dev and private.'
-  if (capabilities.features.artifact_edit !== true) return 'This API does not offer artifact editing.'
+  const edit = featureState(capabilities, 'artifact_edit')
+  if (!edit.enabled) return edit.reason
   if (turnRunning) return 'A turn is running. Edits wait until it ends, so a turn never sees half a change.'
   return null
 }
 
 /** Why releases cannot be created or rolled back right now, or null when they can. */
 export function releaseBlockReason(capabilities: Capabilities | null): string | null {
-  if (!capabilities) return 'Connecting to the API.'
-  if (capabilities.mode === 'public') return 'Releases are managed in dev and private mode.'
-  if (capabilities.features.release !== true) return 'This API does not offer releases.'
-  return null
+  return featureState(capabilities, 'release').reason
 }
 
 /** Why an eval run cannot start, or null when it can. */
 export function evalBlockReason(capabilities: Capabilities | null): string | null {
-  if (!capabilities) return 'Connecting to the API.'
-  if (capabilities.mode === 'public') return 'Eval runs start in dev and private mode only.'
-  if (capabilities.features.evals !== true) return 'This API does not offer eval runs.'
-  return null
+  return featureState(capabilities, 'evals').reason
 }
 
 /** An artifact an inspector can edit: the API's `inspector.artifact`, with the listing's metadata when known. */

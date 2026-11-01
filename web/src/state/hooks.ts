@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { featureState, pickerModels, type FeatureName, type FeatureState, type PickerModel } from './features'
 import { initialTurnState, reduceEvents, type TurnState } from './reducer'
 import { selectDisplayTurnId, useApp } from './store'
 
@@ -14,4 +15,20 @@ export function useDisplayTurn(): TurnState {
     if (replay) return reduceEvents(replay.events.slice(0, replay.cursor + 1), edgeIndex)
     return liveState ?? EMPTY
   }, [replay, edgeIndex, liveState])
+}
+
+/**
+ * Whether a feature's controls are live, and the tooltip when they are not (features.ts). Every
+ * private-only control reads this one source, and renders disabled with the reason, never hidden.
+ */
+export function useFeature(name: FeatureName): FeatureState {
+  const capabilities = useApp((s) => s.capabilities)
+  return useMemo(() => featureState(capabilities, name), [capabilities, name])
+}
+
+/** The public model picker's entries, with the reader's key applied (empty before P6). */
+export function usePickerModels(): PickerModel[] {
+  const capabilities = useApp((s) => s.capabilities)
+  const byoKey = useApp((s) => s.byoKey)
+  return useMemo(() => pickerModels(capabilities, byoKey), [capabilities, byoKey])
 }

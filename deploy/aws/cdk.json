@@ -1,0 +1,24 @@
+{
+  "app": "pnpm exec tsx bin/harnesswalk.ts",
+  "watch": {
+    "include": [
+      "bin/**",
+      "lib/**"
+    ],
+    "exclude": [
+      "node_modules",
+      "cdk.out"
+    ]
+  },
+  "context": {
+    "amiId": "ami-0f11e0e04ccb60d0a",
+    "availabilityZones": "us-east-1a,us-east-1b",
+    "cloudFrontPrefixListId": "pl-3b927c52",
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/core:target-partitions": [
+      "aws"
+    ],
+    "@aws-cdk/core:defaultCrossStackReferences": "strong"
+  }
+}

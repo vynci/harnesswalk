@@ -33,7 +33,7 @@ describe('ops helpers', () => {
 
   it('says why an edit is blocked: public mode, no feature, a running turn', () => {
     expect(editBlockReason(caps(), false)).toBeNull()
-    expect(editBlockReason(caps({ mode: 'public' }), false)).toMatch(/public mode/)
+    expect(editBlockReason(caps({ mode: 'public' }), false)).toBe('Editing needs a private workspace. Coming later.')
     expect(editBlockReason(caps({}, { artifact_edit: false }), false)).toMatch(/does not offer/)
     expect(editBlockReason(caps({}, { artifact_edit: undefined }), false)).toMatch(/does not offer/)
     expect(editBlockReason(caps(), true)).toMatch(/turn is running/)
