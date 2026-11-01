@@ -77,33 +77,53 @@ chown 10001:10001 "$mnt"   # the api image's non-root user
 SCRIPT
 
 # 2. Refresh compose.env from SSM and bring the prod profile up on the tag in IMAGE_TAG.
+#    `harnesswalk-up TAG` (the harnesswalk-deploy SSM document) also checks that IMAGE_TAG
+#    names TAG, so the box comes back on the same image after a reboot.
 cat >/usr/local/sbin/harnesswalk-up <<'SCRIPT'
 #!/bin/bash
 set -euo pipefail
 source /etc/harnesswalk.env
 export AWS_REGION="$HW_REGION"
 cd /srv/harnesswalk
+want="${1:-}"
 tag="$(aws ssm get-parameter --name "$HW_IMAGE_TAG_PARAM" --query Parameter.Value --output text 2>/dev/null || echo latest)"
+if [ -n "$want" ]; then
+  [[ "$want" =~ ^[0-9a-f]{7,40}$ ]] || { echo "harnesswalk-up: not a git sha: $want" >&2; exit 64; }
+  [ "$want" = "$tag" ] || { echo "harnesswalk-up: IMAGE_TAG is $tag, not $want (deploy-origin.sh sets it first)" >&2; exit 65; }
+fi
 registry="$HW_ACCOUNT.dkr.ecr.$HW_REGION.amazonaws.com"
 image="$registry/$HW_ECR_REPOSITORY:$tag"
 param() {
   aws ssm get-parameter --with-decryption --name "$HW_SSM_PREFIX/$1" --query Parameter.Value --output text
 }
+# Each secret into a variable first, so a failed or empty read stops here instead of writing
+# an empty value (set -e sees the failure of an assignment, not of a command inside echo).
+secret="$(param HARNESSWALK_SECRET)"
+anthropic="$(param ANTHROPIC_API_KEY)"
+verify="$(param ORIGIN_VERIFY)"
+for pair in "HARNESSWALK_SECRET=$secret" "ANTHROPIC_API_KEY=$anthropic" "ORIGIN_VERIFY=$verify"; do
+  name="${pair%%=*}" value="${pair#*=}"
+  case "$value" in
+    ""|None) echo "harnesswalk-up: $HW_SSM_PREFIX/$name is empty" >&2; exit 66 ;;
+    *"'"*|*$'\n'*) echo "harnesswalk-up: $HW_SSM_PREFIX/$name has a quote or a newline" >&2; exit 66 ;;
+  esac
+done
+# Optional String parameter: the shared hosted budget in USD per UTC day.
+budget="$(aws ssm get-parameter --name "$HW_SSM_PREFIX/HARNESSWALK_PUBLIC_BUDGET_USD" \
+  --query Parameter.Value --output text 2>/dev/null || true)"
 umask 077
 tmp="$(mktemp /srv/harnesswalk/.compose.env.XXXXXX)"
 {
   echo "HARNESSWALK_IMAGE='$image'"
-  echo "HARNESSWALK_SECRET='$(param HARNESSWALK_SECRET)'"
-  echo "ANTHROPIC_API_KEY='$(param ANTHROPIC_API_KEY)'"
-  echo "ORIGIN_VERIFY='$(param ORIGIN_VERIFY)'"
+  echo "HARNESSWALK_SECRET='$secret'"
+  echo "ANTHROPIC_API_KEY='$anthropic'"
+  echo "ORIGIN_VERIFY='$verify'"
   echo "HARNESSWALK_ORIGIN_HOST='$HW_ORIGIN_HOST'"
   echo "HARNESSWALK_LOG_GROUP='$HW_LOG_GROUP'"
   echo "AWS_REGION='$HW_REGION'"
-  # Optional String parameter: the shared hosted budget in USD per UTC day.
-  budget="$(aws ssm get-parameter --name "$HW_SSM_PREFIX/HARNESSWALK_PUBLIC_BUDGET_USD" \
-    --query Parameter.Value --output text 2>/dev/null || true)"
   [ -z "$budget" ] || echo "HARNESSWALK_PUBLIC_BUDGET_USD='$budget'"
 } >"$tmp"
+unset secret anthropic verify pair value
 mv "$tmp" compose.env
 umask 022
 aws ecr get-login-password | docker login --username AWS --password-stdin "$registry" >/dev/null
