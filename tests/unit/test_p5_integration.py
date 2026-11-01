@@ -137,3 +137,40 @@ async def test_pack_scoped_memory_is_per_tenant_and_per_pack(tmp_path: Path) -> 
         assert all(p["tenant_id"] == "b" for p in theirs["proposals"])
         assert not any(p["session_id"] == "s1" for p in theirs["proposals"])
     await h.aclose()
+
+
+DOMAIN = ("ecommerce", "finance", "healthcare", "logistics", "sports")
+
+
+@pytest.mark.anyio
+async def test_every_domain_pack_releases_through_the_gate_and_a_regression_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The P5 gate on the packs themselves: each domain pack's release runs its golden set
+    and passes, in one data directory (so each gate run also proves the cross-pack fix); then
+    a policy edit that breaks ecommerce's cancel cases is refused with 409, and force releases
+    it anyway with a `release_forced` audit record."""
+    h = domain(tmp_path)
+    async with client(h, "dev") as c:
+        for pack in DOMAIN:
+            r = await c.post("/v1/releases", json={"pack": pack, "note": "as shipped"})
+            assert r.status_code == 201, (pack, r.text)
+            gate = r.json()["gate"]
+            assert gate["status"] == "passed" and gate["pass_rate"] == 1.0, (pack, gate)
+        policy = yaml.safe_load((await c.get("/v1/artifacts/policy/policy")).json()["body"])
+        policy["rules"].insert(0, {"id": "review.no_cancel", "modes": ["dev"],
+                                   "tools": ["cancel_order"], "decision": "deny"})  # fmt: skip
+        body = yaml.safe_dump(policy, sort_keys=False)
+        assert (await c.put("/v1/artifacts/policy/policy", json={"body": body})).status_code == 200
+        r = await c.post("/v1/releases", json={"pack": "ecommerce", "note": "no cancels"})
+        assert r.status_code == 409, r.text
+        refused = r.json()
+        assert refused["error"]["code"] == "gate_failed"
+        assert "cancel_approved_qf20430" in refused["gate"]["failed_cases"]
+        case = next(x for x in refused["cases"] if x["case_id"] == "cancel_approved_qf20430")
+        assert case["events_url"] and case["diagnosis"]["layer"] == "guardrail"
+        r = await c.post("/v1/releases", json={"pack": "ecommerce", "force": True})
+        assert r.status_code == 201 and r.json()["gate"]["forced"] is True
+        audit = (await c.get("/v1/audit")).json()["records"]
+        assert any(a["entry"]["action"] == "release_forced" for a in audit)
+    await h.aclose()
