@@ -93,13 +93,14 @@ class Sweeper:
                 for key, n in self.purge(scratch).items():
                     counts[key] = counts.get(key, 0) + n
         for name, db in self._databases().items():
-            for table in _tenant_tables(db):
-                n = db.execute(f"DELETE FROM {table} WHERE tenant_id = ?", (tenant_id,)).rowcount
+            for table, column in _tenant_tables(db):
+                n = db.execute(f"DELETE FROM {table} WHERE {column} = ?", (tenant_id,)).rowcount
                 if n:
                     counts[f"{name}.{table}"] = counts.get(f"{name}.{table}", 0) + n
-        n = self.h.vectors.delete_scope(tenant_id)
-        if n:
-            counts["vectors"] = counts.get("vectors", 0) + n
+        if self.h.vectors.backend != "sqlite":  # the sqlite index is a table of the memory file
+            n = self.h.vectors.delete_scope(tenant_id)
+            if n:
+                counts["vectors"] = counts.get("vectors", 0) + n
         n = self.h.audit.purge_tenant(tenant_id)
         if n:
             counts["audit"] = counts.get("audit", 0) + n
@@ -129,14 +130,15 @@ class Sweeper:
         return {"tenants": tenants, "rows": rows}
 
 
-def _tenant_tables(db: Any) -> list[str]:
-    """Every ordinary table of a store file that has a `tenant_id` column (audit excluded:
-    it goes through `AuditLog.purge_tenant`)."""
+def _tenant_tables(db: Any) -> list[tuple[str, str]]:
+    """Every ordinary table of a store file keyed by tenant: (table, column), where the column
+    is `tenant_id`, or `scope` for the tables that scope rows to a tenant or the shared pack
+    (vectors, knowledge documents, chunks and their full-text tables). Audit is excluded: it
+    goes through `AuditLog.purge_tenant`."""
     tables = [
         r["name"]
         for r in db.query(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
-            " AND sql NOT LIKE 'CREATE VIRTUAL%'"
         )
     ]
     out = []
@@ -145,5 +147,7 @@ def _tenant_tables(db: Any) -> list[str]:
             continue
         columns = {r["name"] for r in db.query(f"PRAGMA table_info({table})")}
         if "tenant_id" in columns:
-            out.append(table)
+            out.append((table, "tenant_id"))
+        elif "scope" in columns:
+            out.append((table, "scope"))
     return out

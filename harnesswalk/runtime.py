@@ -499,6 +499,8 @@ class Harness(PackParts):
         """Whether a turn could run on this provider (`configured` in /v1/capabilities)."""
         if name in self.providers:
             return True
+        if self.settings.mode == "public":  # exactly what public.models built (P6)
+            return False
         if name == "fake":
             return self.settings.mode == "dev"
         return self.settings.provider_prerequisites(name)
