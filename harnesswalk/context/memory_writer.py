@@ -258,13 +258,34 @@ class MemoryWriter:
     # -- the turn ------------------------------------------------------------------------------
 
     def turn_episode(
-        self, ctx: TurnContext, user_text: str | None, reply: str, exit_: str
+        self,
+        ctx: TurnContext,
+        user_text: str | None,
+        reply: str,
+        exit_: str,
+        error_code: str | None = None,
     ) -> list[MemoryProposal]:
-        """The short `turn` event a finished chat turn proposes for episodic memory."""
+        """The short `turn` event a finished chat turn proposes for episodic memory.
+
+        A failed turn (exit `error`) says so, with its first error's code, instead of storing
+        the error notice as if it were an answer.
+        """
         if not self.auto_episodes or user_text is None:
             return []
-        text = f"Asked: {user_text.strip()[:160]} Answered: {reply.strip()[:200]}"
-        content = {"kind": "turn", "text": text, "outcome": exit_, "turn_id": ctx.turn_id}
+        asked = f"Asked: {user_text.strip()[:160]}"
+        if exit_ == "error":
+            code = error_code or "internal"
+            text = f"{asked} Failed: the turn ended with exit error ({code}) and gave no answer."
+        else:
+            text = f"{asked} Answered: {reply.strip()[:200]}"
+        content: dict[str, Any] = {
+            "kind": "turn",
+            "text": text,
+            "outcome": exit_,
+            "turn_id": ctx.turn_id,
+        }
+        if exit_ == "error":
+            content["error_code"] = error_code or "internal"
         evidence = [{"store": "session", "id": ctx.turn_id}]
         return [MemoryProposal("episodic", content, "turn", evidence, ctx.user_id)]
 
@@ -279,7 +300,11 @@ class MemoryWriter:
             return "auto"
         return "review"
 
-    async def run(self, ctx: TurnContext, proposals: list[MemoryProposal]) -> WriterReport:
+    async def run(
+        self, ctx: TurnContext, proposals: list[MemoryProposal], outcome: str | None = None
+    ) -> WriterReport:
+        """Gate this turn's proposals. `outcome` is the turn's exit when it is known: a failed
+        turn (`error`) still records its episode, but no fact it proposed is written."""
         report = WriterReport()
         if not proposals:
             return report
@@ -301,7 +326,9 @@ class MemoryWriter:
             for proposal in proposals:
                 if proposal.source != "turn":
                     model_seen += 1
-                record = self._one(ctx, proposal, gate, decision, rule, model_seen)
+                record = self._one(
+                    ctx, proposal, gate, decision, rule, model_seen, outcome == "error"
+                )
                 report.proposed += 1
                 report.records.append(record)
                 if record.status == "accepted":
@@ -336,6 +363,7 @@ class MemoryWriter:
         decision: str,
         rule: str,
         model_seen: int,
+        failed: bool = False,
     ) -> ProposalRecord:
         content, redactions = self._clean(proposal.content)
         injection = score_injection(self._text(proposal.store, content))
@@ -368,6 +396,8 @@ class MemoryWriter:
             },
         )
         reason = self._reject_reason(ctx, proposal, content, gate, decision, model_seen)
+        if reason is None and failed and proposal.store == "semantic":
+            reason = "failed_turn"  # a turn that ended in error is no source for a fact
         if reason is None and injection.score >= self.injection_block:
             reason = "injection: " + ", ".join(sorted(injection.signals))
         if reason:
@@ -396,7 +426,7 @@ class MemoryWriter:
     def _clean(self, content: dict[str, Any]) -> tuple[dict[str, Any], dict[str, int]]:
         out, counts = {}, {}
         for key, value in content.items():
-            if isinstance(value, str) and key not in ("turn_id", "outcome", "ts"):
+            if isinstance(value, str) and key not in ("turn_id", "outcome", "error_code", "ts"):
                 value, found = redact(value, self.pii)
                 for kind, n in found.items():
                     counts[kind] = counts.get(kind, 0) + n

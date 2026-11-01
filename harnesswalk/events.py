@@ -242,6 +242,8 @@ class TurnEmitter:
         self.ended = False
         self.detached = False  # shutting down: drop every further event, recovery takes over
         self._last_ts = 0.0
+        # The turn's first `error` ({code, message}): the cause the failed spans after it repeat.
+        self.first_error: dict[str, str] | None = None
 
     @classmethod
     def restore(
@@ -280,6 +282,8 @@ class TurnEmitter:
                 stack.append(span)
             elif event["type"] in ("node_exit", "error") and event.get("node_id") and stack:
                 stack.pop().closed = True
+            if event["type"] == "error" and event.get("error") and emitter.first_error is None:
+                emitter.first_error = dict(event["error"])
         emitter.stack = stack
         return emitter
 
@@ -314,6 +318,8 @@ class TurnEmitter:
             problems = validate_event(event)
             if problems:
                 raise StreamError(f"invalid {type_} event: {problems}")
+        if type_ == "error" and self.first_error is None:
+            self.first_error = dict(event["error"])
         self.seq += 1
         self.bus.publish(event)
         return event

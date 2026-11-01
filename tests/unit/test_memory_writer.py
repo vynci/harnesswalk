@@ -292,6 +292,59 @@ async def test_a_chat_turn_appends_its_episode_and_remembers(tmp_path: Path) -> 
     assert all("Sam" not in m.content for m in detail.messages)
 
 
+def rows_of(h, table: str, columns: str, tenant: str) -> list[tuple]:
+    sql = f"SELECT {columns} FROM {table} WHERE tenant_id = ?"
+    return [tuple(r) for r in h.memory_writer.db.execute(sql, (tenant,)).fetchall()]
+
+
+@pytest.mark.anyio
+async def test_a_failed_turn_records_its_episode_as_a_failure(tmp_path: Path) -> None:
+    """The fake provider runs out of scripted replies: the episode says the turn failed and
+    names the first error's code, instead of storing the error notice as an answer."""
+    h = harness(tmp_path, "plain_answer", profile=None)
+    first = await run_turn(h, "What are your support hours?", tenant="dev_f")
+    events = await run_turn(h, "And on Sundays?", tenant="dev_f", session_id=first[0]["session_id"])
+    assert events[-1]["summary"]["exit"] == "error"
+    writer_exit = exits(events, "memory_writer")[0]["summary"]
+    assert (writer_exit["proposed"], writer_exit["written"]) == (1, 1)  # the episode only
+    proposed = next(e for e in events if e["type"] == "memory_proposed")["summary"]
+    assert proposed["store"] == "episodic"
+    assert proposed["preview"] == (
+        "Asked: And on Sundays? Failed: the turn ended with exit error (fixture_exhausted) "
+        "and gave no answer."
+    )
+    stored = rows_of(h, "episodes", "text, outcome", "dev_f")
+    failed = [text for text, outcome in stored if outcome == "error"]
+    assert len(failed) == 1 and "(fixture_exhausted)" in failed[0]
+    assert "Something went wrong" not in failed[0]
+
+
+@pytest.mark.anyio
+async def test_no_fact_is_written_from_a_failed_turn(tmp_path: Path, monkeypatch) -> None:
+    """The loop proposed a fact, then output guardrails failed: the turn ends in error, its
+    episode is written, and the fact is rejected as failed_turn."""
+    from harnesswalk.nodes import node
+
+    h = harness(tmp_path, "remember_fact", profile=None)
+
+    async def broken(ctx, *args, **kwargs):
+        async with node(ctx, "output_guardrails"):
+            raise RuntimeError("guardrail model unavailable")
+
+    monkeypatch.setattr(h.output_guardrails, "run", broken)
+    events = await run_turn(h, "Remember that I go by Sam", tenant="dev_g")
+    assert events[-1]["summary"]["exit"] == "error"
+    writer_exit = exits(events, "memory_writer")[0]["summary"]
+    assert (writer_exit["proposed"], writer_exit["written"], writer_exit["rejected"]) == (2, 1, 1)
+    assert [r["reason"] for r in writer_exit["rejections"]] == ["failed_turn"]
+    stores_written = [e["summary"]["store"] for e in events if e["type"] == "memory_written"]
+    assert stores_written == ["episodic"]
+    assert rows_of(h, "semantic_facts", "key", "dev_g") == []
+    assert [o for _, o in rows_of(h, "episodes", "text, outcome", "dev_g")] == ["error"]
+    preview = [e["summary"]["preview"] for e in events if e["type"] == "memory_proposed"][-1]
+    assert "Failed: the turn ended with exit error (internal)" in preview
+
+
 @pytest.mark.anyio
 async def test_blocked_turns_never_reach_the_writer(tmp_path: Path) -> None:
     h = harness(

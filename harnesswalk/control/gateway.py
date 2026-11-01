@@ -450,8 +450,9 @@ class Gateway:
         state.recorded = True
         # Memory sees the redacted text too: a restored email never becomes a memory.
         proposals = list(state.proposals)
-        proposals += h.memory_writer.turn_episode(ctx, user_text, stored, exit_)
-        await h.memory_writer.run(ctx, proposals)
+        cause = (emit.first_error or {}).get("code")
+        proposals += h.memory_writer.turn_episode(ctx, user_text, stored, exit_, cause)
+        await h.memory_writer.run(ctx, proposals, outcome=exit_)
         receipt = await run_trace_node(ctx, h.tracer)
         state.cost = receipt["total"]
         end: dict[str, Any] = {"exit": exit_, "steps": steps, "reply": reply}
