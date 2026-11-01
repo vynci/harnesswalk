@@ -1,10 +1,22 @@
 import { expect, test, type Page } from '@playwright/test'
+import { closeSessionChip, openSessionChip } from './helpers'
 
 // Phase 4 on the mock build: the gate (edit a skill, run golden, see the regression; create a
 // release, roll back, see the old version), feedback, step-over and the trace query.
 const URL = '/?mockStepMs=10'
 
 const node = (page: Page, id: string) => page.getByTestId(`node-${id}`)
+// The status bar's amber dot: the served set has unreleased changes.
+const dirtyDot = (page: Page) => page.getByTestId('turn-status').getByTestId('release-dirty')
+
+/** The session chip's release line reads `text`, clean; the status bar shows no dot. */
+async function expectRelease(page: Page, text: string) {
+  const pop = await openSessionChip(page)
+  await expect(pop.getByTestId('release-status')).toHaveText(text)
+  await expect(pop.getByTestId('release-status')).toHaveAttribute('data-dirty', 'false')
+  await closeSessionChip(page)
+  await expect(dirtyDot(page)).toHaveCount(0)
+}
 
 async function send(page: Page, text: string) {
   await page.getByTestId('composer-input').fill(text)
@@ -39,7 +51,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('the gate: edit a skill, run golden, see the regression; release, roll back, see the old version', async ({ page }) => {
-  await expect(page.getByTestId('release-status')).toHaveText('release r1')
+  await expectRelease(page, 'Release r1')
 
   // 1. Edit the order_status skill: the tool name it teaches changes.
   const editor = await openSkill(page, 'order_status')
@@ -58,7 +70,11 @@ test('the gate: edit a skill, run golden, see the regression; release, roll back
   await expect(saved.locator('[data-diff="added"]').first()).toContainText('find_order')
   await expect(editor.getByTestId('artifact-version')).toContainText('v2')
   await expect(page.getByTestId('ops-marker-text').last()).toHaveText('Skill order_status v2 saved')
-  await expect(page.getByTestId('release-status')).toHaveText('working set (unreleased changes)')
+  await expect(dirtyDot(page)).toBeVisible()
+  const pop = await openSessionChip(page)
+  await expect(pop.getByTestId('release-status')).toHaveText('Working set with unreleased changes, active release r1')
+  await expect(pop.getByTestId('release-status')).toHaveAttribute('data-dirty', 'true')
+  await closeSessionChip(page)
 
   // 2. Run the golden suite from the Eval node: three cases regress against the seeded run.
   await setView(page, 'Simple')
@@ -118,7 +134,7 @@ test('the gate: edit a skill, run golden, see the regression; release, roll back
   await expect(inspector.getByTestId('release-row').first().getByTestId('release-gate')).toHaveAttribute('data-status', 'forced')
   await expect(inspector.getByTestId('release-row').first()).toHaveAttribute('data-active', 'true')
   await expect(page.getByTestId('ops-marker-text').last()).toHaveText('Release r2 active')
-  await expect(page.getByTestId('release-status')).toHaveText('release r2')
+  await expectRelease(page, 'Release r2')
   const commit = inspector.getByTestId('release-commit')
   await expect(commit).toHaveText(/Skill order_status v1 → v2/)
   await commit.click()
@@ -132,11 +148,11 @@ test('the gate: edit a skill, run golden, see the regression; release, roll back
   await expect(confirm.getByRole('button')).toHaveText(['Cancel', 'Roll back'])
   await confirm.getByRole('button', { name: 'Cancel' }).click()
   await expect(confirm).toHaveCount(0)
-  await expect(page.getByTestId('release-status')).toHaveText('release r2')
+  await expectRelease(page, 'Release r2')
   await inspector.getByTestId('release-rollback').click()
   await inspector.getByTestId('rollback-confirm').getByRole('button', { name: 'Roll back' }).click()
   await expect(page.getByTestId('ops-marker-text').last()).toHaveText('Rolled back: release r1 active')
-  await expect(page.getByTestId('release-status')).toHaveText('release r1')
+  await expectRelease(page, 'Release r1')
   await expect(inspector.locator('[data-testid="release-row"][data-release="r1"]')).toHaveAttribute('data-active', 'true')
 
   // The old version is back: the skill teaches lookup_order again, as a new version.

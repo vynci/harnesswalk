@@ -222,6 +222,8 @@ test('public mode: the session chip counts down and its popover holds the sessio
   await expect(pop).toBeVisible()
   await expect(pop.getByTestId('budget-card')).toContainText('This turn')
   await expect(pop.getByTestId('budget-card')).toContainText('Tokens')
+  await expect(pop.getByTestId('budget-card').getByTestId('turn-exit')).toHaveText('answered')
+  await expect(pop.getByTestId('budget-card').getByTestId('turn-tool-calls')).toHaveText('0')
   await expect(pop.getByTestId('session-copy')).toBeEnabled()
   await expect(pop.getByTestId('limits-card')).toBeVisible()
 })
