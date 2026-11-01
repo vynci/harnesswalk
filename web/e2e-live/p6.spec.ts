@@ -2,8 +2,9 @@ import { expect, test, type Page } from '@playwright/test'
 import { Harness, node, send, status } from './helpers'
 
 // Phase 6 against the real harness in public mode (fake provider, a test secret): a turn on
-// fake-small, its markdown reply rendered (the fixture in e2e-live/fixtures), and the
-// private-only controls disabled with their reason. Until the P6 API lands, main's public mode
+// fake-small, its markdown reply rendered (the fixture in e2e-live/fixtures), Auto naming no
+// model, a chosen fixture on fake-small, and the private-only controls (the key button too)
+// disabled with their reason. Until the P6 API lands, main's public mode
 // has no `capabilities.public` and refuses a `model` on a turn; the UI then shows no picker and
 // names no model, and the checks that need the P6 API are skipped by the capabilities shape.
 
@@ -27,8 +28,15 @@ test.afterAll(() => h?.stop())
 
 interface Caps {
   mode: string
-  public?: { models?: { alias: string; available: boolean }[]; session_expires_at?: string | null }
+  public?: {
+    models?: { alias: string; available: boolean; default: boolean }[]
+    session_expires_at?: string | null
+    fixtures?: { name: string; description: string | null }[]
+    default_fixture?: string | null
+  }
 }
+
+const turnPost = (page: Page) => page.waitForRequest((r) => r.url().endsWith('/v1/turns') && r.method() === 'POST')
 
 async function open(page: Page): Promise<Caps> {
   await page.goto(h.url)
@@ -67,6 +75,50 @@ test('a turn on fake-small: the request names the model, and the markdown reply 
   await expect(reply).not.toContainText('**A-1001**')
 })
 
+test('Auto: the request names no model, and with no site key the router runs the scripted model', async ({ page }) => {
+  const caps = await open(page)
+  test.skip(!Array.isArray(caps.public?.models), 'needs the P6 API (capabilities.public)')
+  expect(caps.public!.models!.find((m) => m.default)?.alias).toBe('fake-small')
+  const picker = page.getByTestId('model-picker')
+  await expect(picker).toHaveText('Auto')
+  await picker.click()
+  await expect(page.getByTestId('auto-hint')).toHaveText('Currently Fake model (scripted)')
+  await page.keyboard.press('Escape')
+  const request = turnPost(page)
+  await send(page, 'Show me my orders as a table.')
+  const body = (await request).postDataJSON() as Record<string, unknown>
+  expect(body).not.toHaveProperty('model')
+  expect(body).not.toHaveProperty('fixture')
+  await expect(status(page)).toHaveAttribute('data-phase', 'done')
+  // The server's own fixture for fake-small (markdown_reply on this test server).
+  await expect(page.getByTestId('assistant-message').last().getByRole('heading', { name: 'Order summary' })).toBeVisible()
+})
+
+test('a public turn on fake-small with a chosen fixture plays that fixture', async ({ page }) => {
+  const caps = await open(page)
+  test.skip(!Array.isArray(caps.public?.fixtures), 'needs the picker-fixes API (capabilities.public.fixtures)')
+  expect(caps.public!.default_fixture).toBe('markdown_reply')
+  const picker = page.getByTestId('model-picker')
+  await picker.click()
+  await page.locator('[data-testid=model-option][data-model="fake-small"]').click()
+  await expect(picker).toHaveAttribute('data-model', 'fake-small')
+  const select = page.getByTestId('fixture-select')
+  await expect(select).toHaveText('markdown_reply')
+  await select.click()
+  await page.getByRole('option', { name: 'plain_answer', exact: true }).click()
+  await expect(select).toContainText('plain_answer')
+  const request = turnPost(page)
+  await send(page, 'Show me my orders as a table.')
+  const sent = await request
+  expect(sent.postDataJSON()).toMatchObject({ model: 'fake-small', fixture: 'plain_answer' })
+  expect((await sent.response())?.status()).toBe(202)
+  await expect(status(page)).toHaveAttribute('data-phase', 'done')
+  // The reply is the chosen fixture's, not the server's markdown table.
+  const reply = page.getByTestId('assistant-message').last()
+  await expect(reply).toContainText('Our support team is available 9am to 5pm Eastern, Monday to Friday.')
+  await expect(reply.getByTestId('markdown-table')).toHaveCount(0)
+})
+
 test('the sandbox countdown and the limits card follow capabilities.public', async ({ page }) => {
   const caps = await open(page)
   test.skip(!caps.public?.session_expires_at, 'needs the P6 API (capabilities.public)')
@@ -77,6 +129,14 @@ test('the sandbox countdown and the limits card follow capabilities.public', asy
 
 test('private-only controls stay visible and disabled with their reason; read-only views stay live', async ({ page }) => {
   await open(page)
+  // The key button: visible, disabled, until accounts arrive.
+  const key = page.getByTestId('byo-key-button')
+  await expect(key).toHaveAttribute('aria-disabled', 'true')
+  await key.hover()
+  await expect(page.getByRole('tooltip')).toHaveText('Bring your own key arrives with accounts. Coming soon.')
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('tooltip')).toHaveCount(0)
+
   const attach = page.getByTestId('attach-button')
   await expect(attach).toHaveAttribute('aria-disabled', 'true')
   await attach.hover()
