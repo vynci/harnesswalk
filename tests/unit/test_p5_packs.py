@@ -292,3 +292,39 @@ async def test_a_pack_that_does_not_load_is_422(tmp_path: Path) -> None:
         assert r.status_code == 422
     assert "broken" not in h.packs
     await h.aclose()
+
+
+@pytest.mark.anyio
+async def test_a_packs_golden_set_answers_from_the_packs_own_fixtures(tmp_path: Path) -> None:
+    root = tmp_path / "packs"
+    pack = root / "lockers"
+    (pack / "fixtures" / "fake").mkdir(parents=True)
+    (pack / "pack.yaml").write_text("title: Lockers\n")
+    (pack / "system_prompt.md").write_text("You help with lockers. Lockers open at 6am.\n")
+    write_fixture(pack / "fixtures" / "fake", "locker_hours", [[{"text": "Lockers open at 6am."}]])
+    (pack / "golden.jsonl").write_text(
+        '{"id": "hours", "title": "Opening time", "prompt": "When do lockers open?",'
+        ' "fixture": "locker_hours", "expect": {"answer_contains": ["6am"]}}\n'
+    )
+    h = Harness(
+        settings(
+            tmp_path,
+            "plain_answer",
+            profile=None,
+            overrides={"packs.roots": ["datasets", str(root)]},
+        )
+    )
+    assert "locker_hours" in h.fixtures()
+    async with client(h, "dev") as c:
+        r = await c.post("/v1/evals/runs", json={"pack": "lockers", "suite": "golden"})
+        assert r.status_code == 202, r.text
+        await h.evals.offline.wait(r.json()["run_id"])
+        run = (await c.get(f"/v1/evals/runs/{r.json()['run_id']}")).json()
+        assert run["pack"] == "lockers" and run["totals"]["passed"] == 1, run["cases"]
+        case = await c.get(run["cases"][0]["events_url"])
+        assert '"pack":"lockers"' in case.text
+        # A release of the pack runs its gate (on by default without the profile).
+        made = await c.post("/v1/releases", json={"pack": "lockers"})
+        assert made.status_code == 201 and made.json()["gate"]["status"] == "passed"
+        assert made.json()["pack"] == "lockers"
+    await h.aclose()

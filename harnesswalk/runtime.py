@@ -353,7 +353,7 @@ class Harness(PackParts):
         self._background: list[asyncio.Task] = []
         self.gateway = Gateway(self)
         self._turn_providers: dict[str, ModelProvider] = {}  # built on demand for a turn
-        self._turn_fakes: dict[str, FakeProvider] = {}  # fixture name -> provider
+        self._turn_fakes: dict[tuple[str, str], FakeProvider] = {}  # (pack, fixture) -> provider
         self._startup_fake: FakeProvider | None = None  # `provider: fake` on another server
 
     def busy(self) -> bool:
@@ -463,9 +463,24 @@ class Harness(PackParts):
         return self.settings.provider_prerequisites(name)
 
     def fixtures(self) -> list[str]:
-        return list_fixtures(fixture_dirs(self.settings))
+        """Fixture names a turn may ask for, from every pack's fixtures (P5) and the profile's."""
+        dirs = self._fixture_dirs(self.settings, self.pack)
+        for pack in pack_index.discover(self.settings):
+            extra = pack_index.pack_dir(self.settings, pack) / "fixtures" / "fake"
+            if extra not in dirs:
+                dirs.append(extra)
+        return list_fixtures(dirs)
 
-    def turn_providers(self, provider: str | None, fixture: str | None) -> dict[str, ModelProvider]:
+    @staticmethod
+    def _fixture_dirs(settings: Settings, pack: str) -> list[Path]:
+        """The fake provider's fixture directories, with the pack's own wherever it lives."""
+        dirs = fixture_dirs(settings)
+        own = pack_index.pack_dir(settings, pack) / "fixtures" / "fake"
+        return dirs if own in dirs else [*dirs, own]
+
+    def turn_providers(
+        self, provider: str | None, fixture: str | None, pack: str | None = None
+    ) -> dict[str, ModelProvider]:
         """The providers one turn may use when it picked a provider or a fixture.
 
         A fixture loads its own fake provider, cached per fixture and counting turns per
@@ -475,10 +490,13 @@ class Harness(PackParts):
         fixture.
         """
         if fixture is not None:
-            fake = self._turn_fakes.get(fixture)
+            key = (pack or self.pack, fixture)
+            fake = self._turn_fakes.get(key)
             if fake is None:
-                loaded = load_fixture(find_fixture(fixture, fixture_dirs(self.settings)))
-                fake = self._turn_fakes[fixture] = FakeProvider(loaded, relative_turns=True)
+                # P5: the turn's pack's fixtures first (datasets/<pack>/fixtures/fake).
+                settings = self.view(key[0]).settings if key[0] != self.pack else self.settings
+                loaded = load_fixture(find_fixture(fixture, self._fixture_dirs(settings, key[0])))
+                fake = self._turn_fakes[key] = FakeProvider(loaded, relative_turns=True)
             return {"fake": fake}
         assert provider is not None
         if provider in self.providers:

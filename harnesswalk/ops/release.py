@@ -176,7 +176,12 @@ def render_skill(item: dict[str, Any]) -> str:
 
 
 def sources(settings: Settings) -> list[Source]:
-    """Every artifact the files (or the inline profile values) define, for seeding."""
+    """Every artifact the files (or the inline profile values) define, for seeding.
+
+    P5: the pack's files come from its directory wherever it lives (`packs.roots`); they are
+    still named `datasets/<pack>/...` in the served set, which is how everything reads them."""
+    from harnesswalk.ops.pack_index import pack_dir
+
     root = settings.root
     pack = settings.get("dataset", "_starter")
     out: list[Source] = []
@@ -184,22 +189,25 @@ def sources(settings: Settings) -> list[Source]:
         if (root / rel).is_file():
             out.append(Source(kind, kind, (root / rel).read_text(encoding="utf-8"), rel))
     inline = settings.get("procedural", {}) or {}
-    pack_dir = root / "datasets" / pack
+    directory = pack_dir(settings, pack)
+
+    def shown(path: Path) -> str:
+        return str(path.relative_to(root)) if path.is_relative_to(root) else str(path)
+
     if "system_prompt" in inline:
         out.append(Source("prompt", PROMPT_NAME, str(inline["system_prompt"]), None))
-    elif (pack_dir / "system_prompt.md").is_file():
-        rel = f"datasets/{pack}/system_prompt.md"
-        out.append(Source("prompt", PROMPT_NAME, (root / rel).read_text(encoding="utf-8"), rel))
+    elif (directory / "system_prompt.md").is_file():
+        path = directory / "system_prompt.md"
+        out.append(Source("prompt", PROMPT_NAME, path.read_text(encoding="utf-8"), shown(path)))
     if "skills" in inline:
         for item in inline["skills"] or []:
             out.append(Source("skill", item["name"], render_skill(item), None))
     else:
-        for path in sorted((pack_dir / "skills").glob("*.md")):
-            rel = str(path.relative_to(root))
-            out.append(Source("skill", path.stem, path.read_text(encoding="utf-8"), rel))
-    if (pack_dir / "tools.yaml").is_file():
-        rel = f"datasets/{pack}/tools.yaml"
-        out.append(Source("tools", TOOLS_NAME, (root / rel).read_text(encoding="utf-8"), rel))
+        for path in sorted((directory / "skills").glob("*.md")):
+            out.append(Source("skill", path.stem, path.read_text(encoding="utf-8"), shown(path)))
+    if (directory / "tools.yaml").is_file():
+        path = directory / "tools.yaml"
+        out.append(Source("tools", TOOLS_NAME, path.read_text(encoding="utf-8"), shown(path)))
     return out
 
 

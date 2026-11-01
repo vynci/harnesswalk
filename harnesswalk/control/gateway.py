@@ -216,17 +216,16 @@ class Gateway:
                 422, "provider_not_configured", f"provider {req.provider!r} is not configured"
             )
 
-    def _turn_providers(self, req: TurnRequest) -> dict[str, Any] | None:
+    def _turn_providers(self, req: TurnRequest, pack: str) -> dict[str, Any] | None:
         if req.provider is None and req.fixture is None:
             return None
         try:
-            return self.h.turn_providers(req.provider, req.fixture)
+            return self.h.turn_providers(req.provider, req.fixture, pack)
         except ConfigError as exc:
             raise GatewayError(400, "invalid_request", str(exc)) from exc
 
     async def start_turn(self, req: TurnRequest, client_ip: str = "") -> TurnState:
         self._validate(req)
-        turn_providers = self._turn_providers(req)
         tenant = req.identity.tenant_id
         remaining = None
         if self.h.settings.mode == "public" and not req.internal:
@@ -247,6 +246,7 @@ class Gateway:
             raise GatewayError(422, "invalid_request", "the dataset is fixed after the first turn")
         # The session's pack decides what the turn runs on (P5); the eval gate brings its own.
         view = req.runtime or self._view(existing or req.dataset or self.h.pack)
+        turn_providers = self._turn_providers(req, view.pack)  # a fixture of the turn's pack
         try:
             dataset = self.h.session.ensure_session(tenant, session_id, view.pack)
         except SessionForbidden as exc:
@@ -579,7 +579,7 @@ class Gateway:
         view = h.view(summary.get("pack") or summary.get("dataset") or h.pack)
         provider, fixture = summary.get("provider"), summary.get("fixture")
         if provider is not None or fixture is not None:
-            ctx.providers = h.turn_providers(provider, fixture)
+            ctx.providers = h.turn_providers(provider, fixture, view.pack)
             fake = ctx.providers.get("fake")
             if fixture is not None and fake is not None:
                 fake.resume_turn(  # type: ignore[attr-defined]
