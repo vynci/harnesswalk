@@ -19,6 +19,12 @@ P5: the session's dataset pack picks what the turn runs on. `start_turn` resolve
 view of the harness (`Harness.view`: the harness itself for the configured pack, a
 `PackRuntime` for another), keeps it on the turn's state, and every per-pack component the walk
 calls (guardrails, context builder, loop, tools, memory writer) comes from it.
+
+P6 (public mode, control/public.py): a turn's `model` must be one of `public.models` (400
+otherwise), a priced alias with the shared daily budget spent and no BYO key is a 409
+`budget_exhausted`, the anonymous tenant is registered with its expiry for the TTL sweeper, the
+rate-limit table is bounded, and the turn's notices (`budget_exhausted` when it fell through to
+the fake model) end up on `turn_end.summary.notices`.
 """
 
 from __future__ import annotations
@@ -35,6 +41,12 @@ import jsonschema
 
 from harnesswalk import diagram
 from harnesswalk.context.stores.session import SessionForbidden
+from harnesswalk.control.public import (
+    BUDGET_EXHAUSTED,
+    PROVIDER_UNCONFIGURED,
+    RateLimited,
+    RateLimiter,
+)
 from harnesswalk.events import Breakpoints, TurnEmitter, new_trace_id, uuid7
 from harnesswalk.execution.loop import Limits
 from harnesswalk.execution.providers import PROVIDER_NAMES
@@ -64,11 +76,20 @@ EXIT_FOR_REASON = {
 class GatewayError(Exception):
     """A request the gateway refuses before any turn exists. Maps to an HTTP status."""
 
-    def __init__(self, status: int, code: str, message: str) -> None:
+    def __init__(
+        self,
+        status: int,
+        code: str,
+        message: str,
+        extra: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         super().__init__(message)
         self.status = status
         self.code = code
         self.message = message
+        self.extra = extra or {}  # more fields of the error object (resets_at, retry_after)
+        self.headers = headers or {}
 
 
 @dataclass
@@ -84,7 +105,7 @@ class TurnRequest:
     provider: str | None = None  # dev mode only: run this turn on one provider
     fixture: str | None = None  # dev mode only: the fake provider's fixture for this turn
     output_schema: dict[str, Any] | None = None  # a structured reply (output guardrails check it)
-    model: str | None = None  # dev mode only: a router alias hint
+    model: str | None = None  # a router alias hint: any alias in dev, public.models in public
     # P4: a turn the harness starts for itself (an eval case). It may pick a provider and a
     # fixture in any mode and is not rate-limited. Never set from HTTP.
     internal: bool = False
@@ -152,7 +173,8 @@ class Gateway:
         self.cfg = harness.settings.get("gateway", {})
         self.turns: dict[str, TurnState] = {}
         self._open_sessions: dict[str, str] = {}  # session_id -> running turn_id
-        self._rate: dict[str, list[float]] = {}
+        public = harness.settings.get("public", {}) or {}
+        self.rate = RateLimiter(int(public.get("rate_limit_max_keys", 10000)))
         self.turn_state_max = max(1, int(self.cfg.get("turn_state_max", 500)))
         self.turn_state_ttl_s = max(0.0, float(self.cfg.get("turn_state_ttl_seconds", 3600)))
         self._finished: OrderedDict[str, float] = OrderedDict()  # turn_id -> finished_at
@@ -161,13 +183,22 @@ class Gateway:
     # -- starting a turn ----------------------------------------------------------------------
 
     def _check_rate(self, key: str, per_hour: int) -> int:
-        now = time.time()
-        window = [t for t in self._rate.get(key, []) if now - t < 3600]
-        if len(window) >= per_hour:
-            raise GatewayError(429, "rate_limited", "Too many requests, try again later.")
-        window.append(now)
-        self._rate[key] = window
-        return per_hour - len(window)
+        try:
+            return self.rate.hit(key, per_hour)
+        except RateLimited as exc:
+            raise GatewayError(
+                429,
+                "rate_limited",
+                f"Too many requests, try again in {exc.retry_after} seconds.",
+                extra={"retry_after": exc.retry_after},
+                headers={"Retry-After": str(exc.retry_after)},
+            ) from exc
+
+    def rate_remaining(self, client_ip: str) -> int:
+        """Turns this IP may still start this hour (GET /v1/capabilities, public mode)."""
+        return self.rate.remaining(
+            f"ip:{client_ip}", int(self.cfg["rate_limit"]["per_ip_per_hour"])
+        )
 
     def _validate(self, req: TurnRequest) -> None:
         if not isinstance(req.message, str) or not req.message.strip():
@@ -187,11 +218,37 @@ class Gateway:
         if req.dataset is not None and not self.h.pack_known(req.dataset):
             raise GatewayError(422, "invalid_request", f"no dataset pack {req.dataset!r}")
 
+    def _validate_public_model(self, req: TurnRequest) -> None:
+        """A public turn's `model` (P6): one of `public.models` that can answer now."""
+        public = self.h.public_models
+        if not isinstance(req.model, str) or not public.allowed(req.model):
+            raise GatewayError(400, "invalid_request", "model not available in public mode")
+        reason = public.reason(req.model, byo=bool(req.api_key))
+        if reason == BUDGET_EXHAUSTED:
+            resets_at = self.h.hosted_budget.public_view()["resets_at"]
+            raise GatewayError(
+                409,
+                "budget_exhausted",
+                "Today's shared budget for Claude models is spent. It resets at 00:00 UTC."
+                " Bring your own key or use the fake model.",
+                extra={"resets_at": resets_at},
+            )
+        if reason == PROVIDER_UNCONFIGURED:
+            raise GatewayError(
+                422,
+                "provider_not_configured",
+                f"No key is configured for {req.model}. Bring your own key.",
+            )
+
     def _validate_provider(self, req: TurnRequest) -> None:
-        """Per-turn `provider`, `fixture` and `model`: dev mode only (http_api.md)."""
-        if req.model is not None:
-            if self.h.settings.mode != "dev":
-                raise GatewayError(400, "invalid_request", "model can only be chosen in dev mode")
+        """Per-turn `provider` and `fixture`: dev mode only; `model`: dev and public (P6)."""
+        if req.model is not None and self.h.settings.mode == "public" and not req.internal:
+            self._validate_public_model(req)
+        elif req.model is not None:
+            if self.h.settings.mode != "dev" and not req.internal:
+                raise GatewayError(
+                    400, "invalid_request", "model can only be chosen in dev and public mode"
+                )
             if req.model not in self.h.settings.get("models.models", {}):
                 raise GatewayError(400, "invalid_request", f"unknown model alias {req.model!r}")
         if req.output_schema is not None:
@@ -236,6 +293,8 @@ class Gateway:
         if self.h.settings.mode != "dev" and not req.internal:
             self._check_rate(f"tenant:{tenant}", int(self.cfg["rate_limit"]["per_tenant_per_hour"]))
 
+        if req.identity.expires_at is not None:  # P6: the sweeper deletes it after this
+            self.h.tenants.register(tenant, req.identity.expires_at)
         session_id = req.session_id or "sess_" + uuid7().replace("-", "")[:20]
         owner = self.h.session.owner(session_id)
         if owner is not None and owner != tenant:
@@ -456,6 +515,8 @@ class Gateway:
         receipt = await run_trace_node(ctx, h.tracer)
         state.cost = receipt["total"]
         end: dict[str, Any] = {"exit": exit_, "steps": steps, "reply": reply}
+        if ctx.notices:  # P6: what the UI shows under the reply (budget_exhausted)
+            end["notices"] = list(ctx.notices)
         if state.byo_key_dropped:
             end["byo_key_dropped"] = True
         cited = cited_sources(reply, ctx.citations)
