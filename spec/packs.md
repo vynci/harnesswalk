@@ -28,27 +28,40 @@ A document's id is its file stem, lowercased, with runs of other characters fold
 PDF and a markdown file with the same stem would collide, so a PDF's markdown source lives in
 `sources/`, outside `docs/`.
 
+## Where packs live
+
+A pack is a subdirectory of one of the pack roots (`packs.roots` in `config/harness.yaml`,
+default `[datasets]`; the conformance profile adds `spec/conformance/packs`). Its id is the
+directory name; when two roots hold the same id, the first root wins. The ops index
+(`harnesswalk/ops/pack_index.py`, behind `GET /v1/packs`) and `harnesswalk/packs.py` read the
+same roots and the same card.
+
 ## `pack.yaml`
 
 | Key | Type | Meaning |
 |---|---|---|
-| `id` | string | The directory name (`^_?[a-z][a-z0-9_]{0,31}$`) |
+| `id` | string | Optional; when present it must be the directory name |
 | `title` | string | The fictional business, shown in the pack picker |
 | `domain` | string | healthcare, ecommerce, logistics, sports, finance, ... |
 | `summary` | string | One sentence |
-| `tier` | `domain` or `starter` | Which counts apply (below) |
-| `feature` | object | `id`, `name`, `nodes` (diagram node ids it lights), `summary` |
+| `tier` | `domain`, `starter` or `profile` | Which counts apply (below). Default: `domain` when the directory has a `system_prompt.md`, else `profile` |
+| `feature` | string | The harness feature the pack demonstrates, in a few words |
+| `demonstrates` | object | `id`, `nodes` (diagram node ids it lights), `summary` (what the learner sees) |
 | `licence` | `CC0-1.0` | Content licence; no other value is accepted |
 | `provenance` | string | The provenance card's file name, normally `provenance.md` |
 | `synthetic` | `true` | No real people, companies or identifiers |
-| `suggested_prompts` | list of strings | 1 to 10 prompts for the UI's suggestion row |
+| `prompts` | list of strings | 1 to 10 prompts for the UI's suggestion row |
 
-No other keys. `packs list --json` returns this card plus `docs`, `tools` and `size_bytes`; an
-HTTP `GET /v1/packs` returns the same shape.
+No other keys. `domain` and `starter` packs need every key but `id`; a `profile` pack (its
+content comes inline from a profile, like `spec/conformance/packs/conformance_alt`) needs
+only `title` and `licence`, and the file, tool and golden checks below do not apply to it.
+`GET /v1/packs` returns `id`, `title`, `domain`, `feature`, `prompts` and `counts` from this
+card; `packs list --json` returns the same fields plus `summary`, `tier`, `demonstrates`,
+`licence`, `tools`, `size_bytes` and `path`.
 
 ## Tiers and counts
 
-| | domain | starter |
+| | domain | starter, profile |
 |---|---|---|
 | documents in `docs/` | 10 to 20, at least 2 PDFs | any |
 | words per document (markdown, or the PDF's source) | 300 to 900 | any |
@@ -82,12 +95,13 @@ A golden case may carry `checks`, which the eval scorers ignore and the pack sui
 Cases run in file order in one scratch tenant, so a case may rely on what an earlier case's
 memory writer wrote; such pairs sit next to each other and say so in their titles.
 
-## Validation (`harnesswalk packs validate [<id>]`)
+## Validation (`harnesswalk packs validate [<id>] [--profile <file>]`)
 
-A pack is valid when:
+The packs checked are those under `packs.roots` (a profile may add roots). A pack is valid
+when:
 
-1. `pack.yaml` matches the schema, its `id` is the directory name and `feature.nodes` are
-   diagram nodes;
+1. `pack.yaml` matches the schema and has the keys its tier needs, its `id` (when given) is
+   the directory name, and `demonstrates.nodes` are diagram nodes;
 2. the required files exist, the counts fit the tier and the pack is under 2 MB;
 3. `tools.yaml` loads in the registry and every tool is in the agent allowlist;
 4. skills have front matter whose `name` is the stem; seed lines have their keys;
@@ -102,7 +116,7 @@ A pack is valid when:
    national ids, so one pack's health-number format is caught in another pack too. Emails on
    reserved domains (`example.com`, `example.net`, `example.org`, `.invalid`, `.test`) and
    phone numbers in the fictional 555-01xx block are allowed. Cue-based names are not scanned.
-   Prompts (golden prompts, fixtures, `prompts.md`, `suggested_prompts`) may carry synthetic
+   Prompts (golden prompts, fixtures, `prompts.md`, the card's `prompts`) may carry synthetic
    ids on purpose, since they exercise the guardrails, but their emails and phones must be
    reserved values;
 8. the provenance card exists, states CC0 and says the content is synthetic.

@@ -55,7 +55,17 @@ TIERS = {
         "doc_words": (300, 900),
     },
     "starter": {},  # the hand-written P1 pack: shape only
+    "profile": {},  # a pack whose content a profile gives inline (spec/conformance/packs/)
 }
+# The pack.yaml keys each tier must have. `id` is optional everywhere (the directory name is
+# the id), as in the ops index (harnesswalk/ops/pack_index.py), which reads the same card.
+TIER_REQUIRED = {
+    "domain": ("title", "domain", "summary", "tier", "feature", "demonstrates", "licence",
+               "provenance", "synthetic", "prompts"),
+    "starter": ("title", "domain", "summary", "tier", "feature", "demonstrates", "licence",
+                "provenance", "synthetic", "prompts"),
+    "profile": ("title", "licence"),
+}  # fmt: skip
 REQUIRED_FILES = (
     "pack.yaml",
     "system_prompt.md",
@@ -84,23 +94,19 @@ PACK_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "additionalProperties": False,
-    "required": [
-        "id", "title", "domain", "summary", "tier", "feature", "licence", "provenance",
-        "synthetic", "suggested_prompts",
-    ],
     "properties": {
         "id": {"type": "string", "pattern": r"^_?[a-z][a-z0-9_]{0,31}$"},
         "title": {"type": "string", "minLength": 1, "maxLength": 80},
         "domain": {"type": "string", "minLength": 1, "maxLength": 40},
         "summary": {"type": "string", "minLength": 1, "maxLength": 400},
         "tier": {"enum": sorted(TIERS)},
-        "feature": {
+        "feature": {"type": "string", "minLength": 1, "maxLength": 120},
+        "demonstrates": {
             "type": "object",
             "additionalProperties": False,
-            "required": ["id", "name", "nodes", "summary"],
+            "required": ["id", "nodes", "summary"],
             "properties": {
                 "id": {"type": "string", "pattern": r"^[a-z][a-z0-9_]{0,63}$"},
-                "name": {"type": "string", "minLength": 1},
                 "nodes": {"type": "array", "minItems": 1, "items": {"type": "string"}},
                 "summary": {"type": "string", "minLength": 1},
             },
@@ -108,14 +114,14 @@ PACK_SCHEMA: dict[str, Any] = {
         "licence": {"const": "CC0-1.0"},
         "provenance": {"type": "string", "pattern": r"^[A-Za-z0-9_.-]+\.md$"},
         "synthetic": {"const": True},
-        "suggested_prompts": {
+        "prompts": {
             "type": "array",
             "minItems": 1,
             "maxItems": 10,
             "items": {"type": "string", "minLength": 1, "maxLength": 300},
         },
     },
-}  # fmt: skip
+}
 
 
 class PackError(ValueError):
@@ -146,11 +152,25 @@ class Pack:
 
     @property
     def tier(self) -> str:
-        return str(self.meta.get("tier") or "domain")
+        """`tier` from the card; a pack without one and without a system prompt is a
+        profile pack (its content comes from a profile), otherwise a domain pack."""
+        if self.meta.get("tier"):
+            return str(self.meta["tier"])
+        return "domain" if (self.path / "system_prompt.md").is_file() else "profile"
 
     @property
-    def feature(self) -> dict[str, Any]:
-        return dict(self.meta.get("feature") or {})
+    def feature(self) -> str | None:
+        value = self.meta.get("feature")
+        return str(value) if isinstance(value, (str, int, float)) else None
+
+    @property
+    def demonstrates(self) -> dict[str, Any]:
+        value = self.meta.get("demonstrates")
+        return dict(value) if isinstance(value, dict) else {}
+
+    @property
+    def prompts(self) -> list[str]:
+        return [str(p) for p in self.meta.get("prompts") or [] if isinstance(p, str)]
 
     def docs(self) -> list[Path]:
         d = self.path / "docs"
@@ -170,25 +190,53 @@ class Pack:
     def size_bytes(self) -> int:
         return sum(p.stat().st_size for p in self.path.rglob("*") if p.is_file())
 
+    def counts(self) -> dict[str, int]:
+        """The same counts as the ops index (pack_index.PackInfo.counts)."""
+        return {
+            "docs": len(self.docs()),
+            "facts": _count_lines(self.path / "facts.jsonl"),
+            "episodes": _count_lines(self.path / "episodes.jsonl"),
+            "skills": len(list((self.path / "skills").glob("*.md"))),
+            "tools": len(self.tool_names()),
+            "golden": _count_lines(self.path / "golden.jsonl"),
+        }
+
     def summary(self) -> dict[str, Any]:
-        """What `packs list --json` and a future GET /v1/packs return for a pack."""
+        """`packs list --json`: the ops index's fields for GET /v1/packs (id, title, domain,
+        feature, prompts, counts), then what only this module knows."""
         return {
             "id": self.id,
             "title": self.title,
             "domain": self.meta.get("domain"),
+            "feature": self.feature,
+            "prompts": self.prompts,
+            "counts": self.counts(),
             "summary": self.meta.get("summary"),
             "tier": self.tier,
-            "feature": self.feature,
+            "demonstrates": self.demonstrates,
             "licence": self.meta.get("licence"),
-            "suggested_prompts": list(self.meta.get("suggested_prompts") or []),
-            "docs": len(self.docs()),
             "tools": self.tool_names(),
             "size_bytes": self.size_bytes(),
+            "path": str(self.path),
         }
 
 
 def datasets_dir(root: Path | None = None) -> Path:
     return (root or repo_root()) / "datasets"
+
+
+def configured_roots(root: Path | None = None) -> list[Path]:
+    """`packs.roots` from config/harness.yaml (default `[datasets]`), resolved under root."""
+    root = root or repo_root()
+    try:
+        cfg = yaml.safe_load((root / "config" / "harness.yaml").read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        cfg = {}
+    raw = ((cfg or {}).get("packs") or {}).get("roots") or ["datasets"]
+    return [
+        Path(r) if Path(r).is_absolute() else root / r
+        for r in ([raw] if isinstance(raw, str) else raw)
+    ]
 
 
 def load_pack(path: Path) -> Pack:
@@ -204,19 +252,25 @@ def load_pack(path: Path) -> Pack:
     return Pack(path.name, path, meta)
 
 
-def discover(root: Path | None = None) -> list[Pack]:
-    """Every directory under datasets/ with a pack.yaml, by id (`_starter` first)."""
-    base = datasets_dir(root)
-    if not base.is_dir():
-        return []
-    return [load_pack(p) for p in sorted(base.iterdir()) if (p / "pack.yaml").is_file()]
+def discover(root: Path | None = None, roots: list[Path] | None = None) -> list[Pack]:
+    """Every directory with a pack.yaml under the pack roots, by id (`_starter` first). The
+    first root that has an id wins, as in the ops index. `roots` default: `packs.roots`."""
+    found: dict[str, Pack] = {}
+    for base in roots if roots is not None else configured_roots(root):
+        if not base.is_dir():
+            continue
+        for p in sorted(base.iterdir()):
+            if p.name not in found and (p / "pack.yaml").is_file():
+                found[p.name] = load_pack(p)
+    return [found[k] for k in sorted(found)]
 
 
-def get_pack(pack_id: str, root: Path | None = None) -> Pack:
-    path = datasets_dir(root) / pack_id
-    if not re.fullmatch(r"_?[a-z][a-z0-9_]{0,31}", pack_id) or not path.is_dir():
-        raise PackError(f"no dataset pack {pack_id!r} under {datasets_dir(root)}")
-    return load_pack(path)
+def get_pack(pack_id: str, root: Path | None = None, roots: list[Path] | None = None) -> Pack:
+    for pack in discover(root, roots) if re.fullmatch(r"_?[a-z][a-z0-9_-]{0,63}", pack_id) else []:
+        if pack.id == pack_id:
+            return pack
+    where = ", ".join(str(r) for r in (roots if roots is not None else configured_roots(root)))
+    raise PackError(f"no dataset pack {pack_id!r} under {where}")
 
 
 # -- validation ---------------------------------------------------------------------------------
@@ -322,22 +376,28 @@ def validate(
     guardrail patterns the PII scan uses; `config_root` holds config/ and spec/."""
     config_root = config_root or repo_root()
     if packs is None:
-        packs = discover(pack.path.parent.parent)
+        packs = discover(config_root)
     issues: list[Issue] = []
 
     def add(check: str, message: str, path: str | None = None) -> None:
         issues.append(Issue(pack.id, check, message, path))
 
     # schema
+    tier = pack.tier
     for err in jsonschema.Draft202012Validator(PACK_SCHEMA).iter_errors(pack.meta):
         where = "/".join(str(p) for p in err.absolute_path) or "pack.yaml"
         add("schema", f"{where}: {err.message}", "pack.yaml")
-    if pack.meta.get("id") != pack.id:
+    for key in TIER_REQUIRED.get(tier, ()):
+        if key not in pack.meta:
+            add("schema", f"{key!r} is required for a {tier} pack", "pack.yaml")
+    if "id" in pack.meta and pack.meta["id"] != pack.id:
         add("schema", f"id {pack.meta.get('id')!r} must be the directory name {pack.id!r}")
     known_nodes = _diagram_ids(config_root)
-    for node_id in pack.feature.get("nodes") or []:
+    for node_id in pack.demonstrates.get("nodes") or []:
         if known_nodes and node_id not in known_nodes:
-            add("schema", f"feature node {node_id!r} is not a diagram node", "pack.yaml")
+            add("schema", f"node {node_id!r} in demonstrates is not a diagram node", "pack.yaml")
+    if tier == "profile":
+        return issues + _check_pii(pack, packs)
 
     # files and size
     for name in REQUIRED_FILES:
