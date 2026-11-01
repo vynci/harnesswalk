@@ -386,6 +386,24 @@ The connection comes from `HARNESSWALK_DATABASE_URL`, else from `POSTGRES_HOST`,
 `POSTGRES_USER`, `POSTGRES_DB` and `POSTGRES_PASSWORD` (the compose defaults work as they are).
 `make up` runs the whole stack with pgvector already on.
 
+### Public mode
+
+The sandbox at harnesswalk.vynci.dev runs in public mode: an anonymous tenant per browser for
+two hours, then every row of it is deleted; Claude Haiku 5.5, Claude Sonnet 5.5 and the fake
+model, with a shared daily budget for the Claude models (bring your own key to skip it); rate
+limits, capped loops and pure tools only. To try it locally on the fake model, with the stores
+in a scratch directory:
+
+```sh
+HARNESSWALK_MODE=public HARNESSWALK_SECRET=change-me HARNESSWALK_DATA_DIR=/tmp/hw-public \
+  uv run harnesswalk serve --provider fake
+uv run harnesswalk sweep --mode public    # delete expired tenants now (the server does it every 5 minutes)
+```
+
+The settings are the `public:` block of `config/harness.yaml`; the HTTP side (the `public`
+object in `GET /v1/capabilities`, `GET /readyz`, BYO keys, the 409 and 429 shapes) is in
+[`spec/contracts/http_api.md`](spec/contracts/http_api.md), "P6 additions".
+
 ### OpenTelemetry
 
 Off by default. Install the optional extra and point the harness at an OTLP/HTTP collector:

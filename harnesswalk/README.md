@@ -55,7 +55,7 @@ Modules that are not nodes:
 | (root) | `inspectors.py` | What `GET /v1/nodes/{id}` shows per node kind, and the code peek of `GET /v1/nodes/{id}/source` |
 | (root) | `turns.py` | Turn summaries read off the stored events: `GET /v1/turns/{id}` and `GET /v1/sessions/{id}/turns` |
 | (root) | `paths.py` | Where `config/`, `spec/` and `datasets/` live (`HARNESSWALK_ROOT`) |
-| (root) | `__main__.py` | The `harnesswalk` command: `serve`, `turn`, `events`, `turns`, `ingest`, `eval`, `release` |
+| (root) | `__main__.py` | The `harnesswalk` command: `serve`, `turn`, `events`, `turns`, `ingest`, `eval`, `release`, `sweep` |
 | `config` | `loader.py` | Loads `config/*.yaml` and profiles through release, applies env and overrides |
 | `control` | `http_api.py` | The FastAPI app for `spec/contracts/http_api.md`, plus the built web app (`web/dist`) and dev-mode CORS |
 | `context` | `tokens.py` | The `chars_div_4` token estimator |
@@ -72,6 +72,10 @@ Modules that are not nodes:
 | `control` | `pii.py` | PII detection, Luhn, the per-turn placeholder vault (input and output guardrails, memory writer) |
 | `control` | `injection.py` | Prompt-injection heuristics: a score and the signals that fired |
 | `control` | `budgets.py` | Per-tenant budgets and the hourly usage ledger (read by policy and the loop) |
+| `control` | `public.py` | P6 public mode: the expiring signed tenant cookie, the client IP behind a proxy, the bounded rate and stream tables, the tenant expiry registry, and which public model can answer now |
+| `ops` | `budget.py` | P6: the shared hosted budget, dollars per UTC day in `budgets.db`, charged per priced call |
+| `ops` | `sweep.py` | P6: the TTL sweeper that hard-deletes every row of an expired public tenant (`harnesswalk sweep`) |
+| `ops` | `logs.py` | P6: one JSON line per request when `logging.format: json` |
 | `control` | `http_ops.py` | P4 LLM Ops routes: eval runs, feedback, artifacts and releases, the trace query, and `GET /v1/events` (the tenant's ops events, live) |
 | `ops` | `ops_events.py` | P4 ops event streams: events outside turns (eval progress, feedback, releases), and the tenant tail behind `GET /v1/events` |
 | `ops` | `otel.py` | P4 OpenTelemetry mapping and OTLP export (optional extra `otel`) |
