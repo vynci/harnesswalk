@@ -111,6 +111,7 @@ class Identity:
     user_id: str | None
     roles: list[str]
     anonymous: bool
+    expires_at: float | None = None  # P6: when an anonymous public tenant is deleted (Unix time)
 
 
 @dataclass
@@ -158,6 +159,16 @@ class TurnContext:
     # schema it asked for, and whether a BYO key was present (never the key itself).
     output_schema: dict[str, Any] | None = None
     byo_key: bool = False
+    # P6: notices the walk raised for the reply ([{reason, message}]), such as a turn that fell
+    # through to the fake model when the shared hosted budget ran out (`budget_exhausted`).
+    notices: list[dict[str, str]] = field(default_factory=list)
+
+    def notice(self, reason: str, message: str) -> bool:
+        """Add a notice once per reason. True when it is new."""
+        if any(n["reason"] == reason for n in self.notices):
+            return False
+        self.notices.append({"reason": reason, "message": message})
+        return True
 
     def __post_init__(self) -> None:
         if not self.tenant_id:

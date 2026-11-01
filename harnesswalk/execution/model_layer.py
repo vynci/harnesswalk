@@ -11,11 +11,19 @@ exit carries the call's `cost`.
 P3: a retryable failure marks the provider unhealthy for the router (passive health). The
 cascade (`router.cascade`, off by default) retries a low-confidence answer from a local model on
 the next hosted alternative; confidence is a deterministic signal, see `confidence()`.
+
+P6: every priced call a BYO key did not pay for is charged to the shared daily ledger
+(`ops/budget.py`), in every mode. In public mode the router only sees the aliases of
+`public.models` that can answer now (`control/public.py`); when the spent budget is what moved
+a call off a priced alias (a turn that crossed the line between two calls, or one that started
+after it), the call falls through to the next alias (`fake-small`) and the span and the turn
+carry a `budget_exhausted` notice.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -97,6 +105,9 @@ class ModelLayer:
         health: Any = None,
         cascade: dict[str, Any] | None = None,
         tight_fraction: float = 0.75,
+        public: Any = None,
+        ledger: Any = None,
+        budget_notice: str = "",
     ) -> None:
         self.providers = providers
         self.router = router
@@ -108,32 +119,54 @@ class ModelLayer:
         self.health = health
         self.cascade = cascade or {}
         self.tight = tight_fraction
+        self.public = public  # control/public.py PublicModels (P6)
+        self.ledger = ledger  # ops/budget.py HostedBudget (P6)
+        self.budget_notice = budget_notice or "Today's shared budget for priced models is spent."
 
-    def router_for(self, ctx: TurnContext) -> Router:
-        """The router for this turn: narrowed to the turn's own providers when it picked one."""
-        if ctx.providers is None:
-            return self.router
-        chosen, health = ctx.providers, self.health
-        return self.router.restricted(lambda p: p in chosen and (health is None or health.ok(p)))
+    def router_for(self, ctx: TurnContext, *, budget: bool = True) -> Router:
+        """The router for this turn: narrowed to the turn's own providers when it picked one,
+        and in public mode to the allowed aliases that can answer now (P6)."""
+        router = self.router
+        if ctx.providers is not None:
+            chosen, health = ctx.providers, self.health
+            router = router.restricted(lambda p: p in chosen and (health is None or health.ok(p)))
+        if self.public is not None and ctx.mode == "public":
+            router = router.gated(self.public.alias_ok(byo=ctx.byo_key, budget=budget))
+        return router
+
+    def _budget_moved(self, ctx: TurnContext, req: RouteRequest, route: Any) -> str | None:
+        """The priced alias this call would have used if the budget were not spent, or None."""
+        if self.public is None or ctx.mode != "public" or ctx.byo_key or self.ledger is None:
+            return None
+        if self.ledger.ok():
+            return None
+        try:
+            ungated = self.router_for(ctx, budget=False).route(req)
+        except ProviderError:
+            return None
+        if ungated.model != route.model and self.public.metered(ungated.model):
+            return ungated.model
+        return None
 
     async def complete(
         self, ctx: TurnContext, request: ModelRequest, api_key: str | None = None
     ) -> ModelResponse:
         async with node(ctx, "model_layer", step=request.step) as span:
-            route = await run_router(
-                ctx,
-                self.router_for(ctx),
-                RouteRequest(
-                    step=request.step,
-                    step_kind=request.step_kind,
-                    risk=request.risk,
-                    modality=request.modality,
-                    tools_enabled=bool(request.tools),
-                    mode=ctx.mode,
-                    cost=request.cost,
-                    hint=ctx.model_hint,
-                ),
+            route_req = RouteRequest(
+                step=request.step,
+                step_kind=request.step_kind,
+                risk=request.risk,
+                modality=request.modality,
+                tools_enabled=bool(request.tools),
+                mode=ctx.mode,
+                cost=request.cost,
+                hint=ctx.model_hint,
             )
+            route = await run_router(ctx, self.router_for(ctx), route_req)
+            downgraded = self._budget_moved(ctx, route_req, route)
+            if downgraded is not None:
+                span.set(notice="budget_exhausted", downgraded_from=downgraded)
+                ctx.notice("budget_exhausted", self.budget_notice)
             routed = {"rule": route.rule, "model": route.model, "alts": route.alternatives}
             self.last_route[ctx.tenant_id] = routed
             response = await self._call_with_fallback(ctx, request, route, api_key)
@@ -221,6 +254,11 @@ class ModelLayer:
                 issued += 1
                 calls.append(ToolCall(call.call_id or f"call_{issued}", call.name, call.arguments))
             usd, _ = price(cfg, result.usage.input_tokens, result.usage.output_tokens)
+            if self.ledger is not None and usd > 0 and not preq.api_key:
+                # A BYO key pays its own calls; the shared ledger counts the site's. The ledger
+                # never fails a call that already happened.
+                with contextlib.suppress(Exception):
+                    self.ledger.charge(usd)
             response = ModelResponse(
                 text=result.text,
                 tool_calls=calls,

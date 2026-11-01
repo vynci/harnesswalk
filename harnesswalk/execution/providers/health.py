@@ -18,9 +18,15 @@ from typing import Any
 
 
 class ProviderHealth:
-    def __init__(self, providers: dict[str, Any], interval_s: float = 30.0) -> None:
+    def __init__(
+        self, providers: dict[str, Any], interval_s: float = 30.0, *, keyless_ok: bool = False
+    ) -> None:
         self.providers = providers
         self.interval_s = interval_s
+        # Public mode (P6): a hosted provider built without the site's key serves BYO-key
+        # turns only, so it is not probed and counts as healthy (control/public.py keeps
+        # site-paid turns off it).
+        self.keyless_ok = keyless_ok
         self.state: dict[str, dict[str, Any]] = {}  # name -> {ok, checked_at, reason}
 
     def ok(self, name: str) -> bool:
@@ -32,7 +38,10 @@ class ProviderHealth:
     async def probe(self, name: str) -> bool:
         provider = self.providers.get(name)
         check = getattr(provider, "health", None)
-        if check is None:
+        has_key = getattr(provider, "site_key_present", None)
+        if self.keyless_ok and has_key is not None and not has_key():
+            ok, reason = True, "no site key"
+        elif check is None:
             ok, reason = True, "no probe"
         else:
             try:

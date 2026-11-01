@@ -48,6 +48,7 @@ from harnesswalk.control.budgets import Budgets
 from harnesswalk.control.gateway import Gateway
 from harnesswalk.control.input_guardrails import InputGuardrails
 from harnesswalk.control.policy import Policy
+from harnesswalk.control.public import PublicModels, TenantRegistry
 from harnesswalk.events import EventBus
 from harnesswalk.execution.builtin_tools import CALCULATOR, read_skill_tool
 from harnesswalk.execution.loop import Loop
@@ -73,6 +74,7 @@ from harnesswalk.execution.router import Router, RouteRequest
 from harnesswalk.execution.sandbox import Sandbox
 from harnesswalk.execution.tools import Tools
 from harnesswalk.nodes import load_components
+from harnesswalk.ops.budget import HostedBudget
 from harnesswalk.ops.eval import Evals
 from harnesswalk.ops.ops_events import OpsEvents
 from harnesswalk.ops.otel import build_exporter
@@ -140,6 +142,9 @@ class PackParts:
             health=health,
             cascade=s.get("models.router.cascade", {}),
             tight_fraction=float(s.get("models.router.cost.tight_fraction", 0.75)),
+            public=self.public_models,
+            ledger=self.hosted_budget,
+            budget_notice=str(s.get("loop.notices.budget_exhausted", "")),
         )
         estimator = s.get("context.token_estimator", "chars_div_4")
         enabled = set(s.get("context.stores", ["procedural", "session"]))
@@ -308,11 +313,18 @@ class Harness(PackParts):
         self.session = SessionStore(
             str(s.resolve(s.get("stores.session.sqlite_path", "data/session.db")))
         )
+        self.tenants = TenantRegistry(self.session.db)
         self.audit = AuditLog(str(s.resolve(s.get("audit.sqlite_path", "data/audit.db"))))
         self.budgets = Budgets(
             s.get("policy.budgets", {}),
             str(s.resolve(s.get("policy.budgets_sqlite_path", "data/budgets.db"))),
         )
+        # P6: the shared daily hosted budget (next to the per-tenant ledger), the public
+        # allowlist, and when each anonymous public tenant expires.
+        self.hosted_budget = HostedBudget(
+            self.budgets.db, lambda: float(self.settings.get("public.hosted_budget_usd_per_day", 0))
+        )
+        self.public_models = PublicModels(self)
         self.approvals = ApprovalQueue(
             str(s.resolve(s.get("approval.sqlite_path", "data/approvals.db"))),
             timeout_s=float(s.get("approval.timeout_s", 900)),
@@ -330,7 +342,9 @@ class Harness(PackParts):
         if not self.providers:
             raise ConfigError("no model provider is configured (set HARNESSWALK_PROVIDER)")
         self.provider_health = ProviderHealth(
-            self.providers, float(s.get("models.router.health_check_s", 30))
+            self.providers,
+            float(s.get("models.router.health_check_s", 30)),
+            keyless_ok=mode == "public",
         )
         # One PII detector (the pack's patterns included) for the input guardrails and the
         # memory writer, so a proposal is redacted exactly as a message is.

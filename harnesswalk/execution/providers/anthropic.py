@@ -77,6 +77,10 @@ class AnthropicProvider:
             float(cfg.get("timeout_s", 60)),
         )
 
+    def site_key_present(self) -> bool:
+        """Whether the server has its own key. Without one only BYO-key turns can use it (P6)."""
+        return bool(os.environ.get(self.api_key_env))
+
     async def health(self) -> bool:
         """GET /v1/models with the key: cheap, and proves the key and the network."""
         key = os.environ.get(self.api_key_env)

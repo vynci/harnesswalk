@@ -13,6 +13,10 @@ or a step number), `risk`, `modality`, `tools` (whether tools are enabled), `mod
 
 P3: a provider must be configured and healthy (`providers/health.py`), and a request may carry
 a model hint that wins when the matched rule allows it.
+
+P6: a router may also carry an alias filter (`gated`): in public mode the model layer narrows
+each call to the aliases of `public.models` that can answer now (site key or BYO key, and the
+shared daily budget for priced aliases, control/public.py).
 """
 
 from __future__ import annotations
@@ -53,17 +57,23 @@ class Router:
         rules: list[dict[str, Any]],
         models: dict[str, dict[str, Any]],
         provider_ok: Callable[[str], bool],
+        alias_ok: Callable[[str], bool] | None = None,
     ) -> None:
         self._rules = rules
         self._models = models
         self._provider_ok = provider_ok
+        self._alias_ok = alias_ok
 
     def rules(self) -> list[dict[str, Any]]:
         return list(self._rules)
 
     def restricted(self, provider_ok: Callable[[str], bool]) -> Router:
         """The same rules over a narrower set of providers (a per-turn provider choice)."""
-        return Router(self._rules, self._models, provider_ok)
+        return Router(self._rules, self._models, provider_ok, self._alias_ok)
+
+    def gated(self, alias_ok: Callable[[str], bool]) -> Router:
+        """The same rules over the aliases `alias_ok` lets through (P6, public mode)."""
+        return Router(self._rules, self._models, self._provider_ok, alias_ok)
 
     @staticmethod
     def matches(when: dict[str, Any], req: RouteRequest) -> bool:
@@ -80,6 +90,8 @@ class Router:
     def _usable(self, alias: str, req: RouteRequest, rule: dict[str, Any]) -> bool:
         model = self._models.get(alias, {})
         if not self._provider_ok(model.get("provider", "")):
+            return False
+        if self._alias_ok is not None and not self._alias_ok(alias):
             return False
         cap = rule.get("max_price_out_per_mtok")
         if cap is not None and float(model.get("price_out_per_mtok") or 0) > float(cap):

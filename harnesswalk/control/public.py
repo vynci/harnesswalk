@@ -1,0 +1,276 @@
+"""Public mode (P6): what a server on the open internet needs on top of the gateway.
+
+Not a node: the gateway, the HTTP surface and the model layer call into it
+(spec/contracts/http_api.md, router.md and gateway.md, "P6 additions").
+
+- `TenantCookies`: the anonymous tenant per browser, `anon-<hex>.<expires>.<hmac>` in an
+  HTTP-only cookie signed with `HARNESSWALK_SECRET`. A tampered, foreign or expired cookie
+  gets a fresh tenant, never an error.
+- `client_ip`: the raw peer address, or with `gateway.trust_proxy` (env
+  `HARNESSWALK_TRUST_PROXY=1`) the address the proxy saw: `CloudFront-Viewer-Address` when the
+  proxy sets it, else the first `X-Forwarded-For` hop.
+- `RateLimiter`: the per-IP and per-tenant hourly windows, in a table bounded by
+  `public.rate_limit_max_keys` (the least recently used key is evicted).
+- `TenantRegistry`: when each anonymous tenant expires, so the sweeper (`ops/sweep.py`) knows
+  whose rows to delete.
+- `PublicModels`: the allowlist `public.models` and whether each alias can answer right now:
+  its provider is built, a hosted provider has the site's key or the turn brings its own, the
+  provider is healthy, and a priced alias still fits the shared daily budget (`ops/budget.py`).
+"""
+
+from __future__ import annotations
+
+import hashlib
+import hmac
+import os
+import re
+import secrets
+import time
+from collections import OrderedDict
+from collections.abc import Callable, Mapping
+from typing import Any
+
+from harnesswalk.adapters.storage.sqlite import Database
+from harnesswalk.config.loader import HOSTED_PROVIDERS, Settings
+from harnesswalk.events import iso
+
+TENANT_PREFIX = "anon-"
+TENANT_ID = re.compile(r"^anon-[0-9a-f]{16}$")
+WINDOW_S = 3600
+
+# Reasons an alias is unavailable (GET /v1/capabilities `public.models[].reason`).
+BUDGET_EXHAUSTED = "budget_exhausted"
+PROVIDER_UNCONFIGURED = "provider_unconfigured"
+PROVIDER_UNHEALTHY = "provider_unhealthy"
+
+
+class TenantCookies:
+    """Sign and check the anonymous tenant cookie. `clock` is injectable for tests."""
+
+    def __init__(self, secret: str, ttl_s: float, clock: Callable[[], float] = time.time) -> None:
+        if not secret:
+            raise ValueError("a tenant cookie needs a secret")
+        self._key = secret.encode()
+        self.ttl_s = float(ttl_s)
+        self.clock = clock
+
+    def _sign(self, value: str) -> str:
+        return hmac.new(self._key, value.encode(), hashlib.sha256).hexdigest()[:32]
+
+    def mint(self) -> tuple[str, float, str]:
+        """A fresh tenant: (tenant_id, expires_at, cookie value)."""
+        tenant = TENANT_PREFIX + secrets.token_hex(8)
+        expires = float(int(self.clock() + self.ttl_s))
+        payload = f"{tenant}.{int(expires)}"
+        return tenant, expires, f"{payload}.{self._sign(payload)}"
+
+    def check(self, raw: str | None) -> tuple[str, float] | None:
+        """(tenant_id, expires_at) for a valid, unexpired cookie, else None."""
+        if not raw or len(raw) > 200:
+            return None
+        parts = raw.split(".")
+        if len(parts) != 3:
+            return None
+        tenant, expires, sig = parts
+        if not TENANT_ID.match(tenant) or not expires.isdigit():
+            return None
+        if not hmac.compare_digest(sig, self._sign(f"{tenant}.{expires}")):
+            return None
+        if float(expires) <= self.clock():
+            return None
+        return tenant, float(expires)
+
+
+def client_ip(headers: Mapping[str, str], peer: str, trust_proxy: bool) -> str:
+    """The address rate limits count. Proxy headers only count when the proxy is trusted.
+
+    Behind CloudFront the viewer's own address is `CloudFront-Viewer-Address` (`ip:port`),
+    which a viewer cannot set; `X-Forwarded-For` is the fallback, first hop.
+    """
+    if trust_proxy:
+        viewer = (headers.get("cloudfront-viewer-address") or "").strip()
+        if viewer:  # `ip:port`, IPv6 too (the port is after the last colon)
+            host = viewer.rsplit(":", 1)[0] if ":" in viewer else viewer
+            return host.strip("[]")[:64] or peer
+        forwarded = (headers.get("x-forwarded-for") or "").split(",")[0].strip()
+        if forwarded:
+            return forwarded[:64]
+    return peer
+
+
+def request_is_https(headers: Mapping[str, str], scheme: str, trust_proxy: bool) -> bool:
+    if scheme == "https":
+        return True
+    return trust_proxy and (headers.get("x-forwarded-proto") or "").lower().startswith("https")
+
+
+class RateLimited(Exception):
+    def __init__(self, retry_after: int) -> None:
+        super().__init__(retry_after)
+        self.retry_after = retry_after
+
+
+class RateLimiter:
+    """Hourly sliding windows per key, at most `max_keys` keys (least recently used evicted)."""
+
+    def __init__(self, max_keys: int = 10000, clock: Callable[[], float] = time.time) -> None:
+        self.max_keys = max(1, int(max_keys))
+        self.clock = clock
+        self._windows: OrderedDict[str, list[float]] = OrderedDict()
+
+    def _window(self, key: str, now: float) -> list[float]:
+        window = [t for t in self._windows.get(key, []) if now - t < WINDOW_S]
+        return window
+
+    def hit(self, key: str, per_hour: int) -> int:
+        """Count one request. Returns how many are left; RateLimited when none were."""
+        now = self.clock()
+        window = self._window(key, now)
+        if len(window) >= per_hour:
+            self._store(key, window)
+            retry = int(WINDOW_S - (now - window[0])) + 1 if window else WINDOW_S
+            raise RateLimited(max(1, retry))
+        window.append(now)
+        self._store(key, window)
+        return per_hour - len(window)
+
+    def remaining(self, key: str, per_hour: int) -> int:
+        """What `hit` would leave, without counting a request."""
+        return max(0, per_hour - len(self._window(key, self.clock())))
+
+    def _store(self, key: str, window: list[float]) -> None:
+        self._windows[key] = window
+        self._windows.move_to_end(key)
+        while len(self._windows) > self.max_keys:
+            self._windows.popitem(last=False)
+
+    def forget(self, key: str) -> None:
+        self._windows.pop(key, None)
+
+    def __len__(self) -> int:
+        return len(self._windows)
+
+
+TENANTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS public_tenants (
+    tenant_id TEXT PRIMARY KEY,
+    created_at REAL NOT NULL,
+    expires_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS public_tenants_by_expiry ON public_tenants (expires_at);
+"""
+
+
+class TenantRegistry:
+    """When each anonymous tenant expires. Lives in the session store's file."""
+
+    def __init__(self, db: Database, clock: Callable[[], float] = time.time) -> None:
+        self.db = db
+        self.clock = clock
+        db.executescript(TENANTS_SCHEMA)
+
+    def register(self, tenant_id: str, expires_at: float) -> None:
+        self.db.execute(
+            "INSERT OR IGNORE INTO public_tenants VALUES (?, ?, ?)",
+            (tenant_id, self.clock(), float(expires_at)),
+        )
+
+    def expired(self, now: float | None = None) -> list[str]:
+        now = self.clock() if now is None else now
+        rows = self.db.query(
+            "SELECT tenant_id FROM public_tenants WHERE expires_at <= ? ORDER BY expires_at",
+            (now,),
+        )
+        return [r["tenant_id"] for r in rows]
+
+    def forget(self, tenant_id: str) -> None:
+        self.db.execute("DELETE FROM public_tenants WHERE tenant_id = ?", (tenant_id,))
+
+    def expires_at(self, tenant_id: str) -> float | None:
+        row = self.db.one("SELECT expires_at FROM public_tenants WHERE tenant_id = ?", (tenant_id,))
+        return float(row["expires_at"]) if row else None
+
+
+def metered(model_cfg: Mapping[str, Any]) -> bool:
+    """An alias the shared daily budget pays for: it has a price."""
+    return (
+        float(model_cfg.get("price_in_per_mtok") or 0) > 0
+        or float(model_cfg.get("price_out_per_mtok") or 0) > 0
+    )
+
+
+class PublicModels:
+    """The public allowlist and whether each alias can answer now (capabilities, gateway,
+    router). Reads the harness's live providers, health and budget on every call."""
+
+    def __init__(self, harness: Any) -> None:
+        self.h = harness
+
+    @property
+    def settings(self) -> Settings:
+        return self.h.settings
+
+    def aliases(self) -> list[str]:
+        return self.settings.public_models()
+
+    def allowed(self, alias: str) -> bool:
+        return alias in self.aliases()
+
+    def _cfg(self, alias: str) -> dict[str, Any]:
+        return self.settings.get("models.models", {}).get(alias, {})
+
+    def metered(self, alias: str) -> bool:
+        return metered(self._cfg(alias))
+
+    def site_key(self, provider: str) -> bool:
+        """Whether the site's own key (or URL) for a hosted provider is in the environment."""
+        cfg = self.settings.get(f"models.providers.{provider}", {}) or {}
+        if provider == "anthropic":
+            return bool(os.environ.get(cfg.get("api_key_env", "ANTHROPIC_API_KEY")))
+        if provider == "openai_compatible":
+            return bool(cfg.get("base_url") or os.environ.get(cfg.get("base_url_env", "")))
+        return True
+
+    def reason(self, alias: str, *, byo: bool = False, budget_ok: bool | None = None) -> str | None:
+        """Why the alias cannot answer a turn now, or None when it can."""
+        provider = self._cfg(alias).get("provider", "")
+        if provider not in self.h.providers:
+            return PROVIDER_UNCONFIGURED
+        if provider in HOSTED_PROVIDERS and not byo and not self.site_key(provider):
+            return PROVIDER_UNCONFIGURED
+        if not self.h.provider_health.ok(provider):
+            return PROVIDER_UNHEALTHY
+        if self.metered(alias) and not byo:
+            ok = self.h.hosted_budget.ok() if budget_ok is None else budget_ok
+            if not ok:
+                return BUDGET_EXHAUSTED
+        return None
+
+    def alias_ok(self, *, byo: bool, budget: bool = True) -> Callable[[str], bool]:
+        """The router's alias filter for one public turn. `budget=False` ignores the budget
+        (to tell whether the budget is what moved a route)."""
+
+        def ok(alias: str) -> bool:
+            if not self.allowed(alias):
+                return False
+            return self.reason(alias, byo=byo, budget_ok=None if budget else True) is None
+
+        return ok
+
+    def effective_default(self, byo: bool = False) -> str | None:
+        """What a public turn without a hint runs on now: the default model when it can
+        answer, else the first alias of `public.models` (default first) that can."""
+        ordered = self.ordered()
+        return next((a for a in ordered if self.reason(a, byo=byo) is None), None)
+
+    def ordered(self) -> list[str]:
+        aliases = self.aliases()
+        default = self.settings.get("public.default_model", None)
+        if default in aliases:
+            aliases.remove(default)
+            aliases.insert(0, default)
+        return aliases
+
+
+def resets_at_iso(ts: float) -> str:
+    return iso(ts).split(".")[0].rstrip("Z") + "Z"
