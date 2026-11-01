@@ -1017,7 +1017,7 @@ tenant's session); a body or header `session_id` that belongs to another tenant 
 | `session_expires_at` | When the caller's anonymous tenant and every row of it are deleted (RFC 3339, seconds, `Z`). `null` outside public mode |
 | `ttl_s` | `public.session_ttl_s` |
 | `limits.per_ip_per_hour` | `gateway.rate_limit.per_ip_per_hour` |
-| `limits.remaining_this_hour` | Turns the caller's IP may still start this hour; `null` outside public mode (no IP limit there) |
+| `limits.remaining_this_hour` | Turns the caller's IP may still start this hour; outside public mode (no IP limit there) the full `per_ip_per_hour` |
 | `limits.max_steps`, `limits.budget_tokens` | The loop's caps (`loop:`); never overridable per turn in public mode |
 | `limits.max_message_chars` | The smaller of `gateway.max_message_chars` and the input guardrails' size limit: longer messages are refused (400) or blocked |
 | `models` | Public: `public.models` in its order. Elsewhere: every non-embedding alias. `label` is `models.<alias>.label` (else the alias) |

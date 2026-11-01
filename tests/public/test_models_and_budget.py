@@ -126,7 +126,7 @@ async def test_capabilities_public_object_in_dev_mode(tmp_path: Path) -> None:
     assert next(m for m in pub["models"] if m["alias"] == "local-8b")["reason"] == (
         "provider_unconfigured"
     )
-    assert pub["limits"]["remaining_this_hour"] is None
+    assert pub["limits"]["remaining_this_hour"] == pub["limits"]["per_ip_per_hour"] == 30
 
 
 @pytest.mark.anyio

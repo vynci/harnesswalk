@@ -339,7 +339,8 @@ def capabilities_block(h: Any, identity: Any = None, ip: str | None = None) -> d
         max_chars = min(max_chars, int(size))
     limits = {
         "per_ip_per_hour": per_ip,
-        "remaining_this_hour": h.gateway.rate_remaining(ip or "") if public else None,
+        # Outside public mode no IP limit applies: the full allowance, so the field stays a number.
+        "remaining_this_hour": h.gateway.rate_remaining(ip or "") if public else per_ip,
         "max_steps": int(s.get("loop.max_steps", 8)),
         "budget_tokens": s.get("loop.budget_tokens", None),
         "max_message_chars": max_chars,
