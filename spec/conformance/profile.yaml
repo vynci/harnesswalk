@@ -10,8 +10,13 @@ models:
     fake: { fixture_dir: spec/conformance/fixtures }
   models:
     fake-small: { provider: fake, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
+    # P6: a fake alias with a price (one cent per input token), so the shared hosted budget
+    # can run out without a hosted model (public_budget_fall_through).
+    fake-priced: { provider: fake, context_tokens: 32000, price_in_per_mtok: 10000, price_out_per_mtok: 0, tools: true }
   router:
     rules:
+      # P6: public turns route over `public.models` (default first), as in config/models.yaml.
+      - { id: public, when: { mode: public }, use: public.models }
       - { id: default, when: {}, use: [fake-small] }
 
 procedural:
@@ -78,3 +83,6 @@ overridable:
   - input_guardrails.injection.block_threshold
   - policy.budgets.default.tool_calls_per_turn
   - release.gate.enabled
+  - public.models                    # P6: the public allowlist, its default and the budget
+  - public.default_model
+  - public.hosted_budget_usd_per_day

@@ -1,0 +1,41 @@
+id: public_budget_fall_through
+title: The shared hosted budget runs out between two calls and the turn falls through to fake-small
+spec_version: 0.1.0
+fixture: public_budget_fall_through
+mode: public
+config:
+  public.models: [fake-priced, fake-small]
+  public.default_model: fake-priced
+  public.hosted_budget_usd_per_day: 0.01
+turns:
+  - before:
+      - method: GET
+        path: /v1/capabilities
+        match: { public: { budget: { status: ok, spent_fraction: 0 } } }
+    send:
+      message: Where is order A-1001?
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, tools, policy, audit, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: node_exit, node_id: model_layer, summary: { model: fake-priced } }
+        - { type: node_exit, node_id: model_layer, summary: { model: fake-small, notice: budget_exhausted, downgraded_from: fake-priced } }
+        - { type: node_exit, node_id: loop, summary: { notices: [budget_exhausted] } }
+        # The message is config/harness.yaml loop.notices.budget_exhausted.
+        - type: turn_end
+          status: done
+          summary:
+            exit: answered
+            notices:
+              - reason: budget_exhausted
+                message: "Today's shared budget for Claude models is spent, so the rest of this turn ran on the fake model. It resets at 00:00 UTC."
+      cost: { input_tokens: 1, output_tokens: 0 }
+    after:
+      - method: GET
+        path: /v1/capabilities
+        match: { public: { budget: { status: exhausted, spent_fraction: 1.0 } } }
+      - method: POST
+        path: /v1/turns
+        body: { message: "Where is order A-1001?", model: fake-priced }
+        status: 409
+        match: { error: { code: budget_exhausted } }
