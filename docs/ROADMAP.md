@@ -184,7 +184,7 @@ Deferred from P6 (API side):
 | Item | Phase |
 |---|---|
 | A per-IP cap on open event streams (the cap is global, 50) | later |
-| The API trusts the first `X-Forwarded-For` hop (or `CloudFront-Viewer-Address`) under `HARNESSWALK_TRUST_PROXY=1`; deploy/caddy/Caddyfile writes that one hop from the viewer address, and any other proxy in front must do the same | deploy |
+| The API trusts `X-Harnesswalk-Viewer-Ip`, else the first `X-Forwarded-For` hop, under `HARNESSWALK_TRUST_PROXY=1` (never `CloudFront-Viewer-Address`); deploy/caddy/Caddyfile writes that one hop from the CloudFront Function's header and strips the rest, and any other proxy in front must do the same | deploy |
 | A made-up `session_id` on `POST /v1/turns` starts a session while another tenant's is a 404, so a session id's existence is observable (ids are random, turns are rate-limited) | later |
 | The shared ledger checks before each call, so concurrent turns can overshoot the daily budget by the calls in flight | later |
 | The sweeper runs inline on the event loop (fine at public scale) and deletes per tenant; batch deletes and a vacuum schedule | later |
