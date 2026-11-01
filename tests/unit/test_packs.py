@@ -119,7 +119,10 @@ def test_cli_ingest_one_pack(tmp_path: Path, monkeypatch, capsys) -> None:
     monkeypatch.setenv("HARNESSWALK_DATA_DIR", str(tmp_path / "data"))
     assert main(["packs", "ingest", "finance", "--provider", "fake"]) == 0
     out = capsys.readouterr().out
-    assert "pack finance:" in out and "chunks (indexed)" in out
+    docs = packs.get_pack("finance", ROOT).docs()
+    assert sum(d.suffix == ".pdf" for d in docs) == 2
+    # Every document, both PDFs included, is indexed (the PDFs prove PDF ingest).
+    assert f"pack finance: {len(docs)} documents," in out and "chunks (indexed)" in out
 
 
 async def _golden(pack_id: str, data_dir: Path) -> tuple[dict, list[dict], list[str]]:
