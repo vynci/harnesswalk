@@ -1,0 +1,110 @@
+# The P6 live test's fake reply (e2e-live/p6.spec.ts): markdown the chat renders as a table, lists,
+# code and a link. Four turns, so a session can send a few messages before it runs out.
+fixture: markdown_reply
+description: A reply in GitHub-flavoured markdown (headings, lists, a table, code, a link) for the P6 live test; the same text as web/src/mock/markdown.ts.
+model: fake-small
+turns:
+- responses:
+  - text: |-
+      ## Order summary
+
+      Here is what I found for **A-1001**, with *one* note:
+
+      - Shipped on 2026-10-30
+      - Carrier: `UPS`
+        - Tracking updates hourly
+
+      1. Check the tracking page.
+      2. Reply here if it stalls.
+
+      | Order | Status | Total |
+      | --- | --- | ---: |
+      | A-1001 | shipped | $42.00 |
+      | A-1002 | processing | $18.50 |
+
+      ```json
+      {"order": "A-1001", "status": "shipped"}
+      ```
+
+      See the [returns policy](https://example.com/returns) for more.
+    usage:
+      input_tokens: 640
+      output_tokens: 120
+- responses:
+  - text: |-
+      ## Order summary
+
+      Here is what I found for **A-1001**, with *one* note:
+
+      - Shipped on 2026-10-30
+      - Carrier: `UPS`
+        - Tracking updates hourly
+
+      1. Check the tracking page.
+      2. Reply here if it stalls.
+
+      | Order | Status | Total |
+      | --- | --- | ---: |
+      | A-1001 | shipped | $42.00 |
+      | A-1002 | processing | $18.50 |
+
+      ```json
+      {"order": "A-1001", "status": "shipped"}
+      ```
+
+      See the [returns policy](https://example.com/returns) for more.
+    usage:
+      input_tokens: 640
+      output_tokens: 120
+- responses:
+  - text: |-
+      ## Order summary
+
+      Here is what I found for **A-1001**, with *one* note:
+
+      - Shipped on 2026-10-30
+      - Carrier: `UPS`
+        - Tracking updates hourly
+
+      1. Check the tracking page.
+      2. Reply here if it stalls.
+
+      | Order | Status | Total |
+      | --- | --- | ---: |
+      | A-1001 | shipped | $42.00 |
+      | A-1002 | processing | $18.50 |
+
+      ```json
+      {"order": "A-1001", "status": "shipped"}
+      ```
+
+      See the [returns policy](https://example.com/returns) for more.
+    usage:
+      input_tokens: 640
+      output_tokens: 120
+- responses:
+  - text: |-
+      ## Order summary
+
+      Here is what I found for **A-1001**, with *one* note:
+
+      - Shipped on 2026-10-30
+      - Carrier: `UPS`
+        - Tracking updates hourly
+
+      1. Check the tracking page.
+      2. Reply here if it stalls.
+
+      | Order | Status | Total |
+      | --- | --- | ---: |
+      | A-1001 | shipped | $42.00 |
+      | A-1002 | processing | $18.50 |
+
+      ```json
+      {"order": "A-1001", "status": "shipped"}
+      ```
+
+      See the [returns policy](https://example.com/returns) for more.
+    usage:
+      input_tokens: 640
+      output_tokens: 120
