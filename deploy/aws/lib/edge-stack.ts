@@ -58,6 +58,15 @@ export class EdgeStack extends cdk.Stack {
       ),
     });
 
+    const viewerIp = new cloudfront.Function(this, 'ViewerIp', {
+      functionName: 'harnesswalk-viewer-ip',
+      comment: 'Sets X-Harnesswalk-Viewer-Ip from the viewer address (per-IP rate limit)',
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+      code: cloudfront.FunctionCode.fromInline(
+        fs.readFileSync(path.join(__dirname, 'edge', 'viewer-ip.js'), 'utf8'),
+      ),
+    });
+
     const apiOrigin = new origins.HttpOrigin(ORIGIN_HOST, {
       protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
       originSslProtocols: [cloudfront.OriginSslPolicy.TLS_V1_2],
@@ -73,9 +82,12 @@ export class EdgeStack extends cdk.Stack {
       viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
       allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
       cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-      // Cookies, query strings and every viewer header (X-Harnesswalk-*, Accept for SSE,
-      // CloudFront-Viewer-Address for the per-IP limit) reach the origin; Host does not.
+      // Cookies, query strings and every viewer header (X-Harnesswalk-*, Accept for SSE)
+      // reach the origin; Host does not.
       originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+      functionAssociations: [
+        { function: viewerIp, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST },
+      ],
       responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
       compress: false,
     };

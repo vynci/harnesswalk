@@ -103,6 +103,7 @@ describe('HarnesswalkEdge', () => {
         OriginRequestPolicyId: ALL_VIEWER_EXCEPT_HOST,
         ViewerProtocolPolicy: 'https-only',
         Compress: false,
+        FunctionAssociations: [{ EventType: 'viewer-request', FunctionARN: expect.anything() }],
       });
       expect(b.AllowedMethods).toEqual(
         expect.arrayContaining(['GET', 'HEAD', 'OPTIONS', 'PUT', 'PATCH', 'POST', 'DELETE']),
@@ -150,5 +151,19 @@ describe('spa-rewrite CloudFront Function', () => {
     expect(rewrite('/assets/index-abc123.js')).toBe('/assets/index-abc123.js');
     expect(rewrite('/favicon.svg')).toBe('/favicon.svg');
     expect(rewrite('/index.html')).toBe('/index.html');
+  });
+});
+
+describe('viewer-ip CloudFront Function', () => {
+  const code = fs.readFileSync(path.join(__dirname, '..', 'lib', 'edge', 'viewer-ip.js'), 'utf8');
+  const sandbox: { handler?: (e: any) => any } = {};
+  vm.runInNewContext(`${code}\nthis.handler = handler;`, sandbox);
+
+  it('overwrites a forged viewer address with the one CloudFront saw', () => {
+    const out = sandbox.handler!({
+      viewer: { ip: '2001:db8::1' },
+      request: { uri: '/v1/turns', headers: { 'x-harnesswalk-viewer-ip': { value: '6.6.6.6' } } },
+    });
+    expect(out.headers['x-harnesswalk-viewer-ip']).toEqual({ value: '2001:db8::1' });
   });
 });
