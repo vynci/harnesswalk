@@ -158,6 +158,7 @@ test('every pack’s golden suite passes from the Eval inspector, all in one ser
 test('the release gate refuses a regressed domain pack, shows the case and its diagnosis, and Release anyway is audited', async ({ page, request }) => {
   test.setTimeout(240_000)
   await pickPack(page, 'ecommerce')
+  const started = new Date(Date.now() - 1000).toISOString()
   const base = ((await (await request.get('/v1/releases?pack=ecommerce')).json()) as { active_release_id: string }).active_release_id
   // A passing run first, so the gate's run is a regression and is diagnosed on its own.
   await runGolden(page)
@@ -200,7 +201,7 @@ test('the release gate refuses a regressed domain pack, shows the case and its d
   expect(after.active_release_id).not.toBe(base)
   expect(after.releases[0]!.gate.forced).toBe(true)
   await expect(inspector.locator(`[data-testid="release-row"][data-release="${after.active_release_id}"]`).getByTestId('release-gate')).toHaveAttribute('data-status', 'forced')
-  const audit = (await (await request.get('/v1/audit?limit=20')).json()) as { records: { entry: { action: string; extra?: { pack?: string; release_id?: string } } }[] }
+  const audit = (await (await request.get(`/v1/audit?since=${encodeURIComponent(started)}`)).json()) as { records: { entry: { action: string; extra?: { pack?: string; release_id?: string } } }[] }
   expect(audit.records.find((r) => r.entry.action === 'release_forced' && r.entry.extra?.release_id === after.active_release_id)?.entry.extra?.pack).toBe('ecommerce')
 
   // Leave ecommerce as it was for the tests after this one.

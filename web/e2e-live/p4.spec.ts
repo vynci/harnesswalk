@@ -80,6 +80,7 @@ test('the P4 gate: a skill edit regresses a golden case; release, edit again, ro
   test.setTimeout(180_000)
   const inspector = page.getByTestId('inspector')
   const base = await activeRelease(request)
+  const started = new Date(Date.now() - 1000).toISOString()
 
   // The content stamp the turns record for the returns skill, before any edit.
   const original = await (await skillEditor(page, 'returns')).getByTestId('artifact-stamp').textContent()
@@ -136,7 +137,7 @@ test('the P4 gate: a skill edit regresses a golden case; release, edit again, ro
   await expect(inspector.getByTestId('release-verify')).toHaveAttribute('data-ok', 'true')
   await expect(inspector.getByTestId('release-activations')).toHaveAttribute('data-ok', 'true')
   await expect(inspector.locator(`[data-testid="release-row"][data-release="${created}"]`).getByTestId('release-gate')).toHaveAttribute('data-status', 'forced')
-  const audit = (await (await request.get('/v1/audit?limit=20')).json()) as { records: { entry: { action: string; extra?: { release_id?: string } } }[] }
+  const audit = (await (await request.get(`/v1/audit?since=${encodeURIComponent(started)}`)).json()) as { records: { entry: { action: string; extra?: { release_id?: string } } }[] }
   expect(audit.records.some((r) => r.entry.action === 'release_forced' && r.entry.extra?.release_id === created)).toBe(true)
 
   // 4. Edit again, then roll back to the release from before the first edit.
