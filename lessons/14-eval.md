@@ -26,7 +26,8 @@ They need no model and they never flake, and they are the whole `golden` suite. 
 (faithfulness and relevance, from 0 to 1) run in a separate `judge` suite, so a noisy judge can
 never hide a broken path, and every score is reported on its own. Each run is
 compared with the previous run of the same pack and suite: a case that passed then and fails now
-is a regression, and the run says which cases were fixed, regressed, added or removed. Chapter 20
+is a regression, and the run says which cases were fixed, regressed, added or removed. The same
+golden run is the gate on every release (chapter 15). Chapter 20
 opens the node into its parts.
 
 ## What breaks without it

@@ -65,7 +65,7 @@ remove the three names from `stores`. Put them back afterwards (or roll back in 
 constructor takes the stores that exist; `semantic`, `episodic` and `knowledge` are `None` when
 `context.stores` leaves them out, and [`Memory.enabled`](../harnesswalk/context/stores/__init__.py#Memory.enabled)
 lists the ones that are on. The wiring is in
-[`Harness._build_artifact_components`](../harnesswalk/runtime.py#Harness._build_artifact_components),
+[`PackParts._build_artifact_components`](../harnesswalk/runtime.py#PackParts._build_artifact_components),
 which reads `context.stores` every time the config is reloaded.
 
 [`Memory.retrieve_all`](../harnesswalk/context/stores/__init__.py#Memory.retrieve_all) is the

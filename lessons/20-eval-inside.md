@@ -37,12 +37,12 @@ that used a caller's own key.
 
 ### Diagnose
 
-Diagnose takes a failed case, or a turn rated Bad, and walks its trace to name the layer at
-fault: retrieval returned nothing, a prompt or skill changed since the last pass, a tool errored,
-the model call failed, a guardrail or a budget stopped it. Its output is evidence from the trace
-and a suggestion, plus a regression case for the golden set and, where it fits, a fact or skill
-proposal for the memory writer. It is registered in Phase 5; until then the node is drawn as not
-yet built.
+Diagnose takes a failed case, or a turn rated Bad, and reads its stored events to name the layer
+at fault, by the first rule that matches: a guardrail or policy blocked it, a budget or step limit
+stopped it, a tool errored, an artifact changed since the last run where the case passed
+(`prompt_or_skill` for a skill), a model call failed, retrieval came back empty, or `unknown`. It
+returns the evidence, a suggestion and the baseline it compared with. It needs no model, it runs
+automatically on every regression, and it only proposes: it never changes anything.
 
 ## What breaks without it
 
@@ -85,6 +85,8 @@ between 0 and 1 with a short rubric, and [`context_of`](../harnesswalk/ops/eval/
 gives it what the model was shown, read from the trace's detail records. With
 `trace.capture_content` off, the judge sees "(none)", so faithfulness cannot be judged.
 
+[`decide`](../harnesswalk/ops/eval/diagnose.py#decide) is diagnose's rule order and
+[`trace_facts`](../harnesswalk/ops/eval/diagnose.py#trace_facts) the evidence it reads.
 [`OnlineEval.after_turn`](../harnesswalk/ops/eval/online.py#OnlineEval.after_turn) decides
 whether a finished turn is sampled, and [`OnlineEval.feedback`](../harnesswalk/ops/eval/online.py#OnlineEval.feedback)
 redacts the note, stores the rating and emits `feedback_recorded` with only the note's length.
@@ -99,10 +101,11 @@ it judges.
 2. **Replay a case.** Open the Eval node's Runs tab, open a case of the last run and follow its
    turn into replay. Expected: the chat header names the eval replay, and the diagram plays the
    case turn, which no chat session of yours contains.
-3. **Turn the sampling down.** Set `evals.online.sample_rate: 0` and confirm with the Trace
-   node's Turns tab that new turns carry no judge scores; with a judge model configured and the
-   rate at 1.0, every answered chat turn gets `relevance` on Loop and `faithfulness` on Output
-   guardrails.
+3. **Diagnose a regression.** Edit the `returns` skill to 14 days, run golden (or try to
+   release, which runs it as the gate), then `POST /v1/diagnose` with the run id and
+   `{"case_id": "returns_window"}`. Expected: `layer: prompt_or_skill`, evidence that
+   `skill/returns` is v2 where the last passing run ran v1, and the suggestion to diff the two or
+   roll back. The fixture mismatch is listed too, as evidence rather than the cause.
 
 ## Check yourself
 
@@ -126,12 +129,12 @@ shows beside the layer it judges.
 
 ### 3. What does diagnose produce for a failed case?
 
-- [x] The layer at fault with evidence from the trace, a suggestion, and a regression case.
+- [x] The layer at fault, with evidence from the trace, a suggestion and the baseline run it compared with.
 - [ ] A rewritten prompt that it ships automatically.
 - [ ] A new judge score.
 
-Answer: diagnose points the fix at the right layer and feeds the golden set; any fact or skill it
-proposes still goes through the memory writer's gate.
+Answer: diagnose reads the stored events and points the fix at the right layer; it proposes and
+never changes anything itself.
 
 ## Further reading
 
