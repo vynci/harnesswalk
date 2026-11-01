@@ -1,0 +1,1 @@
+{"responses": [{"text": "Weather postponement decisions are made by 10:00 on match day, and the league office then tells both captains [3].", "usage": {"input_tokens": 771, "output_tokens": 34}, "expect": {"last_message_role": "user"}}]}

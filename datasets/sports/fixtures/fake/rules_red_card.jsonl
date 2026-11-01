@@ -1,0 +1,1 @@
+{"responses": [{"text": "A red card carries a ban of at least two matches, and the discipline panel may add more depending on the offence [3].", "usage": {"input_tokens": 763, "output_tokens": 36}, "expect": {"last_message_role": "user"}}]}

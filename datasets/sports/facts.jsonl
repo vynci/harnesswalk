@@ -1,0 +1,21 @@
+{"key": "league_name", "value": "Copperline Community League, amateur football, two divisions of four clubs, autumn season 2026."}
+{"key": "match_format", "value": "Matches are played as two halves of 40 minutes with rolling substitutions."}
+{"key": "club_codes", "value": "ASH Ashquill Rovers, MIL Millcress Athletic, NOR Norrowby United, QUA Quarrimoor Town (premier). RIV Rivelmere Wanderers, TAN Tanswold Park, BRK Brackenwhist FC, LOW Lowfennel Albion (championship)."}
+{"key": "office_hours", "value": "The league office answers captains Monday to Thursday, 18:00 to 21:00."}
+{"key": "squad_limit", "value": "A matchday squad is at most 16 players."}
+{"key": "yellow_ban", "value": "Five yellow cards in a season earn a one-match ban."}
+{"key": "red_card", "value": "A red card carries a ban of at least two matches."}
+{"key": "weather_calls", "value": "Weather postponement calls are made by 10:00 on match day."}
+{"key": "ash_captain_note", "value": "Ashquill Rovers prefer home fixtures at Harbour Park on Saturdays.", "entities": ["PL-114"]}
+{"key": "pl121_cards", "value": "Idris Calloway is on three yellow cards and was reminded about the five-card ban.", "entities": ["PL-121"]}
+{"key": "pl142_cards", "value": "Dara Whitlock is one yellow card away from a ban.", "entities": ["PL-142"]}
+{"key": "pl236_ban", "value": "Nell Tarrant reached five yellow cards and serves a one-match ban next fixture.", "entities": ["PL-236"]}
+{"key": "pl203_award", "value": "Lena Harrowgate was named championship player of the month for September.", "entities": ["PL-203"]}
+{"key": "harbour_park", "value": "Harbour Park has a 3G artificial pitch and a small car park behind the east stand."}
+{"key": "quarry_lane", "value": "Quarry Lane is a natural grass pitch and drains slowly after heavy rain."}
+{"key": "old_mill", "value": "Old Mill Ground is a natural grass pitch with street parking only."}
+{"key": "ridge_meadow", "value": "Ridge Meadow is a hybrid grass pitch with a large car park."}
+{"key": "mid_season_break", "value": "The mid-season break runs from 2026-11-14 to 2026-11-22."}
+{"key": "cup_final", "value": "The Copperline Cup final is on 2026-12-19 at Harbour Park."}
+{"key": "kickoff_local", "value": "All kick-off times are local time."}
+{"key": "help_desk_scope", "value": "The help desk reports results and rules but does not decide disciplinary cases."}

@@ -1,0 +1,71 @@
+# Tool tables bundled with the Copperline Community League pack. Each table maps a lookup key to
+# the row the tool returns; an unknown key returns the `missing` row.
+- name: fixtures
+  description: Get a club's next match, kick-off time, opponent, venue and last result by its three-letter club code.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [team]
+    properties:
+      team:
+        type: string
+        pattern: "^[A-Z]{3}$"
+        description: Three-letter club code, for example ASH.
+  table:
+    ASH: { team: Ashquill Rovers, next_match: "2026-10-10", kickoff: "14:30", opponent: Millcress Athletic, venue: Harbour Park, home_or_away: home, last_result: "W 3-1 v MIL" }
+    MIL: { team: Millcress Athletic, next_match: "2026-10-10", kickoff: "14:30", opponent: Ashquill Rovers, venue: Harbour Park, home_or_away: away, last_result: "L 1-3 v ASH" }
+    NOR: { team: Norrowby United, next_match: "2026-10-10", kickoff: "16:00", opponent: Quarrimoor Town, venue: Quarry Lane, home_or_away: away, last_result: "D 2-2 v QUA" }
+    QUA: { team: Quarrimoor Town, next_match: "2026-10-10", kickoff: "16:00", opponent: Norrowby United, venue: Quarry Lane, home_or_away: home, last_result: "D 2-2 v NOR" }
+    RIV: { team: Rivelmere Wanderers, next_match: "2026-10-11", kickoff: "11:00", opponent: Tanswold Park, venue: Old Mill Ground, home_or_away: home, last_result: "W 2-0 v TAN" }
+    TAN: { team: Tanswold Park, next_match: "2026-10-11", kickoff: "11:00", opponent: Rivelmere Wanderers, venue: Old Mill Ground, home_or_away: away, last_result: "L 0-2 v RIV" }
+    BRK: { team: Brackenwhist FC, next_match: "2026-10-11", kickoff: "13:30", opponent: Lowfennel Albion, venue: Ridge Meadow, home_or_away: home, last_result: "W 1-0 v LOW" }
+    LOW: { team: Lowfennel Albion, next_match: "2026-10-11", kickoff: "13:30", opponent: Brackenwhist FC, venue: Ridge Meadow, home_or_away: away, last_result: "L 0-1 v BRK" }
+  missing: { error: not_found }
+- name: standings
+  description: Get the current league table for a division, with the leader and matches played.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [division]
+    properties:
+      division:
+        type: string
+        pattern: "^(premier|championship)$"
+        description: Division name, premier or championship.
+  table:
+    premier: { division: premier, leader: Ashquill Rovers, table: "1. Ashquill Rovers 22 pts, 2. Norrowby United 19 pts, 3. Millcress Athletic 15 pts, 4. Quarrimoor Town 11 pts", matches_played: 8, updated: "2026-10-05" }
+    championship: { division: championship, leader: Rivelmere Wanderers, table: "1. Rivelmere Wanderers 20 pts, 2. Brackenwhist FC 17 pts, 3. Lowfennel Albion 12 pts, 4. Tanswold Park 8 pts", matches_played: 8, updated: "2026-10-05" }
+  missing: { error: not_found }
+- name: player_stats
+  description: Get a player's club, position, appearances, goals, assists and yellow cards by player id.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [player_id]
+    properties:
+      player_id:
+        type: string
+        pattern: "^PL-[0-9]{3}$"
+        description: Player id, for example PL-114.
+  table:
+    PL-114: { player_id: PL-114, name: Tomas Verrin, club: Ashquill Rovers, position: forward, appearances: 8, goals: 9, assists: 3, yellow_cards: 1 }
+    PL-121: { player_id: PL-121, name: Idris Calloway, club: Ashquill Rovers, position: midfield, appearances: 8, goals: 2, assists: 7, yellow_cards: 3 }
+    PL-137: { player_id: PL-137, name: Pavel Orsini, club: Norrowby United, position: forward, appearances: 7, goals: 6, assists: 2, yellow_cards: 0 }
+    PL-142: { player_id: PL-142, name: Dara Whitlock, club: Millcress Athletic, position: defender, appearances: 8, goals: 1, assists: 1, yellow_cards: 4 }
+    PL-158: { player_id: PL-158, name: Joss Merrow, club: Quarrimoor Town, position: goalkeeper, appearances: 8, goals: 0, assists: 0, yellow_cards: 1 }
+    PL-203: { player_id: PL-203, name: Lena Harrowgate, club: Rivelmere Wanderers, position: forward, appearances: 8, goals: 8, assists: 4, yellow_cards: 2 }
+    PL-219: { player_id: PL-219, name: Kofi Brannigan, club: Brackenwhist FC, position: midfield, appearances: 7, goals: 3, assists: 5, yellow_cards: 2 }
+    PL-236: { player_id: PL-236, name: Nell Tarrant, club: Lowfennel Albion, position: defender, appearances: 6, goals: 0, assists: 2, yellow_cards: 5 }
+  missing: { error: not_found }
