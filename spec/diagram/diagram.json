@@ -36,6 +36,8 @@
       "kind": "code",
       "view": "simple",
       "lesson": "The front door. Every request arrives here, whatever the channel, and leaves here as a reply. The gateway decides who is asking and for which tenant, applies rate limits, and turns the channel's message into one internal shape. Without it every other node would have to know about HTTP, sessions and identity, and tenant isolation would depend on each of them getting it right.",
+      "lesson_url": "lessons/01-gateway.md",
+      "lesson_summary": "Who is asking, for which tenant, and how a message becomes a turn.",
       "source_hint": "harnesswalk/control/gateway.py",
       "layout": {"x": 0, "y": 0}
     },
@@ -46,6 +48,8 @@
       "kind": "code",
       "view": "simple",
       "lesson": "Deterministic checks that run before the model sees anything: size limits, PII redaction and prompt-injection heuristics. They are plain code on purpose, because a check that lives in a prompt can be talked out of. Turn this node off and send a message containing an email address: you will see it reach the model and the trace untouched.",
+      "lesson_url": "lessons/02-input_guardrails.md",
+      "lesson_summary": "Size limits, PII redaction and injection checks, in code, before the model sees anything.",
       "source_hint": "harnesswalk/control/input_guardrails.py",
       "can_disable": true,
       "layout": {"x": 90, "y": 112}
@@ -57,6 +61,8 @@
       "kind": "config",
       "view": "simple",
       "lesson": "The rules that decide whether a tool call may run. Every tool has an action class (read, write, destructive, external) and every mode has an allowlist. Policy answers allow, deny or needs approval, and it is evaluated on every single call. A line in the system prompt saying \"never cancel orders\" is advice; this node is the control.",
+      "lesson_url": "lessons/08-policy.md",
+      "lesson_summary": "Allow, deny or needs approval, decided by rules on every single tool call.",
       "source_hint": "harnesswalk/control/policy.py",
       "artifact_hint": "config/policy.yaml",
       "can_disable": true,
@@ -69,6 +75,8 @@
       "kind": "queue",
       "view": "simple",
       "lesson": "Where risky actions wait for a human. When policy says needs approval, the loop checkpoints, the exact action is shown as a card in the chat, and nothing runs until someone approves or denies. The diagram shows this node as waiting, which is the only time a request pauses on its own.",
+      "lesson_url": "lessons/09-approval.md",
+      "lesson_summary": "A human in the loop: the turn pauses, the exact action is shown, nothing runs until someone decides.",
       "source_hint": "harnesswalk/control/approval.py",
       "layout": {"x": 90, "y": 336}
     },
@@ -79,6 +87,8 @@
       "kind": "store",
       "view": "simple",
       "lesson": "An append-only record of decisions with consequences: who asked, what ran, who approved it and when. It is not the trace. The trace is for debugging and is sampled and pruned; the audit log is for accountability and is kept. Read-only lookups go to the trace only, which is why this node stays dark on a plain question.",
+      "lesson_url": "lessons/10-audit.md",
+      "lesson_summary": "The append-only record of consequential decisions, and why it is not the trace.",
       "source_hint": "harnesswalk/control/audit.py",
       "layout": {"x": 0, "y": 448}
     },
@@ -89,6 +99,8 @@
       "kind": "code",
       "view": "simple",
       "lesson": "Assembles what the model will see, inside a token budget. Each slice (system prompt, skills index, session, facts, episodes, documents) has its own budget and tier: always included, retrieved, or fetched on demand. Stable content goes first so prompt caching works. Open it to see the assembled context and a budget bar per slice.",
+      "lesson_url": "lessons/03-context_builder.md",
+      "lesson_summary": "What the model actually sees, assembled inside a token budget, stable content first.",
       "source_hint": "harnesswalk/context/builder.py",
       "artifact_hint": "config/context.yaml",
       "layout": {"x": 374, "y": 112}
@@ -100,6 +112,8 @@
       "kind": "store",
       "view": "simple",
       "lesson": "The stores the context builder reads from, shown as one group. They share a retrieval interface but differ in what they hold, how they rank, and how they are written. Expand it in the expert view to see the five stores: procedural, session, semantic, episodic and knowledge.",
+      "lesson_url": "lessons/04-memory.md",
+      "lesson_summary": "Five stores, one retrieval interface: procedural, session, semantic, episodic, knowledge.",
       "source_hint": "harnesswalk/context/stores/__init__.py",
       "layout": {"x": 374, "y": 224}
     },
@@ -111,6 +125,8 @@
       "view": "expert",
       "parent": "memory",
       "lesson": "How the agent should behave: the system prompt (skill zero) and the skills, each a short markdown file. This is text that carries intent, not code that enforces it. Edit a skill while the agent is idle and the change is saved as a new artifact version you can diff and roll back.",
+      "lesson_url": "lessons/16-memory-inside.md#procedural",
+      "lesson_summary": "The system prompt and the skills index, always in context, and skill bodies read on demand.",
       "source_hint": "harnesswalk/context/stores/procedural.py",
       "artifact_hint": "datasets/<pack>/skills/"
     },
@@ -122,6 +138,8 @@
       "view": "expert",
       "parent": "memory",
       "lesson": "The conversation so far: recent turns verbatim and a running summary of older ones, plus the loop's checkpoints. When the history outgrows its budget, old turns are compacted into the summary with pointers back to the originals.",
+      "lesson_url": "lessons/16-memory-inside.md#session",
+      "lesson_summary": "Earlier turns of this conversation, and the rolling summary once they no longer fit.",
       "source_hint": "harnesswalk/context/stores/session.py"
     },
     {
@@ -132,6 +150,8 @@
       "view": "expert",
       "parent": "memory",
       "lesson": "Durable facts, such as \"the customer prefers email\". Retrieval favours precision: entity match first, then similarity. Facts only arrive through the memory writer, never directly from the model.",
+      "lesson_url": "lessons/16-memory-inside.md#semantic",
+      "lesson_summary": "Durable facts matched by key first and similarity second, versioned, written only by the memory writer.",
       "source_hint": "harnesswalk/context/stores/semantic.py",
       "artifact_hint": "datasets/<pack>/facts.jsonl"
     },
@@ -143,6 +163,8 @@
       "view": "expert",
       "parent": "memory",
       "lesson": "Dated events, such as \"order A-1001 was refunded on 3 October\". Retrieval mixes recency with relevance, so last week's event can outrank a closer match from last year.",
+      "lesson_url": "lessons/16-memory-inside.md#episodic",
+      "lesson_summary": "Dated events ranked by relevance and recency, one written for every finished turn.",
       "source_hint": "harnesswalk/context/stores/episodic.py",
       "artifact_hint": "datasets/<pack>/episodes.jsonl"
     },
@@ -154,6 +176,8 @@
       "view": "expert",
       "parent": "memory",
       "lesson": "Documents for retrieval-augmented generation: chunked, embedded, searched with keywords and vectors together, then reranked. Answers built from these chunks must cite them, which the output guardrails check.",
+      "lesson_url": "lessons/16-memory-inside.md#knowledge",
+      "lesson_summary": "Documents cut into chunks, keyword and vector search fused by rank, numbered for the model to cite.",
       "source_hint": "harnesswalk/context/stores/knowledge.py",
       "artifact_hint": "datasets/<pack>/docs/"
     },
@@ -164,6 +188,8 @@
       "kind": "code",
       "view": "simple",
       "lesson": "The only way anything is written into semantic or episodic memory. The loop and the eval diagnosis propose memories; the writer gates them (human review, an eval check, or auto-approve in private mode when enabled), versions them and scopes them to one tenant. Without a gate, one bad turn can poison every later one.",
+      "lesson_url": "lessons/12-memory_writer.md",
+      "lesson_summary": "The one gated path that may write facts and events into memory.",
       "source_hint": "harnesswalk/context/memory_writer.py",
       "can_disable": true,
       "layout": {"x": 374, "y": 388, "expert": {"x": 374, "y": 495}}
@@ -175,6 +201,8 @@
       "kind": "code",
       "view": "simple",
       "lesson": "Plan, act, observe, adjust. The loop calls the model, runs the tools it asks for, feeds the results back, and repeats until there is an answer or an exit condition fires: max steps, token or dollar budget, wall-clock timeout, the same call repeated, or a human interrupt. It checkpoints after every step so a paused or crashed turn can resume.",
+      "lesson_url": "lessons/05-loop.md",
+      "lesson_summary": "Plan, act, observe, adjust, and every way the loop is made to stop.",
       "source_hint": "harnesswalk/execution/loop.py",
       "layout": {"x": 786, "y": 112, "expert": {"x": 1054, "y": 112}}
     },
@@ -185,6 +213,8 @@
       "kind": "model",
       "view": "simple",
       "lesson": "One interface in front of every model. It picks a model for the step (the router), calls the provider, falls back on errors or rate limits, and returns structured output. Swap the provider from local to hosted and nothing else in the harness changes.",
+      "lesson_url": "lessons/06-model_layer.md",
+      "lesson_summary": "One interface for every model: routing by rules, providers, fallback, cost.",
       "source_hint": "harnesswalk/execution/model_layer.py",
       "artifact_hint": "config/models.yaml",
       "layout": {"x": 898, "y": 248, "expert": {"x": 1166, "y": 248}}
@@ -197,6 +227,8 @@
       "view": "expert",
       "parent": "model_layer",
       "lesson": "Rules that choose a model by step, risk, cost and modality: a small model for lookups, a larger one for synthesis, a vision model for images. Routing is rules first; a model may only choose among options the rules allow.",
+      "lesson_url": "lessons/17-model_layer-inside.md#router",
+      "lesson_summary": "Rules by step, risk, cost and mode pick the model; a hint may only choose among what the rules allow.",
       "source_hint": "harnesswalk/execution/router.py",
       "artifact_hint": "config/models.yaml"
     },
@@ -208,6 +240,8 @@
       "view": "expert",
       "parent": "model_layer",
       "lesson": "One adapter per provider behind the same call shape: fake (scripted, for tests), ollama (local), and hosted APIs. The fake provider replays a fixture, so tests and conformance runs are deterministic and free.",
+      "lesson_url": "lessons/17-model_layer-inside.md#providers",
+      "lesson_summary": "One adapter per provider behind one call shape, with fallback and health a caller's key cannot spoil.",
       "source_hint": "harnesswalk/execution/providers/__init__.py"
     },
     {
@@ -217,6 +251,8 @@
       "kind": "code",
       "view": "simple",
       "lesson": "Functions the model can ask to run, each with a typed schema. Every call is checked by policy before it runs and executes with a timeout. The node shows two sub-states, policy check then execute, so you can see a call that was stopped before it did anything.",
+      "lesson_url": "lessons/07-tools.md",
+      "lesson_summary": "Typed tool calls, resolved, checked by policy and executed in a sandbox.",
       "source_hint": "harnesswalk/execution/tools.py",
       "layout": {"x": 674, "y": 248, "expert": {"x": 808, "y": 248}}
     },
@@ -228,6 +264,8 @@
       "view": "expert",
       "parent": "tools",
       "lesson": "The list of tools the agent may know about: local functions from the dataset pack and, later, MCP servers. Each entry has a name, a JSON schema for its arguments, an action class and a timeout.",
+      "lesson_url": "lessons/18-tools-inside.md#registry",
+      "lesson_summary": "Typed tool definitions with an action class and a timeout, and what each mode may offer.",
       "source_hint": "harnesswalk/execution/registry.py",
       "artifact_hint": "datasets/<pack>/tools.yaml"
     },
@@ -239,6 +277,8 @@
       "view": "expert",
       "parent": "tools",
       "lesson": "Where a tool call actually executes: isolated, time-limited, and idempotent where it has side effects. In public mode only pure dataset functions and knowledge search are allowed here.",
+      "lesson_url": "lessons/18-tools-inside.md#sandbox",
+      "lesson_summary": "A subprocess per call with a scrubbed environment, limits, no network and an OS jail.",
       "source_hint": "harnesswalk/execution/sandbox.py"
     },
     {
@@ -248,6 +288,8 @@
       "kind": "code",
       "view": "simple",
       "lesson": "Checks on the answer before it leaves: schema validation, content checks, and citations required when the answer draws on knowledge documents. Like input guardrails, these are code, not instructions to the model.",
+      "lesson_url": "lessons/11-output_guardrails.md",
+      "lesson_summary": "Schema, content and citation checks on the answer before it leaves.",
       "source_hint": "harnesswalk/execution/output_guardrails.py",
       "can_disable": true,
       "layout": {"x": 786, "y": 0, "expert": {"x": 1054, "y": 0}}
@@ -259,6 +301,8 @@
       "kind": "store",
       "view": "simple",
       "lesson": "Every event of every turn, in order, under one trace id: the assembled context, prompt versions, each tool call with its inputs and outputs, tokens, cost and latency. The diagram you are looking at is drawn from the same events, so replaying a trace replays the animation.",
+      "lesson_url": "lessons/13-trace.md",
+      "lesson_summary": "Every event of every turn, the cost receipt, and replay.",
       "source_hint": "harnesswalk/ops/trace.py",
       "layout": {"x": 0, "y": 646, "expert": {"x": 0, "y": 693}}
     },
@@ -270,6 +314,8 @@
       "view": "expert",
       "parent": "trace",
       "lesson": "Tokens and dollars per turn, per node and per tenant, plus latency per step. Each turn ends with a cost receipt. Budgets in policy and the loop are enforced from these numbers.",
+      "lesson_url": "lessons/19-trace-inside.md#cost",
+      "lesson_summary": "The receipt of a turn: tokens, time and dollars per node and per model call.",
       "source_hint": "harnesswalk/ops/cost.py"
     },
     {
@@ -279,6 +325,8 @@
       "kind": "code",
       "view": "simple",
       "lesson": "How you know a change made things better. Offline evals replay a golden set in CI; online evals judge a sample of live turns and collect thumbs; diagnose maps a failure to the layer that caused it, so the fix goes to the right place.",
+      "lesson_url": "lessons/14-eval.md",
+      "lesson_summary": "Golden sets offline, judges and thumbs online, and diagnosis of what failed where.",
       "source_hint": "harnesswalk/ops/eval/__init__.py",
       "layout": {"x": 232, "y": 646, "expert": {"x": 232, "y": 693}}
     },
@@ -290,6 +338,8 @@
       "view": "expert",
       "parent": "eval",
       "lesson": "A judge model scores a sample of live turns, alongside user thumbs and task-success signals. It catches drift that no golden set anticipated.",
+      "lesson_url": "lessons/20-eval-inside.md#online-eval",
+      "lesson_summary": "Thumbs and notes on live turns, and a sampled judge whose scores land on the nodes they judge.",
       "source_hint": "harnesswalk/ops/eval/online.py"
     },
     {
@@ -300,6 +350,8 @@
       "view": "expert",
       "parent": "eval",
       "lesson": "The golden set for each dataset pack, replayed whenever a prompt, skill, tool or model changes. Deterministic checks (expected node path, required citation) run without a model; judged checks run on a sample.",
+      "lesson_url": "lessons/20-eval-inside.md#offline-eval",
+      "lesson_summary": "The golden set, deterministic scorers first, a diff against the last run, a scratch tenant per run.",
       "source_hint": "harnesswalk/ops/eval/offline.py",
       "artifact_hint": "datasets/<pack>/golden.jsonl"
     },
@@ -311,6 +363,8 @@
       "view": "expert",
       "parent": "eval",
       "lesson": "Walks a failed trace and names the layer at fault: context, prompt, memory, tool or model. Its output is a regression case for the golden set and, where it fits, a proposed fact or skill for the memory writer.",
+      "lesson_url": "lessons/20-eval-inside.md#diagnose",
+      "lesson_summary": "Mapping a failed case or a bad turn to the layer that caused it, so the fix goes to the right place.",
       "source_hint": "harnesswalk/ops/eval/diagnose.py"
     },
     {
@@ -320,6 +374,8 @@
       "kind": "code",
       "view": "simple",
       "lesson": "Everything the harness loads is a versioned artifact: prompts, skills, policy, tool definitions, model config. A release passes the eval gate, ships, and can be rolled back by version. Editing a skill in the UI creates a new version here.",
+      "lesson_url": "lessons/15-release.md",
+      "lesson_summary": "Prompts, skills, policy and config as versioned artifacts with an eval gate and rollback.",
       "source_hint": "harnesswalk/ops/release.py",
       "layout": {"x": 464, "y": 646, "expert": {"x": 598, "y": 693}}
     },
@@ -330,7 +386,9 @@
       "kind": "store",
       "view": "expert",
       "parent": "release",
-      "lesson": "The versioned files themselves, with history and diffs. Git-backed in v1: each release is a commit, each rollback a checkout.",
+      "lesson": "The versioned files themselves, with history and diffs: every change appends a version with its hash, nothing is updated in place, and each release hash covers the one before it.",
+      "lesson_url": "lessons/21-release-inside.md#artifacts",
+      "lesson_summary": "Append-only versions of every prompt, skill and config file, and the hash chain over releases.",
       "source_hint": "harnesswalk/ops/artifacts.py"
     }
   ],

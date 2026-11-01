@@ -47,6 +47,7 @@ COPY harnesswalk ./harnesswalk
 COPY spec ./spec
 COPY config ./config
 COPY datasets ./datasets
+COPY lessons ./lessons
 RUN uv sync --locked --no-dev --extra pgvector
 COPY --from=web /web/dist ./web/dist
 

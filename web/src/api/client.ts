@@ -21,6 +21,10 @@ import type {
   Diagram,
   KnowledgeDoc,
   KnowledgeDocDetail,
+  Lesson,
+  LessonList,
+  LessonSource,
+  PackSummary,
   MemoryProposal,
   NodeInfo,
   NodeSource,
@@ -168,6 +172,15 @@ export function createApi(t: Transport) {
     receipt: (turnId: string) => call<Receipt>('GET', `/v1/trace/turns/${encodeURIComponent(turnId)}/receipt`),
     /** GET /v1/events: every ops event of the tenant, live (SSE). */
     opsEventsUrl: () => `${t.baseUrl}/v1/events`,
+    // P5: the lesson chapters (harnesswalk/control/http_lessons.py).
+    lessons: () => call<LessonList>('GET', '/v1/lessons'),
+    lesson: (slug: string) => call<Lesson>('GET', `/v1/lessons/${encodeURIComponent(slug)}`),
+    lessonSource: (slug: string, path: string) => call<LessonSource>('GET', `/v1/lessons/${encodeURIComponent(slug)}/source${query({ path })}`),
+    /** P5: the packs, when `features.packs`. The envelope is `{packs}` or a bare list. */
+    packs: async () => {
+      const data = await call<{ packs?: PackSummary[] } | PackSummary[]>('GET', '/v1/packs')
+      return Array.isArray(data) ? data : (data.packs ?? [])
+    },
   }
 }
 

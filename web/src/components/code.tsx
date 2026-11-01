@@ -16,6 +16,7 @@ export function Code({
   className,
   contentClassName,
   contentRef,
+  highlightLine,
   ...props
 }: {
   code: string
@@ -27,13 +28,17 @@ export function Code({
   label?: string
   contentClassName?: string
   contentRef?: Ref<HTMLPreElement>
+  /** A 1-based line drawn highlighted (a code walk link's symbol). */
+  highlightLine?: number | null
 } & Omit<ComponentProps<typeof CodeBlock>, 'children' | 'size'>) {
   const lines = useHighlightedCode(code, language)
   return (
     <CodeBlock size={size} className={className} data-language={language} {...props}>
       <CodeBlockContent ref={contentRef} lineNumbers={lineNumbers} wrap={wrap} aria-label={label} className={contentClassName}>
         {lines.map((line, i) => (
-          <CodeBlockLine key={i}>{line}</CodeBlockLine>
+          <CodeBlockLine key={i} variant={i + 1 === highlightLine ? 'highlighted' : 'default'} data-target={i + 1 === highlightLine ? '' : undefined}>
+            {line}
+          </CodeBlockLine>
         ))}
       </CodeBlockContent>
     </CodeBlock>

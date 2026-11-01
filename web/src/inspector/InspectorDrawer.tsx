@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, X } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,8 @@ import { OverviewTab } from './OverviewTab'
 import { useNodeData } from './useNodeData'
 import { ArtifactEditor } from './ArtifactEditor'
 import { useArtifacts } from './useOps'
+import { LessonTab, type CodeTarget } from '@/lessons/LessonTab'
+import { LESSONS_TAB, useLessonSource } from '@/lessons/useLessons'
 
 // The LLM Ops panels, each its own chunk, picked by the node's role in the diagram.
 const EvalPanel = lazy(() => import('./EvalPanel').then((m) => ({ default: m.EvalPanel })))
@@ -47,8 +49,16 @@ export function InspectorDrawer() {
   const turn = useDisplayTurn()
   const { info, source } = useNodeData(nodeId)
   const { artifacts } = useArtifacts()
-  // The tab the reader picked; a node with an LLM Ops panel opens on it.
-  const [pick, setPick] = useState<{ node: string | null; tab: string }>({ node: null, tab: 'overview' })
+  // The tab the reader picked (kept in the store, so the lessons drawer can open a tab); a node
+  // with an LLM Ops panel opens on it.
+  const pick = useApp((s) => s.inspectorTab)
+  const setInspectorTab = useApp((s) => s.setInspectorTab)
+  // A code walk link: the node's own file at a line, or another file the chapter links to.
+  const [jump, setJump] = useState<{ node: string; line: number | null; key: number } | null>(null)
+  const [peek, setPeek] = useState<{ node: string; target: CodeTarget; key: number } | null>(null)
+  const jumps = useRef(0)
+  const lessonPeek = peek && peek.node === nodeId ? peek : null
+  const peekSource = useLessonSource(lessonPeek?.target.slug ?? null, lessonPeek?.target.path ?? null)
   const role = opsRole(diagram, nodeId)
   const closeRef = useRef<HTMLButtonElement>(null)
 
@@ -71,8 +81,23 @@ export function InspectorDrawer() {
   const tab = pick.node === nodeId ? pick.tab : role ? 'ops' : pick.tab === 'ops' || pick.tab === 'config' ? 'overview' : pick.tab
   const activeTab =
     (tab === 'details' && !detailsLabel) || (tab === 'ops' && !role) || (tab === 'config' && !yamlArtifact) ? 'overview' : tab
-  const setTab = (t: string) => setPick({ node: nodeId, tab: t })
+  const setTab = (t: string) => setInspectorTab(nodeId, t)
+  const onCodeLink = useCallback(
+    (target: CodeTarget) => {
+      if (!nodeId) return
+      const key = ++jumps.current
+      if (target.node_id === nodeId) {
+        setPeek(null)
+        setJump({ node: nodeId, line: target.line, key })
+      } else {
+        setPeek({ node: nodeId, target, key })
+      }
+      setInspectorTab(nodeId, 'code')
+    },
+    [nodeId, setInspectorTab],
+  )
   if (!nodeId || !node) return null
+  const ownJump = jump && jump.node === nodeId ? jump : null
   const parent = node.parent ? diagram?.nodes.find((n) => n.id === node.parent) : undefined
   const group = diagram?.groups.find((g) => g.id === node.group)
   const KindIcon = KIND_ICON[node.kind]
@@ -120,6 +145,14 @@ export function InspectorDrawer() {
         </div>
         <p className="text-sm leading-relaxed" data-testid="inspector-lesson">
           {node.lesson}
+          {node.lesson_url && activeTab !== LESSONS_TAB && (
+            <>
+              {' '}
+              <Button type="button" variant="link" size="xs" className="h-auto p-0 text-muted-foreground hover:text-foreground" onClick={() => setTab(LESSONS_TAB)} data-testid="read-chapter">
+                Read the chapter
+              </Button>
+            </>
+          )}
         </p>
         {canDisable && (
           <label className="flex items-center gap-2 text-xs">
@@ -129,8 +162,9 @@ export function InspectorDrawer() {
         )}
       </header>
       <Tabs value={activeTab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
-        <TabsList className="mx-4 mt-3">
+        <TabsList className="no-scrollbar mx-4 mt-3 max-w-[calc(100%-2rem)] justify-start overflow-x-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value={LESSONS_TAB}>Lessons</TabsTrigger>
           {role && <TabsTrigger value="ops">{OPS_TAB[role]}</TabsTrigger>}
           {detailsLabel && <TabsTrigger value="details">{detailsLabel}</TabsTrigger>}
           {yamlArtifact && <TabsTrigger value="config">Config</TabsTrigger>}
@@ -142,6 +176,13 @@ export function InspectorDrawer() {
             <div className="p-4">
               <OverviewTab run={turn.nodes[node.id]} info={info.data} />
               {info.status === 'error' && <p className="mt-3 text-xs text-destructive">Could not load node details: {info.error}</p>}
+            </div>
+          </ScrollArea>
+        </TabsContent>
+        <TabsContent value={LESSONS_TAB} className="min-h-0">
+          <ScrollArea className="h-full">
+            <div className="p-4">
+              <LessonTab node={node} onCodeLink={onCodeLink} />
             </div>
           </ScrollArea>
         </TabsContent>
@@ -176,9 +217,40 @@ export function InspectorDrawer() {
           </TabsContent>
         )}
         <TabsContent value="code" className="flex min-h-0 flex-col gap-2 p-4">
-          {source.status === 'loading' && <p className="text-xs text-muted-foreground">Loading source…</p>}
-          {source.status === 'error' && <p className="text-xs text-destructive">No source available: {source.error}</p>}
-          {source.data && (
+          {lessonPeek ? (
+            <>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <Button type="button" variant="ghost" size="xs" className="-ml-2 text-muted-foreground" onClick={() => setPeek(null)} data-testid="code-back">
+                  <ArrowLeft aria-hidden />
+                  Back to {source.data?.path ?? node.source_hint}
+                </Button>
+              </div>
+              {peekSource.status === 'loading' && <p className="text-xs text-muted-foreground">Loading source…</p>}
+              {(peekSource.status === 'error' || peekSource.status === 'missing') && (
+                <p className="text-xs text-destructive">No source available for {lessonPeek.target.path}{peekSource.error ? `: ${peekSource.error}` : ''}</p>
+              )}
+              {peekSource.data && (
+                <>
+                  <p className="text-xs text-muted-foreground" data-testid="code-peek-path">
+                    <code className="font-mono">{peekSource.data.path}</code> · from chapter {lessonPeek.target.slug.slice(0, 2)}
+                    {lessonPeek.target.line ? ` · line ${lessonPeek.target.line}` : ''} · {peekSource.data.line_count} lines · read-only
+                    {peekSource.data.truncated ? ' · cut short' : ''}
+                  </p>
+                  <CodeView
+                    code={peekSource.data.source}
+                    language={peekSource.data.language}
+                    symbols={peekSource.data.symbols}
+                    label={`Source of ${peekSource.data.path}`}
+                    className="min-h-[300px] flex-1"
+                    jumpTo={{ line: lessonPeek.target.line, key: lessonPeek.key }}
+                  />
+                </>
+              )}
+            </>
+          ) : null}
+          {!lessonPeek && source.status === 'loading' && <p className="text-xs text-muted-foreground">Loading source…</p>}
+          {!lessonPeek && source.status === 'error' && <p className="text-xs text-destructive">No source available: {source.error}</p>}
+          {!lessonPeek && source.data && (
             <>
               <p className="text-xs text-muted-foreground">
                 <code className="font-mono">{source.data.path}</code> · {source.data.line_count} lines · read-only
@@ -189,6 +261,7 @@ export function InspectorDrawer() {
                 symbols={source.data.symbols}
                 label={`Source of ${source.data.path}`}
                 className="min-h-[300px] flex-1"
+                jumpTo={ownJump}
               />
             </>
           )}

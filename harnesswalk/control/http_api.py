@@ -44,6 +44,7 @@ from starlette.types import Scope
 from harnesswalk import SPEC_VERSION, __version__, diagram
 from harnesswalk.control.approval import ApprovalAlreadyDecided, ApprovalNotFound
 from harnesswalk.control.gateway import GatewayError, TurnRequest
+from harnesswalk.control.http_lessons import add_lesson_routes
 from harnesswalk.control.http_memory import add_memory_routes
 from harnesswalk.control.http_ops import add_ops_routes, turn_extras
 from harnesswalk.events import iso, parse_iso
@@ -527,6 +528,7 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
 
     add_memory_routes(app, harness, identities, read_json)
     add_ops_routes(app, harness, identities, read_json)
+    add_lesson_routes(app, harness)
 
     async def unknown_api_path(request: Request) -> JSONResponse:
         # Any method on an unknown /v1 path is a JSON 404, never the web app's 405 or HTML. A
