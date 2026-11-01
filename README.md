@@ -75,7 +75,7 @@ the fake provider (`uv run harnesswalk packs validate`, `uv run harnesswalk eval
 
 | Pack | Business | What it shows |
 |---|---|---|
-| `_starter` | Example Store | A tour of every node, the pack the lessons walk through |
+| `_starter` | Sample Shop | A tour of every node, the pack the lessons walk through |
 | `healthcare` | Brindlemoor Family Clinic | PII redaction and refusal: health numbers, emails, phones and names become placeholders before the model sees them, and clinical questions are declined |
 | `ecommerce` | Quillfern Outfitters | A destructive action behind approval: a cancel or a refund pauses for a human |
 | `logistics` | Tallowgate Freight | Multi-step tool use: track, hub capacity, reroute (approved), ETA |

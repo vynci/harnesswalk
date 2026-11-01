@@ -1,6 +1,6 @@
 # Product sheet: Trailhead 28 backpack
 
-The Trailhead 28 is a fictional daypack sold by Example Store. The figures below are synthetic.
+The Trailhead 28 is a fictional daypack sold by Sample Shop. The figures below are synthetic.
 
 ## Specifications
 

@@ -1,4 +1,4 @@
-# Try these: Example Store
+# Try these: Sample Shop
 
 The starter pack touches every part of the harness once, so each prompt below lights a
 different path through the diagram. Pick a fixture in the composer to replay it on the fake

@@ -1,6 +1,6 @@
 # Shipping FAQ
 
-Answers to common delivery questions at Example Store, a fictional shop. All content is
+Answers to common delivery questions at Sample Shop, a fictional shop. All content is
 synthetic.
 
 ## How long does processing take?

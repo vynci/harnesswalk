@@ -30,7 +30,7 @@ function promptsOf(path: string): string[] {
 const PACKS: MockPack[] = [
   {
     id: '_starter',
-    title: 'Example Store',
+    title: 'Sample Shop',
     domain: 'ecommerce',
     feature: 'A tour of every node',
     summary: 'A small outdoor gear shop that touches every node of the harness once.',
