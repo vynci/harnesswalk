@@ -7,7 +7,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-Nothing yet. Spec 0.1.0 is still the draft below until the first package release (`v0.1.0`).
+Spec 0.1.0 is still the draft below until the first package release (`v0.1.0`).
+
+### Added
+
+- Payloads (`contracts/tracer.md`, "Payloads"): the gateway, the input guardrails, the context
+  builder, the model layer and the output guardrails record what each hop carried as a typed
+  detail record on their `node_enter` and `node_exit` (texts capped at 32 000 characters with a
+  `truncated` flag), and `GET /v1/trace/turns/{turn_id}/details/{event_id}` serves one to the
+  turn's own tenant (`contracts/http_api.md`, Trace). Events and summaries are unchanged.
 
 ## [0.1.0] - draft, frozen at the v0.1.0 release
 
