@@ -5,6 +5,12 @@ try:
   disable: [output_guardrails]
   fixture: golden_pii_leak
   prompt: "Who handles returns?"
+also:
+  - pack: healthcare
+    disable: [output_guardrails]
+    fixture: leak_health_number
+    prompt: "Is the north site open on Saturdays?"
+    note: "Another patient's health number in the scripted reply reaches the user; with the node on it is repaired to [ID]."
 ---
 
 # Output guardrails
@@ -55,6 +61,8 @@ episode, a second line of defence.)
 To see a block rather than a repair, run the same prompt from the CLI with
 `--set output_guardrails.pii.action=block`. The exit is `blocked` and the reply is "I cannot
 share that reply because it contains personal data."
+
+On a domain pack: the second Try button runs this on `healthcare`.
 
 ## The code walk
 

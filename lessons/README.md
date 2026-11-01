@@ -57,6 +57,11 @@ chapter (9) open with that switch. The other nodes cannot run without themselves
 chapters take away what the node depends on instead (a store, a budget, a file, a price) and show
 what changes.
 
+Every demonstration runs on the `_starter` pack, so the walk tells one story. The five switch
+chapters also show the same failure on the domain pack whose feature it is (`also` below):
+healthcare for input and output guardrails, ecommerce for policy and approval, finance for the
+memory writer. The Lessons tab gives each its own button.
+
 ## Chapter format
 
 Each chapter is `NN-<name>.md` with YAML front matter, then markdown:
@@ -66,9 +71,16 @@ Each chapter is `NN-<name>.md` with YAML front matter, then markdown:
 node: input_guardrails            # the node the chapter is about (the parent, for a group)
 covers: [procedural, session]     # group chapters only: the expert nodes, one ### section each
 try:                              # optional: what the "try it" button sets up in the web app
+  pack: _starter                  # the pack it runs on (a new session when it is not the current)
   disable: [input_guardrails]     # nodes with can_disable, switched off for the next turn
   fixture: tool_call              # a fake fixture (dev mode)
   prompt: "My email is ..."       # put in the composer
+also:                             # optional: the same demonstration on a domain pack
+  - pack: healthcare              # each gets its own button, with its note
+    disable: [input_guardrails]
+    fixture: tool_clinic_hours
+    prompt: "My health number is ..."
+    note: "What changes, in one line."
 ---
 ```
 

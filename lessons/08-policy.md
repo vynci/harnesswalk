@@ -5,6 +5,12 @@ try:
   disable: [policy]
   fixture: cancel_order
   prompt: "Please cancel order A-1002."
+also:
+  - pack: ecommerce
+    disable: [policy]
+    fixture: cancel_approved_qf20430
+    prompt: "Please cancel order QF-20430, I ordered the wrong size."
+    note: "cancel_order runs with no approval card (rule=disabled in the audit), and the scripted reply still says an approval came through."
 ---
 
 # Policy
@@ -52,6 +58,8 @@ never hides what happened), but the action already ran.
 The scripted reply even says "The tool result above says whether a human approved it", which
 shows why the model's own text is no evidence: only the policy and audit records say what
 really happened.
+
+On a domain pack: the second Try button runs this on `ecommerce`.
 
 ## The code walk
 

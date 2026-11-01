@@ -5,6 +5,12 @@ try:
   disable: [memory_writer]
   fixture: remember_fact
   prompt: "Please remember that my preferred name is Sam."
+also:
+  - pack: finance
+    disable: [memory_writer]
+    fixture: mem_reporting_currency_set
+    prompt: "Please note that I want all my reports in euro from now on."
+    note: "Nothing is written. In a new session ask \"Which reporting currency did I ask you to use?\" with fixture mem_reporting_currency_recall: Semantic reports hits 0."
 ---
 
 # Memory writer
@@ -63,6 +69,8 @@ The fact's `memory_proposed` carries `injection: 0.9`, and the writer's exit lis
 `rejections` with "injection: exfiltration, override". The turn's own episode is still written.
 Without that check, retrieved memory would be a back door for instructions. Delete the file
 afterwards.
+
+On a domain pack: the second Try button runs this on `finance`.
 
 ## The code walk
 

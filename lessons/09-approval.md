@@ -5,6 +5,12 @@ try:
   disable: [policy]
   fixture: cancel_order
   prompt: "Please cancel order A-1002."
+also:
+  - pack: ecommerce
+    disable: [policy]
+    fixture: refund_approved_qf20388
+    prompt: "The lantern in order QF-20388 arrived with a cracked lens. I want my money back."
+    note: "issue_refund runs at once: no approval card, nobody asked, and the audit shows rule=disabled."
 ---
 
 # Approval
@@ -60,6 +66,8 @@ uv run harnesswalk serve --port 8812 --provider fake \
 Send the cancel prompt to it and wait. Within a few seconds the card's countdown ends, the
 stream carries `approval_decided` with `decision: expired`, and the order is not cancelled.
 Expiry fails safe: silence is a no.
+
+On a domain pack: the second Try button runs this on `ecommerce`.
 
 ## The code walk
 
