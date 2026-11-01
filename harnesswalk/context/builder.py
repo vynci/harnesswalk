@@ -364,6 +364,8 @@ class ContextBuilder:
                     "id": h.source.id,
                     "score": round(h.score, 4),
                 }
+                if kind == "episodic" and h.source.title:  # the title is the event's kind
+                    src["label"] = f"{h.source.id} ({h.source.title})"
                 if kind == "knowledge":
                     src.update(n=n, doc=h.meta.get("doc"), chunk=h.meta.get("chunk"))
                     src["label"] = f"[{n}] {h.meta.get('citation') or h.source.id}"
