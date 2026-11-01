@@ -48,6 +48,10 @@ record WriterReport { proposed: int, written: int, rejected: int, pending: int }
 - **The turn.** When `episodic` is among `context.stores` and `memory_writer.auto_episodes` is
   on, every finished chat turn that reached the context builder proposes one short event
   (`kind: turn`, the question and the answer, `outcome` the turn's exit, `source: turn`).
+  A turn that ended with exit `error` records the failure instead of the error notice: the
+  text is `Asked: <question> Failed: the turn ended with exit error (<code>) and gave no
+  answer.`, where `<code>` is the turn's first `error` event's code (the cause the failed spans
+  after it repeat), also kept as `error_code` on the proposal.
 - **The ops seam.** `propose(ctx, proposal)` queues a proposal on a turn and `process(ctx)`
   gates the queue (eval diagnosis, P4), `source: diagnose`.
 
@@ -67,7 +71,9 @@ tenant (`reserved_tenant`), a bad shape (`invalid: ...`), more model proposals t
 `max_proposals_per_turn` (the turn event does not count), a policy `deny` for action class
 `memory.write` (the first matching rule of `config/policy.yaml`, as for tool calls), and an
 exact duplicate of an existing fact (`duplicate`). A write that fails leaves the proposal
-pending with reason `write_failed`.
+pending with reason `write_failed`. In a chat turn that ended with exit `error` (for example
+output guardrails failing after the model called `remember`), a fact proposal is rejected with
+reason `failed_turn`: a failed turn is no source for a fact, while its episode is still written.
 
 P4 (integration): every proposal's text (a fact's `key: value`, an event's `text`, after
 redaction) is scored with the same prompt-injection heuristics as the input guardrails

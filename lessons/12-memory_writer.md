@@ -25,6 +25,9 @@ turn retrieves and trusts. So in harnesswalk nothing writes semantic or episodic
 this node. The model can only propose: it calls the `remember` tool (typed arguments, class
 `memory.write`, checked by policy like any tool), and the loop turns each successful call into a
 proposal. The turn itself proposes one short episode ("Asked: ... Answered: ...") when it ends.
+A turn that failed says so instead ("Asked: ... Failed: the turn ended with exit error
+(provider_error) and gave no answer."), and a fact the model proposed in a failed turn is rejected
+with reason `failed_turn`.
 
 The writer runs after the reply has been sent, so a slow gate never delays the answer. For each
 proposal it emits `memory_proposed` and passes it through a gate: the wrong tenant or a bad shape
