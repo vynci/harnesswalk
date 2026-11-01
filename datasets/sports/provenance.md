@@ -1,6 +1,6 @@
 # Provenance: sports
 
-**The Copperline Community League** is a synthetic dataset pack for harnesswalk. Synthetic, no real people, companies
+**The Copperline Community League** is a synthetic dataset pack for Harnesswalk. Synthetic, no real people, companies
 or identifiers: every business, product, place, person, id and number in it is invented.
 
 | | |

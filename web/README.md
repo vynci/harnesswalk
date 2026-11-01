@@ -1,6 +1,6 @@
-# harnesswalk web
+# Harnesswalk web
 
-The web UI for harnesswalk: a chat on the left and a live diagram of the harness on the right.
+The web UI for Harnesswalk: a chat on the left and a live diagram of the harness on the right.
 Send a message and watch it walk through the nodes. Click a node to read its lesson, its config or
 prompt, its code and its events. Turn on step mode to stop at every node, or replay a past turn
 with a slider. The LLM Ops nodes run the harness's lifecycle: edit a skill or a config, run the

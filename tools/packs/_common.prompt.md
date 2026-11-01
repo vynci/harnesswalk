@@ -1,6 +1,6 @@
-# Shared instructions for every harnesswalk pack
+# Shared instructions for every Harnesswalk pack
 
-You are writing one dataset pack for harnesswalk, an open-source teaching harness that shows
+You are writing one dataset pack for Harnesswalk, an open-source teaching harness that shows
 every step of an AI assistant's turn (guardrails, context, memory, loop, model, tools, policy,
 approval, audit, trace) as a live diagram. A pack is a small, fictional business the learner
 can talk to in minute one. Each pack shows one harness feature on purpose; the pack brief

@@ -5,7 +5,7 @@ Examples: `spec/examples/*.jsonl`.
 
 The event stream is the product. Every node reports its work as typed events, and the same
 stream drives the live diagram, the trace store, step mode, replay and the evals. Emit these
-events correctly and any UI built on harnesswalk can draw your harness.
+events correctly and any UI built on Harnesswalk can draw your harness.
 
 ## 1. Rules
 

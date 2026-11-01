@@ -1,7 +1,7 @@
 # Conformance suite
 
-A black-box test that any harnesswalk implementation, in any language, can run. If your harness
-passes it, the harnesswalk web app can drive it, the hosted sandbox's lessons apply to it, and
+A black-box test that any Harnesswalk implementation, in any language, can run. If your harness
+passes it, the Harnesswalk web app can drive it, the hosted sandbox's lessons apply to it, and
 its event stream can be traced, replayed and evaluated by the same tools. The suite is the
 spec's executable half: `spec/harness.md`, `spec/events.md` and `spec/contracts/` say what a
 harness must do, and these cases check that it does, over HTTP only.
