@@ -3,8 +3,9 @@
 #
 #   deploy/aws/scripts/rollback.sh TAG [--dry-run]
 #
-# Same path as a deploy (deploy-origin.sh), so the compose file and Caddyfile roll back with
-# the image. The data volume is not touched; the web app is not rolled back (run deploy-web.sh
+# Same path as a deploy (deploy-origin.sh: IMAGE_TAG, then the harnesswalk-deploy document on
+# the instance tagged harnesswalk:role=origin), so the compose file and Caddyfile roll back with
+# the image. TAG must be a git sha. The data volume is not touched; the web app is not rolled back (run deploy-web.sh
 # from the matching commit if the API change was not backward compatible).
 source "$(dirname "$0")/lib.sh"
 tag=""
