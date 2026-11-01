@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aiharness.vynci.dev/spec/0.1/conformance/case.schema.json",
+  "$id": "https://harnesswalk.vynci.dev/spec/0.1/conformance/case.schema.json",
   "title": "harnesswalk conformance case",
   "type": "object",
   "additionalProperties": false,

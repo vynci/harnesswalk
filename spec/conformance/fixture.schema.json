@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aiharness.vynci.dev/spec/0.1/conformance/fixture.schema.json",
+  "$id": "https://harnesswalk.vynci.dev/spec/0.1/conformance/fixture.schema.json",
   "title": "harnesswalk fake-provider fixture",
   "description": "Scripted responses for the fake model provider. Semantics in spec/contracts/model_provider.md.",
   "type": "object",

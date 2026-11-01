@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aiharness.vynci.dev/spec/0.1/events.schema.json",
+  "$id": "https://harnesswalk.vynci.dev/spec/0.1/events.schema.json",
   "title": "harnesswalk harness event",
   "description": "One event in the harness event stream. The stream is the single source for the UI, the trace store, step mode and replay. Ordering and pairing rules that span several events are normative in spec/events.md and are checked by the conformance suite, not by this schema.",
   "type": "object",
