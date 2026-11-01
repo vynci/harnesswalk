@@ -1,93 +1,81 @@
 # Lessons
 
 One chapter per node, in walk order: the order a request meets the nodes, from the gateway to
-release. Each chapter will cover what the node does, what breaks without it (with a prompt that
-shows the failure when the node is switched off), a walk through its code, things to try, and
-further reading. Chapters arrive in P5; this index is the plan.
+release. Then one chapter per expert group, for the nodes the Expert view opens. Each chapter has
+the same six parts: what the node does, what breaks without it (with the exact pack, fixture and
+prompt that show the failure, verified on the fake provider), a walk through its code with links
+into `harnesswalk/`, three things to try with the expected outcome, three questions to check
+yourself, and further reading.
 
-| # | Node | Group | In one line |
-|---|---|---|---|
-| 1 | `gateway` Gateway | control | Who is asking, for which tenant, and how a message becomes a turn. |
-| 2 | `input_guardrails` Input guardrails | control | Size limits, PII redaction and injection checks, in code, before the model sees anything. |
-| 3 | `context_builder` Context builder | context | What the model actually sees, assembled inside a token budget, stable content first. |
-| 4 | `memory` Memory | context | Five stores, one retrieval interface: procedural, session, semantic, episodic, knowledge. |
-| 5 | `loop` Loop | execution | Plan, act, observe, adjust, and every way the loop is made to stop. |
-| 6 | `model_layer` Model layer | execution | One interface for every model: routing by rules, providers, fallback, cost. |
-| 7 | `tools` Tools | execution | Typed tool calls, resolved, checked by policy and executed in a sandbox. |
-| 8 | `policy` Policy | control | Allow, deny or needs approval, decided by rules on every single tool call. |
-| 9 | `approval` Approval | control | A human in the loop: the turn pauses, the exact action is shown, nothing runs until someone decides. |
-| 10 | `audit` Audit | control | The append-only record of consequential decisions, and why it is not the trace. |
-| 11 | `output_guardrails` Output guardrails | execution | Schema, content and citation checks on the answer before it leaves. |
-| 12 | `memory_writer` Memory writer | context | The one gated path that may write facts and events into memory. |
-| 13 | `trace` Trace | ops | Every event of every turn, the cost receipt, and replay. |
-| 14 | `eval` Eval | ops | Golden sets offline, judges and thumbs online, and diagnosis of what failed where. |
-| 15 | `release` Release | ops | Prompts, skills, policy and config as versioned artifacts with an eval gate and rollback. |
+Everything runs offline on the `fake` provider: no model key, no cost, and the same result every
+time. The web app shows each chapter in the inspector's Lessons tab, lists them all in the Lessons
+drawer from the header, and offers "Disable X and try it" where a node can be switched off.
 
-The walk order is defined in `spec/diagram/diagram.json` (`walk_order`). Each node's lesson stub
-is the `lesson` field of the same file; the UI shows it beside the inspector.
+Written for a developer who knows web services and has never built an agent runtime. Read them in
+order the first time; each one assumes the ones before it.
 
-## Inside the nodes (expert view, chapter stubs)
+## The walk
 
-The expert view opens some nodes into their parts. Each part gets a short section inside its
-parent's chapter. These stubs list what each section will cover and a fixture that shows it
-with the fake provider (pick it in the web app's Fixture menu, or pass `--fixture`).
-
-| Part | Inside | Since | The section will show | Try it |
+| # | Node | Group | Chapter | In one line |
 |---|---|---|---|---|
-| `procedural` Procedural | Memory | P1 | The system prompt and the skills index, always in context, plus skills read on demand | `read_skill` |
-| `session` Session | Memory | P1 | Earlier turns of this conversation and the rolling summary when they no longer fit | `two_turns` |
-| `semantic` Semantic | Memory | P3 | Facts keyed by entity, matched by key first and cosine second, versioned with diffs; pack seeds every tenant reads, tenant facts only the writer adds | `remember_fact`, then "What is my preferred name?" |
-| `episodic` Episodic | Memory | P3 | What happened before, ranked by relevance and recency; one episode per finished turn, written by the memory writer | Ask about order A-1003 |
-| `knowledge` Knowledge | Memory | P3 | Documents cut into chunks, keyword and vector search fused by reciprocal rank, numbered `[n]` for the model to cite, and `read_doc` for a whole document | `trailhead_return`, `read_doc` |
-| `router` Router | Model layer | P3 | Rules by step kind, risk, cost and mode pick the model; public stays local | `--model` hint in dev |
-| `providers` Providers | Model layer | P1 | One adapter per provider, fallback on failure, health that a caller's own key cannot spoil | `plain_answer` |
-| `registry` Registry | Tools | P1 | Typed tool definitions with an action class, what each mode offers | `tool_call` |
-| `sandbox` Sandbox | Tools | P3 | A subprocess per call: scrubbed environment, limits, no network, no file change outside its directory, an OS jail | `tool_call`, `three_lookups` |
-| `cost` Cost | Trace | P4 | The receipt of a turn: tokens, time and dollars per node and per model call, and what `turn_end.cost` adds up | Trace node, Turns tab, any turn |
-| `offline_eval` Offline eval | Eval | P4 | The golden set, the deterministic scorers, the diff against the last run, and why a case runs in a scratch tenant | `harnesswalk eval _starter` |
-| `online_eval` Online eval | Eval | P4 | Thumbs and notes on live turns, and a sampled judge whose scores attach to the nodes they judge | Good or Bad under a reply |
-| `diagnose` Diagnose | Eval | P5 | Mapping a failed case to the layer that caused it (stub in P4) | |
-| `artifacts` Artifacts | Release | P4 | Append-only versions of every prompt, skill and config file, the working set, and the hash chain over releases | Procedural inspector, Edit |
+| 1 | `gateway` Gateway | control | [01-gateway](01-gateway.md) | Who is asking, for which tenant, and how a message becomes a turn. |
+| 2 | `input_guardrails` Input guardrails | control | [02-input_guardrails](02-input_guardrails.md) | Size limits, PII redaction and injection checks, in code, before the model sees anything. |
+| 3 | `context_builder` Context builder | context | [03-context_builder](03-context_builder.md) | What the model actually sees, assembled inside a token budget, stable content first. |
+| 4 | `memory` Memory | context | [04-memory](04-memory.md) | Five stores, one retrieval interface: procedural, session, semantic, episodic, knowledge. |
+| 5 | `loop` Loop | execution | [05-loop](05-loop.md) | Plan, act, observe, adjust, and every way the loop is made to stop. |
+| 6 | `model_layer` Model layer | execution | [06-model_layer](06-model_layer.md) | One interface for every model: routing by rules, providers, fallback, cost. |
+| 7 | `tools` Tools | execution | [07-tools](07-tools.md) | Typed tool calls, resolved, checked by policy and executed in a sandbox. |
+| 8 | `policy` Policy | control | [08-policy](08-policy.md) | Allow, deny or needs approval, decided by rules on every single tool call. |
+| 9 | `approval` Approval | control | [09-approval](09-approval.md) | A human in the loop: the turn pauses, the exact action is shown, nothing runs until someone decides. |
+| 10 | `audit` Audit | control | [10-audit](10-audit.md) | The append-only record of consequential decisions, and why it is not the trace. |
+| 11 | `output_guardrails` Output guardrails | execution | [11-output_guardrails](11-output_guardrails.md) | Schema, content and citation checks on the answer before it leaves. |
+| 12 | `memory_writer` Memory writer | context | [12-memory_writer](12-memory_writer.md) | The one gated path that may write facts and events into memory. |
+| 13 | `trace` Trace | ops | [13-trace](13-trace.md) | Every event of every turn, the cost receipt, and replay. |
+| 14 | `eval` Eval | ops | [14-eval](14-eval.md) | Golden sets offline, judges and thumbs online, and diagnosis of what failed where. |
+| 15 | `release` Release | ops | [15-release](15-release.md) | Prompts, skills, policy and config as versioned artifacts with an eval gate and rollback. |
 
-The P3 nodes of the simple view gain these sections in their chapters: input guardrails (PII
-placeholders and the injection score, `pii_redacted`), policy (`why` and per-tenant budgets,
-`three_lookups` under a budget), approval (a pause that survives a restart), audit (the hash
-chain and Verify), output guardrails (schema, citations and placeholder restore) and the memory
-writer (gates by mode, the review queue, writes as diffs, `remember_fact`).
+The walk order is `walk_order` in `spec/diagram/diagram.json`. Each node there names its chapter
+(`lesson_url`) and its one-line hook (`lesson_summary`); a test keeps the hooks, the chapters and
+this index in step.
 
-## Eval and Release (P4, chapter stubs)
+## Inside the nodes (expert groups)
 
-**Chapter 14, Eval: how you know a change made things better.** What the chapter will cover:
+| # | Chapter | Opens | Covers | In one line |
+|---|---|---|---|---|
+| 16 | [Inside memory: the five stores](16-memory-inside.md) | Memory | procedural, session, semantic, episodic, knowledge | What each store holds, how it ranks, and who may write it. |
+| 17 | [Inside the model layer: router and providers](17-model_layer-inside.md) | Model layer | router, providers | Rules choose the model, adapters speak each provider's API, and a fixture can stand in for any of them. |
+| 18 | [Inside tools: registry and sandbox](18-tools-inside.md) | Tools | registry, sandbox | What a tool is, what each mode offers, and the walls around the code that runs it. |
+| 19 | [Inside the trace: cost](19-trace-inside.md) | Trace | cost | The receipt of a turn and the budgets that read it. |
+| 20 | [Inside eval: offline, online and diagnose](20-eval-inside.md) | Eval | offline_eval, online_eval, diagnose | Golden runs in a scratch tenant, thumbs and a sampled judge on live turns, and the layer at fault. |
+| 21 | [Inside release: artifacts](21-release-inside.md) | Release | artifacts | Append-only versions of every prompt, skill and config file, and the hash chain over releases. |
 
-- A golden case is a prompt with what a good turn looks like: the node path, the tool calls,
-  the citations, a schema, a substring or pattern in the answer, a rubric for a judge.
-- Deterministic scorers first (path, tool calls, citations, schema, PII leak, answer match),
-  judged ones second (faithfulness and relevance, 0 to 1, with a threshold), kept apart so a
-  flaky judge never hides a broken path.
-- A regression is a case that failed (or errored) now and passed in the previous run of the same
-  pack and suite; the run lists them and diffs fixed, regressed, new and removed cases.
-- Isolation: every case turn runs in a scratch tenant per run, so a run never reads or writes
-  your memory and two runs start from the same state.
-- Online: thumbs and notes per turn, and a judge on a sample of live turns.
-- Things to try: edit the `returns` skill and run golden (the README's gate walk); run one case
-  with `harnesswalk eval _starter --case returns_window`; open a regressed case in replay; rate a
-  reply Bad with a note and find it in the Trace node's receipt.
-- Breaks without it: a prompt edit that reads fine ships and quietly breaks returns; nothing
-  says which change did it.
+## The node switches
 
-**Chapter 15, Release: prompts, skills, policy and config as versioned artifacts.** What the
-chapter will cover:
+Four nodes can be switched off for one turn, in dev and private mode only: input guardrails,
+policy, output guardrails and the memory writer. Their chapters (2, 8, 11, 12) and the approval
+chapter (9) open with that switch. The other nodes cannot run without themselves, so their
+chapters take away what the node depends on instead (a store, a budget, a file, a price) and show
+what changes.
 
-- The working set (the latest version of every artifact), what a release freezes, and why the
-  harness serves the working set in dev and the active release elsewhere.
-- Append-only history: an edit is a new version, a rollback is new versions with old content,
-  and a release's hash covers the release before it, so `verify` shows tampering.
-- What an edit may not do from the web: add a tool entrypoint (that is new code) or change where
-  provider requests and keys go (that is deployment).
-- How a running server hears about a release made elsewhere (the CLI, another tab): the ops
-  stream, `GET /v1/events`.
-- Things to try: Create release after an edit and read its diff; roll back to `r1` and watch the
-  next turn's `turn_start.summary.release`; `harnesswalk release list`, `diff`, `rollback` while
-  the web app is open.
-- Breaks without it: no way back to the prompt that worked, and no record of which version a
-  turn ran on.
+## Chapter format
+
+Each chapter is `NN-<name>.md` with YAML front matter, then markdown:
+
+```yaml
+---
+node: input_guardrails            # the node the chapter is about (the parent, for a group)
+covers: [procedural, session]     # group chapters only: the expert nodes, one ### section each
+try:                              # optional: what the "try it" button sets up in the web app
+  disable: [input_guardrails]     # nodes with can_disable, switched off for the next turn
+  fixture: tool_call              # a fake fixture (dev mode)
+  prompt: "My email is ..."       # put in the composer
+---
+```
+
+The body starts with `# Title` and a `> hook` line, then the six `##` sections in order. Code
+walk links are relative links into the package, `[text](../harnesswalk/<path>#<Symbol>)`, with a
+top-level name or `Class.method`; the API resolves each to a line. Check yourself holds three
+`### N. Question` blocks, each with three options as a task list (`- [x]` marks the right one)
+and an `Answer:` paragraph. `GET /v1/lessons` and `GET /v1/lessons/{slug}` serve the chapters;
+`tests/unit/test_http_lessons.py` checks the structure, the length (600 to 1200 words), that every
+code link still resolves and that every node links its chapter.

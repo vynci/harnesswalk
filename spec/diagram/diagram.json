@@ -386,7 +386,7 @@
       "kind": "store",
       "view": "expert",
       "parent": "release",
-      "lesson": "The versioned files themselves, with history and diffs. Git-backed in v1: each release is a commit, each rollback a checkout.",
+      "lesson": "The versioned files themselves, with history and diffs: every change appends a version with its hash, nothing is updated in place, and each release hash covers the one before it.",
       "lesson_url": "lessons/21-release-inside.md#artifacts",
       "lesson_summary": "Append-only versions of every prompt, skill and config file, and the hash chain over releases.",
       "source_hint": "harnesswalk/ops/artifacts.py"
