@@ -21,6 +21,11 @@ previous release's hash, so the chain shows if a stored release was altered.
 One SQLite file (`data/releases.db`). A `generation` counter goes up on every write, so a
 server can see that another process (the CLI) changed the store and reload before its next
 turn.
+
+P5: every served set a turn ran on is kept by its hash (`served_sets`), so diagnose can say
+which artifact versions a failing turn and its last passing run saw. A release carries its eval
+gate result (`release_gates`), and the gate is part of the release hash when present. The
+activation log is hash-chained per pack (`prev_hash`, `hash`).
 """
 
 from __future__ import annotations
@@ -95,6 +100,16 @@ CREATE TABLE IF NOT EXISTS activations (
     rollback_of TEXT
 );
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS served_sets (
+    hash TEXT PRIMARY KEY,
+    pack TEXT NOT NULL,
+    refs TEXT NOT NULL,
+    first_seen TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS release_gates (
+    release_id TEXT PRIMARY KEY,
+    gate TEXT NOT NULL
+);
 """
 
 
@@ -180,6 +195,7 @@ class Release:
     hash: str
     seq: int = 0
     extra: dict[str, Any] = field(default_factory=dict)
+    gate: dict[str, Any] | None = None  # P5: the eval gate's result (None before P5)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -191,13 +207,24 @@ class Release:
             "artifacts": self.artifacts,
             "prev_hash": self.prev_hash,
             "hash": self.hash,
+            "gate": self.gate,
             **self.extra,
         }
 
 
 def release_hash(fields: dict[str, Any]) -> str:
+    """The release's hash. P5: a release's `gate`, when it has one, is hashed with it."""
     keys = ("release_id", "pack", "created_at", "created_by", "note", "artifacts", "prev_hash")
-    return sha256(canonical({k: fields[k] for k in keys}))
+    body = {k: fields[k] for k in keys}
+    if fields.get("gate") is not None:
+        body["gate"] = fields["gate"]
+    return sha256(canonical(body))
+
+
+def activation_hash(row: dict[str, Any], prev_hash: str) -> str:
+    """One link of the activation log (P5): which release became active, when, by whom."""
+    keys = ("pack", "release_id", "at", "by", "rollback_of")
+    return sha256(canonical({**{k: row.get(k) for k in keys}, "prev_hash": prev_hash}))
 
 
 class ArtifactStore:
@@ -205,6 +232,58 @@ class ArtifactStore:
 
     def __init__(self, path: str) -> None:
         self.db = Database(path, SCHEMA)
+        self._chain_activations()
+
+    # -- the activation log's chain (P5) --------------------------------------------------------
+
+    def _chain_activations(self) -> None:
+        """Add the chain columns to a pre-P5 store and chain any row that has no hash yet."""
+        columns = {r["name"] for r in self.db.query("PRAGMA table_info(activations)")}
+        if "hash" not in columns:
+            with self.db.transaction() as conn:
+                columns = {r[1] for r in conn.execute("PRAGMA table_info(activations)")}
+                if "hash" not in columns:
+                    conn.execute("ALTER TABLE activations ADD COLUMN prev_hash TEXT")
+                    conn.execute("ALTER TABLE activations ADD COLUMN hash TEXT")
+        if self.db.one("SELECT 1 FROM activations WHERE hash IS NULL LIMIT 1") is None:
+            return
+        with self.db.transaction() as conn:
+            last: dict[str, str] = {}
+            for row in conn.execute("SELECT * FROM activations ORDER BY seq").fetchall():
+                prev = last.get(row["pack"], GENESIS)
+                digest = row["hash"]
+                if digest is None:
+                    digest = activation_hash(dict(row), prev)
+                    conn.execute(
+                        "UPDATE activations SET prev_hash = ?, hash = ? WHERE seq = ?",
+                        (prev, digest, row["seq"]),
+                    )
+                last[row["pack"]] = digest
+
+    def verify_activations(self, pack: str) -> dict[str, Any]:
+        rows = self.db.query("SELECT * FROM activations WHERE pack = ? ORDER BY seq", (pack,))
+        prev = GENESIS
+        for n, row in enumerate(rows, start=1):
+            if row["prev_hash"] != prev or activation_hash(dict(row), prev) != row["hash"]:
+                return {"ok": False, "activations": len(rows), "activation_broken_at": n}
+            prev = row["hash"]
+        return {"ok": True, "activations": len(rows)}
+
+    # -- served sets (P5) -----------------------------------------------------------------------
+
+    def record_served(self, digest: str, pack: str, refs: list[dict[str, Any]]) -> None:
+        """Keep what a served-set hash stands for (the first time it is seen)."""
+        self.db.execute(
+            "INSERT OR IGNORE INTO served_sets VALUES (?, ?, ?, ?)",
+            (digest, pack, canonical(refs), iso(time.time())),
+        )
+
+    def served_refs(self, digest: str | None) -> list[dict[str, Any]] | None:
+        """The artifact versions a served-set hash stands for, or None when it was never kept."""
+        if not digest:
+            return None
+        row = self.db.one("SELECT refs FROM served_sets WHERE hash = ?", (digest,))
+        return json.loads(row["refs"]) if row else None
 
     # -- generation ----------------------------------------------------------------------------
 
@@ -328,8 +407,10 @@ class ArtifactStore:
 
     # -- releases -------------------------------------------------------------------------------
 
-    @staticmethod
-    def _release(row: Any) -> Release:
+    def _release(self, row: Any) -> Release:
+        gate = self.db.one(
+            "SELECT gate FROM release_gates WHERE release_id = ?", (row["release_id"],)
+        )
         return Release(
             release_id=row["release_id"],
             pack=row["pack"],
@@ -340,6 +421,7 @@ class ArtifactStore:
             prev_hash=row["prev_hash"],
             hash=row["hash"],
             seq=row["seq"],
+            gate=json.loads(gate["gate"]) if gate else None,
         )
 
     def releases(self, pack: str) -> list[Release]:
@@ -357,8 +439,16 @@ class ArtifactStore:
         )
         return self._release(row) if row else None
 
-    def create_release(self, pack: str, *, by: str, note: str | None = None) -> Release:
-        """Snapshot the working set and make it the active release."""
+    def create_release(
+        self,
+        pack: str,
+        *,
+        by: str,
+        note: str | None = None,
+        gate: dict[str, Any] | None = None,
+    ) -> Release:
+        """Snapshot the working set and make it the active release. P5: with the eval gate's
+        result, which the release hash covers."""
         last = self.db.one("SELECT hash, seq FROM releases ORDER BY seq DESC LIMIT 1")
         last_in_pack = self.db.one(
             "SELECT hash FROM releases WHERE pack = ? ORDER BY seq DESC LIMIT 1", (pack,)
@@ -372,6 +462,7 @@ class ArtifactStore:
             "note": note,
             "artifacts": [v.ref() for v in self.working_set(pack)],
             "prev_hash": last_in_pack["hash"] if last_in_pack else GENESIS,
+            "gate": gate,
         }
         digest = release_hash(fields)
         self.db.execute(
@@ -388,17 +479,34 @@ class ArtifactStore:
                 digest,
             ),
         )
+        if gate is not None:
+            self.db.execute(
+                "INSERT OR REPLACE INTO release_gates VALUES (?, ?)",
+                (fields["release_id"], canonical(gate)),
+            )
         self.activate(pack, fields["release_id"], by=by)
         return self.release(fields["release_id"])  # type: ignore[return-value]
 
     def activate(
         self, pack: str, release_id: str, *, by: str, rollback_of: str | None = None
     ) -> None:
-        self.db.execute(
-            "INSERT INTO activations (pack, release_id, at, by, rollback_of)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (pack, release_id, iso(time.time()), by, rollback_of),
-        )
+        row = {
+            "pack": pack,
+            "release_id": release_id,
+            "at": iso(time.time()),
+            "by": by,
+            "rollback_of": rollback_of,
+        }
+        with self.db.transaction() as conn:
+            last = conn.execute(
+                "SELECT hash FROM activations WHERE pack = ? ORDER BY seq DESC LIMIT 1", (pack,)
+            ).fetchone()
+            prev = last["hash"] if last and last["hash"] else GENESIS
+            conn.execute(
+                "INSERT INTO activations (pack, release_id, at, by, rollback_of, prev_hash, hash)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (pack, release_id, row["at"], by, rollback_of, prev, activation_hash(row, prev)),
+            )
         self._bump()
 
     def active_release_id(self, pack: str) -> str | None:
@@ -435,7 +543,10 @@ class ArtifactStore:
                         "artifact": f"{ref['kind']}/{ref['name']}@v{ref['version']}",
                     }
             prev = rel.hash
-        return {"ok": True, "releases": len(rels)}
+        chain = self.verify_activations(pack)
+        if not chain["ok"]:
+            return {"releases": len(rels), **chain}
+        return {"ok": True, "releases": len(rels), "activations": chain["activations"]}
 
     def close(self) -> None:
         self.db.close()

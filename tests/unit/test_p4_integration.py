@@ -23,7 +23,7 @@ def starter(tmp_path: Path, **overrides) -> Harness:
 
 @pytest.mark.anyio
 async def test_tenant_stream_carries_every_ops_event_in_order(tmp_path: Path) -> None:
-    h = starter(tmp_path)
+    h = starter(tmp_path, **{"release.gate.enabled": False})  # the gate: test_p5_gate.py
     async with client(h, "dev") as c, client(h, "other") as o:
         events = await run_turn(h, "What are your support hours?", tenant="dev")
         turn_id = events[0]["turn_id"]

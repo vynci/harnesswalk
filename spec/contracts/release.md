@@ -167,8 +167,9 @@ release:
   recorded as `gate: {status: skipped, reason: forced, forced: true}` and in the audit log
   (`action: release_forced`, the pack and the release id). `harnesswalk release create
   --no-gate` is the same thing from the CLI, under the same mode rule.
-- Every gate outcome emits one `release_gated` ops event (`events.md` section 11): status
-  `done` for passed or skipped, `error` for failed.
+- A gate that ran an eval run, and a forced release, emit one `release_gated` ops event
+  (`events.md` section 11) before the release: status `done` for passed or skipped, `error`
+  for failed. The release's `artifact_released` then carries `summary.gate`.
 - A rollback is not gated: it makes a release active that was gated when it was created.
 
 ### Packs
