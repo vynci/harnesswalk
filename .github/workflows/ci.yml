@@ -106,3 +106,29 @@ jobs:
         # Playwright builds the app, starts `harnesswalk serve --provider fake` on a scratch
         # port and stops it afterwards (playwright.live.config.ts).
         run: pnpm test:e2e:live
+
+  wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Build the sdist and the wheel (the bundle hook on, as in the release)
+        env:
+          HATCH_BUILD_HOOK_ENABLE_CUSTOM: "1"
+        run: |
+          uv build --sdist --out-dir dist
+          uv build --wheel --out-dir dist
+      - name: Install the wheel in a clean venv outside the repo and run it (fake provider)
+        run: uv run --no-project python tools/wheel_smoke.py dist/*.whl
+
+  fresh-clone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # the check bundles the history and clones it inside the container
+      - name: README Quickstart, make test and the web build in a clean python:3.12 container
+        run: tools/fresh_clone_check.sh
