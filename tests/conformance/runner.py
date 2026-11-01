@@ -16,18 +16,30 @@ values from a response and `${name}` to use them anywhere later in the case (`${
 P5: `send.session_id` sends a turn in that session (one made with `POST /v1/sessions`), and
 later turns without one continue it.
 
+P7: the same cases against any HTTP implementation (spec/conformance/README.md, "Running the
+suite against your implementation"). `--command` starts it once per case from a command
+template, so every case runs, restarts included; `--base-url` drives one server that is already
+running in dev mode with the conformance profile, sends each turn's fixture in the request
+body, and skips the cases that need their own server (another mode, config overrides, a
+restart, or server-wide artifact and release state).
+
 No network beyond 127.0.0.1, no Docker, no model. Run the whole suite and print one line per
 case with:
 
     uv run python -m tests.conformance.runner
+    uv run python -m tests.conformance.runner --base-url http://127.0.0.1:8000
+    uv run python -m tests.conformance.runner --command "my-harness serve --port {port}"
 """
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import os
 import re
+import secrets
+import shlex
 import signal
 import socket
 import subprocess
@@ -60,20 +72,64 @@ def case_paths() -> list[Path]:
     return sorted((CONF / "cases").glob("*.yaml"))
 
 
+# Requests to these paths change state the whole server shares (artifacts and releases are not
+# per tenant yet), so a case that makes them needs a server of its own.
+SERVER_WIDE = ("/v1/artifacts", "/v1/releases")
+
+
+@dataclass
+class Target:
+    """Where the cases run. Neither set: the in-process reference harness, one per case.
+
+    `command`: a command template started once per case (spec/conformance/README.md lists the
+    placeholders and variables). `base_url`: one implementation that is already running.
+    `tenant_suffix` is appended to every case's tenant, so reruns against one long-lived
+    server do not see each other's records."""
+
+    base_url: str | None = None
+    command: str | None = None
+    tenant_suffix: str = ""
+
+    @property
+    def remote(self) -> bool:
+        return self.base_url is not None
+
+
 @dataclass
 class CaseResult:
     case_id: str
     problems: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     streams: list[list[dict[str, Any]]] = field(default_factory=list)
+    skipped: str | None = None
 
     @property
     def passed(self) -> bool:
-        return not self.problems
+        return not self.problems and self.skipped is None
 
     def line(self) -> str:
-        head = f"PASS {self.case_id}" if self.passed else f"FAIL {self.case_id} {self.problems[0]}"
+        if self.skipped is not None:
+            head = f"SKIP {self.case_id} {self.skipped}"
+        elif self.passed:
+            head = f"PASS {self.case_id}"
+        else:
+            head = f"FAIL {self.case_id} {self.problems[0]}"
         return head + "".join(f"\n  warning: {w}" for w in self.warnings)
+
+
+def needs_own_server(case: dict[str, Any]) -> str | None:
+    """Why a case cannot run against a shared, already running server, or None."""
+    if case.get("two_process"):
+        return "restarts the harness (use --command)"
+    if case.get("mode", "dev") != "dev":
+        return f"runs in {case['mode']} mode (use --command)"
+    if case.get("config"):
+        return f"overrides {', '.join(sorted(case['config']))} (use --command)"
+    for turn in case["turns"]:
+        for req in turn.get("before", []) + turn.get("after", []):
+            if str(req.get("path", "")).startswith(SERVER_WIDE):
+                return f"changes server-wide state at {req['path']} (use --command)"
+    return None
 
 
 class LiveHarness:
@@ -128,21 +184,58 @@ def _free_port() -> int:
 
 
 class LiveProcess:
-    """The reference harness as its own OS process, for `two_process` cases (P3)."""
+    """The harness as its own OS process: the reference for `two_process` cases (P3), or, with a
+    command template (P7), any implementation, for every case."""
 
-    def __init__(self, case: dict[str, Any], data_dir: Path) -> None:
+    def __init__(self, case: dict[str, Any], data_dir: Path, command: str | None = None) -> None:
         overridable = set(load_yaml(PROFILE)["overridable"])
         extra = set(case.get("config", {})) - overridable
         if extra:
             raise ValueError(f"case overrides keys outside the profile: {sorted(extra)}")
         self.case = case
         self.data_dir = data_dir
+        self.command = command
         self.proc: subprocess.Popen | None = None
         self.base_url = ""
         self.harness = None  # nothing to read unused fixture responses from
 
+    def _external(self, port: int) -> tuple[list[str], dict[str, str]]:
+        """The command template filled in, and the variables it runs with (README, P7)."""
+        config = self.case.get("config", {})
+        fields = {
+            "port": str(port),
+            "data_dir": str(self.data_dir),
+            "fixture": self.case["fixture"],
+            "mode": self.case.get("mode", "dev"),
+            "profile": str(PROFILE),
+            "root": str(ROOT),
+            "python": sys.executable,
+            "config_json": json.dumps(config, sort_keys=True),
+        }
+        quoted = {k: shlex.quote(v) for k, v in fields.items()}
+        quoted["set_args"] = " ".join(
+            shlex.quote(f"--set={key}={json.dumps(value)}") for key, value in config.items()
+        )
+        assert self.command is not None
+        cmd = shlex.split(self.command.format(**quoted))
+        env = dict(os.environ)
+        env.update(
+            HARNESSWALK_MODE=fields["mode"],
+            HARNESSWALK_PROVIDER="fake",
+            HARNESSWALK_FIXTURE=fields["fixture"],
+            HARNESSWALK_PROFILE=fields["profile"],
+            HARNESSWALK_DATA_DIR=fields["data_dir"],
+            HARNESSWALK_PORT=fields["port"],
+            HARNESSWALK_CONFORMANCE_CONFIG=fields["config_json"],
+        )
+        return cmd, env
+
     def start(self) -> None:
         port = _free_port()
+        if self.command:
+            cmd, env = self._external(port)
+            self._spawn(cmd, env, port)
+            return
         cmd = [
             sys.executable,
             "-m",
@@ -169,13 +262,17 @@ class LiveProcess:
             "HARNESSWALK_DATA_DIR": str(self.data_dir),
             "HARNESSWALK_WEB_DIST": str(self.data_dir / "no-web"),
         }
+        self._spawn(cmd, env, port)
+
+    def _spawn(self, cmd: list[str], env: dict[str, str], port: int) -> None:
         log = open(self.data_dir / "server.log", "ab")  # noqa: SIM115 - lives with the process
         self.proc = subprocess.Popen(cmd, env=env, stdout=log, stderr=log, cwd=str(ROOT))
         self.base_url = f"http://127.0.0.1:{port}"
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
             if self.proc.poll() is not None:
-                raise RuntimeError(f"harness process exited {self.proc.returncode}")
+                tail = (self.data_dir / "server.log").read_text(errors="replace")[-400:]
+                raise RuntimeError(f"harness process exited {self.proc.returncode}: {tail}")
             try:
                 if httpx.get(f"{self.base_url}/healthz", timeout=1).status_code == 200:
                     return
@@ -197,6 +294,20 @@ class LiveProcess:
         self.kill()
 
 
+class Remote:
+    """An implementation that is already running at `base_url` (P7, `--base-url`)."""
+
+    def __init__(self, base_url: str) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.harness = None
+
+    def __enter__(self) -> Remote:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+
 class Driver:
     """The live harness and a client for it; a restart swaps both."""
 
@@ -212,7 +323,7 @@ class Driver:
 
     async def restart(self) -> None:
         if not isinstance(self.live, LiveProcess):
-            raise AssertionError("restart needs a two_process case")
+            raise AssertionError("restart needs a two_process case and a process to restart")
         cookies = self.client.cookies
         await self.client.aclose()
         self.live.kill()
@@ -359,12 +470,17 @@ async def request(client: httpx.AsyncClient, req: dict[str, Any], saved: dict[st
         saved[name] = dig(body, dotted)
 
 
-async def _drive(live: Any, case: dict[str, Any], result: CaseResult) -> None:
-    tenant = load_yaml(PROFILE)["tenant_prefix"] + case["id"]
+async def _drive(
+    live: Any, case: dict[str, Any], result: CaseResult, target: Target | None = None
+) -> None:
+    target = target or Target()
+    tenant = load_yaml(PROFILE)["tenant_prefix"] + case["id"] + target.tenant_suffix
     driver = Driver(live, {"X-Harnesswalk-Tenant": tenant})
     try:
         health = (await driver.client.get("/healthz")).json()
-        if health.get("provider") != "fake" or health.get("fixture") != case["fixture"]:
+        # A shared server runs its own start-up fixture; each turn names the case's instead.
+        fixture_ok = target.remote or health.get("fixture") == case["fixture"]
+        if health.get("provider") != "fake" or not fixture_ok:
             result.problems.append(f"healthz: {health}")
             return
         session_id = None
@@ -376,6 +492,8 @@ async def _drive(live: Any, case: dict[str, Any], result: CaseResult) -> None:
             body: dict[str, Any] = {"message": turn["send"]["message"]}
             if turn["send"].get("options"):
                 body["options"] = turn["send"]["options"]
+            if target.remote and "fixture" not in (turn["send"].get("options") or {}):
+                body["fixture"] = case["fixture"]  # http_api.md: a per-turn fixture, dev only
             session_id = turn["send"].get("session_id") or session_id
             if session_id:
                 body["session_id"] = session_id
@@ -411,33 +529,107 @@ async def _drive(live: Any, case: dict[str, Any], result: CaseResult) -> None:
         await driver.aclose()
 
 
-def run_case(path: Path) -> CaseResult:
+def _live(case: dict[str, Any], data_dir: Path, target: Target) -> Any:
+    if target.base_url is not None:
+        return Remote(target.base_url)
+    if target.command:
+        return LiveProcess(case, data_dir, target.command)
+    return LiveProcess(case, data_dir) if case.get("two_process") else LiveHarness(case, data_dir)
+
+
+def run_case(path: Path, target: Target | None = None) -> CaseResult:
+    target = target or Target()
     case = load_yaml(path)
     result = CaseResult(case["id"])
-    live_cls = LiveProcess if case.get("two_process") else LiveHarness
-    with (
-        tempfile.TemporaryDirectory(prefix="harnesswalk-conf-") as tmp,
-        live_cls(case, Path(tmp)) as live,
-    ):
+    if target.remote and (reason := needs_own_server(case)):
+        result.skipped = reason
+        return result
+    with tempfile.TemporaryDirectory(prefix="harnesswalk-conf-") as tmp:
         try:
-            asyncio.run(_drive(live, case, result))
-        except (AssertionError, TimeoutError, RuntimeError) as exc:
+            with _live(case, Path(tmp), target) as live:
+                try:
+                    asyncio.run(_drive(live, case, result, target))
+                except (AssertionError, TimeoutError, RuntimeError, httpx.HTTPError) as exc:
+                    result.problems.append(f"{type(exc).__name__}: {exc}")
+                _unused_warnings(live, result)
+        except RuntimeError as exc:  # the implementation did not start
             result.problems.append(f"{type(exc).__name__}: {exc}")
-        if live.harness is not None:
-            fake = live.harness.providers["fake"]
-            unused = fake.unused()  # type: ignore[attr-defined]
-            if unused:
-                result.warnings.append(f"unused fixture responses: {', '.join(unused)}")
     return result
 
 
-def main() -> int:
-    results = [run_case(p) for p in case_paths()]
+def _unused_warnings(live: Any, result: CaseResult) -> None:
+    """Only the in-process reference can say which fixture responses no call read."""
+    if live.harness is not None:
+        fake = live.harness.providers["fake"]
+        unused = fake.unused()  # type: ignore[attr-defined]
+        if unused:
+            result.warnings.append(f"unused fixture responses: {', '.join(unused)}")
+
+
+def check_remote(base_url: str) -> str | None:
+    """`GET /healthz` of a running implementation: the fake provider and a spec version of the
+    same major as the suite. Returns a problem, or None."""
+    try:
+        r = httpx.get(base_url.rstrip("/") + "/healthz", timeout=5)
+        health = r.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        return f"GET /healthz failed: {exc}"
+    if r.status_code != 200 or health.get("provider") != "fake":
+        return f"GET /healthz must be 200 with provider fake, got {r.status_code} {health}"
+    ours, theirs = str(load_yaml(PROFILE)["spec_version"]), str(health.get("spec_version", ""))
+    if theirs.split(".")[0] != ours.split(".")[0]:
+        return f"the implementation says spec_version {theirs!r}; this suite is spec {ours}"
+    print(f"implementation {health.get('version', '?')} (spec {theirs}) at {base_url}")
+    return None
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(
+        prog="python -m tests.conformance.runner",
+        description="Run spec/conformance/cases against a harness over HTTP.",
+    )
+    where = ap.add_mutually_exclusive_group()
+    where.add_argument(
+        "--base-url", help="an implementation already running in dev mode (one shared server)"
+    )
+    where.add_argument(
+        "--command", help="a command template that starts the implementation once per case"
+    )
+    ap.add_argument("--case", action="append", default=[], help="run only this case id (repeat)")
+    ap.add_argument(
+        "--tenant-suffix",
+        help="appended to each case's tenant (default with --base-url: a random one per run)",
+    )
+    ap.add_argument("--list", action="store_true", help="print the case ids and exit")
+    args = ap.parse_args(argv)
+
+    paths = case_paths()
+    if args.case:
+        known = {p.stem for p in paths}
+        unknown = sorted(set(args.case) - known)
+        if unknown:
+            ap.error(f"no such case: {', '.join(unknown)}")
+        paths = [p for p in paths if p.stem in args.case]
+    if args.list:
+        print("\n".join(p.stem for p in paths))
+        return 0
+    suffix = args.tenant_suffix
+    if suffix is None:
+        suffix = f"-{secrets.token_hex(3)}" if args.base_url else ""
+    target = Target(base_url=args.base_url, command=args.command, tenant_suffix=suffix)
+    if target.base_url is not None and (problem := check_remote(target.base_url)):
+        print(f"FAIL {problem}")
+        return 1
+
+    results = [run_case(p, target) for p in paths]
     for r in results:
         print(r.line())
     passed = sum(r.passed for r in results)
-    print(f"{passed}/{len(results)} cases passed")
-    return 0 if passed == len(results) else 1
+    skipped = sum(r.skipped is not None for r in results)
+    ran = len(results) - skipped
+    tail = f", {skipped} skipped" if skipped else ""
+    print(f"{passed}/{ran} cases passed{tail}")
+    return 0 if passed == ran else 1
 
 
 if __name__ == "__main__":
