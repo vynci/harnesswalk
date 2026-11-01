@@ -1,21 +1,28 @@
 [project]
 name = "harnesswalk"
-version = "0.1.0a1"
+version = "0.1.0"
 description = "Walk through an AI harness, one node at a time: a glass-box agent runtime with a live, steppable systems diagram."
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Vince Elizaga", email = "hello@vynci.dev" }]
+maintainers = [{ name = "Vince Elizaga", email = "hello@vynci.dev" }]
 requires-python = ">=3.12"
-keywords = ["ai", "agents", "harness", "llm", "education", "observability"]
+keywords = ["ai", "agents", "harness", "llm", "education", "observability", "guardrails", "evals"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: FastAPI",
     "Intended Audience :: Developers",
     "Intended Audience :: Education",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Topic :: Education",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
@@ -37,6 +44,13 @@ dev = [
     "ruff>=0.8",
 ]
 
+[project.urls]
+Homepage = "https://harnesswalk.vynci.dev"
+Source = "https://github.com/vynci/harnesswalk"
+Issues = "https://github.com/vynci/harnesswalk/issues"
+Changelog = "https://github.com/vynci/harnesswalk/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/vynci/harnesswalk/tree/main/lessons"
+
 [project.scripts]
 harnesswalk = "harnesswalk.__main__:main"
 
@@ -50,13 +64,35 @@ otel = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.9.0,<0.13"]
-build-backend = "uv_build"
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
 
-[tool.uv.build-backend]
-# The distribution and the import package are both `harnesswalk`.
-module-name = "harnesswalk"
-module-root = ""
+# The wheel is the `harnesswalk` package. An installed harness also needs the repo content it
+# reads (config/, spec/, datasets/, lessons/, its own sources for the code peek and, when built,
+# web/dist): tools/hatch_build.py bundles them under harnesswalk/_bundle/. The hook is off by
+# default so an editable install (uv sync, the Docker image) never loads it; build a wheel with
+# `make dist`, which sets HATCH_BUILD_HOOK_ENABLE_CUSTOM=1.
+[tool.hatch.build.targets.wheel]
+packages = ["harnesswalk"]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "tools/hatch_build.py"
+enable-by-default = false
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/harnesswalk",
+    "/config",
+    "/spec",
+    "/datasets",
+    "/lessons",
+    "/tools/hatch_build.py",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE",
+    "/NOTICE",
+]
+exclude = ["__pycache__", "*.pyc"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
