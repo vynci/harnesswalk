@@ -17,8 +17,12 @@
 # a cross build only emulates the Python stage. The image also carries deploy/docker-compose.yml
 # and deploy/caddy/Caddyfile: the origin takes them out of the image it deploys, so a rollback
 # rolls them back with the code.
+#
+# Base images are pinned by digest (the multi-arch index, resolved 2026-11-01) as well as by
+# tag, so a rebuild of an old commit gets the same bases. To move one: `docker buildx
+# imagetools inspect <image:tag>` and paste the new index digest.
 
-FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS web
+FROM --platform=$BUILDPLATFORM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS web
 ARG PNPM_VERSION=10.33.0
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 WORKDIR /web
@@ -35,7 +39,7 @@ RUN if [ -f package.json ]; then \
         && mkdir -p dist; \
     fi
 
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-bookworm@sha256:e697c81897302a4c4333bade000d98038fbb21eb064f8ee1fd42d02ebcd9d337
 
 ARG GIT_SHA=unknown
 LABEL org.opencontainers.image.title="harnesswalk-api" \
@@ -44,7 +48,7 @@ LABEL org.opencontainers.image.title="harnesswalk-api" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.revision="${GIT_SHA}"
 
-COPY --from=astral/uv:0.12.24 /uv /uvx /bin/
+COPY --from=astral/uv:0.12.24@sha256:3af4716e991d6956a41e573eab705d0ee08500cd829ed30293eb8472f372c65a /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \

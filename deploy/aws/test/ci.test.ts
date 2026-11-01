@@ -18,6 +18,15 @@ describe('HarnesswalkCi', () => {
     expect(policy.rules[0].selection).toMatchObject({ countType: 'imageCountMoreThan', countNumber: 10 });
   });
 
+  it('makes every tag immutable except latest', () => {
+    ci.hasResourceProperties('AWS::ECR::Repository', {
+      ImageTagMutability: 'IMMUTABLE_WITH_EXCLUSION',
+      ImageTagMutabilityExclusionFilters: [
+        { ImageTagMutabilityExclusionFilterType: 'WILDCARD', ImageTagMutabilityExclusionFilterValue: 'latest' },
+      ],
+    });
+  });
+
   it('creates the GitHub OIDC provider natively (no custom resource) by default', () => {
     ci.resourceCountIs('AWS::IAM::OIDCProvider', 1);
     ci.hasResourceProperties('AWS::IAM::OIDCProvider', {

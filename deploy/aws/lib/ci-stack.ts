@@ -36,7 +36,10 @@ export class CiStack extends cdk.Stack {
     this.repository = new ecr.Repository(this, 'ApiRepository', {
       repositoryName: ECR_REPOSITORY,
       imageScanOnPush: true,
-      imageTagMutability: ecr.TagMutability.MUTABLE, // `latest` moves; sha tags never do
+      // A sha tag, once pushed, names that image forever (a rollback gets what was tested);
+      // only `latest` moves.
+      imageTagMutability: ecr.TagMutability.IMMUTABLE_WITH_EXCLUSION,
+      imageTagMutabilityExclusionFilters: [ecr.ImageTagMutabilityExclusionFilter.wildcard('latest')],
       encryption: ecr.RepositoryEncryption.AES_256,
       lifecycleRules: [
         { description: 'Keep the last 10 images', maxImageCount: 10, rulePriority: 1 },
