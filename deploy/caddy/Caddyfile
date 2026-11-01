@@ -9,12 +9,13 @@
 	servers {
 		# Port 443 only admits CloudFront's origin-facing prefix list (security group), and the
 		# site below only answers requests carrying X-Origin-Verify, so the peer is always our
-		# distribution. The viewer's address comes from X-Harnesswalk-Viewer-Ip, which the
-		# distribution's viewer-ip function sets (overwriting any value the viewer sent), then
-		# CloudFront-Viewer-Address (ip:port); never from X-Forwarded-For, whose first hop the
-		# viewer can write.
+		# distribution. The viewer's address comes from X-Harnesswalk-Viewer-Ip only, which the
+		# distribution's viewer-ip function sets (overwriting any value the viewer sent); never
+		# from X-Forwarded-For or CloudFront-Viewer-Address, which the viewer can write and the
+		# origin request policy forwards. Without the header the client is the edge itself, so
+		# a broken function shares one bucket instead of trusting the viewer.
 		trusted_proxies static 0.0.0.0/0 ::/0
-		client_ip_headers X-Harnesswalk-Viewer-Ip CloudFront-Viewer-Address
+		client_ip_headers X-Harnesswalk-Viewer-Ip
 	}
 }
 
@@ -46,9 +47,10 @@
 			reverse_proxy api:8000 {
 				# One hop the API can trust (HARNESSWALK_TRUST_PROXY=1): the viewer address.
 				header_up X-Forwarded-For {client_ip}
-				# The API prefers CloudFront-Viewer-Address over X-Forwarded-For, and a viewer can
-				# send one of its own: drop it, so the hop above is the only address the API sees.
+				# The hop above is the only address the API may see: drop the headers a viewer
+				# can send through the distribution that name another one.
 				header_up -CloudFront-Viewer-Address
+				header_up -X-Harnesswalk-Viewer-Ip
 				header_up -X-Origin-Verify
 				# SSE: write every event as it arrives.
 				flush_interval -1
