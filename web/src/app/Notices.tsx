@@ -17,8 +17,14 @@ export function Notices() {
 
   useEffect(() => {
     for (const n of notices) {
-      if (n.level === 'error') toast.error(<span role="alert">{n.text}</span>, { id: `notice-${n.id}`, duration: 6000 })
-      else toast.info(n.text, { id: `notice-${n.id}`, duration: 6000 })
+      // The details line (an API error's request id) stays selectable, for a bug report.
+      const description = n.detail ? (
+        <span className="font-mono text-xs select-all" data-testid="notice-detail">
+          {n.detail}
+        </span>
+      ) : undefined
+      if (n.level === 'error') toast.error(<span role="alert">{n.text}</span>, { id: `notice-${n.id}`, duration: n.detail ? 10000 : 6000, description })
+      else toast.info(n.text, { id: `notice-${n.id}`, duration: 6000, description })
       dismiss(n.id)
     }
   }, [notices, dismiss])

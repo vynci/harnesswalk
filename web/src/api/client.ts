@@ -63,13 +63,16 @@ export class ApiError extends Error {
   readonly body: unknown
   /** P6: seconds to wait, from a 429's `Retry-After` header (or its body's `retry_after`). */
   readonly retryAfter: number | null
-  constructor(status: number, code: string, message: string, body?: unknown, retryAfter: number | null = null) {
+  /** P6: the response's `X-Request-Id`, so an error report can name the request in the server's logs. */
+  readonly requestId: string | null
+  constructor(status: number, code: string, message: string, body?: unknown, retryAfter: number | null = null, requestId: string | null = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     this.body = body
     this.retryAfter = retryAfter
+    this.requestId = requestId
   }
 }
 
@@ -86,6 +89,12 @@ function retryAfterOf(res: Response, data: unknown): number | null {
   const body = (data as { error?: { retry_after?: unknown }; retry_after?: unknown } | undefined) ?? {}
   const value = body.error?.retry_after ?? body.retry_after
   return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+/** The server's request id (a plain token, every response since P6), or null. */
+export function requestIdOf(res: Response): string | null {
+  const id = res.headers?.get?.('X-Request-Id')?.trim()
+  return id && /^[A-Za-z0-9._:-]{1,128}$/.test(id) ? id : null
 }
 
 export function browserTransport(baseUrl = ''): Transport {
@@ -153,7 +162,7 @@ export function createApi(t: Transport) {
     }
     if (!res.ok) {
       const err = (data as ApiErrorBody | undefined)?.error
-      throw new ApiError(res.status, err?.code ?? `http_${res.status}`, err?.message ?? res.statusText, data, res.status === 429 ? retryAfterOf(res, data) : null)
+      throw new ApiError(res.status, err?.code ?? `http_${res.status}`, err?.message ?? res.statusText, data, res.status === 429 ? retryAfterOf(res, data) : null, requestIdOf(res))
     }
     return data as T
   }

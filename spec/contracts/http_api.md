@@ -1041,15 +1041,37 @@ server built from `public.models`.
 - BYO key: `X-Harnesswalk-Provider-Key: <key>` (the P3 header), or `X-Harnesswalk-Api-Key`
   (the P6 contract's spelling); the first present wins. It reaches only the routed model's
   provider for that request, is never persisted, never in events, traces, audit rows, logs or
-  error messages, and BYO-paid calls never charge the shared ledger.
+  error messages, and BYO-paid calls never charge the shared ledger. The waiver is per call
+  (P6 review): a call is BYO-paid only when it is sent with the key (the turn's internal calls,
+  compaction and the injection classifier, use it too); any other priced call is gated by the
+  budget, so a header that is not a usable key waives nothing.
+- Running site-paid turns on a priced alias (P6 review): at most
+  `public.max_running_hosted_turns` (default 10) at once on the server and
+  `public.max_running_hosted_turns_per_ip` (default 2) per client; the next one is
+  `429 rate_limited` with `retry_after: 10`, `limit: "running_turns"` and `Retry-After`. BYO-key
+  turns and turns on an unpriced alias are not counted.
+- Reservations (P6 review): before a priced site-paid call the model layer reserves its worst
+  case (the input estimate plus `max_output_tokens` at the alias price) on the ledger and settles
+  the real amount after; a reservation is refused once today's spend plus the open reservations
+  reach the limit, and the call falls through like a spent budget (same notice). The day
+  overshoots by at most one call's worst case however many turns run at once.
+- A public turn is cancelled (exit `cancelled`) once it has existed for `public.max_turn_wall_s`
+  (default 600) seconds of wall-clock time, paused time included (P6 review), so a step-mode
+  turn cannot hold its session and stream forever.
 - `max_steps`, `budget_tokens`, `budget_usd`, `timeout_s` and `stuck_repeats`, at the top level
   or in `options`, are `400 invalid_request "<key> cannot be changed in public mode"`.
 - Rate limits (per IP from `gateway.rate_limit.per_ip_per_hour`, per tenant from
   `per_tenant_per_hour`): `429 {"error": {"code": "rate_limited", "message", "retry_after"}}`
   with `Retry-After` in seconds (until the oldest request of the window leaves it). The IP is
-  the peer address, or with `gateway.trust_proxy` the proxy's view: `CloudFront-Viewer-Address`
-  when present, else the first `X-Forwarded-For` hop. The table holds at most
-  `public.rate_limit_max_keys` keys; the least recently used goes first.
+  the peer address, or with `gateway.trust_proxy` `X-Harnesswalk-Viewer-Ip` (the CloudFront
+  viewer-ip function overwrites it), else the first `X-Forwarded-For` hop (Caddy writes a single
+  one); never `CloudFront-Viewer-Address`, which a viewer can send through the distribution
+  (P6 review). IPv6 addresses count by their /64. The table
+  holds at most `public.rate_limit_max_keys` keys; the least recently used goes first.
+- New tenants and sessions (P6 review): every anonymous tenant minted (any route, a request
+  without a valid cookie) and every `POST /v1/sessions` counts in the client's hourly creation
+  bucket, `public.creations_per_ip_per_hour` (default 60); past it the request is
+  `429 rate_limited` with `Retry-After`.
 - Mid-turn exhaustion: when the ledger crosses the line between two calls of a turn, the next
   call falls through to `fake-small` (the next alias of the rule), its `model_layer` exit
   summary carries `notice: budget_exhausted` and `downgraded_from: <alias>`, the `loop` exit
@@ -1061,7 +1083,13 @@ server built from `public.models`.
 
 At most `gateway.max_open_streams` (default 50) SSE streams are open at once across
 `GET /v1/turns/{id}/events`, `GET /v1/evals/runs/{id}/events` and `GET /v1/events`; the next
-one is `429 rate_limited` with `retry_after: 5`. A slot comes back when its stream ends.
+one is `429 rate_limited` with `retry_after: 5` and `limit: "streams"`. A slot comes back when
+its stream ends. In public mode (P6 review) a slot also counts against the client
+(`public.max_streams_per_ip`, default 4, IPv6 by /64) and the tenant
+(`public.max_streams_per_tenant`, default 4), both checked before the server-wide cap;
+`GET /v1/events` draws on its own pool of `public.max_ops_streams` (default 20) so it never
+starves the turn streams; and a stream ends after `public.max_stream_s` (default 600) seconds
+(the browser's EventSource reconnects from its cursor).
 
 ### `GET /readyz`
 

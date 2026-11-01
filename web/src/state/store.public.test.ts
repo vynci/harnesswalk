@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { ApiError, PROVIDER_KEY_HEADER } from '@/api/client'
 import { MockServer, type MockPublicOptions } from '@/mock/server'
-import { turnRefusal, useApp, waitText } from './store'
+import { noticeDetail, turnRefusal, useApp, waitText } from './store'
 
 // P6 public mode against the in-browser mock: the turn names the picked model, a key of the
 // reader's own rides along as a header and nowhere else, and the refusals come back as words.
@@ -76,11 +76,54 @@ describe('store: public mode', () => {
     expect(useApp.getState().order).toHaveLength(0)
   })
 
+  it('an API error toast carries the request id in its details', async () => {
+    await boot({ remaining: 0 })
+    await useApp.getState().send('Hello?')
+    expect(useApp.getState().notices.at(-1)?.detail).toMatch(/^Request ID req_mock\d{4}$/)
+    expect(noticeDetail(new ApiError(500, 'internal', 'boom', undefined, null, 'req_0123abcd'))).toBe('Request ID req_0123abcd')
+    expect(noticeDetail(new Error('boom'))).toBeUndefined()
+    expect(noticeDetail(new ApiError(500, 'internal', 'boom'))).toBeUndefined()
+  })
+
+  it('a turn that fell through to the fake model keeps the notice for the reply', async () => {
+    await boot({ budget: 'midturn' })
+    await useApp.getState().send('What are your support hours?')
+    await until(() => useApp.getState().turns[useApp.getState().liveTurnId!]?.state?.phase === 'done')
+    const state = useApp.getState().turns[useApp.getState().liveTurnId!]!.state!
+    expect(state.notices).toEqual([{ reason: 'budget_exhausted', message: expect.stringContaining('ran on the fake model') }])
+    // The fake model itself is never budget-gated: no notice.
+    useApp.getState().setPublicModel('fake-small')
+    await useApp.getState().send('And on weekends?')
+    await until(() => useApp.getState().order.length === 2 && useApp.getState().turns[useApp.getState().liveTurnId!]?.state?.phase === 'done')
+    expect(useApp.getState().turns[useApp.getState().liveTurnId!]!.state!.notices).toEqual([])
+  })
+
+  it('a session the API no longer knows (404 session_not_found) starts a fresh one and sends the message there', async () => {
+    const { server, sent } = await boot({ ttlS: 7200 })
+    await useApp.getState().send('Hello?')
+    await until(() => useApp.getState().turns[useApp.getState().liveTurnId!]?.state?.phase === 'done')
+    const before = useApp.getState().sessionId!
+    // The sandbox ends on the server before this tab noticed (a sleeping laptop, say).
+    ;(server as unknown as { sandbox: { startedAt: number } }).sandbox.startedAt -= 7300 * 1000
+    await useApp.getState().send('Still there?')
+    expect(sent.map((r) => r.body.session_id)).toEqual([before, before, expect.stringMatching(/^sess_/)])
+    expect(sent[2]!.body.session_id).not.toBe(before)
+    const s = useApp.getState()
+    expect(s.sessionId).toBe(sent[2]!.body.session_id)
+    expect(s.order).toHaveLength(1)
+    expect(s.turns[s.order[0]!]!.userText).toBe('Still there?')
+    expect(s.notices.map((n) => n.text)).toContain('That session has ended and its data was deleted, so this message starts a fresh one.')
+    expect(s.notices.some((n) => n.level === 'error')).toBe(false)
+  })
+
   it('words the refusals', () => {
     expect(turnRefusal(new ApiError(409, 'budget_exhausted', 'spent', { error: { code: 'budget_exhausted', resets_at: '2026-11-02T00:00:00Z' } }))).toBe(
       "Today's shared budget for Claude models is spent. It resets at 00:00 UTC. Bring your own key or use the fake model.",
     )
     expect(turnRefusal(new ApiError(429, 'rate_limited', 'slow down', undefined, 40))).toContain('Try again in 40 s.')
+    expect(turnRefusal(new ApiError(429, 'rate_limited', 'busy', { error: { code: 'rate_limited', limit: 'running_turns' } }, 10))).toBe(
+      'Too many Claude turns are running right now. Try again in 10 s, or use the fake model.',
+    )
     expect(waitText(null)).toBe('a little while')
     expect(waitText(3600)).toBe('1 h')
   })

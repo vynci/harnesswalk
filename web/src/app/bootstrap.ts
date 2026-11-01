@@ -6,6 +6,11 @@ import { useApp } from '@/state/store'
 
 export const MOCK = import.meta.env.VITE_HARNESSWALK_MOCK === '1'
 
+/** The mock's `&budget=` knob: `spent`, `midturn`, or the default (only Sonnet is out). */
+function budgetParam(value: string | null): 'ok' | 'spent' | 'midturn' {
+  return value === 'spent' || value === 'midturn' ? value : 'ok'
+}
+
 export async function bootstrap(): Promise<void> {
   let transport: Transport
   let seedMessages: Record<string, string> | undefined
@@ -15,12 +20,14 @@ export async function bootstrap(): Promise<void> {
     const params = new URLSearchParams(globalThis.location?.search ?? '')
     const stepMs = Number(params.get('mockStepMs') ?? import.meta.env.VITE_HARNESSWALK_MOCK_STEP_MS ?? 140)
     // P6: `?mode=public` serves the public site's capabilities (one Claude model out of budget;
-    // `&budget=spent` for both), with `&mockRemaining=` requests left and `&mockTtl=` seconds.
+    // `&budget=spent` for both, `&budget=midturn` for a Claude turn that falls through to the
+    // fake model; `&unhealthy=1` marks Sonnet's provider down), with `&mockRemaining=` requests
+    // left and `&mockTtl=` seconds.
     const isPublic = params.get('mode') === 'public'
     const num = (k: string) => (params.get(k) !== null && Number.isFinite(Number(params.get(k))) ? Number(params.get(k)) : undefined)
     const server = new MockServer({
       stepMs: Number.isFinite(stepMs) ? stepMs : 140,
-      ...(isPublic ? { seed: false, public: { budget: params.get('budget') === 'spent' ? 'spent' : 'ok', remaining: num('mockRemaining'), ttlS: num('mockTtl') } } : {}),
+      ...(isPublic ? { seed: false, public: { budget: budgetParam(params.get('budget')), unhealthy: params.get('unhealthy') === '1', remaining: num('mockRemaining'), ttlS: num('mockTtl') } } : {}),
     })
     transport = server.transport()
     // A public visitor is a fresh anonymous tenant: no seeded history.

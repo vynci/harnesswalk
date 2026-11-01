@@ -9,6 +9,12 @@ One row per UTC date (`spent_usd`, `calls`, `updated_at`) in `budgets.db`, next 
 per-tenant ledger (control/budgets.py), so it survives restarts and redeploys with the data
 volume. The clock is injectable for tests. Public mode never exposes the dollars: capabilities
 carry `spent_fraction` and `resets_at` only; `GET /v1/ops/budget` (dev mode) shows the row.
+
+Concurrent turns (P6 review): in public mode a priced call first `reserve()`s its worst case (the
+input estimate plus `max_output_tokens` at the alias price) and `settle()`s the real amount after.
+A reservation is refused while today's spend plus the open reservations has reached the limit,
+so however many turns run at once the day overshoots by at most one call's worst case. The
+holds live in this process (one API process per box); a restart drops them with the calls.
 """
 
 from __future__ import annotations
@@ -50,6 +56,8 @@ class HostedBudget:
         self.db = db
         self._limit = limit_usd  # read on every check, so a reload or an env override applies
         self.clock = clock
+        self._held: dict[int, float] = {}  # reservation -> worst-case dollars of a call in flight
+        self._next_hold = 0
         db.executescript(SCHEMA)
 
     @property
@@ -84,6 +92,36 @@ class HostedBudget:
             return self.spent() < self.limit_usd
         except Exception:
             return False
+
+    def held_usd(self) -> float:
+        """Dollars reserved by priced calls in flight."""
+        return sum(self._held.values())
+
+    def reserve(self, usd: float) -> int | None:
+        """Hold a priced call's worst case before it is sent; None when the day is committed.
+
+        Synchronous on purpose: on the event loop nothing runs between the check and the hold,
+        so two turns cannot both see the last dollars free. Fails closed like `ok()`."""
+        try:
+            committed = self.spent() + self.held_usd()
+        except Exception:
+            return None
+        if committed >= self.limit_usd:
+            return None
+        self._next_hold += 1
+        self._held[self._next_hold] = max(0.0, float(usd))
+        return self._next_hold
+
+    def settle(self, hold: int | None, usd: float) -> None:
+        """The call answered: drop its hold and charge what it really cost."""
+        if hold is not None:
+            self._held.pop(hold, None)
+        self.charge(usd)
+
+    def release(self, hold: int | None) -> None:
+        """The call failed or was cancelled before it cost anything: drop its hold."""
+        if hold is not None:
+            self._held.pop(hold, None)
 
     def charge(self, usd: float) -> None:
         """Add one priced call's dollars to today's row."""

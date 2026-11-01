@@ -106,3 +106,26 @@ test('private-only controls stay visible and disabled with their reason; read-on
   await expect(inspector.getByTestId('release-create')).toHaveAttribute('aria-disabled', 'true')
   await expect(inspector.getByText('r1').first()).toBeVisible()
 })
+
+test('a session the server no longer knows for this browser (a new tenant cookie) gets a fresh one', async ({ page }) => {
+  await open(page)
+  await send(page, 'Show me my orders as a table.')
+  await expect(status(page)).toHaveAttribute('data-phase', 'done')
+  const first = await page.getByTestId('chat-turn').last().getAttribute('data-turn-id')
+  // The anonymous tenant cookie is gone (it expired, or the browser dropped it): the next request
+  // is a new tenant, and the stored session belongs to the old one, so the API answers 404.
+  await page.context().clearCookies()
+  const refused = page.waitForResponse((r) => r.url().endsWith('/v1/turns') && r.request().method() === 'POST' && r.status() === 404)
+  const accepted = page.waitForResponse((r) => r.url().endsWith('/v1/turns') && r.request().method() === 'POST' && r.status() === 202)
+  await send(page, 'Show me my orders as a table.')
+  const notFound = await refused
+  expect(((await notFound.json()) as { error: { code: string } }).error.code).toBe('session_not_found')
+  expect(notFound.headers()['x-request-id']).toMatch(/\S/)
+  const ok = (await (await accepted).json()) as { session_id: string }
+  expect(ok.session_id).not.toBe(JSON.parse(notFound.request().postData() ?? '{}').session_id)
+  await expect(page.getByText('That session has ended and its data was deleted, so this message starts a fresh one.')).toBeVisible()
+  // The chat starts over with the message that was sent, and the turn runs to the end.
+  await expect(page.getByTestId('chat-turn')).toHaveCount(1)
+  await expect(page.getByTestId('chat-turn').last()).not.toHaveAttribute('data-turn-id', first!)
+  await expect(status(page)).toHaveAttribute('data-phase', 'done')
+})

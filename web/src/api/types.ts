@@ -188,8 +188,17 @@ export interface Capabilities {
   public?: PublicInfo
 }
 
-/** Why a model cannot be picked: the shared budget is spent, or no key reaches its provider. */
-export type ModelUnavailableReason = 'budget_exhausted' | 'provider_unconfigured'
+/**
+ * Why a model cannot be picked: the shared budget is spent, no key reaches its provider, or the
+ * provider is marked down (its health probe or a recent failure; p6-public added it).
+ */
+export type ModelUnavailableReason = 'budget_exhausted' | 'provider_unconfigured' | 'provider_unhealthy'
+
+/** P6: a notice the walk raised for the reply (`turn_end.summary.notices`), such as a fall-through to the fake model. */
+export interface TurnNotice {
+  reason: string
+  message: string
+}
 
 /** One entry of `capabilities.public.models`: what the composer's model picker lists. */
 export interface PublicModel {
@@ -250,6 +259,8 @@ export interface TurnSummary {
   pack?: string | null
   /** P5: the latest diagnosis of this turn, or null. */
   diagnosis?: Diagnosis | null
+  /** P6: the reply's notices, when the API returns them with the summary (the stream always has them). */
+  notices?: TurnNotice[]
 }
 
 export type FeedbackRating = 'good' | 'bad'

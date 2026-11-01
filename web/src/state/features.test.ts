@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Capabilities, PublicInfo } from '@/api/types'
-import { effectiveModel, featureState, modelReasonText, pickerModels, PRIVATE_ONLY, resetTime } from './features'
+import { effectiveModel, featureState, modelReasonShort, modelReasonText, pickerModels, PRIVATE_ONLY, resetTime } from './features'
 
 const PUBLIC: PublicInfo = {
   session_expires_at: '2026-11-01T18:04:11Z',
@@ -78,6 +78,18 @@ describe('the public model picker', () => {
     const unconfigured: PublicInfo = { ...PUBLIC, models: [{ ...PUBLIC.models[0]!, available: false, reason: 'provider_unconfigured' }] }
     expect(pickerModels(caps('public', {}, unconfigured), null)[0]!.reasonText).toBe('No key is configured for this model. Bring your own key.')
     expect(pickerModels(caps('public', {}, unconfigured), 'k')[0]!.available).toBe(true)
+  })
+
+  it('a provider marked down stays unavailable with its own reason, key or not', () => {
+    const down: PublicInfo = { ...PUBLIC, models: PUBLIC.models.map((m) => (m.alias === 'hosted-sonnet' ? { ...m, available: false, reason: 'provider_unhealthy' as const } : m)) }
+    for (const key of [null, 'sk-ant-test']) {
+      const sonnet = pickerModels(caps('public', {}, down), key).find((m) => m.alias === 'hosted-sonnet')!
+      expect(sonnet.available).toBe(false)
+      expect(sonnet.reason).toBe('provider_unhealthy')
+      expect(sonnet.reasonText).toBe("This model's provider is not answering right now. Try again in a minute or use another model.")
+    }
+    expect(modelReasonShort('provider_unhealthy')).toBe('Not answering')
+    expect(effectiveModel(pickerModels(caps('public', {}, down), null), 'hosted-sonnet')?.alias).toBe('hosted-haiku')
   })
 
   it('is empty for an API without capabilities.public (before P6), so turns name no model', () => {

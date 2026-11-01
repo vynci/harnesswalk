@@ -7,6 +7,7 @@ import type {
   HarnessEvent,
   Summary,
   TurnExit,
+  TurnNotice,
 } from '@/api/types'
 
 export type NodeState = 'idle' | EventStatus
@@ -84,6 +85,8 @@ export interface TurnState {
   startedAt: string | null
   endedAt: string | null
   durationMs: number | null
+  /** P6: what the walk noted for the reply (`turn_end.summary.notices`), such as a budget fall-through. */
+  notices: TurnNotice[]
 }
 
 export const ZERO_COST: Cost = { input_tokens: 0, output_tokens: 0, usd: 0 }
@@ -114,7 +117,21 @@ export function initialTurnState(): TurnState {
     startedAt: null,
     endedAt: null,
     durationMs: null,
+    notices: [],
   }
+}
+
+/** `turn_end.summary.notices` as the UI keeps them: well-formed entries only, one per reason. */
+export function turnNotices(value: unknown): TurnNotice[] {
+  if (!Array.isArray(value)) return []
+  const out: TurnNotice[] = []
+  for (const n of value) {
+    if (!n || typeof n !== 'object') continue
+    const { reason, message } = n as Record<string, unknown>
+    if (typeof reason !== 'string' || !reason || out.some((o) => o.reason === reason)) continue
+    out.push({ reason, message: typeof message === 'string' ? message : '' })
+  }
+  return out
 }
 
 /** Lookup of diagram edges by endpoints, used to infer edges from consecutive nodes. */
@@ -333,6 +350,7 @@ export function reduceEvent(prev: TurnState, ev: HarnessEvent, edgeIndex?: EdgeI
       s.steps = typeof summary.steps === 'number' ? summary.steps : null
       const reply = str(summary.reply)
       if (reply !== undefined) s.reply = reply
+      s.notices = turnNotices(summary.notices)
       if (ev.cost) {
         s.cost = ev.cost
         s.costIsTotal = true
