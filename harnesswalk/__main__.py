@@ -17,6 +17,7 @@ harnesswalk release list|create|rollback <id>|diff <id> [--pack ID]
                                           the versioned artifacts and their releases
 harnesswalk release create --no-gate      skip the eval gate (dev mode only, audited)
 harnesswalk serve --takeover              take over a data directory another serve holds
+harnesswalk sweep [--now <RFC 3339>]      delete every expired public tenant's rows (P6)
 """
 
 from __future__ import annotations
@@ -357,6 +358,7 @@ def _serve(args: argparse.Namespace) -> int:
     from harnesswalk.control.http_api import create_app
     from harnesswalk.ops.lease import Lease, LeaseHeld
     from harnesswalk.runtime import Harness
+    from harnesswalk.types import ConfigError
 
     settings = _settings(args)
     lease = Lease(
@@ -375,13 +377,51 @@ def _serve(args: argparse.Namespace) -> int:
         print(f"took over {lease.path} from pid {previous.get('pid')}")
     try:
         harness = Harness(settings)
+        try:
+            app = create_app(harness)
+        except ConfigError as exc:  # public mode without HARNESSWALK_SECRET, for one
+            print(f"harnesswalk serve: {exc}", file=sys.stderr)
+            return 2
         print(
             f"harnesswalk {__version__} (spec {SPEC_VERSION}), mode {harness.settings.mode}, "
             f"provider {harness.provider_name}"
         )
-        uvicorn.run(create_app(harness), host=args.host, port=args.port, log_level=args.log_level)
+        options: dict[str, Any] = {}
+        if harness.settings.get("logging.format", "text") == "json":
+            # Keep the JSON handler create_app installed; the request line replaces the access
+            # log (ops/logs.py).
+            options = {"log_config": None, "access_log": False}
+        uvicorn.run(app, host=args.host, port=args.port, log_level=args.log_level, **options)
     finally:
         lease.release()
+    return 0
+
+
+def _sweep(args: argparse.Namespace) -> int:
+    """One TTL sweep over the data directory (the server also runs it in public mode)."""
+    from harnesswalk.events import parse_iso
+    from harnesswalk.runtime import Harness
+
+    now = None
+    if args.now:
+        try:
+            now = parse_iso(args.now)
+        except ValueError:
+            print(f"harnesswalk sweep: --now {args.now!r} is not an RFC 3339 time", file=sys.stderr)
+            return 2
+    harness = Harness(_settings(args, **{"stores.ingest_on_start": False}))
+    try:
+        done = harness.sweeper.sweep(now)
+    finally:
+        asyncio.run(harness.aclose())
+    if args.json:
+        print(json.dumps(done, indent=2))
+        return 0
+    print(f"swept {len(done['tenants'])} expired tenant(s)")
+    for tenant in done["tenants"]:
+        print(f"  {tenant}")
+    for key, n in sorted(done["rows"].items()):
+        print(f"  {key}: {n}")
     return 0
 
 
@@ -592,6 +632,11 @@ def build_parser() -> argparse.ArgumentParser:
     turn.add_argument("--cancel-after", metavar="NODE_ID", help="cancel when this node is entered")
     turn.add_argument("--model", help="a model alias hint for the router (dev mode)")
 
+    sw = sub.add_parser("sweep", help="delete every expired public tenant's rows")
+    common(sw)
+    sw.add_argument("--now", help="sweep as if it were this RFC 3339 time (tests, drills)")
+    sw.add_argument("--json", action="store_true", help="print the result as JSON")
+
     events = sub.add_parser("events", help="dump a stored turn as JSON Lines")
     events.add_argument("turn_id")
     events.add_argument("--tenant", default="dev")
@@ -634,6 +679,8 @@ def main(argv: list[str] | None = None) -> int:
         return _release(args)
     if args.command == "packs":
         return _packs(args)
+    if args.command == "sweep":
+        return _sweep(args)
     build_parser().print_help()
     return 0
 

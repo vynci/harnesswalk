@@ -556,6 +556,18 @@ class Gateway:
         with contextlib.suppress(Exception):  # online judging never affects the turn
             self.h.evals.online.after_turn(state)
 
+    def running_tenants(self) -> set[str]:
+        """Tenants with a turn running or paused here: the TTL sweeper leaves them for later."""
+        return {s.ctx.tenant_id for s in self.turns.values() if not s.done.is_set()}
+
+    def forget_tenant(self, tenant_id: str) -> None:
+        """Drop what this process keeps in memory for a deleted tenant (P6 sweeper)."""
+        for turn_id, state in list(self.turns.items()):
+            if state.ctx.tenant_id == tenant_id and state.done.is_set():
+                self.turns.pop(turn_id, None)
+                self._finished.pop(turn_id, None)
+        self.rate.forget(f"tenant:{tenant_id}")
+
     def running_turns(self) -> list[str]:
         """Turn ids this process is running (or holding paused), for the release lock."""
         return [t for t, s in self.turns.items() if not s.done.is_set()]

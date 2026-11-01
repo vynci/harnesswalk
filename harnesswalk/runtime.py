@@ -79,6 +79,7 @@ from harnesswalk.ops.eval import Evals
 from harnesswalk.ops.ops_events import OpsEvents
 from harnesswalk.ops.otel import build_exporter
 from harnesswalk.ops.release import ReleaseManager
+from harnesswalk.ops.sweep import Sweeper
 from harnesswalk.ops.trace import Tracer
 from harnesswalk.types import ConfigError, Message, TurnContext
 
@@ -367,6 +368,7 @@ class Harness(PackParts):
         self.otel = build_exporter(s, self.bus, self.ops)
         self._background: list[asyncio.Task] = []
         self.gateway = Gateway(self)
+        self.sweeper = Sweeper(self)  # P6: deletes expired public tenants (ops/sweep.py)
         self._turn_providers: dict[str, ModelProvider] = {}  # built on demand for a turn
         self._turn_fakes: dict[tuple[str, str], FakeProvider] = {}  # (pack, fixture) -> provider
         self._startup_fake: FakeProvider | None = None  # `provider: fake` on another server
@@ -444,6 +446,21 @@ class Harness(PackParts):
 
         self._background.append(asyncio.create_task(sweeper()))
         self._background.append(asyncio.create_task(self.provider_health.run()))
+        ttl_sweep_s = float(self.settings.get("public.sweep_interval_s", 0) or 0)
+        if self.settings.mode == "public" and ttl_sweep_s > 0:
+
+            async def ttl_sweeper() -> None:
+                while True:
+                    await asyncio.sleep(ttl_sweep_s)
+                    try:
+                        done = self.sweeper.sweep()
+                    except Exception as exc:  # a failed pass is retried on the next one
+                        log.warning("TTL sweep failed: %s", type(exc).__name__)
+                        continue
+                    if done["tenants"]:
+                        log.info("TTL sweep deleted %d expired tenant(s)", len(done["tenants"]))
+
+            self._background.append(asyncio.create_task(ttl_sweeper()))
         return recovered
 
     def _build_memory_stores(self) -> None:
