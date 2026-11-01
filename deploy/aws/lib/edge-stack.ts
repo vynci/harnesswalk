@@ -99,7 +99,10 @@ export class EdgeStack extends cdk.Stack {
       minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
       httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
-      enableIpv6: true,
+      // IPv4 only for v1: the API's per-IP rate limit and turn caps key on the address, and an
+      // IPv6 viewer can rotate through a /64 at will. Turn it back on (and add the AAAA record)
+      // once the API buckets IPv6 by /64 (deploy/README.md, IPv6).
+      enableIpv6: false,
       defaultRootObject: 'index.html',
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(this.bucket),
