@@ -56,8 +56,8 @@ make setup && make web-build && make run PROVIDER=fake
 ```
 
 Open http://127.0.0.1:8000, pick a fixture in the Fixture select of the message box (try
-`trailhead_return`), and send a message. The request walks the diagram node by node; click any node to see its code, config and
-events.
+`trailhead_return`), and send a message. The request walks the diagram node by node; click any
+node to see its code, config and events.
 
 Other ways to run it:
 
