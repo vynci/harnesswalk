@@ -39,9 +39,9 @@ does not exist yet and the node is served with `implemented: false`.
 | `ops` | `eval/__init__.py` | `eval` | `evaluator.md` | implemented (P4: golden runs, judge, online scores, feedback) |
 | `ops` | `eval/online.py` | `online_eval` | `evaluator.md` | implemented (sampled judge, thumbs and notes) |
 | `ops` | `eval/offline.py` | `offline_eval` | `evaluator.md` | implemented (golden runs, scorers, diff against the previous run) |
-| `ops` | `eval/diagnose.py` | `diagnose` | `evaluator.md` | not registered (later) |
-| `ops` | `release.py` | `release` | `release.md` | implemented (P4: served set, edits, releases, rollback, reload) |
-| `ops` | `artifacts.py` | `artifacts` | `release.md` | implemented (versions and the release hash chain in `data/releases.db`) |
+| `ops` | `eval/diagnose.py` | `diagnose` | `evaluator.md` | implemented (P5: a failed case or a bad turn mapped to the layer at fault from the trace; automatic on regression) |
+| `ops` | `release.py` | `release` | `release.md` | implemented (P4: served set, edits, releases, rollback, reload; P5: the eval gate on release) |
+| `ops` | `artifacts.py` | `artifacts` | `release.md` | implemented (versions, the release and activation hash chains and the served-set index in `data/releases.db`) |
 
 Modules that are not nodes:
 
@@ -51,7 +51,7 @@ Modules that are not nodes:
 | (root) | `nodes.py` | The node registry and `node()`, the span every component runs inside |
 | (root) | `diagram.py` | Loads `spec/diagram/diagram.json`, the only source of node and edge ids |
 | (root) | `types.py` | Shared records from `spec/contracts/README.md` |
-| (root) | `runtime.py` | Builds every component from the settings and wires them together |
+| (root) | `runtime.py` | Builds every component from the settings and wires them together; P5: a `PackRuntime` per dataset pack a session picks |
 | (root) | `inspectors.py` | What `GET /v1/nodes/{id}` shows per node kind, and the code peek of `GET /v1/nodes/{id}/source` |
 | (root) | `turns.py` | Turn summaries read off the stored events: `GET /v1/turns/{id}` and `GET /v1/sessions/{id}/turns` |
 | (root) | `paths.py` | Where `config/`, `spec/` and `datasets/` live (`HARNESSWALK_ROOT`) |
@@ -76,6 +76,7 @@ Modules that are not nodes:
 | `ops` | `ops_events.py` | P4 ops event streams: events outside turns (eval progress, feedback, releases), and the tenant tail behind `GET /v1/events` |
 | `ops` | `otel.py` | P4 OpenTelemetry mapping and OTLP export (optional extra `otel`) |
 | `ops` | `lease.py` | P4 `data/owner.lock`: one `serve` per data directory, `--takeover` |
+| `ops` | `pack_index.py` | P5 pack discovery for `GET /v1/packs`, sessions and runs (`packs.roots`, `pack.yaml` or `system_prompt.md`) |
 | `ops` | `eval/golden.py`, `eval/scorers.py`, `eval/judge.py`, `eval/store.py` | P4 golden sets, deterministic scorers, the judge, `data/evals.db` |
 | `adapters` | `storage/sqlite.py` | The SQLite helper behind the trace, session, audit and approval stores |
 | `adapters` | `storage/vectors.py` | Vector indexes: `sqlite` (brute-force cosine) and `pgvector`, chosen by `storage.vectors` |

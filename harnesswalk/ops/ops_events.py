@@ -43,6 +43,8 @@ OPS_TYPES = frozenset(
         "feedback_recorded",
         "artifact_changed",
         "artifact_released",
+        "release_gated",  # P5
+        "diagnose_finished",  # P5
     }
 )
 OPS_STREAM = "ops"

@@ -328,8 +328,12 @@ Additive. Every event above keeps its shape.
 
 | Type | Stream | `node_id` | `status` | Summary |
 |---|---|---|---|---|
-| `release_gated` | `ops` | `release` | `done` when the gate passed or was skipped, `error` when it failed | `pack` (required), `gate` (required: `passed`, `failed` or `skipped`), `run_ids`, `pass_rate`, `min_pass_rate`, `suite`, `failed_cases` (at most 20 ids), `forced`, `reason`, `release_id` (when a release was created) |
+| `release_gated` | `ops` | `release` | `done` when the gate passed or was skipped, `error` when it failed | `pack` (required), `gate` (required: `passed`, `failed` or `skipped`), `run_ids`, `pass_rate`, `min_pass_rate`, `suite`, `failed_cases` (at most 20 ids), `forced`, `reason` |
 | `diagnose_finished` | `ops` | `diagnose` | `done` | `layer` (required: `retrieval`, `prompt_or_skill`, `tool`, `model`, `guardrail`, `budget`, `unknown`), `diagnosis_id`, `case_id`, `run_id`, `target` (`case` or `turn`), `evidence_count`, `suggestion` (at most 200 characters), `automatic` (true when a regression triggered it) |
+
+`release_gated` is emitted when the gate ran an eval run or a release was forced, before the
+release's `artifact_released`, whose summary then carries `gate` (`passed` or `skipped`, the
+P0 key). A gate that is off, or a pack it does not cover, emits nothing.
 
 `diagnose_finished` carries `turn_id` and `session_id` of the diagnosed turn when the target is a
 turn of the caller's own tenant (like `feedback_recorded`); for an eval case they are `null` (the

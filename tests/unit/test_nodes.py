@@ -16,7 +16,7 @@ from harnesswalk.nodes import (
 from tests.spec.support import ROOT, load_json
 
 STUBS: set[str] = set()  # P4 made eval and release real
-NOT_REGISTERED = {"diagnose"}
+NOT_REGISTERED: set[str] = set()  # diagnose arrived in P5
 
 
 def test_unknown_node_fails_at_registration() -> None:
@@ -45,7 +45,7 @@ def test_registered_set_is_what_p3_promises() -> None:
     assert {n for n, r in regs.items() if r.stub} == STUBS
     assert diagram.simple_ids() <= set(regs)
     assert implemented("online_eval") and implemented("loop") and implemented("eval")
-    assert implemented("release") and implemented("artifacts") and not implemented("diagnose")
+    assert implemented("release") and implemented("artifacts") and implemented("diagnose")
 
 
 def test_every_registration_lives_in_its_source_hint() -> None:

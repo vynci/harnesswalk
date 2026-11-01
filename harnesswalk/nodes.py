@@ -72,6 +72,7 @@ COMPONENT_MODULES = (
     "harnesswalk.ops.eval",
     "harnesswalk.ops.eval.offline",
     "harnesswalk.ops.eval.online",
+    "harnesswalk.ops.eval.diagnose",
     "harnesswalk.ops.release",
     "harnesswalk.ops.artifacts",
 )
