@@ -99,7 +99,7 @@ deploy-synth: $(DEPLOY_DEPS) ## cdk synth the three stacks (CERT_ARN=... before 
 	$(CDK) synth --quiet $(CDK_CERT)
 
 deploy-diff: $(DEPLOY_DEPS) ## cdk diff the three stacks against the account (AWS_PROFILE)
-	$(CDK) diff $(CDK_CERT) HarnesswalkEdge HarnesswalkOrigin HarnesswalkCi
+	$(CDK) diff --no-change-set $(CDK_CERT) HarnesswalkEdge HarnesswalkOrigin HarnesswalkCi
 
 deploy-web: ## Build web/ for production, sync it to the edge bucket, invalidate index.html
 	deploy/aws/scripts/deploy-web.sh
