@@ -613,7 +613,8 @@ export class MockOps {
             events_url: c.events_url ?? null,
             scores: c.scores,
             error: c.error ?? null,
-            diagnosis: c.diagnosis ? { layer: c.diagnosis.layer, suggestion: c.diagnosis.suggestion } : null,
+            // The latest diagnosis of the case in this pack (an earlier run's when this one has none).
+            diagnosis: ((d) => (d ? { layer: d.layer, suggestion: d.suggestion } : null))(c.diagnosis ?? this.latestDiagnosis(pack, c.case_id)),
           })),
         })
       }
@@ -622,6 +623,14 @@ export class MockOps {
     const r = this.snapshot(pack, note, new Date().toISOString(), 'user:dev', gate)
     this.emitOps('artifact_released', 'release', { release_id: r.release_id, artifacts: r.artifacts, hash: r.hash, prev_hash: r.prev_hash, pack, previous_active: before, gate, ...(note ? { note } : {}) })
     return json(201, this.releaseDetail(r))
+  }
+
+  private latestDiagnosis(pack: string, caseId: string): Diagnosis | null {
+    for (const r of [...this.runs].reverse()) {
+      const d = r.pack === pack ? r.cases.find((c) => c.case_id === caseId)?.diagnosis : null
+      if (d) return d
+    }
+    return null
   }
 
   private writeAudit(entry: Record<string, unknown>) {

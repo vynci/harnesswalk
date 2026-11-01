@@ -227,7 +227,7 @@ export function InspectorDrawer() {
           <TabsContent value="files" className="min-h-0">
             <ScrollArea className="h-full">
               <div className="p-4">
-                <PackFiles files={packFiles} nodeLabel={node.label} />
+                <PackFiles key={`${node.id}:${packDetail?.id ?? ''}`} files={packFiles} nodeLabel={node.label} />
               </div>
             </ScrollArea>
           </TabsContent>
