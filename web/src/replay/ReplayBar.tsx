@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Pause, Play, Redo2, X } from 'lucide-react'
 import { Hint } from '@/components/hint'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { Card } from '@/components/ui/card'
@@ -10,6 +11,13 @@ import { useApp } from '@/state/store'
 import { nextSimpleEnter } from './stepOver'
 
 const PLAY_MS = 260
+
+const RESUME_HINT: Record<string, string> = {
+  step: 'Next: released this breakpoint and paused at the next node',
+  continue: 'Continue: released this breakpoint and ran to the end',
+  step_over: 'Step over: ran past the expert children to the next simple-view node',
+  approval: 'An approval decision released this pause',
+}
 
 export function ReplayBar() {
   const replay = useApp((s) => s.replay)
@@ -33,6 +41,8 @@ export function ReplayBar() {
   const ev = replay.events[replay.cursor]
   const last = replay.events.length - 1
   const what = ev ? [ev.type, ev.node_id ?? ev.edge_id].filter(Boolean).join(' ') : ''
+  // P5: which control released a pause (node_resumed.summary.mode): step, continue, step_over or approval.
+  const mode = ev?.type === 'node_resumed' && typeof ev.summary?.mode === 'string' ? ev.summary.mode : null
 
   return (
     <Card
@@ -94,6 +104,13 @@ export function ReplayBar() {
       <span className="w-48 truncate font-mono text-xs text-muted-foreground tabular-nums" data-testid="replay-position" title={what}>
         {replay.cursor + 1}/{replay.events.length} {what}
       </span>
+      {mode && (
+        <Hint label={RESUME_HINT[mode] ?? `Resumed with ${mode}`} side="top">
+          <Badge variant="secondary" className="font-normal" tabIndex={0} data-testid="replay-resume-mode" data-mode={mode}>
+            resumed by {mode.replace(/_/g, ' ')}
+          </Badge>
+        </Hint>
+      )}
       <Hint
         label={
           <>

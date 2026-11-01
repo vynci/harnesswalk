@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import chapter02 from '../../../lessons/02-input_guardrails.md?raw'
-import { classifyLink, REPO_BLOB_URL } from './links'
+import { classifyLink, repoBlobUrl } from './links'
+
+const REPO = 'https://example.org/acme/harnesswalk'
+const REPO_BLOB_URL = `${REPO}/blob/main/`
 import { lessonRef, parseChecks, parseLesson } from './parse'
 import { createSlugger, headingSlug } from './slug'
 
@@ -82,7 +85,7 @@ describe('parseChecks', () => {
 
 describe('code links in chapter 02', () => {
   it('are code links into the package, with their symbols', () => {
-    const links = [...strip(chapter02).matchAll(/\]\(([^)]+)\)/g)].map((m) => classifyLink(m[1]!))
+    const links = [...strip(chapter02).matchAll(/\]\(([^)]+)\)/g)].map((m) => classifyLink(m[1]!, REPO))
     const code = links.filter((l) => l.kind === 'code')
     expect(code).toContainEqual({ kind: 'code', path: 'harnesswalk/control/input_guardrails.py', symbol: 'InputGuardrails.check' })
     expect(code).toContainEqual({ kind: 'code', path: 'harnesswalk/control/pii.py', symbol: 'Vault' })
@@ -96,7 +99,11 @@ describe('classifyLink', () => {
     expect(classifyLink('03-context_builder.md')).toEqual({ kind: 'chapter', slug: '03-context_builder', anchor: null })
     expect(classifyLink('./16-memory-inside.md#semantic')).toEqual({ kind: 'chapter', slug: '16-memory-inside', anchor: 'semantic' })
     expect(classifyLink('#try-this')).toEqual({ kind: 'anchor', id: 'try-this' })
-    expect(classifyLink('README.md')).toEqual({ kind: 'repo', path: 'lessons/README.md', href: `${REPO_BLOB_URL}lessons/README.md` })
+    expect(classifyLink('README.md', REPO)).toEqual({ kind: 'repo', path: 'lessons/README.md', href: `${REPO_BLOB_URL}lessons/README.md` })
+    // capabilities.repo_url decides where repo links go; without one the path is not linked.
+    expect(classifyLink('README.md', `${REPO}/`)).toMatchObject({ href: `${REPO_BLOB_URL}lessons/README.md` })
+    expect(classifyLink('README.md', null)).toEqual({ kind: 'repo', path: 'lessons/README.md', href: null })
+    expect(repoBlobUrl('')).toBeNull()
     expect(classifyLink('../harnesswalk/control/pii.py')).toEqual({ kind: 'code', path: 'harnesswalk/control/pii.py', symbol: null })
     expect(classifyLink('https://example.com/x')).toEqual({ kind: 'external', href: 'https://example.com/x' })
     expect(classifyLink('../../outside').kind).toBe('external')
