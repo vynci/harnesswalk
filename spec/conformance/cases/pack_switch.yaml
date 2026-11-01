@@ -1,0 +1,66 @@
+id: pack_switch
+title: Two sessions of one tenant on two packs do not share facts; each turn and summary names its pack
+spec_version: 0.1.0
+fixture: pack_switch
+config:
+  context.stores: [procedural, session, semantic]
+turns:
+  - before:
+      - method: GET
+        path: /v1/packs
+        match: { default: _starter }
+      - method: POST
+        path: /v1/sessions
+        body: { pack: _starter }
+        status: 201
+        match: { pack: _starter }
+        save: { first: session_id }
+      - method: POST
+        path: /v1/sessions
+        body: { pack: conformance_alt }
+        status: 201
+        match: { pack: conformance_alt }
+        save: { second: session_id }
+    send:
+      message: Please remember that my locker code is 4417.
+      session_id: ${first}
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, tools, policy, audit, model_layer, output_guardrails, gateway, memory_writer, trace]
+      statuses: done
+      events:
+        - { type: turn_start, summary: { pack: _starter } }
+        - { type: memory_written, node_id: memory_writer, status: done, summary: { store: semantic } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      reply_contains: ["4417"]
+    http:
+      - get: /v1/turns/${turn_id}
+        match: { pack: _starter, session_id: "${first}" }
+  - send:
+      message: What is my locker code?
+      session_id: ${second}
+      options: { fixture: pack_switch_other }
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: turn_start, summary: { pack: conformance_alt } }
+        - { type: node_exit, node_id: semantic, summary: { hits: 0 } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      reply_contains: [no locker code]
+    http:
+      - get: /v1/sessions/${second}
+        match: { pack: conformance_alt, turns: 1 }
+      - get: /v1/turns/${turn_id}
+        match: { pack: conformance_alt }
+  - send:
+      message: What is my locker code?
+      session_id: ${first}
+      options: { fixture: pack_switch_recall }
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: turn_start, summary: { pack: _starter } }
+        - { type: node_exit, node_id: semantic, status: done, summary: { hits: 1 } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      reply_contains: ["4417"]

@@ -164,3 +164,92 @@ provider). P4 configuration keys:
 | `evals.judge.threshold` | `0.7` | Pass mark for judged scores |
 | `evals.online.sample_rate` | `0.2` dev and private, `0` public | Share of finished turns judged |
 | `evals.sqlite_path` | `data/evals.db` | |
+
+## P5 additions: diagnose, packs, the release gate
+
+Additive. Node `diagnose` (expert child of `eval`) is implemented
+(`harnesswalk/ops/eval/diagnose.py`). It reads stored traces only: no model call, so it runs on
+the fake provider and in CI.
+
+### Diagnose
+
+Input: a failed eval case (`{run_id, case_id}`, status `failed` or `error`) or a turn
+(`{turn_id}`) of the caller's tenant that has `bad` feedback or ended with an exit other than
+`answered`. A case turn id of one of the caller's runs is read as that case. Anything else has
+nothing to diagnose (`422 nothing_to_diagnose`).
+
+Output, a `Diagnosis`:
+
+```
+record Diagnosis {
+  diagnosis_id: string                 // dg_<n>
+  target: "case" | "turn"
+  run_id?: string, case_id?: string, turn_id: string, pack: string
+  layer: "retrieval" | "prompt_or_skill" | "tool" | "model" | "guardrail" | "budget" | "unknown"
+  evidence: [Evidence]                 // trace facts, in the order they were found
+  suggestion: string                   // what to look at first, one or two sentences
+  baseline: { run_id, release_id, artifacts_hash } | null   // the last pass compared against
+  automatic: bool, created_at: timestamp
+}
+record Evidence { kind: string, fact: string, ...details }
+```
+
+The baseline ("the last pass") is, for a case, the newest earlier finished run of the same
+tenant, pack and suite in which that case passed; for a turn, the newest finished `golden` run
+of the turn's pack with no failed case. What each side ran on is the served set named by
+`turn_start.summary.release.artifacts_hash` (the release store keeps every served set it ever
+stamped, by that hash), so a diagnosis compares artifact versions, not file contents on disk.
+
+Evidence kinds and the layer each points at. The layer is the first rule that matches, in this
+order:
+
+| Order | Evidence `kind` | Read from | Layer |
+|---|---|---|---|
+| 1 | `guardrail_block` | `input_guardrails` or `output_guardrails` exit with `action: block` (with `reason`), or a `policy` exit with `decision: deny` (with `rule`) | `guardrail` |
+| 2 | `budget_exit` | `loop` exit with `exit_reason` other than `answer` | `budget` |
+| 3 | `tool_error` | a `tools` exit with `outcome` `error` or `timeout`, or an `error` event at `tools`, `registry` or `sandbox` | `tool` |
+| 4 | `artifact_changed` | an artifact whose hash differs between the baseline's served set and the failing turn's (`artifact`, `from_version`, `to_version`, `baseline_run_id`) | by kind: `prompt` and `skill` are `prompt_or_skill`, `tools` is `tool`, `policy` is `guardrail`, `context` is `retrieval`, `models` is `model` (the first changed kind in that order wins) |
+| 5 | `model_error` | an `error` event at `model_layer`, `router` or `providers` (`code`, for example `fixture_mismatch`, `provider_error`) | `model` |
+| 6 | `retrieval_empty`, `citation_missing` | the case expected citations and `knowledge` returned no hit or none of the expected documents; or every queried memory store returned no hit | `retrieval` |
+| 7 | none of the above | | `unknown` |
+
+Every failing scorer is also listed (`kind: scorer_failed`, `scorer`, `detail`), and a turn's
+feedback (`kind: feedback`, `rating`, `note_chars`), so the evidence explains the failure even
+when the layer is `unknown`. A fake-provider `fixture_mismatch` after an edited skill is rule 4
+before rule 5: the scripted model saw a different prompt, which is the change, not the model.
+
+Diagnose is never applied: it proposes. The suggestion names the changed artifact and the
+release to compare with, the failing tool, or the store that returned nothing.
+
+- **Storage.** `data/evals.db` (`diagnoses`). A case's diagnosis is also stored on the case:
+  run detail `cases[].diagnosis`; a turn's on the turn: `GET /v1/turns/{id}` gains `diagnosis`
+  (the latest, or `null`).
+- **Automatic on regression.** When a run finishes with regressions, each regressed case is
+  diagnosed (`automatic: true`) before `eval_run_finished`, and the run summary gains
+  `diagnoses: {case_id: layer}`. Off with `evals.diagnose.auto: false`.
+- **Events.** Each diagnosis emits `diagnose_finished` on the tenant's `ops` stream
+  (`events.md` section 11).
+
+### Packs
+
+A run names any pack the harness can load (`GET /v1/packs`), not only the configured one; its
+case turns run on that pack (procedural memory, knowledge, tools, guardrails and golden set of
+the pack). `evals.golden_path` keeps `{pack}` for the pack id; its default is the pack's own
+`golden.jsonl`.
+
+### The release gate
+
+`release.md`, P5 additions. A gate run is an ordinary golden run with `purpose: release_gate`
+on its summary and in `eval_run_started`.
+
+### Case turns and the caller's tenant
+
+`evals.scratch_tenant` (default `true`) keeps P4's scratch tenant per run. With `false`, case
+turns run under the caller's tenant (each in its own session), so they read the caller's
+memory and their memory writes are the caller's; the run summary's `case_tenant` says which
+tenant held the case turns either way.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `evals.diagnose.auto` | `true` | Diagnose regressed cases when a run finishes |
+| `evals.scratch_tenant` | `true` | Case turns in a scratch tenant per run (P4) or in the caller's tenant |

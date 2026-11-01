@@ -1,0 +1,8 @@
+fixture: pack_switch_other
+description: P5. The same tenant asks in a session on another pack, where the fact is not retrieved.
+model: fake-small
+turns:
+  - responses:
+      - text: I have no locker code on file for you.
+        usage: { input_tokens: 200, output_tokens: 10 }
+        expect: { last_message_role: user, last_message_contains: locker code }

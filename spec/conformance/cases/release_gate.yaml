@@ -1,0 +1,51 @@
+id: release_gate
+title: With the eval gate on, a release whose golden case fails is refused with the case; a forced release records the skipped gate
+spec_version: 0.1.0
+fixture: release_gate
+config:
+  release.gate.enabled: true
+turns:
+  - before:
+      - method: PUT
+        path: /v1/artifacts/skill/returns
+        body: { body: "---\nname: returns\ndescription: How to handle a return or refund request.\n---\nReturns are accepted within 30 days of delivery.\n" }
+        match: { version: 1 }
+      - method: POST
+        path: /v1/releases
+        body: { note: the returns skill }
+        status: 201
+        match: { gate: { status: passed, pass_rate: 1.0, failed_cases: [] } }
+        save: { good: release_id }
+      - method: PUT
+        path: /v1/artifacts/skill/returns
+        body: { body: "---\nname: returns\ndescription: Refunds and returns.\n---\nReturns are accepted within 30 days of delivery.\n" }
+        match: { version: 2 }
+      - method: POST
+        path: /v1/releases
+        body: { note: a shorter description }
+        status: 409
+        match:
+          error: { code: gate_failed }
+          gate: { status: failed, pass_rate: 0.0, failed_cases: [skill_index], forced: false }
+      - method: GET
+        path: /v1/releases
+        match: { active_release_id: "${good}", working_set_dirty: true }
+      - method: POST
+        path: /v1/releases
+        body: { note: release anyway, force: true }
+        status: 201
+        match: { gate: { status: skipped, reason: forced, forced: true } }
+        save: { forced: release_id }
+    send:
+      message: What are your support hours?
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: turn_start, summary: { release: { release_id: "${forced}" } } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+    http:
+      - get: /v1/releases/${forced}
+        match: { gate: { status: skipped, forced: true }, active: true }
+      - get: /v1/releases/${good}
+        match: { gate: { status: passed, suite: golden, min_pass_rate: 1.0 } }

@@ -2,8 +2,8 @@
 
 Contract: spec/contracts/evaluator.md. Node: `eval` (LLM Ops). Its expert children are
 `offline_eval` (offline.py: golden runs, scorers, the diff against the previous run) and
-`online_eval` (online.py: the sampled judge on live turns, thumbs and notes). `diagnose`
-arrives later and stays unregistered.
+`online_eval` (online.py: the sampled judge on live turns, thumbs and notes) and, since P5,
+`diagnose` (diagnose.py: a failed case or a bad turn mapped to the layer at fault).
 
 `Evals` is what the harness holds: the store (`data/evals.db`), the judge, and both runners.
 """
@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from harnesswalk.nodes import register
+from harnesswalk.ops.eval.diagnose import Diagnoser
 from harnesswalk.ops.eval.judge import Judge
 from harnesswalk.ops.eval.offline import EvalRequestError, OfflineRunner
 from harnesswalk.ops.eval.online import OnlineEval
@@ -33,6 +34,8 @@ class Evals:
         self.judge = Judge(harness)
         self.offline = OfflineRunner(harness, self.store, self.judge)
         self.online = OnlineEval(harness, self.store, self.judge)
+        self.diagnose = Diagnoser(harness, self.store)
+        self.offline.diagnoser = self.diagnose
 
     def running(self) -> bool:
         return self.offline.running()

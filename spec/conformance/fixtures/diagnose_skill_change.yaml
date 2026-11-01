@@ -1,0 +1,8 @@
+fixture: diagnose_skill_change
+description: P5. The chat turn after the regressed run; the runs use eval_skill_index per case.
+model: fake-small
+turns:
+  - responses:
+      - text: Our support hours are 9am to 5pm Eastern, Monday to Friday.
+        usage: { input_tokens: 400, output_tokens: 15 }
+        expect: { last_message_role: user }

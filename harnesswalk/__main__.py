@@ -13,8 +13,9 @@ harnesswalk packs list|validate [<pack>]|ingest [<pack>]
 harnesswalk eval <pack> --suite golden    run the pack's golden set (fake provider) and score it
 harnesswalk eval <pack> --suite judge --model hosted-haiku
                                           answer on a model and score with the judge
-harnesswalk release list|create|rollback <id>|diff <id>
+harnesswalk release list|create|rollback <id>|diff <id> [--pack ID]
                                           the versioned artifacts and their releases
+harnesswalk release create --no-gate      skip the eval gate (dev mode only, audited)
 harnesswalk serve --takeover              take over a data directory another serve holds
 """
 
@@ -410,13 +411,23 @@ def _release(args: argparse.Namespace) -> int:
 
     if not args.provider:
         args.provider = "fake"  # releases never call a model: no provider or embedder probe
-    settings = _settings(args, **{"stores.ingest_on_start": False, "sandbox.level": "inprocess"})
+    # The eval gate (P5) runs the golden set, which may cite the pack's documents: ingest then.
+    gating = args.action == "create" and not args.no_gate
+    settings = _settings(args, **{"stores.ingest_on_start": gating, "sandbox.level": "inprocess"})
 
     async def run() -> int:
         h = Harness(settings)
         try:
+            if args.pack is not None and not h.pack_known(args.pack):
+                print(f"harnesswalk release: no dataset pack {args.pack!r}", file=sys.stderr)
+                return 2
+            view = h.view(args.pack)
+            if args.action != "create" and args.release_id:
+                found = h.release.store.release(args.release_id)
+                if found is not None and h.pack_known(found.pack):
+                    view = h.view(found.pack)  # release ids are unique across packs
             if args.action == "list":
-                data = h.release.releases()
+                data = view.release.releases()
                 if args.json:
                     print(json.dumps(data, indent=2))
                     return 0
@@ -428,8 +439,26 @@ def _release(args: argparse.Namespace) -> int:
                 print(f"working set {state}; chain {'ok' if data['verify']['ok'] else 'BROKEN'}")
                 return 0
             if args.action == "create":
-                out = rel.apply_create(h, args.tenant, note=args.note)
+                if args.no_gate and h.settings.mode != "dev":
+                    print("harnesswalk release: --no-gate is for dev mode only", file=sys.stderr)
+                    return 2
+                try:
+                    out = await rel.apply_create_gated(
+                        view, args.tenant, note=args.note, force=args.no_gate
+                    )
+                except rel.GateFailed as exc:
+                    print(f"gate failed: {exc}")
+                    for c in exc.detail["cases"]:
+                        why = c["diagnosis"]["layer"] if c.get("diagnosis") else c["status"]
+                        print(f"  {c['case_id']}: {why}")
+                    return 1
+                gate = out.get("gate") or {}
                 print(f"created {out['release_id']} with {len(out['artifacts'])} artifacts")
+                runs = ", ".join(gate.get("run_ids") or []) or "no run"
+                print(
+                    f"  gate {gate.get('status')} ({gate.get('reason') or 'ok'}; {runs};"
+                    f" pass rate {gate.get('pass_rate')})"
+                )
                 for d in out.get("diff_from_previous", []):
                     print(f"  {d['kind']}/{d['name']} {d['from_version']} -> {d['to_version']}")
                 return 0
@@ -438,7 +467,7 @@ def _release(args: argparse.Namespace) -> int:
                 return 2
             if args.action == "rollback":
                 try:
-                    out = rel.apply_rollback(h, args.tenant, args.release_id)
+                    out = rel.apply_rollback(view, args.tenant, args.release_id)
                 except KeyError:
                     print(f"no release {args.release_id}", file=sys.stderr)
                     return 1
@@ -446,7 +475,7 @@ def _release(args: argparse.Namespace) -> int:
                 for r in out["reset"]:
                     print(f"  {r['kind']}/{r['name']} {r['from_version']} -> {r['to_version']}")
                 return 0
-            detail = h.release.release_detail(args.release_id)
+            detail = view.release.release_detail(args.release_id)
             if detail is None:
                 print(f"no release {args.release_id}", file=sys.stderr)
                 return 1
@@ -507,6 +536,10 @@ def build_parser() -> argparse.ArgumentParser:
     rl.add_argument("action", choices=["list", "create", "rollback", "diff"])
     rl.add_argument("release_id", nargs="?")
     rl.add_argument("--note", help="create: a note for the release")
+    rl.add_argument("--pack", help="the dataset pack (default: the configured one)")
+    rl.add_argument(
+        "--no-gate", action="store_true", help="create: skip the eval gate (dev only, audited)"
+    )
     rl.add_argument("--tenant", default="dev")
     rl.add_argument("--json", action="store_true")
 

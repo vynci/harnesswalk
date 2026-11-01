@@ -13,6 +13,10 @@ runner decides any approval with the case's `approval` (default deny).
 Progress is an ops stream (`eval:<run_id>`): `eval_run_started`, one `eval_case_finished` per
 case, `eval_run_finished`. The run is compared with the previous finished run of the same
 tenant, pack and suite: a case that passed then and fails now is a regression.
+
+P5: a run names any pack the harness can load and runs on that pack's view (or on a release
+candidate's, for the eval gate: `purpose: release_gate`); regressed cases are diagnosed before
+`eval_run_finished`; `evals.scratch_tenant: false` runs case turns in the caller's tenant.
 """
 
 from __future__ import annotations
@@ -64,6 +68,9 @@ class OfflineRunner:
         self.judge = judge
         self.tasks: dict[str, asyncio.Task] = {}
         self.case_timeout_s = float(harness.settings.get("evals.case_timeout_s", 60))
+        self.scratch = bool(harness.settings.get("evals.scratch_tenant", True))
+        self.diagnoser: Any = None  # set by Evals (P5)
+        self._views: dict[str, tuple[Any, bool]] = {}  # run_id -> (pack view, is a candidate)
 
     # -- starting ------------------------------------------------------------------------------
 
@@ -74,7 +81,10 @@ class OfflineRunner:
         )
 
     def golden(self, pack: str) -> list[GoldenCase]:
-        return load_golden(golden_path(self.h.settings, pack))
+        settings = self.h.settings
+        if pack != self.h.pack and pack in self.h.packs:
+            settings = self.h.packs[pack].settings
+        return load_golden(golden_path(settings, pack))
 
     def _check_model(self, suite: str, model: str | None) -> None:
         if model is None:
@@ -101,15 +111,17 @@ class OfflineRunner:
         model: str | None = None,
         case_ids: list[str] | None = None,
         by: str = "user",
+        purpose: str | None = None,
+        runtime: Any = None,
     ) -> dict[str, Any]:
-        """Validate, store the run, emit `eval_run_started` and schedule it. Returns the run."""
-        loaded = self.h.settings.get("dataset", "_starter")
+        """Validate, store the run, emit `eval_run_started` and schedule it. Returns the run.
+
+        `runtime` (P5) is the pack view the case turns run on instead of the pack's own: the
+        eval gate's candidate built from the working set."""
         if suite not in SUITES:
             raise EvalRequestError(400, "invalid_request", "suite must be golden or judge")
-        if pack != loaded:
-            raise EvalRequestError(
-                422, "invalid_request", f"pack {pack!r} is not loaded ({loaded} is)"
-            )
+        if not self.h.pack_known(pack):
+            raise EvalRequestError(422, "invalid_request", f"no dataset pack {pack!r}")
         try:
             cases = self.golden(pack)
         except GoldenError as exc:
@@ -131,8 +143,14 @@ class OfflineRunner:
         if self.running(tenant_id):
             raise EvalRequestError(409, "eval_running", "an eval run is already running")
         previous = self.store.previous_run(tenant_id, pack, suite)
+        try:
+            view = runtime or self.h.view(pack)
+        except KeyError as exc:  # PackUnavailable
+            raise EvalRequestError(422, "invalid_request", str(exc.args[0])) from exc
+        if runtime is None:
+            view.refresh_artifacts()  # what another process released is what the run tests
         seq, run_id = self.store.new_run_id()
-        stamp = self.h.release.stamp()
+        stamp = view.release.stamp()
         run: dict[str, Any] = {
             "run_id": run_id,
             "tenant_id": tenant_id,
@@ -154,10 +172,14 @@ class OfflineRunner:
             "cases_requested": list(case_ids) if case_ids else None,
             "trace_id": new_trace_id(),
             "by": by,
+            "purpose": purpose,
+            "case_tenant": scratch_tenant(run_id) if self.scratch else tenant_id,
         }
         self.store.create_run(seq, run)
+        self._views[run_id] = (view, runtime is not None)
         self._emit(run, "eval_run_started", "active", {
             "run_id": run_id, "pack": pack, "suite": suite, "model": model, "total": len(cases),
+            "purpose": purpose,
         })  # fmt: skip
         task = asyncio.get_running_loop().create_task(self._run(run, cases), name=tenant_id)
         self.tasks[run_id] = task
@@ -217,6 +239,11 @@ class OfflineRunner:
             key = {"passed": "passed", "skipped": "skipped"}.get(r["status"], "failed")
             totals[key] += 1
         regressed = [r["case_id"] for r in results if r["regression"]]
+        if regressed and self.diagnoser is not None:  # P5: automatic on regression
+            try:
+                run["diagnoses"] = self.diagnoser.after_run(run, regressed)
+            except Exception:  # a diagnosis never fails the run
+                log.exception("diagnosing run %s failed", run["run_id"])
         current = {r["case_id"]: r["status"] for r in results}
         run.update(
             ended_at=iso(time.time()),
@@ -238,6 +265,7 @@ class OfflineRunner:
             },
         )  # fmt: skip
         self.store.update_run(run)
+        self._views.pop(run["run_id"], None)
         with contextlib.suppress(Exception):
             self._emit(run, "eval_run_finished", "done" if run["status"] == "done" else "error", {
                 "run_id": run["run_id"], "status": run["status"], "totals": totals,
@@ -248,7 +276,8 @@ class OfflineRunner:
     def _turn_request(self, run: dict[str, Any], case: GoldenCase) -> Any:
         from harnesswalk.control.gateway import TurnRequest
 
-        tenant = scratch_tenant(run["run_id"])
+        tenant = run.get("case_tenant") or scratch_tenant(run["run_id"])
+        view, candidate = self._views.get(run["run_id"], (None, False))
         provider = fixture = model = None
         if run["suite"] == "judge" and run["model"]:
             model = run["model"]
@@ -268,6 +297,8 @@ class OfflineRunner:
             output_schema=case.output_schema,
             internal=True,
             eval_run_id=run["run_id"],
+            dataset=run["pack"],
+            runtime=view if candidate else None,
         )
 
     async def _case(
@@ -301,7 +332,8 @@ class OfflineRunner:
                 c = actual["cost"]
                 spent.add(Usage(c["input_tokens"], c["output_tokens"], 0, c["usd"]))
             names = DETERMINISTIC if run["suite"] == "golden" else JUDGE_DETERMINISTIC
-            scores = deterministic(case, actual, self.h.input_guardrails.pii, names)
+            view = self._views.get(run["run_id"], (self.h, False))[0]
+            scores = deterministic(case, actual, view.input_guardrails.pii, names)
             if run["suite"] == "judge":
                 verdict = await self.judge.judge(
                     case.prompt,

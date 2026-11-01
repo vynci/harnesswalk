@@ -74,7 +74,9 @@
         "eval_case_finished",
         "eval_run_finished",
         "feedback_recorded",
-        "artifact_changed"
+        "artifact_changed",
+        "release_gated",
+        "diagnose_finished"
       ]
     },
     "node_id": {
@@ -137,7 +139,9 @@
               "eval_run_finished",
               "feedback_recorded",
               "artifact_changed",
-              "artifact_released"
+              "artifact_released",
+              "release_gated",
+              "diagnose_finished"
             ]
           }
         }
@@ -185,7 +189,15 @@
     },
     {
       "if": { "properties": { "type": { "const": "node_resumed" } } },
-      "then": { "required": ["node_id"], "properties": { "status": { "const": "active" } } }
+      "then": {
+        "required": ["node_id"],
+        "properties": {
+          "status": { "const": "active" },
+          "summary": {
+            "properties": { "mode": { "enum": ["step", "continue", "step_over", "approval"] } }
+          }
+        }
+      }
     },
     {
       "if": { "properties": { "type": { "const": "edge" } } },
@@ -316,6 +328,38 @@
           "node_id": { "const": "release" },
           "status": { "const": "done" },
           "summary": { "required": ["kind", "name", "version"] }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "release_gated" } } },
+      "then": {
+        "required": ["node_id", "summary"],
+        "properties": {
+          "node_id": { "const": "release" },
+          "status": { "enum": ["done", "error"] },
+          "summary": {
+            "required": ["pack", "gate"],
+            "properties": { "gate": { "enum": ["passed", "failed", "skipped"] } }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "diagnose_finished" } } },
+      "then": {
+        "required": ["node_id", "summary"],
+        "properties": {
+          "node_id": { "const": "diagnose" },
+          "status": { "const": "done" },
+          "summary": {
+            "required": ["layer"],
+            "properties": {
+              "layer": {
+                "enum": ["retrieval", "prompt_or_skill", "tool", "model", "guardrail", "budget", "unknown"]
+              }
+            }
+          }
         }
       }
     },
