@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { ArrowUp, ChevronDown, Plus, SlidersHorizontal, Square } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Button } from '@/components/ui/button'
@@ -122,12 +122,20 @@ export function Composer({
   /** Shown above the input (the Suggestion row of an empty chat). */
   suggestions?: ReactNode
 }) {
-  const [text, setText] = useState('')
+  // The text lives in the store, so a lesson's "try it" can put its prompt here.
+  const text = useApp((s) => s.draft)
+  const setText = useApp((s) => s.setDraft)
+  const focusRequest = useApp((s) => s.composerFocus)
+  const input = useRef<HTMLTextAreaElement>(null)
   const [options, setOptions] = useState(false)
   const dev = useApp((s) => s.capabilities?.mode === 'dev')
   const schemaSet = useApp((s) => s.outputSchema.trim().length > 0)
   const tooLong = text.length > maxChars
   const canSend = !busy && !sending && text.trim().length > 0 && !tooLong
+
+  useEffect(() => {
+    if (focusRequest) input.current?.focus()
+  }, [focusRequest])
 
   const submit = async () => {
     if (!canSend) return
@@ -158,6 +166,7 @@ export function Composer({
       </label>
       <InputGroup>
         <InputGroupTextarea
+          ref={input}
           id="composer"
           value={text}
           onChange={(e) => setText(e.target.value)}

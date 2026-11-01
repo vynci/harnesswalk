@@ -5,7 +5,8 @@ Send a message and watch it walk through the nodes. Click a node to read its les
 prompt, its code and its events. Turn on step mode to stop at every node, or replay a past turn
 with a slider. The LLM Ops nodes run the harness's lifecycle: edit a skill or a config, run the
 golden set from Eval and see what regressed, ship the working set from Release and roll it back,
-and query stored turns with their receipts from Trace.
+and query stored turns with their receipts from Trace. Each node has a chapter in its Lessons tab,
+and the Lessons drawer in the header walks them in order, with a short check at the end of each.
 
 Stack: React 19, Vite, TypeScript (strict), Tailwind 4, shadcn/ui on Radix (see
 [Components](#components)), React Flow (`@xyflow/react`, attribution kept), shiki (code
@@ -35,15 +36,23 @@ pnpm test          # Vitest: reducer, layout, edge routes, colour contrast, memo
                    # turn facts (guardrails, budgets, citations, memory, placeholders), payload
                    # shapes, the drift rule (no node id literals in src/), and P4: line diffs,
                    # ops roles from the diagram, chat markers, the eval and receipt text, replay
-                   # step-over, the mock's ops routes and ops stream, and the store's ops actions
-pnpm test:e2e      # Playwright against a mock build (Chromium only): smoke.spec.ts, and ops.spec.ts
+                   # step-over, the mock's ops routes and ops stream, and the store's ops actions;
+                   # P5: the lesson parser (sections, the checks, code links; every chapter in
+                   # lessons/ must parse), heading slugs, link kinds, the chapter outline, the
+                   # questionnaire state, the progress store, the mock's lesson routes and the
+                   # pack prompts
+pnpm test:e2e      # Playwright against a mock build (Chromium only): smoke.spec.ts, ops.spec.ts
                    # for P4 (the gate: edit a skill, run golden, see the regression; release,
-                   # roll back, see the old version; feedback, step-over, the trace query)
+                   # roll back, see the old version; feedback, step-over, the trace query), and
+                   # lessons.spec.ts for P5 (the drawer, the Lessons tab, a code walk link, the
+                   # three checks, disable and try)
 pnpm lint          # ESLint, then tsc -b
 pnpm test:e2e:live # Playwright against the real API with the fake provider, see below
 ```
 
-`pnpm exec playwright install chromium` once before the first e2e run. From the repository root
+`pnpm exec playwright install chromium` once before the first e2e run. The mock suite serves its
+build on port 4179 and reuses a server already there; `HARNESSWALK_MOCK_PORT=4189 pnpm test:e2e`
+picks another port, so two checkouts never test each other's build. From the repository root
 the same runs are `make web-test`, `make web-e2e-mock` and `make e2e`.
 
 The live suite needs no running API. `playwright.live.config.ts` builds the app into
@@ -80,6 +89,7 @@ owner's feedback) beside a fresh capture.
 |---|---|---|
 | `HARNESSWALK_API_URL` | Vite dev server | Where the dev proxy sends `/v1` and `/healthz`. Default `http://127.0.0.1:8000` |
 | `HARNESSWALK_E2E_PORT` | `test:e2e:live` | The scratch port of the API the live suite starts. Default 8765 |
+| `HARNESSWALK_MOCK_PORT` | `test:e2e` | The port the mock build is served on. Default 4179 |
 | `VITE_HARNESSWALK_MOCK` | build time | `1` runs the UI on the in-browser mock instead of the API |
 | `VITE_HARNESSWALK_MOCK_STEP_MS` | build time | Milliseconds between mock events, default 140. The `?mockStepMs=` query overrides it |
 | `VITE_HARNESSWALK_API_URL` | build time | API origin when the UI is not served by the API or the proxy. Default same origin |
@@ -88,7 +98,8 @@ owner's feedback) beside a fresh capture.
 
 Per-viewer conveniences (theme, view, collapsed groups, the telemetry switch, the pane sizes, the
 session id, the messages this browser sent and the chat's save and release markers for that
-session) live in `localStorage` under `harnesswalk.*`. The app works without storage.
+session, and the lesson progress in `harnesswalk.lessons`) live in `localStorage` under
+`harnesswalk.*`. The app works without storage.
 
 ## Mock mode
 
@@ -102,7 +113,9 @@ run as against the real API. It:
 - plays `plain_answer`, `tool_call` or `approval_pause` for a new message (picked by the fixture
   menu, else by the words in the message), with fresh ids and timestamps, the reply split into
   `message_delta` events, breakpoints in step mode, approve and deny, cancel, and disabled nodes;
-- serves the real Python source, config, prompt and skill files from the repo for the inspector;
+- serves the real Python source, config, prompt and skill files from the repo for the inspector
+  (`vite.config.ts` lets the dev server read `lessons/`, `harnesswalk/`, `config/` and
+  `datasets/_starter/` for `pnpm dev:mock`);
 - P4 (`src/mock/ops.ts`, the real API's shapes from `spec/contracts/http_api.md`): a working set seeded from the pack files with
   versions and unified diffs, YAML checked on save, 409 while a turn runs; releases `r1`, `r2`...
   with a hash chain and an append-only rollback; a seeded golden run and twelve golden cases over
@@ -113,9 +126,15 @@ run as against the real API. It:
   scores on the first seeded turn; the trace query with receipts and `kind=eval`; the tenant's ops
   stream (`GET /v1/events`); `inspector.artifact` on every artifact-backed inspector; step-over
   that runs past expert children.
+- P5 (`src/mock/lessons.ts`, the shapes of `harnesswalk/control/http_lessons.py`): the three
+  lesson routes from the real chapter files in `lessons/`: the front matter parsed with `yaml`,
+  title, hook, words, `try`, prev and next, and the code links with their lines (found by
+  indentation for `Class.method`) and the node whose code peek is that file. A chapter that is
+  not there answers 404 `lesson_not_found`, a file the chapter does not link to 404
+  `source_not_found`.
 
 The mock and the schema validator are dynamic imports behind build-time constants, so a
-production build contains neither. The diagram (React Flow), the inspector and shiki are their
+production build contains neither (nor the chapters the mock bundles). The diagram (React Flow), the inspector and shiki are their
 own chunks too, so the main chunk stays near 530 KB.
 
 ## Components
@@ -148,9 +167,12 @@ dev dependency, so `pnpm exec shadcn` is the same version for everyone.
 `shimmer` utility (streaming text), `scroll-fade` and `no-scrollbar`. Local changes to generated
 files, kept on purpose: `sonner.tsx` takes the theme as a prop (no next-themes), `badge.tsx` has
 a `kind` variant for node kinds, `scroll-area.tsx` lays its viewport out as a block,
-`slider.tsx` puts the `aria-label` on the thumb (the element with role slider), and
+`slider.tsx` puts the `aria-label` on the thumb (the element with role slider),
 `lib/highlighter.tsx` loads shiki itself lazily with only the five languages the inspector
-shows.
+shows, `questionnaire.tsx` (P5) imports `cn` from `@/lib/utils`, uses `font-medium` on the title
+instead of `font-semibold` and `text-xs` on the choice shortcut instead of 0.625rem, and
+`sheet.tsx` (P5) imports `cn` from `@/lib/utils`. Adding the Questionnaire offers to overwrite
+`button.tsx`: answer no.
 
 ### Tokens
 
@@ -195,7 +217,9 @@ legend and diagram chrome read as one system:
 | Confirmation (Item) | `chat/ApprovalCard.tsx` | "Run X?" with the action class, reason, countdown and arguments; Deny then Approve. Once decided it goes and the tool line above says how |
 | Item | `chat/StepControls.tsx` | The step-mode pause: "Paused at X", Continue, Step over (runs past expert children to the next simple-view node), Next |
 | Sources, Inline Citation (Hover Card) | `chat/Citations.tsx` | `[n]` chips with a hover card, click opens the document reader (a Dialog); "Cited N passages" starts closed |
-| Empty, Suggestion | `chat/ChatPanel.tsx` | An empty chat: Empty in the thread, a row of suggested prompts above the input |
+| Empty, Suggestion | `chat/ChatPanel.tsx`, `chat/usePackPrompts.ts` | An empty chat: Empty in the thread, a row of suggested prompts above the input. The prompts are the active pack's once the API lists packs (`features.packs`, `GET /v1/packs`), else the `_starter` ones |
+| Questionnaire | `lessons/CheckYourself.tsx` | A chapter's Check yourself: one question at a time, Previous question and Next question, letters as shortcuts; a choice says at once whether it was right and shows the explanation |
+| Sheet | `lessons/LessonsDrawer.tsx` | The lessons drawer, from the left: the chapters with their hooks and progress, and Next chapter |
 | Context (Hover Card, Progress) | `diagram/TurnStatusBar.tsx` | "{n}% budget" opens a Progress bar per budget (tokens, cost, steps, policy) |
 | Reasoning, Plan | `chat/Reasoning.tsx` | Mounted as empty slots. Neither the event schema nor the P4 contract has a reasoning or plan field yet, so they stay empty until one does |
 | Marker | `chat/ChatPanel.tsx` | Turn separators, the working shimmer, system notices, and the restart checkpoint notice (`checkpoint.restored`) |
@@ -209,14 +233,14 @@ legend and diagram chrome read as one system:
 | Resizable | `app/App.tsx` | The chat and diagram split and the docked inspector, with the grip handle; sizes kept per viewer |
 
 Later phases: Reasoning and Plan get data once the stream carries it; Task, Chain of Thought,
-Terminal and Stack Trace are still unused; File Tree and Questionnaire in P5; Attachment behind
+Terminal and Stack Trace are still unused; File Tree in P5 (the pack browser); Attachment behind
 the plus button and the Model Selector for your own key in P6; Subagent in P7.
 
 ### Which part uses what
 
 | App part | shadcn components |
 |---|---|
-| Header | Select (provider, fixture), a ghost icon Button for the theme (Sun in dark, Moon in light; it follows `prefers-color-scheme` until pressed), Dropdown Menu (session: new, copy id), Badge (mode), Tooltip on every unlabelled control |
+| Header | Select (provider, fixture), a ghost Button for the lessons drawer (a Sheet with a Scroll Area), a ghost icon Button for the theme (Sun in dark, Moon in light; it follows `prefers-color-scheme` until pressed), Dropdown Menu (session: new, copy id), Badge (mode), Tooltip on every unlabelled control |
 | Notices | Sonner toasts (errors carry `role="alert"`), plus a toast when the event stream drops and when it reconnects |
 | Chat | Message Scroller, Message, Bubble, Marker, Spinner, Empty, Button (suggestions, message actions), Tooltip |
 | Tool calls and memory | Trace lines opening to a Code Block, a Badge for the sandbox; a Memory Trace line per `remember` proposal (written, waiting, rejected) |
@@ -225,6 +249,7 @@ the plus button and the Model Selector for your own key in P6; Subagent in P7.
 | Approval, step controls | Item (Media, Content, Title, Description, Actions, Footer), Code Block, Badge, Button |
 | Inspector | A Resizable pane docked beside the diagram (not a modal Sheet, so step mode keeps it open) with Tabs and Scroll Area; the LLM Ops tabs (Runs, Releases, Turns) with Input, Select, Toggle Group, Badge, Table and the Confirmation Item; artifact edits with Textarea, Input and the Code Block diff; Badge (kind, view); Events as a Trace opening to the event JSON in a Code Block; Code and config in a Code Block with line numbers; prompts in `Prose`; records in a Table; payload views picked by shape (`src/inspector/shapes.ts`): the audit chain with a Verify Button, store records with a scope Badge, the document list, memory writes as Cards with a diff and Accept/Reject, the context budget as Progress bars; Switch (disable next turn); Kbd (Esc) |
 | Diagram | Nodes are Cards (CardTitle, CardDescription) on their own warm surface (`--node-surface`) with Badges for the kind chip, store badges, the off and not-yet tags and the regressions chip on the node that runs evals; the canvas controls are one Card with two Switches (Expert view, Telemetry) and a Button opening the legend Dialog; the turn status bar is a Card with the Context hover card. The canvas, edges and layout stay React Flow |
+| Lessons | The inspector's Lessons tab: the chapter in `Prose` (react-markdown, remark-gfm), Buttons (try it, code walk links, Previous and Next chapter), the Questionnaire; the drawer is a Sheet with a Scroll Area |
 | Replay bar | Card, Button Group (previous, play, next, step over), Slider, Tooltip with Kbd |
 | Feedback | Popover (the optional note), Textarea, Badge (judge scores) |
 
@@ -268,6 +293,54 @@ every route against a live harness. How it finds things without naming node ids:
   session, node, status, since; each turn opens to its receipt per node and per model call.
 - **Lists** read the API's envelopes (`{runs}`, `{pack, releases, verify, ...}`, `{pack,
   artifacts, release}`, `{turns, next_after}`).
+
+## Lessons (P5)
+
+The chapters are the markdown files in `lessons/` (`NN-<node_id>.md`, one per simple node in walk
+order, then `NN-<parent>-inside.md` per expert group), served by `GET /v1/lessons`,
+`GET /v1/lessons/{slug}` and `GET /v1/lessons/{slug}/source?path=`
+(`harnesswalk/control/http_lessons.py`). Each diagram node names its chapter in `lesson_url`
+(`lessons/02-input_guardrails.md`, or `lessons/16-memory-inside.md#semantic` for an expert node)
+and says what it teaches in `lesson_summary`. The code is in `src/lessons/`.
+
+- **The Lessons tab** (every node, `LessonTab.tsx`). It fetches the chapter `lesson_url` names
+  and renders it in `Prose` with react-markdown and remark-gfm; headings get GitHub slugs as ids
+  (`slug.ts`, a small rehype plugin), so an expert node scrolls to its own section of the group
+  chapter (no smooth scroll under reduced motion). The tab draws the title and hook itself, so
+  `parse.ts` takes them off the top, and it splits the markdown around Check yourself, which
+  becomes the Questionnaire. A chapter the API does not serve yet (404 `lesson_not_found`) shows
+  "This chapter is not written yet" with the node's summary. The inspector header keeps the
+  node's one-paragraph `lesson` and adds "Read the chapter", which opens this tab.
+- **Links** (`links.ts`, read relative to `lessons/`). A code walk link
+  (`../harnesswalk/<path>#<Symbol>`) opens the Code tab at the symbol's line from the chapter's
+  `code_links`, highlighted: in the node's own code peek when the link's `node_id` is the
+  inspected node, otherwise in that file from the lesson source route, with "Back to" the node's
+  own file. A link to another chapter opens it in the tab; `#section` scrolls; any other repo path
+  opens on GitHub (`REPO_BLOB_URL`) and an https link as is, both in a new tab with a hidden
+  "(opens in a new tab)".
+- **Try it.** A chapter's front matter `try` (`fixture`, `prompt`, `disable`) becomes a button
+  under the hook. With `disable` (every node there `can_disable`, mode dev or private,
+  `features.disable_nodes` not false) it is "Disable <Label> and try it": it turns those nodes
+  off for the next turn (the same state as the inspector's switch), picks the fixture in the
+  header (dev only, as fixtures are), puts the prompt in the composer and focuses it. The reader
+  presses send. With a prompt and no `disable` it is a plain "Try it" (dev only when it needs a
+  fixture). The composer's text lives in the store (`draft`) for this.
+- **Check yourself** (`CheckYourself.tsx`, state in `quiz.ts`). Three questions, each
+  `### N. Question`, a task list of three choices with one `- [x]`, then `Answer:` and the
+  explanation. One at a time in the Questionnaire; a choice shows at once whether it was right
+  and the explanation; a choice can be changed. Answers stay in this browser only.
+- **The drawer** (`LessonsDrawer.tsx`, its own chunk, opened by `LessonsButton.tsx` in the
+  header). A Sheet from the left (a Radix Dialog: focus is trapped, Esc closes it and focus goes
+  back to the button) listing the chapters in order (`outline.ts`: the diagram's `lesson_url`s
+  in walk order, then the groups, marked "inside", merged with what `GET /v1/lessons` serves, so
+  a chapter not written yet still has its row). Each row has the title, the hook and its
+  progress in words. A chapter opens its node on the Lessons tab, and a group chapter switches to
+  the expert view and selects its first covered node; focus moves to the chapter's title.
+  Next chapter (here and at the end of the tab) does the same for the next one.
+- **Progress** (`progress.ts`, `useProgress.ts`) is kept per viewer in `localStorage` as
+  `harnesswalk.lessons`: `{"<slug>": {"read": true, "answers": {"0": 1}, "checked": true}}`.
+  A chapter is read once it was opened in the Lessons tab and checked once every question has an
+  answer. Storage failures are ignored, as everywhere.
 
 ## Reading the diagram: the colour system
 
@@ -334,12 +407,14 @@ src/state      the reducer (events to state), turn facts read from summary keys,
 src/diagram    layout, React Flow nodes and edges, stats and memory badges, ops roles
 src/chat       chat panel, composer, approval confirmation, step controls, tool calls, citations,
                the document reader, guardrail badges, reasoning and plan slots, feedback, markers
-src/inspector  node drawer: overview, config or prompt or records, code, events (Trace), and
-               the LLM Ops panels (eval runs, releases, trace query) and the artifact editor
+src/inspector  node drawer: overview, lessons, config or prompt or records, code, events (Trace),
+               and the LLM Ops panels (eval runs, releases, trace query) and the artifact editor
+src/lessons    the Lessons tab, Check yourself, the drawer, and their pure parts: the chapter
+               parser, heading slugs, link kinds, the outline, the checks and the progress store
 src/components shadcn/ui in ui/, plus hint, code, prose, the diff view and the confirm item
 src/lib, hooks cn() and the shiki highlighter, from the shadcn CLI, and line diffs
 src/replay     replay bar and its step-over
-src/mock       in-browser mock API over spec/examples, and the P4 ops routes
+src/mock       in-browser mock API over spec/examples, the P4 ops routes and the P5 lesson routes
 src/app        shell, header, bootstrap
 e2e, e2e-live  Playwright suites (mock build, live API)
 ```

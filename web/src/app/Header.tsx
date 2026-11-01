@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { LessonsButton } from '@/lessons/LessonsButton'
 import { useApp } from '@/state/store'
 import { useDarkTheme } from './useTheme'
 
@@ -151,6 +152,7 @@ export function Header() {
         )}
         {(dev || disabled.length > 0) && <Separator orientation="vertical" className="my-1.5" />}
         <div className="flex items-center gap-1">
+          <LessonsButton />
           <ThemeButton />
           <SessionMenu />
         </div>

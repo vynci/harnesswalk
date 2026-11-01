@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 
 // Smoke tests run against the mock build: no API, no model, deterministic streams.
-const PORT = 4179
+// HARNESSWALK_MOCK_PORT picks another port, so parallel checkouts never reuse each other's server.
+const PORT = Number(process.env.HARNESSWALK_MOCK_PORT) || 4179
 
 export default defineConfig({
   testDir: './e2e',

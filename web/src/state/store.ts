@@ -104,6 +104,12 @@ export interface AppState {
 
   replay: ReplayState | null
   selectedNode: string | null
+  /** The inspector tab the reader picked, for the node it was picked on. */
+  inspectorTab: { node: string | null; tab: string }
+  /** The composer's text, so a lesson's "try it" can fill it. */
+  draft: string
+  /** Bumped to move focus into the composer. */
+  composerFocus: number
   notices: Notice[]
   /** The knowledge document open in the reader, at a chunk when a citation opened it. */
   doc: { docId: string; chunk?: number } | null
@@ -137,6 +143,11 @@ export interface AppState {
   stepReplay: (delta: number) => void
   setPlaying: (playing: boolean) => void
   selectNode: (id: string | null) => void
+  setInspectorTab: (node: string | null, tab: string) => void
+  /** Select a node and open its inspector on a tab (a lesson from the drawer, say). */
+  openInspector: (node: string, tab: string) => void
+  setDraft: (text: string) => void
+  focusComposer: () => void
   setView: (view: View) => void
   toggleCollapsed: (id: string) => void
   setShowTelemetry: (on: boolean) => void
@@ -440,6 +451,9 @@ export const useApp = create<AppState>()((set, get) => {
 
     replay: null,
     selectedNode: null,
+    inspectorTab: { node: null, tab: 'overview' },
+    draft: '',
+    composerFocus: 0,
     notices: [],
     doc: null,
     inspectorVersion: 0,
@@ -606,6 +620,22 @@ export const useApp = create<AppState>()((set, get) => {
 
     selectNode(id) {
       set({ selectedNode: id })
+    },
+
+    setInspectorTab(node, tab) {
+      set({ inspectorTab: { node, tab } })
+    },
+
+    openInspector(node, tab) {
+      set({ selectedNode: node, inspectorTab: { node, tab } })
+    },
+
+    setDraft(draft) {
+      set({ draft })
+    },
+
+    focusComposer() {
+      set((s) => ({ composerFocus: s.composerFocus + 1 }))
     },
 
     setView(view) {
