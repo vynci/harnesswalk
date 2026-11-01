@@ -98,12 +98,12 @@ the fake provider (`uv run harnesswalk packs validate`, `uv run harnesswalk eval
 in all, indexed in [lessons/README.md](lessons/README.md)). Each chapter says what the node
 does, what breaks without it (the exact pack, fixture and prompt, verified on the fake
 provider), walks its code with links into `harnesswalk/`, and ends with three things to try and
-three questions. In the web app every node's inspector has a Lessons tab with "Disable X and
+three questions. In the web app every node's inspector opens its Guide chapter with "Disable X and
 try it" (or "Try it"), which sets up the demonstration for the next turn; the five chapters
 whose node can be switched off also show the failure on the domain pack whose feature it is.
-The Lessons drawer in the header lists every chapter with your progress.
+The Guide drawer in the header lists every chapter with your progress.
 
-![A chapter in the Lessons tab, with its Try buttons](docs/screenshots/lessons-tab.png)
+![A chapter in the Guide, with its Try buttons](docs/screenshots/lessons-tab.png)
 
 ## Walk through it one node at a time
 
