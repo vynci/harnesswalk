@@ -4,9 +4,9 @@ domain: ecommerce
 summary: An online outdoor and home goods shop where cancelling an order or issuing a refund pauses for
   a human approval before anything changes.
 tier: domain
-feature:
+feature: Destructive action behind approval
+demonstrates:
   id: approval
-  name: Destructive action behind approval
   nodes:
   - policy
   - approval
@@ -17,7 +17,7 @@ feature:
 licence: CC0-1.0
 provenance: provenance.md
 synthetic: true
-suggested_prompts:
+prompts:
 - Where is my order QF-20417?
 - Please cancel order QF-20430, I ordered the wrong size.
 - I want a refund for order QF-20388, the lantern arrived cracked.

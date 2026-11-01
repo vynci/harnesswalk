@@ -4,9 +4,9 @@ domain: finance
 summary: An investor relations assistant for the limited partners of four fictional closed-end private-markets
   funds, answering from fund documents with citations and remembering each investor's standing preferences.
 tier: domain
-feature:
+feature: Citations and the memory writer
+demonstrates:
   id: citations_and_memory
-  name: Citations and the memory writer
   nodes:
   - knowledge
   - output_guardrails
@@ -21,7 +21,7 @@ feature:
 licence: CC0-1.0
 provenance: provenance.md
 synthetic: true
-suggested_prompts:
+prompts:
 - What is the management fee for Hollowmere Growth Partners III?
 - When is the next capital call for HCP-03 due, and how much is it?
 - What share of the latest HCP-02 distribution is return of capital?

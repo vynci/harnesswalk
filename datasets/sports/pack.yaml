@@ -4,9 +4,9 @@ domain: sports
 summary: A volunteer help desk for an amateur football league, where fixture, table and player lookups
   are routed to the cheapest model for the phrasing step.
 tier: domain
-feature:
+feature: Cheap model routing for lookups
+demonstrates:
   id: router
-  name: Cheap model routing for lookups
   nodes:
   - model_layer
   - router
@@ -18,7 +18,7 @@ feature:
 licence: CC0-1.0
 provenance: provenance.md
 synthetic: true
-suggested_prompts:
+prompts:
 - When does ASH play next, and where?
 - Show me the premier division table.
 - How many goals has PL-114 scored this season?

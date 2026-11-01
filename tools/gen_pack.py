@@ -257,20 +257,30 @@ def no_em_dashes(pack_dir: Path) -> None:
 
 
 def finish_pack_yaml(pack: str, pack_dir: Path) -> None:
+    """The card in the shape spec/packs.md fixes. The model writes `feature` as a mapping
+    (name, nodes, summary) and `suggested_prompts`; the card keeps the name as `feature`, the
+    rest under `demonstrates`, and the prompts as `prompts` (the fields the ops index reads)."""
     path = pack_dir / "pack.yaml"
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    feature = data.get("feature")
+    shown = dict(data.get("demonstrates") or {})
+    if isinstance(feature, dict):
+        shown = {"nodes": feature.get("nodes"), "summary": feature.get("summary")}
+        feature = feature.get("name")
     ordered = {
         "id": pack,
         "title": data.get("title"),
         "domain": data.get("domain", pack),
         "summary": data.get("summary"),
         "tier": "domain",
-        "feature": {"id": FEATURES[pack], **(data.get("feature") or {})},
+        "feature": feature,
+        "demonstrates": {"id": FEATURES[pack], "nodes": shown.get("nodes"),
+                         "summary": str(shown.get("summary") or "").strip()},
         "licence": "CC0-1.0",
         "provenance": "provenance.md",
         "synthetic": True,
-        "suggested_prompts": data.get("suggested_prompts") or [],
-    }
+        "prompts": data.get("prompts") or data.get("suggested_prompts") or [],
+    }  # fmt: skip
     path.write_text(yaml.safe_dump(ordered, sort_keys=False, allow_unicode=True, width=100))
 
 

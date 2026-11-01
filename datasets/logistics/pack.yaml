@@ -4,9 +4,9 @@ domain: logistics
 summary: An operations desk assistant for a regional freight forwarder that tracks, checks and reroutes
   shipments one tool at a time.
 tier: domain
-feature:
+feature: Multi-step tool use
+demonstrates:
   id: multi_step_tools
-  name: Multi-step tool use
   nodes:
   - loop
   - tools
@@ -17,7 +17,7 @@ feature:
 licence: CC0-1.0
 provenance: provenance.md
 synthetic: true
-suggested_prompts:
+prompts:
 - Where is shipment TG-604118 right now?
 - TG-604227 looks late. Can you check its alternate hub and reroute it if possible?
 - Track TG-604305, check whether its alternate hub can take it, reroute it, and give me the new ETA.

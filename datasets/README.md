@@ -30,13 +30,13 @@ uv run harnesswalk turn "Track TG-604118, check whether its alternate hub can ta
 ```
 
 Each pack's `prompts.md` lists prompts to try and what each one lights up; `pack.yaml`
-carries the short list the UI shows as suggestions.
+`prompts` is the short list the UI shows as suggestions (`GET /v1/packs`).
 
 ## What is in a pack
 
 ```
 datasets/<pack>/
-  pack.yaml            the card: title, domain, feature, licence, provenance, suggested prompts
+  pack.yaml            the card: title, domain, feature, demonstrates, licence, provenance, prompts
   provenance.md        how it was made: generator, model, prompts and hashes, tokens and cost
   system_prompt.md     skill zero
   skills/*.md          3 to 5 on-demand skills
