@@ -7,7 +7,7 @@ import pytest
 
 from harnesswalk.config.loader import load_settings
 from harnesswalk.execution.model_layer import ModelLayer, ModelRequest, confidence
-from harnesswalk.execution.providers import ProviderResponse, ProviderUsage
+from harnesswalk.execution.providers import ProviderError, ProviderResponse, ProviderUsage
 from harnesswalk.execution.providers.anthropic import AnthropicProvider
 from harnesswalk.execution.providers.health import ProviderHealth
 from harnesswalk.execution.router import Router, RouteRequest
@@ -39,6 +39,18 @@ def test_cost_risk_price_ceiling_and_hint() -> None:
     hinted = r.route(RouteRequest(1, "first", hint="sonnet"))
     assert (hinted.model, hinted.alternatives) == ("sonnet", ["local", "haiku"])
     assert r.route(RouteRequest(1, "first", hint="not-allowed")).model == "local"
+
+
+def test_a_rule_priced_out_falls_through_but_an_unconfigured_one_fails() -> None:
+    """P5 integration: when the cap drops every configured model of a rule, the next matching
+    rule routes the call; a rule with no configured model at all is still an error."""
+    pricey = {**MODELS, "haiku": {**MODELS["haiku"], "price_out_per_mtok": 5}}
+    r = Router(RULES, pricey, lambda p: True)
+    picked = r.route(RouteRequest(1, "first", cost="low"))
+    assert (picked.rule, picked.model) == ("default", "local")
+    only_fake = Router(RULES, MODELS, lambda p: p == "fake")
+    with pytest.raises(ProviderError):
+        only_fake.route(RouteRequest(1, "first", cost="low"))  # cheap: sonnet, haiku unconfigured
 
 
 def test_unhealthy_providers_are_skipped_until_the_next_probe() -> None:

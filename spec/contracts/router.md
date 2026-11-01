@@ -83,7 +83,10 @@ router:
   `read`, so a rule can send consequential steps to a stronger model.
 - **Cost.** `when.cost: low | normal`: a request is `cost: low` once the turn has spent
   `router.cost.tight_fraction` (default 0.75) of its dollar budget. A rule MAY also set
-  `max_price_out_per_mtok` to drop aliases priced above it.
+  `max_price_out_per_mtok` to drop aliases priced above it. When the cap drops every
+  configured alias of a matching rule, that rule does not apply and the next matching rule
+  routes the call (P5 integration); a rule with no configured alias at all is still a
+  `provider_error`.
 - **Health.** `model` is the first alias whose provider is configured and healthy. Health is a
   probe per provider every `router.health_check_s` (a cheap list-models call; `fake` is always
   healthy) plus a passive signal: a retryable failure marks the provider unhealthy until the

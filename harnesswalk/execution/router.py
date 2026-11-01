@@ -86,11 +86,23 @@ class Router:
             return False
         return not (req.modality == "image" and "image" not in model.get("modalities", []))
 
+    def _priced_out(self, rule: dict[str, Any], req: RouteRequest) -> bool:
+        """Whether the cap alone empties the rule: some alias would be usable without it."""
+        if rule.get("max_price_out_per_mtok") is None:
+            return False
+        uncapped = {k: v for k, v in rule.items() if k != "max_price_out_per_mtok"}
+        return any(self._usable(alias, req, uncapped) for alias in rule.get("use", []))
+
     def route(self, req: RouteRequest) -> Route:
         for rule in self._rules:
             if not self.matches(rule.get("when") or {}, req):
                 continue
             usable = [alias for alias in rule.get("use", []) if self._usable(alias, req, rule)]
+            if not usable and self._priced_out(rule, req):
+                # Every configured model of the rule costs more than its cap: the rule asks for
+                # a cheap model and none exists, so the next matching rule routes the call
+                # (P5 integration: a priced fake model used to fail the `lookup` step).
+                continue
             if not usable:
                 raise ProviderError(
                     "provider_error",
