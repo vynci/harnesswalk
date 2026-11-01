@@ -152,7 +152,7 @@ class LiveHarness:
             profile=PROFILE,
             overrides=case.get("config", {}),
             data_dir=data_dir,
-            env={},
+            env={"HARNESSWALK_SECRET": "conformance-secret"},  # public mode's cookie secret
         )
         self.harness = Harness(settings)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -228,6 +228,8 @@ class LiveProcess:
             HARNESSWALK_PORT=fields["port"],
             HARNESSWALK_CONFORMANCE_CONFIG=fields["config_json"],
         )
+        # P6: public mode signs its tenant cookie with this secret (yours wins when it is set).
+        env.setdefault("HARNESSWALK_SECRET", "conformance-secret")
         return cmd, env
 
     def start(self) -> None:
@@ -261,6 +263,7 @@ class LiveProcess:
             "HARNESSWALK_ROOT": str(ROOT),
             "HARNESSWALK_DATA_DIR": str(self.data_dir),
             "HARNESSWALK_WEB_DIST": str(self.data_dir / "no-web"),
+            "HARNESSWALK_SECRET": "conformance-secret",
         }
         self._spawn(cmd, env, port)
 

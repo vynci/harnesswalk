@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aiharness.vynci.dev/spec/0.1/diagram.schema.json",
+  "$id": "https://harnesswalk.vynci.dev/spec/0.1/diagram.schema.json",
   "title": "harnesswalk canonical diagram",
   "description": "The canonical diagram of the harness. Implementations derive the served diagram from their registered nodes and MUST NOT introduce node or edge ids that are absent here. Referential rules that JSON Schema cannot express (parents exist, edge endpoints exist, walk_order covers every simple node) are listed in spec/harness.md and checked by tests/spec/test_diagram.py.",
   "type": "object",

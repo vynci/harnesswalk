@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aiharness.vynci.dev/spec/0.1/conformance/fixture.schema.json",
+  "$id": "https://harnesswalk.vynci.dev/spec/0.1/conformance/fixture.schema.json",
   "title": "harnesswalk fake-provider fixture",
   "description": "Scripted responses for the fake model provider. Semantics in spec/contracts/model_provider.md.",
   "type": "object",
@@ -10,6 +10,11 @@
     "fixture": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
     "description": { "type": "string" },
     "model": { "type": "string", "default": "fake-small" },
+    "cycle": {
+      "description": "P6: never run out. Turn n reads turns[n mod len(turns)], and a model call past a turn's last response answers with the last scripted text and no tool calls. For a public site's scripted model, where sessions are long and a turn can fall through to it mid-way.",
+      "type": "boolean",
+      "default": false
+    },
     "turns": {
       "type": "array",
       "minItems": 1,

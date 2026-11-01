@@ -100,9 +100,27 @@ record ChannelReply { text: string, citations: [Citation], turn_id: string }
 | `gateway.max_message_chars` | `8000` | Hard cap before guardrails |
 | `gateway.rate_limit.per_ip_per_hour` | `30` | Public mode |
 | `gateway.rate_limit.per_tenant_per_hour` | `120` | |
-| `gateway.session_ttl_s` | `7200` | Public mode TTL |
+| `public.session_ttl_s` | `7200` | Public mode TTL of an anonymous tenant (P6: moved from `gateway.session_ttl_s`) |
+| `gateway.max_open_streams` | `50` | SSE streams open at once (every mode); the next is a `429` (P6) |
+| `gateway.trust_proxy` | `false` | Read the client IP and scheme from proxy headers (env `HARNESSWALK_TRUST_PROXY=1`, P6) |
 | `gateway.dev_tenant` | `dev` | Tenant used in dev mode when none is given |
 | `gateway.allow_tenant_header` | `true` in dev | Accept `X-Harnesswalk-Tenant` (dev only, ignored elsewhere) |
 | `gateway.stream_reply_chars` | `24` | Above 0, the reply is also sent as `message_delta` events of this many characters inside the `phase: reply` span; `0` turns streaming off |
 | `gateway.turn_state_max` | `500` | Finished turns whose in-process state is kept; the oldest beyond this are evicted |
 | `gateway.turn_state_ttl_seconds` | `3600` | A finished turn's in-process state is evicted this long after it ended |
+
+## P6 additions: public mode
+
+- **Identity.** An anonymous tenant per browser, in a cookie that carries its expiry and is
+  signed with `HARNESSWALK_SECRET` (http_api.md, P6 additions). The HTTP surface refuses to
+  start in public mode without the secret.
+- **Model.** A turn's `model` is validated against `public.models` (400), a spent budget (409
+  `budget_exhausted` with `resets_at`) and a missing key (422 `provider_not_configured`)
+  before the rate limits count it.
+- **Rate limits.** Per IP and per tenant, hourly sliding windows in a table bounded by
+  `public.rate_limit_max_keys`; a refusal is a 429 with `Retry-After`.
+- **Expiry.** `start_turn` registers the tenant with its expiry; the TTL sweeper
+  (`ops/sweep.py`, `harnesswalk sweep`) deletes every row of an expired tenant without a
+  running turn, and the gateway forgets its finished turns and rate windows.
+- **Notices.** A turn's notices (`TurnContext.notices`, `budget_exhausted` when the budget moved
+  a call to the fake model) are listed on `turn_end.summary.notices`.

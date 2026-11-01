@@ -48,6 +48,7 @@ from harnesswalk.control.budgets import Budgets
 from harnesswalk.control.gateway import Gateway
 from harnesswalk.control.input_guardrails import InputGuardrails
 from harnesswalk.control.policy import Policy
+from harnesswalk.control.public import PublicModels, TenantRegistry, capabilities_block
 from harnesswalk.events import EventBus
 from harnesswalk.execution.builtin_tools import CALCULATOR, read_skill_tool
 from harnesswalk.execution.loop import Loop
@@ -73,10 +74,12 @@ from harnesswalk.execution.router import Router, RouteRequest
 from harnesswalk.execution.sandbox import Sandbox
 from harnesswalk.execution.tools import Tools
 from harnesswalk.nodes import load_components
+from harnesswalk.ops.budget import HostedBudget
 from harnesswalk.ops.eval import Evals
 from harnesswalk.ops.ops_events import OpsEvents
 from harnesswalk.ops.otel import build_exporter
 from harnesswalk.ops.release import ReleaseManager
+from harnesswalk.ops.sweep import Sweeper
 from harnesswalk.ops.trace import Tracer
 from harnesswalk.types import ConfigError, Message, TurnContext
 
@@ -140,6 +143,9 @@ class PackParts:
             health=health,
             cascade=s.get("models.router.cascade", {}),
             tight_fraction=float(s.get("models.router.cost.tight_fraction", 0.75)),
+            public=self.public_models,
+            ledger=self.hosted_budget,
+            budget_notice=str(s.get("loop.notices.budget_exhausted", "")),
         )
         estimator = s.get("context.token_estimator", "chars_div_4")
         enabled = set(s.get("context.stores", ["procedural", "session"]))
@@ -308,11 +314,18 @@ class Harness(PackParts):
         self.session = SessionStore(
             str(s.resolve(s.get("stores.session.sqlite_path", "data/session.db")))
         )
+        self.tenants = TenantRegistry(self.session.db)
         self.audit = AuditLog(str(s.resolve(s.get("audit.sqlite_path", "data/audit.db"))))
         self.budgets = Budgets(
             s.get("policy.budgets", {}),
             str(s.resolve(s.get("policy.budgets_sqlite_path", "data/budgets.db"))),
         )
+        # P6: the shared daily hosted budget (next to the per-tenant ledger), the public
+        # allowlist, and when each anonymous public tenant expires.
+        self.hosted_budget = HostedBudget(
+            self.budgets.db, lambda: float(self.settings.get("public.hosted_budget_usd_per_day", 0))
+        )
+        self.public_models = PublicModels(self)
         self.approvals = ApprovalQueue(
             str(s.resolve(s.get("approval.sqlite_path", "data/approvals.db"))),
             timeout_s=float(s.get("approval.timeout_s", 900)),
@@ -330,7 +343,9 @@ class Harness(PackParts):
         if not self.providers:
             raise ConfigError("no model provider is configured (set HARNESSWALK_PROVIDER)")
         self.provider_health = ProviderHealth(
-            self.providers, float(s.get("models.router.health_check_s", 30))
+            self.providers,
+            float(s.get("models.router.health_check_s", 30)),
+            keyless_ok=mode == "public",
         )
         # One PII detector (the pack's patterns included) for the input guardrails and the
         # memory writer, so a proposal is redacted exactly as a message is.
@@ -353,6 +368,7 @@ class Harness(PackParts):
         self.otel = build_exporter(s, self.bus, self.ops)
         self._background: list[asyncio.Task] = []
         self.gateway = Gateway(self)
+        self.sweeper = Sweeper(self)  # P6: deletes expired public tenants (ops/sweep.py)
         self._turn_providers: dict[str, ModelProvider] = {}  # built on demand for a turn
         self._turn_fakes: dict[tuple[str, str], FakeProvider] = {}  # (pack, fixture) -> provider
         self._startup_fake: FakeProvider | None = None  # `provider: fake` on another server
@@ -430,6 +446,21 @@ class Harness(PackParts):
 
         self._background.append(asyncio.create_task(sweeper()))
         self._background.append(asyncio.create_task(self.provider_health.run()))
+        ttl_sweep_s = float(self.settings.get("public.sweep_interval_s", 0) or 0)
+        if self.settings.mode == "public" and ttl_sweep_s > 0:
+
+            async def ttl_sweeper() -> None:
+                while True:
+                    await asyncio.sleep(ttl_sweep_s)
+                    try:
+                        done = self.sweeper.sweep()
+                    except Exception as exc:  # a failed pass is retried on the next one
+                        log.warning("TTL sweep failed: %s", type(exc).__name__)
+                        continue
+                    if done["tenants"]:
+                        log.info("TTL sweep deleted %d expired tenant(s)", len(done["tenants"]))
+
+            self._background.append(asyncio.create_task(ttl_sweeper()))
         return recovered
 
     def _build_memory_stores(self) -> None:
@@ -468,6 +499,8 @@ class Harness(PackParts):
         """Whether a turn could run on this provider (`configured` in /v1/capabilities)."""
         if name in self.providers:
             return True
+        if self.settings.mode == "public":  # exactly what public.models built (P6)
+            return False
         if name == "fake":
             return self.settings.mode == "dev"
         return self.settings.provider_prerequisites(name)
@@ -521,8 +554,9 @@ class Harness(PackParts):
             self._turn_providers[provider] = build_provider(provider, self.settings)
         return {provider: self._turn_providers[provider]}
 
-    def capabilities(self) -> dict[str, Any]:
-        """GET /v1/capabilities: what this build can do, so the UI adapts (http_api.md)."""
+    def capabilities(self, identity: Any = None, client_ip: str | None = None) -> dict[str, Any]:
+        """GET /v1/capabilities: what this build can do, so the UI adapts (http_api.md).
+        P6: `public` (every mode) from control/public.py, for the caller's tenant and IP."""
         s, mode = self.settings, self.settings.mode
         models = s.get("models.models", {})
         default = self.provider_name
@@ -574,9 +608,10 @@ class Harness(PackParts):
                 "max_message_chars": int(s.get("gateway.max_message_chars", 32000)),
                 "max_steps": int(s.get("loop.max_steps", 8)),
                 "session_ttl_seconds": (
-                    int(s.get("gateway.session_ttl_s", 7200)) if mode == "public" else None
+                    int(s.get("public.session_ttl_s", 7200)) if mode == "public" else None
                 ),
             },
+            "public": capabilities_block(self, identity, client_ip),
         }
 
     async def _summarize(self, ctx: TurnContext, previous: str, turns: list[Turn]) -> str | None:
@@ -610,6 +645,35 @@ class Harness(PackParts):
         except ProviderError:
             return None
         return response.text
+
+    def readiness(self) -> dict[str, Any]:
+        """GET /readyz (P6): every store answers, the default model's provider is healthy, and
+        a public server has its cookie secret. Cheap: pings and in-memory state only."""
+        dbs = {
+            "trace": self.tracer.db,
+            "session": self.session.db,
+            "audit": self.audit.db,
+            "approvals": self.approvals.db,
+            "budgets": self.budgets.db,
+            "memory": self.memory_db,
+            "evals": self.evals.store.db,
+        }
+        checks: dict[str, str] = {
+            f"store.{name}": "ok" if db.ping() else "unavailable" for name, db in dbs.items()
+        }
+        if self.settings.mode == "public":
+            default = self.public_models.effective_default()
+            checks["default_model"] = "ok" if default else "unavailable"
+            checks["secret"] = "ok" if self.settings.secret else "missing"
+        else:
+            name = self.provider_name
+            checks["default_model"] = "ok" if self.provider_health.ok(name) else "unavailable"
+            default = None
+        ok = all(v == "ok" for v in checks.values())
+        out: dict[str, Any] = {"status": "ready" if ok else "not_ready", "checks": checks}
+        if default:
+            out["default_model"] = default
+        return out
 
     def health(self) -> dict[str, Any]:
         ok = self.tracer.db.ping()

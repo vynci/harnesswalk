@@ -81,9 +81,8 @@ redaction) is scored with the same prompt-injection heuristics as the input guar
 rejected with reason `injection: <signals>`; at `review_threshold` (default 0.45) an `auto` or
 `eval` gate becomes `review`, so a person reads text that looks like an instruction before it
 can come back as retrieved memory. `memory_proposed.summary.injection` carries the score when
-any signal fired. Retrieved memory still reaches the model as a system message (the context
-builder's retrieved blocks); whether it should carry less authority than the system prompt is
-an open question recorded in `docs/ROADMAP.md` (P6).
+any signal fired. Since P6 retrieved memory reaches the model as quoted data in a user-role
+message, never as system text (context_builder.md, P6 additions).
 
 ## Inputs and outputs
 

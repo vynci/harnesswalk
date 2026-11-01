@@ -1,0 +1,8 @@
+fixture: public_model_allowlist
+description: P6. A public turn that names an allowed model runs on it.
+model: fake-small
+turns:
+  - responses:
+      - text: Our support team is available 9am to 5pm Eastern, Monday to Friday.
+        usage: { input_tokens: 600, output_tokens: 17 }
+        expect: { last_message_role: user }

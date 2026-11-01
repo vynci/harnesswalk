@@ -1,0 +1,14 @@
+fixture: public_budget_fall_through
+description: >-
+  P6. The first call runs on the priced alias and spends the whole daily budget (one input
+  token at one cent); the second call of the same turn falls through to fake-small.
+model: fake-small
+turns:
+  - responses:
+      - tool_calls:
+          - { name: lookup_order, arguments: { order_id: A-1001 } }
+        usage: { input_tokens: 1, output_tokens: 0 }
+        expect: { last_message_role: user }
+      - text: I could not look that order up just now. Please try again later.
+        usage: { input_tokens: 0, output_tokens: 0 }
+        expect: { last_message_role: tool }

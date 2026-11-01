@@ -270,6 +270,7 @@ def add_ops_routes(
         run_or_404(tenant_id, run_id)
         start = _cursor(request, after)
         live = run_id in h.evals.offline.tasks and not h.evals.offline.tasks[run_id].done()
+        token = app.state.acquire_stream()  # P6: SSE streams are bounded
 
         async def stream():
             source = h.ops.follow(
@@ -279,7 +280,9 @@ def add_ops_routes(
                 # The UI reads run_id off each message; the stored event keeps the envelope.
                 yield ": keepalive\n\n" if event is None else sse({**event, "run_id": run_id})
 
-        return StreamingResponse(stream(), media_type="text/event-stream", headers=SSE_HEADERS)
+        return StreamingResponse(
+            app.state.bounded(token, stream()), media_type="text/event-stream", headers=SSE_HEADERS
+        )
 
     @app.get("/v1/evals/runs/{run_id}/cases/{case_id}/events")
     async def case_events(request: Request, run_id: str, case_id: str) -> Response:
@@ -540,6 +543,7 @@ def add_ops_routes(
             raise GatewayError(404, "tenant_not_found", f"No tenant {tenant} for this caller.")
         given = after is not None or request.headers.get("last-event-id")
         start = _cursor(request, after) if given else None
+        token = app.state.acquire_stream()  # P6: SSE streams are bounded
 
         async def stream():
             yield ": ops events\n\n"  # sent at once, so the browser sees the stream open
@@ -555,4 +559,6 @@ def add_ops_routes(
                 )
                 yield f"id: {cursor}\nevent: {event['type']}\ndata: {data}\n\n"
 
-        return StreamingResponse(stream(), media_type="text/event-stream", headers=SSE_HEADERS)
+        return StreamingResponse(
+            app.state.bounded(token, stream()), media_type="text/event-stream", headers=SSE_HEADERS
+        )

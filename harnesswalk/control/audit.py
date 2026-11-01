@@ -154,6 +154,21 @@ class AuditLog:
         )
         return [self._record(r) for r in rows]
 
+    def purge_tenant(self, tenant_id: str) -> int:
+        """Delete a whole tenant's chain: the TTL sweeper's one way past the append-only
+        trigger (P6, public mode). Other tenants' chains are untouched and still verify, since
+        each chain links only its own tenant's records. Returns how many records went."""
+        with self.db.transaction() as conn:
+            conn.execute("DROP TRIGGER IF EXISTS audit_no_delete")
+            try:
+                count = conn.execute("DELETE FROM audit WHERE tenant_id = ?", (tenant_id,)).rowcount
+            finally:
+                conn.execute(
+                    "CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit"
+                    " BEGIN SELECT RAISE(ABORT, 'audit is append-only'); END"
+                )
+        return count
+
     def verify(self, tenant_id: str) -> dict[str, Any]:
         rows = self.db.query("SELECT * FROM audit WHERE tenant_id = ? ORDER BY rowid", (tenant_id,))
         prev = GENESIS

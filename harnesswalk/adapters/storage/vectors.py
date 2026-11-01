@@ -66,6 +66,10 @@ class VectorIndex:
     def delete(self, ns: str, ids: Sequence[str]) -> None:
         raise NotImplementedError
 
+    def delete_scope(self, scope: str) -> int:
+        """Delete every vector of one scope (a tenant), in every namespace (P6 TTL sweep)."""
+        raise NotImplementedError
+
     def close(self) -> None:
         pass
 
@@ -101,6 +105,9 @@ class SqliteVectors(VectorIndex):
 
     def delete(self, ns, ids) -> None:
         self.db.executemany("DELETE FROM vectors WHERE ns = ? AND id = ?", [(ns, i) for i in ids])
+
+    def delete_scope(self, scope: str) -> int:
+        return self.db.execute("DELETE FROM vectors WHERE scope = ?", (scope,)).rowcount
 
 
 def _scope_sql(scopes: Sequence[tuple[str, str | None]], mark: str) -> tuple[str, list[str]]:
@@ -194,6 +201,13 @@ class PgVectors(VectorIndex):
                 f"DELETE FROM {self.table} WHERE space = %s AND ns = %s AND id = %s",
                 [(self.space, ns, i) for i in ids],
             )
+
+    def delete_scope(self, scope: str) -> int:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"DELETE FROM {self.table} WHERE space = %s AND scope = %s", (self.space, scope)
+            )
+            return cur.rowcount
 
     def drop_space(self) -> None:
         """Delete every vector of this space (tests clean up with it)."""

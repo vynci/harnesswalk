@@ -333,6 +333,8 @@ class Loop:
             text = self.notices[exit_reason]
 
         span.set(steps=state.step, exit_reason=exit_reason, tool_calls=state.tool_calls)
+        if ctx.notices:  # P6: a call fell through to the fake model (budget_exhausted)
+            span.set(notices=[n["reason"] for n in ctx.notices])
         source = limits.budget_source.get(
             {"budget_tokens": "tokens", "budget_usd": "usd"}.get(exit_reason, "")
         )

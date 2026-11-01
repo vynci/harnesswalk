@@ -17,6 +17,7 @@ from harnesswalk.types import Identity, TurnContext
 from tests.spec.support import ROOT
 
 PROFILE = ROOT / "spec" / "conformance" / "profile.yaml"
+TEST_SECRET = "test-secret"
 
 load_components()
 
@@ -50,7 +51,7 @@ def settings(
         profile=profile,
         overrides=extra,
         data_dir=tmp_path / "data",
-        env={},
+        env={"HARNESSWALK_SECRET": TEST_SECRET},  # public mode's cookie secret (P6)
     )
 
 

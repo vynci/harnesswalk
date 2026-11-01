@@ -1,0 +1,36 @@
+id: public_model_allowlist
+title: Public mode accepts only the models in public.models and runs a turn on the one it names
+spec_version: 0.1.0
+fixture: public_model_allowlist
+mode: public
+turns:
+  - before:
+      - method: GET
+        path: /v1/capabilities
+        match:
+          mode: public
+          public:
+            byo_key_bypasses_budget: true
+            budget: { status: ok }
+      - method: POST
+        path: /v1/turns
+        body: { message: "What are your support hours?", model: local-8b }
+        status: 400
+        match: { error: { code: invalid_request, message: model not available in public mode } }
+      - method: POST
+        path: /v1/turns
+        body: { message: "What are your support hours?", model: not-a-model }
+        status: 400
+        match: { error: { code: invalid_request } }
+    send:
+      message: What are your support hours?
+      options: { model: fake-small }
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: turn_start, summary: { mode: public, model_hint: fake-small } }
+        - { type: node_exit, node_id: router, summary: { rule: public, model: fake-small } }
+        - { type: node_exit, node_id: model_layer, summary: { provider: fake, model: fake-small } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      reply_contains: [9am to 5pm Eastern]
