@@ -5,7 +5,6 @@
 import { Fragment } from 'react'
 import { Select as SelectPrimitive } from 'radix-ui'
 import { CheckIcon, ChevronDown, Clock, FlaskConical, X } from 'lucide-react'
-import { Hint } from '@/components/hint'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -181,22 +180,21 @@ export function FixturePicker() {
   const groups = fixtureGroups(catalog, packs, pack)
   const value = fixture && groups.all.includes(fixture) ? fixture : SERVER_DEFAULT
   const serverDefault = catalog.defaultName ? `${catalog.defaultName} (default)` : mock ? 'by message' : 'default'
-  // The trigger names the script only; the menu says which entry is the server's default.
+  // The trigger names the script only; the menu says which entry is the server's default. No
+  // tooltip on it: Escape would close the tooltip before the open list.
   const shown = value === SERVER_DEFAULT ? (catalog.defaultName ?? serverDefault) : value
   const item = (name: string) => <FixtureItem key={name} name={name} description={catalog.descriptions[name] ?? null} />
   return (
     <Select value={value} onValueChange={(v) => setFixture(v === SERVER_DEFAULT ? null : v)}>
-      <Hint label="Fixture: the scripted answer the fake model plays for the next turn" side="top">
-        <SelectPrimitive.Trigger asChild>
-          <InputGroupButton size="xs" className="max-w-52 text-muted-foreground" aria-label={`Fixture: ${shown}`} data-testid="fixture-select" data-fixture={fixture ?? ''}>
-            <FlaskConical aria-hidden />
-            <span className="truncate">
-              <SelectPrimitive.Value>{shown}</SelectPrimitive.Value>
-            </span>
-            <ChevronDown aria-hidden />
-          </InputGroupButton>
-        </SelectPrimitive.Trigger>
-      </Hint>
+      <SelectPrimitive.Trigger asChild>
+        <InputGroupButton size="xs" className="max-w-52 text-muted-foreground" aria-label={`Fixture: ${shown} (the scripted answer of the fake model)`} data-testid="fixture-select" data-fixture={fixture ?? ''}>
+          <FlaskConical aria-hidden />
+          <span className="truncate">
+            <SelectPrimitive.Value>{shown}</SelectPrimitive.Value>
+          </span>
+          <ChevronDown aria-hidden />
+        </InputGroupButton>
+      </SelectPrimitive.Trigger>
       <SelectContent position="popper" side="top" align="start" className="max-h-80 w-72" data-testid="fixture-menu">
         <SelectItem value={SERVER_DEFAULT}>{serverDefault}</SelectItem>
         {groups.own.length > 0 && (
