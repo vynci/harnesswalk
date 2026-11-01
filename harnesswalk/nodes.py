@@ -105,10 +105,12 @@ def implemented(node_id: str) -> bool:
 
 
 @asynccontextmanager
-async def node(ctx: TurnContext, node_id: str, **enter_summary: Any) -> AsyncIterator[Span]:
+async def node(
+    ctx: TurnContext, node_id: str, *, enter_detail: Any = None, **enter_summary: Any
+) -> AsyncIterator[Span]:
     if node_id not in _REGISTRY:
         raise StreamError(f"node {node_id!r} is not registered by any component")
-    span = await ctx.emit.enter(node_id, enter_summary or None)
+    span = await ctx.emit.enter(node_id, enter_summary or None, enter_detail)
     try:
         yield span
     except HarnessError as exc:

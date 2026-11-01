@@ -1,6 +1,7 @@
-import { memo, type CSSProperties } from 'react'
+import { memo, type CSSProperties, type KeyboardEvent } from 'react'
 import { EdgeLabelRenderer, type Edge, type EdgeProps } from '@xyflow/react'
 import type { EdgeKind } from '@/api/types'
+import { useApp } from '@/state/store'
 import { roundedPath, trimEnd, type LabelSpot, type Pt } from './route'
 
 export interface FlowEdgeData extends Record<string, unknown> {
@@ -29,7 +30,7 @@ const LABEL_SHIFT: Record<LabelSpot['side'], string> = {
   right: 'translate(7px, -50%)',
 }
 
-function FlowEdgeImpl({ id, data }: EdgeProps<FlowEdgeType>) {
+function FlowEdgeImpl({ id, data, source, target }: EdgeProps<FlowEdgeType>) {
   const d = data!
   const { points, tip, dir } = trimEnd(d.points, ARROW - 1)
   const path = roundedPath(points)
@@ -40,6 +41,10 @@ function FlowEdgeImpl({ id, data }: EdgeProps<FlowEdgeType>) {
   const back: Pt = [tx - dx * ARROW, ty - dy * ARROW]
   const arrow = `M ${tx} ${ty} L ${back[0] - dy * 4} ${back[1] + dx * 4} L ${back[0] + dy * 4} ${back[1] - dx * 4} Z`
   const state = d.active ? 'active' : d.visited ? 'visited' : 'idle'
+  // The label names what the edge carries ("assembled context"): a click opens the Payload tab of
+  // the end that recorded it.
+  const openEdgePayload = useApp((s) => s.openEdgePayload)
+  const openPayload = () => openEdgePayload(source, target)
   return (
     <>
       <g
@@ -64,9 +69,14 @@ function FlowEdgeImpl({ id, data }: EdgeProps<FlowEdgeType>) {
       {d.active && (
         <EdgeLabelRenderer>
           <div
-            className="pointer-events-none absolute rounded bg-background/95 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-foreground shadow-sm ring-1 ring-border"
+            className="nodrag nopan pointer-events-auto absolute cursor-pointer rounded bg-background/95 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-foreground shadow-sm ring-1 ring-border hover:underline"
             style={{ transform: `translate(${d.labelAt.x}px, ${d.labelAt.y}px) ${LABEL_SHIFT[d.labelAt.side]}` }}
             data-testid={`edge-label-${id}`}
+            role="button"
+            tabIndex={0}
+            title={`Open what this carries: ${d.label}`}
+            onClick={openPayload}
+            onKeyDown={(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && openPayload()}
           >
             {d.label}
           </div>

@@ -104,7 +104,7 @@ function CallDetails({ call }: { call: ToolCallView }) {
   )
 }
 
-function ToolLine({ call, turnOver }: { call: ToolCallView; turnOver: boolean }) {
+export function ToolLine({ call, turnOver }: { call: ToolCallView; turnOver: boolean }) {
   // A call still open when the turn is over (a cancel) did not finish. Status is text colour and
   // shimmer, never an icon swap; a call waiting for a person is not "pending" (not started): the
   // Confirmation below it asks.

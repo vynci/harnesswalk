@@ -15,6 +15,7 @@ identity rules, error shape and content-type rule as every other route.
     GET  /v1/releases, /v1/releases/{id}              releases, one with its diff
     POST /v1/releases, /v1/releases/{id}/rollback     create, roll back (dev and private)
     GET  /v1/trace/turns, /v1/trace/turns/{id}/receipt, /v1/trace/ops-events
+    GET  /v1/trace/turns/{id}/details/{event_id}      one event's detail record (a payload)
     GET  /v1/events                                   every ops event of the tenant, live (SSE)
 
 P5 (http_api.md, "P5 additions"):
@@ -516,6 +517,30 @@ def add_ops_routes(
         out["scores"] = h.evals.online.node_scores(tenant_id, turn_id)
         out["feedback"] = h.evals.store.feedback(tenant_id, turn_id)
         return JSONResponse(out)
+
+    @app.get("/v1/trace/turns/{turn_id}/details/{event_id}")
+    async def trace_detail(request: Request, turn_id: str, event_id: str) -> JSONResponse:
+        """One event's detail record (a payload, tracer.md), only for the turn's own tenant (or
+        a case turn of one of the caller's eval runs, as the receipt)."""
+        tenant_id = tenant(request)
+        events = h.tracer.get_turn(tenant_id, turn_id)
+        if not events:
+            scratch = [scratch_tenant(r) for r in h.evals.store.run_ids(tenant_id)]
+            owner = h.tracer.tenant_of(turn_id, scratch)
+            events = h.tracer.get_turn(owner, turn_id) if owner else []
+            tenant_id = owner or tenant_id
+        if not events:
+            raise GatewayError(404, "turn_not_found", f"No turn {turn_id} for this tenant.")
+        event = next((e for e in events if e["event_id"] == event_id), None)
+        ref = event.get("detail_ref") if event else None
+        detail = h.tracer.get_detail(tenant_id, ref) if ref else None
+        if detail is None:
+            raise GatewayError(
+                404, "detail_not_found", f"No detail for event {event_id} of turn {turn_id}."
+            )
+        return JSONResponse(
+            {"turn_id": turn_id, "event_id": event_id, "detail_ref": ref, "detail": detail}
+        )
 
     @app.get("/v1/trace/ops-events")
     async def ops_events(

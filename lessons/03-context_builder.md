@@ -88,6 +88,7 @@ with, and it has one name in config so a real tokenizer can replace it.
 At the end of `build`, `span.detail` carries the full assembled messages to the trace as a
 detail record. The summary on the event stream has only counts; the content goes to the trace
 when `trace.capture_content` is on, so you can always answer "what did the model see?"
+The inspector's Payload tab shows it as typed sections.
 
 ## Try this
 
@@ -103,6 +104,10 @@ when `trace.capture_content` is on, so you can always answer "what did the model
    and run `uv run pytest tests/unit/test_context.py`. Expected: tests fail. Put it back and
    write down why a provider's prefix cache would stop working if the first message changed on
    every turn.
+4. **Try: open the Payload tab.** Send "Where is order A-1001?", open the Context builder and
+   pick **Payload**. Expected: the context as sections in order (system prompt, skills index,
+   documents index, data rule, retrieved blocks with sources, your message), each with its
+   role, token count and a bar against the total.
 
 ## Check yourself
 

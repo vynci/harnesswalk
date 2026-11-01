@@ -45,6 +45,7 @@ from harnesswalk.execution.providers import (
 )
 from harnesswalk.execution.router import Router, RouteRequest, run_router
 from harnesswalk.nodes import node, register
+from harnesswalk.ops import payloads
 from harnesswalk.types import Message, ToolCall, TurnContext, Usage
 
 register("model_layer", __name__)
@@ -185,7 +186,14 @@ class ModelLayer:
     async def complete(
         self, ctx: TurnContext, request: ModelRequest, api_key: str | None = None
     ) -> ModelResponse:
-        async with node(ctx, "model_layer", step=request.step) as span:
+        capture = self.capture_content and payloads.capturing(ctx)
+        sent = payloads.request_payload(ctx, request) if capture else None
+        about = {
+            "payload": payloads.record("model_layer", "enter", step=request.step, request=sent)
+        }
+        async with node(
+            ctx, "model_layer", enter_detail=about if capture else None, step=request.step
+        ) as span:
             route_req = RouteRequest(
                 step=request.step,
                 step_kind=request.step_kind,
@@ -243,6 +251,23 @@ class ModelLayer:
                         "tool_calls": [c.__dict__ for c in response.tool_calls],
                     },
                 }
+                if sent is not None:
+                    span.detail["payload"] = payloads.record(
+                        "model_layer",
+                        "exit",
+                        step=request.step,
+                        provider=response.provider,
+                        model=response.model,
+                        request=sent,
+                        reply={
+                            **payloads.text(payloads.outside(ctx, response.text)),
+                            "tool_calls": [
+                                payloads.tool_call(payloads.outside(ctx, c.__dict__))
+                                for c in response.tool_calls
+                            ],
+                            "finish_reason": response.finish_reason,
+                        },
+                    )
         return response
 
     def _worst_case(self, cfg: dict[str, Any], preq: ProviderRequest) -> float:

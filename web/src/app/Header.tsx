@@ -3,7 +3,6 @@ import { Logo } from '@/components/logo'
 import { Hint } from '@/components/hint'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { GuideButton } from '@/lessons/GuideButton'
 import { useApp } from '@/state/store'
@@ -11,7 +10,6 @@ import { PackPicker } from './PackPicker'
 import { SessionChip } from './SessionChip'
 import { useDarkTheme } from './useTheme'
 
-const AUTO = '__auto__'
 
 /** One ghost icon button: Sun in dark mode (press for light), Moon in light mode (press for dark). */
 function ThemeButton() {
@@ -45,12 +43,8 @@ function GitHubButton() {
 }
 
 export function Header() {
-  const capabilities = useApp((s) => s.capabilities)
-  const provider = useApp((s) => s.provider)
-  const setProvider = useApp((s) => s.setProvider)
   const invalidEvents = useApp((s) => s.invalidEvents)
   const disabled = useApp((s) => s.disabled)
-  const dev = capabilities?.mode === 'dev'
 
   return (
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2">
@@ -65,27 +59,6 @@ export function Header() {
         </Hint>
       )}
       <div className="ml-auto flex flex-wrap items-center gap-3">
-        {dev && capabilities && (
-          <>
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              Provider
-              <Select value={provider ?? AUTO} onValueChange={(v) => setProvider(v === AUTO ? null : v)}>
-                <SelectTrigger size="sm" className="w-32" aria-label="Provider">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={AUTO}>default</SelectItem>
-                  {capabilities.providers.map((p) => (
-                    <SelectItem key={p.name} value={p.name} disabled={!p.configured}>
-                      {p.name}
-                      {p.configured ? '' : ' (not configured)'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
-          </>
-        )}
         {disabled.length > 0 && (
           <Hint label={`Disabled on the next turn: ${disabled.join(', ')}`}>
             <Badge variant="outline" className="text-state-error">
@@ -93,7 +66,7 @@ export function Header() {
             </Badge>
           </Hint>
         )}
-        {(dev || disabled.length > 0) && <Separator orientation="vertical" className="my-1.5" />}
+        {disabled.length > 0 && <Separator orientation="vertical" className="my-1.5" />}
         <div className="flex min-w-0 items-center gap-2">
           <PackPicker />
           <div className="flex shrink-0 items-center gap-1">

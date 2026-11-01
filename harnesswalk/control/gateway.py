@@ -56,6 +56,7 @@ from harnesswalk.execution.loop import Limits
 from harnesswalk.execution.providers import PROVIDER_NAMES
 from harnesswalk.execution.providers.fake import FIXTURE_NAME
 from harnesswalk.nodes import node, register
+from harnesswalk.ops import payloads
 from harnesswalk.ops.trace import run_trace_node
 from harnesswalk.types import ConfigError, Identity, TurnContext, Usage
 
@@ -469,12 +470,14 @@ class Gateway:
         ctx, req, h = state.ctx, state.request, state.view or self.h
         emit = ctx.emit
         try:
-            async with node(ctx, "gateway") as span:
+            received = self._received_payload(ctx, h, req) if payloads.capturing(ctx) else None
+            async with node(ctx, "gateway", enter_detail=self._at(received, "enter")) as span:
                 span.set(
                     phase="receive", channel=req.channel, authenticated=not req.identity.anonymous
                 )
                 if rate_remaining is not None:
                     span.set(rate_limit_remaining=rate_remaining)
+                span.detail = self._at(received, "exit")
 
             emit.edge("gateway_to_input_guardrails")
             guard = await h.input_guardrails.run(ctx, req.message)
@@ -555,8 +558,14 @@ class Gateway:
         req = state.request
         state.exit = exit_
         full_reply, reply = reply, cap_reply(reply)
-        async with node(ctx, "gateway") as span:
+        about = None
+        if payloads.capturing(ctx):
+            about = {"payload": payloads.record("gateway", "enter", phase="reply")}
+            about["payload"]["reply"] = payloads.text(full_reply)
+        async with node(ctx, "gateway", enter_detail=about) as span:
             span.set(phase="reply", channel=req.channel, reply_chars=len(reply))
+            if about is not None:
+                span.detail = self._reply_payload(ctx, h, req, user_text, full_reply)
             size = int(self.cfg.get("stream_reply_chars", 0))
             if size > 0:
                 for index, start in enumerate(range(0, len(reply), size)):
@@ -597,6 +606,58 @@ class Gateway:
             # A truncated reply points at the full text in the trace (events.md rule 12).
             detail={"reply": full_reply} if full_reply != reply else None,
         )
+
+    # -- payloads (tracer.md "Payloads") ------------------------------------------------------
+
+    @staticmethod
+    def _at(rec: dict[str, Any] | None, at: str) -> dict[str, Any] | None:
+        return None if rec is None else {"payload": {**rec, "at": at}}
+
+    @staticmethod
+    def _original(
+        ctx: TurnContext, h: Any, req: TurnRequest, changed: bool
+    ) -> tuple[dict[str, Any] | None, bool]:
+        allowed = payloads.raw_allowed(ctx.mode, h.input_guardrails.restore_modes)
+        return payloads.kept_original(req.message, changed, allowed)
+
+    def _received_payload(self, ctx: TurnContext, h: Any, req: TurnRequest) -> dict[str, Any]:
+        """The message as received. Before the guardrails ran, a text they would change
+        (personal data, control characters) is kept only where the PII restore rule is on."""
+        kept, withheld = self._original(ctx, h, req, h.input_guardrails.would_change(req.message))
+        return payloads.record(
+            "gateway",
+            "exit",
+            phase="receive",
+            channel=req.channel,
+            received=kept,
+            withheld=withheld,
+            chars=len(req.message),
+        )
+
+    def _reply_payload(
+        self, ctx: TurnContext, h: Any, req: TurnRequest, user_text: str | None, reply: str
+    ) -> dict[str, Any]:
+        """The whole hop: the message as received, as the model saw it (after redaction),
+        how many values were replaced (never the values), and the reply sent."""
+        if user_text is None:  # blocked: the guardrails' text never went on
+            changed = h.input_guardrails.would_change(req.message)
+        else:
+            changed = user_text != req.message
+        kept, withheld = self._original(ctx, h, req, changed)
+        return {
+            "payload": payloads.record(
+                "gateway",
+                "exit",
+                phase="reply",
+                channel=req.channel,
+                received=kept,
+                withheld=withheld,
+                redacted=payloads.text(user_text) if user_text is not None else None,
+                blocked=user_text is None,
+                placeholders=payloads.placeholders(ctx.pii_vault),
+                reply=payloads.text(reply),
+            )
+        }
 
     @staticmethod
     def _reredact(text: str, vault: Any) -> str:

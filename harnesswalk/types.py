@@ -162,6 +162,10 @@ class TurnContext:
     # P6: notices the walk raised for the reply ([{reason, message}]), such as a turn that fell
     # through to the fake model when the shared hosted budget ran out (`budget_exhausted`).
     notices: list[dict[str, str]] = field(default_factory=list)
+    # The context builder's sections of this turn (ops/payloads.py: `sections`, the message
+    # `contents` and the `estimator`), so the model layer's request payload labels the same
+    # messages the same way. Memory only.
+    payload_context: dict[str, Any] | None = field(default=None, repr=False)
 
     def notice(self, reason: str, message: str) -> bool:
         """Add a notice once per reason. True when it is new."""

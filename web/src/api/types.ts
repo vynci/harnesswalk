@@ -891,3 +891,154 @@ export type EvalStreamEvent = OpsEvent & { type: 'eval_run_started' | 'eval_case
 export interface ApiErrorBody {
   error: { code: string; message: string }
 }
+
+// ---------- Payloads (spec/contracts/tracer.md, "Payloads") ----------
+
+/** A capped text: at most 32 000 characters, the full length, and whether it was cut. */
+export interface PayloadText {
+  text: string
+  chars: number
+  truncated: boolean
+}
+
+/** What a payload's fields are; a reader renders by shape, never by node id. */
+export type PayloadShape = 'message' | 'input_checks' | 'context' | 'model_call' | 'output_checks'
+
+export type SectionKind = 'system' | 'skill' | 'retrieved' | 'history' | 'user' | 'assistant' | 'tool'
+
+export interface PayloadSource {
+  label: string
+  store?: string
+  id?: string
+  doc?: string
+  chunk?: number | string
+  n?: number
+  score?: number
+  call_id?: string | null
+}
+
+export interface PayloadToolCall {
+  call_id: string | null
+  name: string | null
+  arguments: unknown
+  arguments_text?: PayloadText
+}
+
+export interface PayloadSection extends PayloadText {
+  index: number
+  message: number
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  kind: SectionKind
+  label: string
+  sources: PayloadSource[]
+  tokens: number
+  tool_calls?: PayloadToolCall[]
+}
+
+export interface PayloadRequest {
+  sections: PayloadSection[]
+  total_tokens: number
+  messages: number
+  tools?: string[]
+}
+
+export interface PayloadPlaceholders {
+  count: number
+  kinds: Record<string, number>
+  tokens: string[]
+}
+
+export interface PayloadCheck {
+  check: string
+  verdict: 'pass' | 'redact' | 'warn' | 'block'
+  looked_at: { stage: string; chars: number }
+  findings: Record<string, number>
+  change: string | null
+  reason: string | null
+  score?: number
+}
+
+export interface PayloadVerdict {
+  check: string
+  verdict: 'pass' | 'repair' | 'block' | 'skipped'
+  note: string
+}
+
+interface PayloadBase {
+  /** The node that recorded it (data from the API, never compared by the UI). */
+  node: string
+  at: 'enter' | 'exit'
+  version: number
+}
+
+export interface GatewayPayload extends PayloadBase {
+  shape: 'message'
+  phase: 'receive' | 'reply'
+  channel?: string
+  received?: PayloadText | null
+  withheld?: boolean
+  chars?: number
+  redacted?: PayloadText | null
+  blocked?: boolean
+  placeholders?: PayloadPlaceholders
+  reply?: PayloadText
+}
+
+export interface InputGuardrailsPayload extends PayloadBase {
+  shape: 'input_checks'
+  input: PayloadText | null
+  withheld: boolean
+  chars: number
+  output?: PayloadText | null
+  action?: 'pass' | 'redact' | 'block'
+  blocked?: boolean
+  checks?: PayloadCheck[]
+  warnings?: string[]
+  placeholders?: PayloadPlaceholders
+  disabled?: boolean
+}
+
+export interface ContextBuilderPayload extends PayloadBase {
+  shape: 'context'
+  input?: PayloadText
+  budget_tokens: number
+  sections?: PayloadSection[]
+  total_tokens?: number
+  messages?: number
+  used_tokens?: number
+  limit_tokens?: number
+  reserve_output_tokens?: number
+  token_estimator?: string
+}
+
+export interface ModelLayerPayload extends PayloadBase {
+  shape: 'model_call'
+  step?: number
+  provider?: string
+  model?: string
+  request?: PayloadRequest | null
+  reply?: PayloadText & { tool_calls: PayloadToolCall[]; finish_reason?: string }
+}
+
+export interface OutputGuardrailsPayload extends PayloadBase {
+  shape: 'output_checks'
+  before: PayloadText
+  after?: PayloadText
+  action?: 'pass' | 'repair' | 'block'
+  repairs?: string[]
+  reasons?: string[]
+  checks?: PayloadVerdict[]
+  restored?: number
+  restore_mode?: boolean
+  disabled?: boolean
+}
+
+export type Payload = GatewayPayload | InputGuardrailsPayload | ContextBuilderPayload | ModelLayerPayload | OutputGuardrailsPayload
+
+/** GET /v1/trace/turns/{turn_id}/details/{event_id}. */
+export interface EventDetail {
+  turn_id: string
+  event_id: string
+  detail_ref: string
+  detail: { payload?: Payload } & Record<string, unknown>
+}

@@ -17,6 +17,8 @@ import { DetailsTab } from './DetailsTab'
 import { detailsTabLabel } from './labels'
 import { EventsTab } from './EventsTab'
 import { OverviewTab } from './OverviewTab'
+import { payloadEvent } from './payload'
+import { PayloadTab } from './PayloadTab'
 import { useNodeData } from './useNodeData'
 import { ArtifactEditor } from './ArtifactEditor'
 import { useArtifacts } from './useOps'
@@ -34,7 +36,7 @@ const TracePanel = lazy(() => import('./TracePanel').then((m) => ({ default: m.T
 const OPS_TAB: Record<OpsRole, string> = { evals: 'Runs', releases: 'Releases', traces: 'Turns' }
 
 /** The inspector's tabs; any other value (a stale pick) falls back to Overview. */
-const TABS = new Set(['overview', 'ops', 'details', 'config', 'files', 'code', 'events'])
+const TABS = new Set(['overview', 'payload', 'ops', 'details', 'config', 'files', 'code', 'events'])
 
 function OpsPanel({ role }: { role: OpsRole }) {
   return (
@@ -83,6 +85,9 @@ export function InspectorDrawer({ compact = false }: { compact?: boolean }) {
     () => turn.events.filter((e) => e.node_id === nodeId || (e.node_id && childIds.has(e.node_id))),
     [turn.events, nodeId, childIds],
   )
+  // What the node's latest hop carried (tracer.md "Payloads"); a step-mode pause opens on it.
+  const payloadEv = useMemo(() => payloadEvent(turn.events, nodeId), [turn.events, nodeId])
+  const pausedHere = turn.phase === 'paused' && turn.paused?.reason === 'breakpoint' && turn.paused.nodeId === nodeId
 
   // A node picked on the canvas (or nothing focused) moves focus here; one the Guide opened, or a
   // Try button that filled the composer, leaves focus where it is.
@@ -97,9 +102,10 @@ export function InspectorDrawer({ compact = false }: { compact?: boolean }) {
   // builder, the model layer) gets a Config tab of its own.
   const yamlArtifact =
     info.data && info.data.inspector.type !== 'config' && info.data.inspector.type !== 'prompt' ? inspectorArtifact(info.data.inspector.artifact, artifacts) : undefined
-  const tab = pick.node === nodeId ? pick.tab : role ? 'ops' : pick.tab === 'ops' || pick.tab === 'config' ? 'overview' : pick.tab
+  const tab =
+    pick.node === nodeId ? pick.tab : role ? 'ops' : pausedHere && payloadEv ? 'payload' : pick.tab === 'ops' || pick.tab === 'config' ? 'overview' : pick.tab
   const activeTab =
-    !TABS.has(tab) || (tab === 'details' && !detailsLabel) || (tab === 'ops' && !role) || (tab === 'config' && !yamlArtifact) || (tab === 'files' && packFiles.length === 0)
+    !TABS.has(tab) || (tab === 'payload' && !payloadEv) || (tab === 'details' && !detailsLabel) || (tab === 'ops' && !role) || (tab === 'config' && !yamlArtifact) || (tab === 'files' && packFiles.length === 0)
       ? 'overview'
       : tab
   const setTab = (t: string) => setInspectorTab(nodeId, t)
@@ -186,6 +192,11 @@ export function InspectorDrawer({ compact = false }: { compact?: boolean }) {
       <Tabs value={activeTab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
         <TabsList className="no-scrollbar mx-4 mt-3 max-w-[calc(100%-2rem)] justify-start overflow-x-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          {payloadEv && (
+            <TabsTrigger value="payload" data-testid="payload-tab">
+              Payload
+            </TabsTrigger>
+          )}
           {role && <TabsTrigger value="ops">{OPS_TAB[role]}</TabsTrigger>}
           {detailsLabel && <TabsTrigger value="details">{detailsLabel}</TabsTrigger>}
           {yamlArtifact && <TabsTrigger value="config">Config</TabsTrigger>}
@@ -201,6 +212,15 @@ export function InspectorDrawer({ compact = false }: { compact?: boolean }) {
             </div>
           </ScrollArea>
         </TabsContent>
+        {payloadEv && (
+          <TabsContent value="payload" className="min-h-0">
+            <ScrollArea className="h-full">
+              <div className="p-4">
+                <PayloadTab event={payloadEv} events={turn.events} turnOver={turnOver} />
+              </div>
+            </ScrollArea>
+          </TabsContent>
+        )}
         {detailsLabel && info.data && (
           <TabsContent value="details" className="min-h-0">
             <ScrollArea className="h-full">
