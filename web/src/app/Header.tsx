@@ -133,8 +133,8 @@ export function Header() {
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2">
       <div className="flex items-center gap-2">
         <Logo className="h-5 w-auto shrink-0 text-brand" data-testid="brand-mark" />
-        <h1 className="text-base font-medium tracking-tight">harnesswalk</h1>
-        <span className="hidden text-xs text-muted-foreground md:inline">walk through an AI harness, one node at a time</span>
+        <h1 className="text-base font-medium tracking-tight">Harnesswalk</h1>
+        <span className="hidden text-xs text-muted-foreground md:inline">An interactive way to understand AI agent harnesses</span>
       </div>
       {capabilities && (
         <Hint label={`API ${capabilities.version}${mock ? ', in-browser mock' : ''}`}>
