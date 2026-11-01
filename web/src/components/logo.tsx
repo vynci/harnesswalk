@@ -1,0 +1,13 @@
+import type { ComponentProps } from 'react'
+
+// The harnesswalk mark (the owner's logo.svg), drawn in currentColor so the header can give it
+// the brand green in either theme. public/favicon.svg is the same path in the brand green.
+export function Logo(props: ComponentProps<'svg'>) {
+  return (
+    <svg viewBox="0 0 100 86.604" fill="currentColor" aria-hidden="true" focusable="false" {...props}>
+      <g transform="translate(-12.019351427611028, -18.717441164134765) scale(1.2403870758692324)">
+        <path d="M70.154,15.09H29.846L9.69,50l20.156,34.91h40.308L90.31,50L70.154,15.09z M34.591,57.78L18.344,52h16.247V57.78z   M37.591,44.662l10.908,6.299v12.501l-10.908-6.299V44.662z M60.988,42.017l-10.989,6.346l-10.99-6.346l10.99-6.345L60.988,42.017z   M51.499,50.961l10.908-6.299v12.501l-10.908,6.299V50.961z M50.934,32.748l12.723-10.779L55.804,35.56L50.934,32.748z   M64.509,59.414l3.528,18.211L59.269,62.44L64.509,59.414z M65.407,41.104l-6.139-3.544l9.62-16.663L84.834,48.5L65.407,41.104z   M32.156,19.09h33.157L50.011,32.215l-0.012-0.007l-14.557,8.404L32.156,19.09z M31.333,20.5l3.236,20.958l0.021-0.003V48H15.464  L31.333,20.5z M15.464,52l19.126,6.847v0.049l14.492,8.368L31.92,80.501L15.464,52z M33.025,80.91l17.108-13.195l5.671-3.274  l9.51,16.47H33.025z M69.229,78.516l-3.821-19.725V42.263L85.69,50L69.229,78.516z" />
+      </g>
+    </svg>
+  )
+}

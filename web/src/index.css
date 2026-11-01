@@ -7,27 +7,36 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(0.985 0 0);
-  --foreground: oklch(0.205 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.205 0 0);
+  /* Brand (P6, the owner's palette): #0ea47a primary, #12d39d accent and active states, #0a7557
+     primary hover, text-safe green on light and the dark-mode primary, #e6e6e6 borders and muted
+     surfaces, #111111 ink, #ffffff paper. The plane hues and the node surface stay as they were. */
+  --brand: #0ea47a;
+  --brand-accent: #12d39d;
+  --brand-strong: #0a7557;
+  --background: #ffffff;
+  --foreground: #111111;
+  --card: #ffffff;
+  --card-foreground: #111111;
   /* Diagram nodes only: a warm bone paper, quieter than the white card on the tinted planes. */
   --node-surface: oklch(0.975 0.006 85);
   --node-surface-foreground: oklch(0.205 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.205 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.955 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.955 0 0);
+  --popover: #ffffff;
+  --popover-foreground: #111111;
+  --primary: #0ea47a;
+  --primary-hover: #0a7557;
+  --primary-foreground: #ffffff;
+  --secondary: #e6e6e6;
+  --secondary-foreground: #111111;
+  --muted: #e6e6e6;
   --muted-foreground: oklch(0.48 0 0);
-  --accent: oklch(0.94 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  /* Menu and list highlight: a mint wash of the accent, ink text on it. */
+  --accent: #e3f8f1;
+  --accent-foreground: #111111;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.905 0 0);
-  --input: oklch(0.905 0 0);
-  --ring: oklch(0.55 0.12 250);
+  --border: #e6e6e6;
+  --input: #e6e6e6;
+  --ring: #12d39d;
+  --selection: color-mix(in oklab, #12d39d 32%, transparent);
 
   /* Planes: stroke colour, tinted fill and text-safe ink. */
   --plane-control: #b26a00;
@@ -49,9 +58,10 @@
   --plane-execution-ink: #23662a;
   --plane-ops-ink: #6a1b9a;
 
-  /* Node states. */
+  /* Node states. Active is the brand green: #0a7557 here, since #12d39d is under 3:1 on the
+     bone node surface and the light plane groups (colors.test.ts). */
   --state-idle: #7a7f88;
-  --state-active: #1f7ae0;
+  --state-active: #0a7557;
   --state-waiting: #b26f00;
   --state-done: #2e7d32;
   --state-error: #c62828;
@@ -75,7 +85,8 @@
 }
 
 .dark {
-  --background: oklch(0.17 0 0);
+  --brand: #12d39d;
+  --background: #111111;
   --foreground: oklch(0.96 0 0);
   --card: oklch(0.215 0 0);
   --card-foreground: oklch(0.96 0 0);
@@ -83,18 +94,20 @@
   --node-surface-foreground: oklch(0.96 0 0);
   --popover: oklch(0.215 0 0);
   --popover-foreground: oklch(0.96 0 0);
-  --primary: oklch(0.92 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: #0a7557;
+  --primary-hover: #0ea47a;
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.27 0 0);
   --secondary-foreground: oklch(0.96 0 0);
   --muted: oklch(0.27 0 0);
   --muted-foreground: oklch(0.72 0 0);
-  --accent: oklch(0.3 0 0);
+  --accent: #123a2f;
   --accent-foreground: oklch(0.96 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.65 0.12 250);
+  --ring: #12d39d;
+  --selection: color-mix(in oklab, #12d39d 30%, transparent);
 
   --plane-control: #f0a640;
   --plane-control-fill: #3a2a12;
@@ -115,7 +128,7 @@
   --plane-ops-ink: #c08ae0;
 
   --state-idle: #7d838c;
-  --state-active: #5aa9ff;
+  --state-active: #12d39d;
   --state-waiting: #f2b33d;
   --state-done: #6cc070;
   --state-error: #ff6b6b;
@@ -149,7 +162,9 @@
   --color-node-surface-foreground: var(--node-surface-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
+  --color-brand: var(--brand);
   --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -202,6 +217,9 @@
   [role='button']:not([aria-disabled='true']),
   [role='tab'] {
     cursor: pointer;
+  }
+  ::selection {
+    background: var(--selection);
   }
   code,
   pre,
@@ -340,6 +358,8 @@
 }
 .hw-edge[data-state='active'] {
   opacity: 1;
+  /* The edge keeps its kind or plane hue; the brand glow says it is the one moving now. */
+  filter: drop-shadow(0 0 3px color-mix(in oklab, var(--state-active) 55%, transparent));
 }
 .hw-edge-path {
   fill: none;
