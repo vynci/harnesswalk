@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { diagram } from '@/test/fixtures'
-import { computeLayout, visibleEdges, visibleNodeIds } from './layout'
+import { computeLayout, GROUP_GAP_X, GROUP_GAP_Y, GROUP_PAD, PARENT_HEADER, visibleEdges, visibleNodeIds } from './layout'
 
 const simple = { view: 'simple' as const, collapsed: new Set<string>() }
 const expert = { view: 'expert' as const, collapsed: new Set<string>() }
@@ -63,6 +63,40 @@ describe('computeLayout', () => {
       expect(child.y).toBeGreaterThanOrEqual(p.y)
       expect(child.x + child.width).toBeLessThanOrEqual(p.x + p.width + 0.001)
       expect(child.y + child.height).toBeLessThanOrEqual(p.y + p.height + 0.001)
+    }
+  })
+
+  it('places an expert child at its layout hint, relative to its parent', () => {
+    const l = computeLayout(diagram, expert)
+    for (const spec of diagram.nodes.filter((n) => n.parent && n.layout)) {
+      const child = l.nodes.find((n) => n.id === spec.id)!
+      const p = l.nodes.find((n) => n.id === spec.parent)!
+      expect([child.x - p.x, child.y - p.y], spec.id).toEqual([spec.layout!.x, spec.layout!.y])
+    }
+    // Without hints the children fall back to a two-column grid.
+    const bare = { ...diagram, nodes: diagram.nodes.map((n) => (n.parent ? { ...n, layout: undefined } : n)) }
+    const kids = computeLayout(bare, expert).nodes.filter((n) => n.parentId === 'memory')
+    expect(new Set(kids.map((k) => k.x)).size).toBe(2)
+  })
+
+  it('leaves room for an edge lane round and between the children of an open group', () => {
+    const l = computeLayout(diagram, expert)
+    for (const p of l.nodes.filter((n) => n.expanded)) {
+      const kids = l.nodes.filter((n) => n.parentId === p.id)
+      for (const k of kids) {
+        expect(k.x - p.x, k.id).toBeGreaterThanOrEqual(GROUP_PAD)
+        expect(p.x + p.width - (k.x + k.width), k.id).toBeGreaterThanOrEqual(GROUP_PAD)
+        expect(k.y - p.y, k.id).toBeGreaterThanOrEqual(PARENT_HEADER)
+        expect(p.y + p.height - (k.y + k.height), k.id).toBeGreaterThanOrEqual(GROUP_PAD)
+      }
+      for (let i = 0; i < kids.length; i++) {
+        for (let j = i + 1; j < kids.length; j++) {
+          const [a, b] = [kids[i]!, kids[j]!]
+          const gapX = Math.max(b.x - (a.x + a.width), a.x - (b.x + b.width))
+          const gapY = Math.max(b.y - (a.y + a.height), a.y - (b.y + b.height))
+          expect(gapX >= GROUP_GAP_X || gapY >= GROUP_GAP_Y, `${a.id} ${b.id}`).toBe(true)
+        }
+      }
     }
   })
 
