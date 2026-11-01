@@ -123,16 +123,26 @@ export class OriginStack extends cdk.Stack {
         resources: [repoArn],
       }),
     );
+    const prodParameters = cdk.Arn.format(
+      { service: 'ssm', resource: 'parameter', resourceName: `${SSM_PREFIX.slice(1)}/*` },
+      this,
+    );
     role.addToPolicy(
       new iam.PolicyStatement({
         sid: 'ReadProdParameters',
         actions: ['ssm:GetParameter', 'ssm:GetParameters'],
-        resources: [
-          cdk.Arn.format(
-            { service: 'ssm', resource: 'parameter', resourceName: `${SSM_PREFIX.slice(1)}/*` },
-            this,
-          ),
-        ],
+        resources: [prodParameters],
+      }),
+    );
+    // AmazonSSMManagedInstanceCore allows ssm:GetParameter(s) on every parameter in the
+    // account, which other projects share. An explicit Deny outside /harnesswalk/prod/* wins
+    // over it (the SSM agent itself reads no parameters).
+    role.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'DenyOtherParameters',
+        effect: iam.Effect.DENY,
+        actions: ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath'],
+        notResources: [prodParameters],
       }),
     );
     role.addToPolicy(
@@ -140,7 +150,11 @@ export class OriginStack extends cdk.Stack {
         sid: 'DecryptProdParameters',
         actions: ['kms:Decrypt'],
         resources: ['*'], // the AWS managed aws/ssm key, only through SSM
-        conditions: { StringEquals: { 'kms:ViaService': `ssm.${this.region}.amazonaws.com` } },
+        conditions: {
+          StringEquals: { 'kms:ViaService': `ssm.${this.region}.amazonaws.com` },
+          // SSM puts the parameter's ARN in the encryption context: only our parameters.
+          StringLike: { 'kms:EncryptionContext:PARAMETER_ARN': prodParameters },
+        },
       }),
     );
     role.addToPolicy(

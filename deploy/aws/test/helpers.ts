@@ -31,3 +31,11 @@ export function statements(t: Template): Array<Record<string, any>> {
 }
 
 export const asList = <T>(v: T | T[]): T[] => (Array.isArray(v) ? v : [v]);
+
+// A Fn::Join of literals and AWS::Partition, as a string (an ARN built with Arn.format).
+export function joined(v: any): string {
+  if (typeof v === 'string') return v;
+  if (v && v.Ref === 'AWS::Partition') return 'aws';
+  if (v && v['Fn::Join']) return v['Fn::Join'][1].map(joined).join(v['Fn::Join'][0]);
+  throw new Error(`not a literal: ${JSON.stringify(v)}`);
+}

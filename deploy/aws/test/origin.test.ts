@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Match } from 'aws-cdk-lib/assertions';
 import { describe, expect, it } from 'vitest';
-import { asList, CONTEXT, statements, synth } from './helpers';
+import { asList, CONTEXT, joined, statements, synth } from './helpers';
 
 const { origin } = synth();
 
@@ -111,12 +111,25 @@ describe('HarnesswalkOrigin IAM', () => {
     });
   });
 
+  const prodArn = 'arn:aws:ssm:us-east-1:111910761410:parameter/harnesswalk/prod/*';
+
   it('reads only /harnesswalk/prod/* parameters, decrypting only through SSM', () => {
     expect(JSON.stringify(find('ReadProdParameters').Resource)).toContain(':parameter/harnesswalk/prod/*');
-    expect(find('DecryptProdParameters')).toMatchObject({
+    const decrypt = find('DecryptProdParameters');
+    expect(decrypt).toMatchObject({
+      Effect: 'Allow',
       Action: 'kms:Decrypt',
       Condition: { StringEquals: { 'kms:ViaService': 'ssm.us-east-1.amazonaws.com' } },
     });
+    expect(joined(decrypt.Condition.StringLike['kms:EncryptionContext:PARAMETER_ARN'])).toBe(prodArn);
+  });
+
+  it('denies every other parameter in the account, over the SSM core managed policy', () => {
+    const deny = find('DenyOtherParameters');
+    expect(deny.Effect).toBe('Deny');
+    expect(asList(deny.Action).sort()).toEqual(['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath']);
+    expect(deny.Resource).toBeUndefined();
+    expect(joined(deny.NotResource)).toBe(prodArn);
   });
 
   it('pulls only harnesswalk/api and writes only to /harnesswalk/prod logs', () => {
