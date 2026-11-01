@@ -10,14 +10,14 @@ providers:
   openai_compatible: { enabled: false, base_url: "", base_url_env: OPENAI_BASE_URL, api_key_env: OPENAI_API_KEY, timeout_s: 60 }
 
 models:
-  fake-small:   { provider: fake, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
+  fake-small:   { provider: fake, label: Fake model (scripted), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
   local-8b:     { provider: ollama, name: "llama3.1:8b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
   local-small:  { provider: ollama, name: "llama3.2:3b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
   # Pinned Anthropic ids (PLAN section 13). Prices per million tokens, first-party API, prompts
   # up to 100K tokens for Haiku. The harness does not replay thinking blocks, so each model
   # runs with a thinking mode that needs none.
-  hosted-haiku:  { provider: anthropic, name: claude-haiku-5-5, context_tokens: 1000000, price_in_per_mtok: 0.10, price_out_per_mtok: 0.50, tools: true, params: { thinking: { type: disabled } } }
-  hosted-sonnet: { provider: anthropic, name: claude-sonnet-5-5, context_tokens: 1000000, price_in_per_mtok: 2.0, price_out_per_mtok: 10.0, tools: true, modalities: [text, image], params: { thinking: { type: between_tools } } }
+  hosted-haiku:  { provider: anthropic, name: claude-haiku-5-5, label: Claude Haiku 5.5, context_tokens: 1000000, price_in_per_mtok: 0.10, price_out_per_mtok: 0.50, tools: true, params: { thinking: { type: disabled } } }
+  hosted-sonnet: { provider: anthropic, name: claude-sonnet-5-5, label: Claude Sonnet 5.5, context_tokens: 1000000, price_in_per_mtok: 2.0, price_out_per_mtok: 10.0, tools: true, modalities: [text, image], params: { thinking: { type: between_tools } } }
   compat-default: { provider: openai_compatible, name: default, context_tokens: 32000, tools: true }
   local-embed:  { provider: ollama, name: nomic-embed-text, embedding: true }
 
@@ -31,9 +31,11 @@ router:
   # hosted alias in the rule's list. See spec/contracts/router.md.
   cascade: { enabled: false, min_confidence: 0.5, local_providers: [ollama, fake] }
   rules:
-    # Public mode stays on local models until the hosted daily budget lands (P6). First, so no
-    # step rule (summarize, classify, judge) sends a public turn to a hosted model.
-    - { id: public,    when: { mode: public },     use: [local-8b, fake-small] }
+    # Public mode (P6): `public.models` from config/harness.yaml, the default model first. First,
+    # so every step of a public turn (summarize, classify, judge too) stays on the allowlist; a
+    # turn's `model` hint picks among them, and priced aliases drop out when the shared daily
+    # budget is spent (spec/contracts/router.md, "P6 additions").
+    - { id: public,    when: { mode: public },     use: public.models }
     - { id: vision,    when: { modality: image },  use: [hosted-sonnet] }
     - { id: summarize, when: { step: summarize },  use: [local-small, local-8b, hosted-haiku, compat-default] }
     - { id: classify,  when: { step: classify },   use: [hosted-haiku, local-small] }

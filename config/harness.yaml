@@ -6,12 +6,30 @@ dataset: _starter               # active dataset pack under datasets/
 project:
   repo_url: https://github.com/vynci/harnesswalk   # the lessons' code links (GET /v1/capabilities repo_url)
 
+# P6: public mode (spec/contracts/http_api.md, "P6 additions"). Env: HARNESSWALK_MODE=public,
+# HARNESSWALK_SECRET (required: the server refuses to start in public mode without it),
+# HARNESSWALK_PUBLIC_BUDGET_USD (overrides hosted_budget_usd_per_day). The site's own model key
+# is the provider's key variable (ANTHROPIC_API_KEY), never a value in a file.
+public:
+  models: [hosted-haiku, hosted-sonnet, fake-small]   # the only aliases a public turn may use
+  default_model: hosted-haiku   # what a public turn uses without a hint (the router's `public` rule)
+  hosted_budget_usd_per_day: 15 # shared by every priced alias, per UTC day; a BYO key bypasses it
+  session_ttl_s: 7200           # anonymous tenant lifetime; then the sweeper deletes its rows
+  sweep_interval_s: 300         # TTL sweeper cadence in the server; 0 disables it (tests)
+  rate_limit_max_keys: 10000    # bound on the in-memory rate-limit table (oldest evicted)
+  cookie_secure: auto           # auto (Secure when the request came over HTTPS), always, never
+  fake_fixture: public_demo     # fake-small's fixture in public mode unless one is given (config/fixtures)
+
+logging:
+  format: text                  # text | json (env HARNESSWALK_LOG_FORMAT): one JSON line per request
+
 gateway:
   channels: [web]
   max_body_bytes: 65536         # request size limit, checked before the body is parsed
   max_message_chars: 32000      # hard transport cap; input_guardrails.size is the policy limit
   rate_limit: { per_ip_per_hour: 30, per_tenant_per_hour: 120 }
-  session_ttl_s: 7200
+  max_open_streams: 50          # SSE streams open at once (every mode); the next one is a 429
+  trust_proxy: false            # env HARNESSWALK_TRUST_PROXY=1: client IP from the proxy headers
   dev_tenant: dev
   allow_tenant_header: true     # X-Harnesswalk-Tenant, honoured in dev mode only
   stream_reply_chars: 24        # > 0 emits message_delta chunks of this size in the reply span (0 turns it off)
@@ -58,6 +76,7 @@ loop:
     max_steps: I stopped after the maximum number of steps without reaching an answer.
     stuck: I stopped because I was repeating the same tool call without progress.
     error: Something went wrong while answering. The trace has the details.
+    budget_exhausted: Today's shared budget for Claude models is spent, so the rest of this turn ran on the fake model. It resets at 00:00 UTC.
 
 tools:
   builtins: [calculator, read_skill, remember, read_doc]
