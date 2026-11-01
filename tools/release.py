@@ -1,8 +1,8 @@
 """Release preparation for the owner. It never commits, tags or pushes.
 
     uv run python tools/release.py prep 0.1.0 [--date 2026-11-01] [--dry-run]
-    uv run python tools/release.py notes 0.1.0       # the changelog section, for the GitHub Release
-    uv run python tools/release.py check-tag v0.1.0  # exits 1 unless the tag names the project version
+    uv run python tools/release.py notes 0.1.0       # one changelog section (the release notes)
+    uv run python tools/release.py check-tag v0.1.0  # exit 1 unless the tag names the version
 
 `prep` sets the version in `pyproject.toml`, `harnesswalk/__init__.py` and `uv.lock`, moves the
 `Unreleased` section of `CHANGELOG.md` under a new `[VERSION] - DATE` heading (leaving an empty
