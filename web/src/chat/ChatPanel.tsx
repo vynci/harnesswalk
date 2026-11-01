@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type ComponentProps, type ReactElement } from 'react'
-import type { Citation } from '@/api/types'
-import { Eye, History, Info, MessagesSquare, OctagonX, Play, RefreshCcw, Route, TriangleAlert } from 'lucide-react'
+import type { Citation, TurnNotice } from '@/api/types'
+import { Coins, Eye, History, Info, MessagesSquare, OctagonX, Play, RefreshCcw, Route, TriangleAlert } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
@@ -112,6 +112,31 @@ function SystemNotice({ notice }: { notice: Notice }) {
       </MarkerIcon>
       <MarkerContent className={notice.tone === 'error' ? 'text-destructive' : undefined}>{notice.text}</MarkerContent>
     </Marker>
+  )
+}
+
+/** What a reply notice says when the API sent a reason without words. */
+const REPLY_NOTICE_TEXT: Record<string, string> = {
+  budget_exhausted: "Today's shared budget for Claude models is spent, so the rest of this turn ran on the fake model. It resets at 00:00 UTC.",
+}
+
+/**
+ * P6: the walk's notes about the reply (`turn_end.summary.notices`), as a small line under it:
+ * a turn that fell through to the fake model when the shared budget ran out, say.
+ */
+function ReplyNotes({ notices }: { notices: TurnNotice[] }) {
+  if (notices.length === 0) return null
+  return (
+    <div className="flex flex-col gap-1" data-testid="reply-notices">
+      {notices.map((n) => (
+        <Marker key={n.reason} role="note" className="text-xs text-muted-foreground" data-testid="reply-notice" data-reason={n.reason}>
+          <MarkerIcon className={n.reason === 'budget_exhausted' ? 'text-state-waiting' : undefined}>
+            {n.reason === 'budget_exhausted' ? <Coins className="size-3.5" aria-hidden /> : <Info className="size-3.5" aria-hidden />}
+          </MarkerIcon>
+          <MarkerContent>{n.message || REPLY_NOTICE_TEXT[n.reason] || n.reason.replace(/_/g, ' ')}</MarkerContent>
+        </Marker>
+      ))}
+    </div>
   )
 }
 
@@ -233,6 +258,7 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
               <ReplyMarkdown text={finished ? shownReply : reply} citations={finished ? citations : NO_CITATIONS} onOpen={onCite} />
             </div>
           )}
+          {finished && <ReplyNotes notices={state?.notices ?? (replaying ? [] : (turn.summary?.notices ?? []))} />}
           {reply && finished && output && <OutputGuardBadges facts={output} />}
           {reply && canReveal && finished && (
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="reveal-toggle">

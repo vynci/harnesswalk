@@ -34,8 +34,14 @@ export interface MockOptions {
 
 /** The public-mode fixture's knobs (bootstrap reads them from `?mode=public&budget=spent...`). */
 export interface MockPublicOptions {
-  /** `spent`: both Claude models are out of today's shared budget. Default: only Sonnet is. */
-  budget?: 'ok' | 'spent'
+  /**
+   * `spent`: both Claude models are out of today's shared budget. Default: only Sonnet is.
+   * `midturn`: as the default, but a Claude turn runs out between two calls, so its reply falls
+   * through to the fake model and `turn_end.summary.notices` says so.
+   */
+  budget?: 'ok' | 'spent' | 'midturn'
+  /** Sonnet's provider is marked down (`provider_unhealthy`) instead of out of budget. */
+  unhealthy?: boolean
   /** Requests left this hour before a 429 (default 27 of 30). */
   remaining?: number
   /** Sandbox session lifetime in seconds (default 7200). */
@@ -103,9 +109,23 @@ function json(status: number, body: unknown): Response {
   })
 }
 
+let requestCounter = 0
+
+/** An error as the API sends it, with the `X-Request-Id` every P6 response carries. */
 function apiError(status: number, code: string, message: string): Response {
-  return json(status, { error: { code, message } })
+  return errorResponse(status, { error: { code, message } })
 }
+
+function errorResponse(status: number, body: unknown, headers: Record<string, string> = {}): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json', 'X-Request-Id': `req_mock${String(++requestCounter).padStart(4, '0')}`, ...headers },
+  })
+}
+
+/** The words the API's loop.notices config gives a turn that fell through to the fake model. */
+const BUDGET_NOTICE = "Today's shared budget for Claude models is spent, so the rest of this turn ran on the fake model. It resets at 00:00 UTC."
+const HOSTED = new Set(['hosted-haiku', 'hosted-sonnet'])
 
 function toTemplate(e: HarnessEvent): Template {
   const { seq: _s, ts: _t, event_id: _e, trace_id: _tr, turn_id: _tu, session_id: _se, tenant_id: _te, ...rest } = e
@@ -194,6 +214,8 @@ export class MockServer {
   /** P5: every session's pack (fixed at its first turn or by POST /v1/sessions). */
   private sessions = new Map<string, { pack: string; createdAt: string }>()
   private loadedPacks = new Set<string>([DEFAULT_PACK])
+  /** P6: sessions of a swept sandbox tenant: a turn naming one is another tenant's, so 404. */
+  private sweptSessions = new Set<string>()
 
   constructor(opts: MockOptions = {}) {
     this.opts = { stepMs: opts.stepMs ?? 140, seed: opts.seed ?? true, messageDelta: opts.messageDelta ?? true, public: opts.public ?? null }
@@ -432,7 +454,9 @@ export class MockServer {
     if (!pub || !this.sandbox) return null
     const ttl = (pub.ttlS ?? 7200) * 1000
     if (Date.now() >= this.sandbox.startedAt + ttl) {
-      // Swept: every turn and session of the tenant is deleted.
+      // Swept: every turn and session of the tenant is deleted; the next cookie is a new tenant.
+      for (const t of this.turns.values()) this.sweptSessions.add(t.sessionId)
+      for (const sid of this.sessions.keys()) this.sweptSessions.add(sid)
       this.turns.clear()
       this.sessions.clear()
       this.sandbox = { startedAt: Date.now(), remaining: pub.remaining ?? 27 }
@@ -440,11 +464,13 @@ export class MockServer {
     return this.sandbox
   }
 
-  private publicModels(): { alias: string; label: string; provider: string; default: boolean; available: boolean; reason: 'budget_exhausted' | null }[] {
+  private publicModels(): { alias: string; label: string; provider: string; default: boolean; available: boolean; reason: 'budget_exhausted' | 'provider_unhealthy' | null }[] {
     const spent = this.opts.public?.budget === 'spent'
+    const unhealthy = this.opts.public?.unhealthy === true
     return PUBLIC_MODELS.map((m) => {
       const out = (m.alias === 'hosted-sonnet' || spent) && m.provider === 'anthropic'
-      return { ...m, available: !out, reason: out ? 'budget_exhausted' : null }
+      const reason = !out ? null : unhealthy && m.alias === 'hosted-sonnet' ? 'provider_unhealthy' : 'budget_exhausted'
+      return { ...m, available: !out, reason }
     })
   }
 
@@ -472,15 +498,14 @@ export class MockServer {
     const model = req.model ?? models.find((m) => m.default)!.alias
     const entry = models.find((m) => m.alias === model)
     if (!entry) return apiError(400, 'invalid_request', 'model not available in public mode')
+    if (!entry.available && entry.reason === 'provider_unhealthy') return apiError(503, 'provider_unavailable', 'The provider for this model is not answering.')
     if (!entry.available && !key) {
-      return json(409, { error: { code: 'budget_exhausted', message: "Today's shared budget for Claude models is spent.", resets_at: this.publicInfo().budget.resets_at } })
+      return errorResponse(409, { error: { code: 'budget_exhausted', message: "Today's shared budget for Claude models is spent.", resets_at: this.publicInfo().budget.resets_at } })
     }
     if (box.remaining <= 0) {
-      return new Response(JSON.stringify({ error: { code: 'rate_limited', message: 'Too many requests from this address this hour.', retry_after: 720 } }), {
-        status: 429,
-        headers: { 'Content-Type': 'application/json', 'Retry-After': '720' },
-      })
+      return errorResponse(429, { error: { code: 'rate_limited', message: 'Too many requests from this address this hour.', retry_after: 720 } }, { 'Retry-After': '720' })
     }
+    if (req.session_id && this.sweptSessions.has(req.session_id)) return apiError(404, 'session_not_found', `No session ${req.session_id} for this tenant.`)
     box.remaining -= 1
     return null
   }
@@ -584,7 +609,10 @@ export class MockServer {
     const approvalId = `apr_${String(turnNo).padStart(4, '0')}_${hex(4)}`
     // A message asking for a table or markdown gets the markdown reply on the plain answer's stream.
     const markdown = name === 'plain_answer' && MARKDOWN_PROMPT.test(req.message)
+    // P6, `budget=midturn`: a Claude turn crosses the shared budget between two calls.
+    const fellThrough = this.opts.public?.budget === 'midturn' && HOSTED.has(req.model ?? 'hosted-haiku')
     const templates = applyDisabled(EXAMPLES[name].map(toTemplate), disabled, this.diagram).map((t) => {
+      if (fellThrough && t.type === 'turn_end') t = { ...t, summary: { ...t.summary, notices: [{ reason: 'budget_exhausted', message: BUDGET_NOTICE }] } }
       if (markdown && t.type === 'turn_end') return { ...t, summary: { ...t.summary, reply: MARKDOWN_REPLY } }
       if (markdown && t.type === 'node_exit' && t.node_id === 'gateway' && t.summary?.phase === 'reply') return { ...t, summary: { ...t.summary, reply_chars: MARKDOWN_REPLY.length } }
       return t.summary && typeof t.summary.approval_id === 'string' ? { ...t, summary: { ...t.summary, approval_id: approvalId } } : t

@@ -53,6 +53,13 @@ export interface Notice {
   id: number
   level: 'info' | 'error'
   text: string
+  /** P6: the details line of an error toast: the API's request id, for a bug report. */
+  detail?: string
+}
+
+/** The details line for an error the API answered: "Request ID req_…" when it sent one. */
+export function noticeDetail(cause: unknown): string | undefined {
+  return cause instanceof ApiError && cause.requestId ? `Request ID ${cause.requestId}` : undefined
 }
 
 export interface ReplayState {
@@ -181,7 +188,8 @@ export interface AppState {
   setProvider: (p: string | null) => void
   setFixture: (f: string | null) => void
   toggleDisabled: (id: string) => void
-  notify: (level: Notice['level'], text: string) => void
+  /** `cause`: the error behind an error notice; an API error's request id goes in the details. */
+  notify: (level: Notice['level'], text: string, cause?: unknown) => void
   dismissNotice: (id: number) => void
   openDoc: (docId: string, chunk?: number) => void
   closeDoc: () => void
@@ -616,10 +624,10 @@ export const useApp = create<AppState>()((set, get) => {
       const apiKey = capabilities?.features.byo_key && byoKey ? byoKey : null
       get().exitReplay()
       set({ sending: true })
-      try {
-        const res = await api.startTurn({
+      const start = (session: string | null) =>
+        api.startTurn({
           message,
-          session_id: sessionId ?? newSessionId(),
+          session_id: session ?? newSessionId(),
           ...(stepMode ? { step: true } : {}),
           ...(dev && provider ? { provider } : {}),
           ...(dev && fixture ? { fixture } : {}),
@@ -628,10 +636,24 @@ export const useApp = create<AppState>()((set, get) => {
           ...(dev && modelHint ? { model: modelHint } : {}),
           ...(publicPick ? { model: publicPick.alias } : {}),
           // A new session starts on the chosen pack (P5); a session's pack is fixed after that.
-          ...(!sessionId && pack && capabilities?.features.packs ? { options: { pack } } : {}),
+          ...(!session && pack && capabilities?.features.packs ? { options: { pack } } : {}),
         }, { apiKey })
+      try {
+        let res
+        try {
+          res = await start(sessionId)
+        } catch (err) {
+          // P6: the stored session is gone for this browser's tenant (the sandbox session ended and
+          // the cookie names a fresh tenant, or the sweeper deleted it): start a fresh session and
+          // send the message there, once, instead of refusing it.
+          if (!(sessionId && err instanceof ApiError && err.status === 404 && err.code === 'session_not_found')) throw err
+          get().newSession()
+          get().notify('info', 'That session has ended and its data was deleted, so this message starts a fresh one.')
+          void get().refreshCapabilities()
+          res = await start(null)
+        }
         rememberMessage(res.turn_id, message)
-        if (res.session_id !== sessionId) {
+        if (res.session_id !== get().sessionId) {
           set({ sessionId: res.session_id })
           save('session', res.session_id)
           if (pack) save('pack', { sessionId: res.session_id, pack })
@@ -641,7 +663,7 @@ export const useApp = create<AppState>()((set, get) => {
         addTurn({ turnId: res.turn_id, userText: message, state: initialTurnState(), createdAt: Date.now() })
         follow(res.turn_id)
       } catch (err) {
-        get().notify('error', turnRefusal(err))
+        get().notify('error', turnRefusal(err), err)
         // A refusal about models or limits changes what the picker and the limits card show.
         if (err instanceof ApiError && (err.status === 409 || err.status === 429 || err.code === 'invalid_request')) void get().refreshCapabilities()
       } finally {
@@ -658,7 +680,7 @@ export const useApp = create<AppState>()((set, get) => {
       } catch (err) {
         if (!(err instanceof ApiError && err.status === 409)) {
           set({ stopRequested: null })
-          get().notify('error', `Could not stop the turn: ${describe(err)}`)
+          get().notify('error', `Could not stop the turn: ${describe(err)}`, err)
         }
       }
     },
@@ -669,7 +691,7 @@ export const useApp = create<AppState>()((set, get) => {
       try {
         await api.resume(liveTurnId, mode)
       } catch (err) {
-        get().notify('error', `Could not resume: ${describe(err)}`)
+        get().notify('error', `Could not resume: ${describe(err)}`, err)
       }
     },
 
@@ -680,7 +702,7 @@ export const useApp = create<AppState>()((set, get) => {
       try {
         await api.decide(approval.approval_id, decision)
       } catch (err) {
-        get().notify('error', `Could not record the decision: ${describe(err)}`)
+        get().notify('error', `Could not record the decision: ${describe(err)}`, err)
       }
     },
 
@@ -707,7 +729,7 @@ export const useApp = create<AppState>()((set, get) => {
           // An eval case turn lives in its run's scratch tenant: its stream is the case's events_url.
           events = await loadTurnEvents(api.transport, turnId, validate, from?.eventsUrl)
         } catch (err) {
-          get().notify('error', `Could not load the turn: ${describe(err)}`)
+          get().notify('error', `Could not load the turn: ${describe(err)}`, err)
           return
         }
         if (events.length === 0) {
@@ -800,9 +822,10 @@ export const useApp = create<AppState>()((set, get) => {
       set({ disabled: d.includes(id) ? d.filter((x) => x !== id) : [...d, id] })
     },
 
-    notify(level, text) {
+    notify(level, text, cause) {
       const id = ++noticeId
-      set((s) => ({ notices: [...s.notices.slice(-3), { id, level, text }] }))
+      const detail = noticeDetail(cause)
+      set((s) => ({ notices: [...s.notices.slice(-3), { id, level, text, ...(detail ? { detail } : {}) }] }))
       setTimeout(() => get().dismissNotice(id), 6000)
     },
 
@@ -826,7 +849,7 @@ export const useApp = create<AppState>()((set, get) => {
         get().notify('info', decision === 'accept' ? 'Proposal accepted: the memory writer wrote it.' : 'Proposal rejected: nothing was written.')
         return true
       } catch (err) {
-        get().notify('error', `Could not decide the proposal: ${describe(err)}`)
+        get().notify('error', `Could not decide the proposal: ${describe(err)}`, err)
         return false
       } finally {
         set((s) => ({ inspectorVersion: s.inspectorVersion + 1 }))
@@ -912,7 +935,7 @@ export const useApp = create<AppState>()((set, get) => {
           err instanceof ApiError && err.code === 'judge_unavailable'
             ? 'The judge suite needs a configured model other than fake. Pick one, or run the golden suite.'
             : `Could not start the eval run: ${describe(err)}`
-        get().notify('error', text)
+        get().notify('error', text, err)
         return null
       }
       evalStream?.close()
@@ -929,7 +952,7 @@ export const useApp = create<AppState>()((set, get) => {
             `${run.suite === 'golden' ? 'Golden' : 'Judge'} run finished: ${t.passed} passed, ${t.failed} failed, ${t.skipped} skipped${run.regressions ? `, ${run.regressions} regression${run.regressions === 1 ? '' : 's'}` : ''}.`,
           )
         } catch (err) {
-          get().notify('error', `Could not read the eval run: ${describe(err)}`)
+          get().notify('error', `Could not read the eval run: ${describe(err)}`, err)
         }
         set((s) => ({ liveEval: s.liveEval?.runId === runId ? null : s.liveEval, inspectorVersion: s.inspectorVersion + 1 }))
       }
@@ -965,7 +988,7 @@ export const useApp = create<AppState>()((set, get) => {
           err instanceof ApiError && err.code === 'turn_running'
             ? 'A turn is running, so the edit was not saved. Try again when it ends.'
             : `Could not save ${artifactLabel(kind, name)}: ${describe(err)}`
-        get().notify('error', text)
+        get().notify('error', text, err)
         return null
       }
     },
@@ -978,7 +1001,7 @@ export const useApp = create<AppState>()((set, get) => {
         const saved = await get().saveArtifact(kind, name, old.body, `restore v${version}`)
         return saved !== null
       } catch (err) {
-        get().notify('error', `Could not read ${artifactLabel(kind, name)} v${version}: ${describe(err)}`)
+        get().notify('error', `Could not read ${artifactLabel(kind, name)} v${version}: ${describe(err)}`, err)
         return false
       }
     },
@@ -1011,7 +1034,7 @@ export const useApp = create<AppState>()((set, get) => {
           err instanceof ApiError && err.code === 'turn_running'
             ? 'A turn is running, so nothing was released. Try again when it ends.'
             : `Could not create the release: ${describe(err)}`
-        get().notify('error', text)
+        get().notify('error', text, err)
         return null
       }
     },
@@ -1029,7 +1052,7 @@ export const useApp = create<AppState>()((set, get) => {
         await get().refreshCapabilities()
         return true
       } catch (err) {
-        get().notify('error', `Could not roll back to ${releaseId}: ${describe(err)}`)
+        get().notify('error', `Could not roll back to ${releaseId}: ${describe(err)}`, err)
         return false
       }
     },
@@ -1043,7 +1066,7 @@ export const useApp = create<AppState>()((set, get) => {
         updateTurn(turnId, (t) => ({ ...t, feedback, summary: t.summary ? { ...t.summary, feedback } : t.summary }))
         return true
       } catch (err) {
-        get().notify('error', `Could not record the feedback: ${describe(err)}`)
+        get().notify('error', `Could not record the feedback: ${describe(err)}`, err)
         return false
       }
     },
@@ -1073,7 +1096,7 @@ export const useApp = create<AppState>()((set, get) => {
         get().notify('info', `New session on ${packTitle(get().packs, info.pack)}.`)
         return true
       } catch (err) {
-        get().notify('error', `Could not start a session on ${packTitle(get().packs, packId)}: ${describe(err)}`)
+        get().notify('error', `Could not start a session on ${packTitle(get().packs, packId)}: ${describe(err)}`, err)
         return false
       } finally {
         set({ switchingPack: false })
@@ -1093,7 +1116,7 @@ export const useApp = create<AppState>()((set, get) => {
           err instanceof ApiError && err.code === 'nothing_to_diagnose'
             ? `Nothing to diagnose: ${err.message}`
             : `Could not diagnose: ${describe(err)}`
-        get().notify(err instanceof ApiError && err.code === 'nothing_to_diagnose' ? 'info' : 'error', text)
+        get().notify(err instanceof ApiError && err.code === 'nothing_to_diagnose' ? 'info' : 'error', text, err)
         return null
       }
     },

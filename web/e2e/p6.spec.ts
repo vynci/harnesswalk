@@ -119,7 +119,37 @@ test('public mode: a 429 shows a toast with the retry time', async ({ page }) =>
   await openPublic(page, '&mockRemaining=0')
   await send(page, 'What are your support hours?')
   await expect(page.getByText('Too many requests from this address this hour. Try again in 12 min.')).toBeVisible()
+  // The toast's details name the request, for a bug report against the server's logs.
+  await expect(page.getByTestId('notice-detail')).toHaveText(/^Request ID req_mock\d{4}$/)
   await expect(page.getByTestId('chat-turn')).toHaveCount(0)
+})
+
+test('public mode: a Claude turn that ran out of budget mid-turn says so under the reply', async ({ page }) => {
+  await openPublic(page, '&budget=midturn')
+  await send(page, 'What are your support hours?')
+  await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  const note = page.getByTestId('chat-turn').last().getByTestId('reply-notice')
+  await expect(note).toHaveCount(1)
+  await expect(note).toHaveAttribute('data-reason', 'budget_exhausted')
+  await expect(note).toHaveText("Today's shared budget for Claude models is spent, so the rest of this turn ran on the fake model. It resets at 00:00 UTC.")
+  // A turn on the fake model has nothing to note.
+  await page.getByTestId('model-picker').click()
+  await page.locator('[data-testid=model-option][data-model="fake-small"]').click()
+  await send(page, 'And on weekends?')
+  await expect(page.getByTestId('chat-turn')).toHaveCount(2)
+  await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  await expect(page.getByTestId('chat-turn').last().getByTestId('reply-notice')).toHaveCount(0)
+})
+
+test('public mode: a provider marked down is disabled in the picker with its own reason', async ({ page }) => {
+  await openPublic(page, '&unhealthy=1')
+  await page.getByTestId('model-picker').click()
+  const sonnet = page.getByTestId('model-menu').locator('[data-testid=model-option][data-model="hosted-sonnet"]')
+  await expect(sonnet).toHaveAttribute('data-available', 'false')
+  await expect(sonnet).toHaveAttribute('data-reason', 'provider_unhealthy')
+  await expect(sonnet).toContainText('Not answering')
+  await sonnet.hover()
+  await expect(page.getByTestId('model-reason')).toHaveText("This model's provider is not answering right now. Try again in a minute or use another model.")
 })
 
 test('public mode: private-only controls stay visible, disabled, with their reason', async ({ page }) => {

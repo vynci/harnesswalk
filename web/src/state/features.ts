@@ -58,6 +58,7 @@ export function resetTime(resetsAt: string | null | undefined): string {
 export function modelReasonText(reason: ModelUnavailableReason | null, resetsAt?: string | null): string {
   if (reason === 'budget_exhausted') return `Today's shared budget for Claude models is spent. It resets at ${resetTime(resetsAt)}. Bring your own key or use the fake model.`
   if (reason === 'provider_unconfigured') return 'No key is configured for this model. Bring your own key.'
+  if (reason === 'provider_unhealthy') return "This model's provider is not answering right now. Try again in a minute or use another model."
   return 'This model is not available right now.'
 }
 
@@ -65,6 +66,7 @@ export function modelReasonText(reason: ModelUnavailableReason | null, resetsAt?
 export function modelReasonShort(reason: ModelUnavailableReason | null): string {
   if (reason === 'budget_exhausted') return "Today's budget is spent"
   if (reason === 'provider_unconfigured') return 'Needs your key'
+  if (reason === 'provider_unhealthy') return 'Not answering'
   return 'Unavailable'
 }
 

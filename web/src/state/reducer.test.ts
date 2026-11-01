@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { HarnessEvent } from '@/api/types'
 import { diagram, edgeIndex, examples, names } from '@/test/fixtures'
-import { initialTurnState, reduceEvent, reduceEvents } from './reducer'
+import { initialTurnState, reduceEvent, reduceEvents, turnNotices } from './reducer'
 
 const last = (events: HarnessEvent[]) => events[events.length - 1]!
 
@@ -122,5 +122,24 @@ describe('reduceEvents over the recorded example streams', () => {
     expect(s.exit).toBe('cancelled')
     expect(s.phase).toBe('done')
     expect(s.stack).toEqual([])
+  })
+})
+
+describe('turn_end notices (P6)', () => {
+  const events = examples[names[0]!]
+  const end = last(events)
+
+  it('keeps turn_end.summary.notices for the reply, and none when the stream has none', () => {
+    expect(reduceEvents(events, edgeIndex).notices).toEqual([])
+    const withNotice = [...events.slice(0, -1), { ...end, summary: { ...end.summary, notices: [{ reason: 'budget_exhausted', message: 'Ran on the fake model.' }] } }]
+    expect(reduceEvents(withNotice, edgeIndex).notices).toEqual([{ reason: 'budget_exhausted', message: 'Ran on the fake model.' }])
+  })
+
+  it('drops malformed entries and repeats of a reason', () => {
+    expect(turnNotices(null)).toEqual([])
+    expect(turnNotices('budget_exhausted')).toEqual([])
+    expect(turnNotices([{ reason: 'budget_exhausted' }, { reason: 'budget_exhausted', message: 'again' }, { message: 'no reason' }, 3, null])).toEqual([
+      { reason: 'budget_exhausted', message: '' },
+    ])
   })
 })
