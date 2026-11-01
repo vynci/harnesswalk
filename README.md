@@ -2,7 +2,7 @@
 
 **Walk through an AI harness, one node at a time.**
 
-Status: **pre-alpha, P4 LLM Ops done.** The harness runs: a request walks the gateway, guardrails,
+Status: **pre-alpha, P5 datasets and lessons done.** The harness runs: a request walks the gateway, guardrails,
 context builder, memory, loop, model layer, tools, policy, approval, audit and trace, and every
 step is an event you can stream, store and replay. The web UI shows it: a chat beside a live
 diagram, step mode, approvals, replay and a code peek per node. See
@@ -46,6 +46,47 @@ harness. Send a message and watch it travel. Every node lights up as the request
 it. Click a node to see what is behind it: the code for a guardrail, the rules for policy, the
 skills in procedural memory, the assembled context with a budget bar per slice, the timeline in
 the trace.
+
+## Packs
+
+A pack is the content a harness runs with: a fictional business's system prompt, skills, tools,
+documents, seed memory and golden set (`spec/packs.md`, `datasets/README.md`). Pick one in the
+header and the next session runs on it: the suggestions, the fixtures, the inspectors' file
+trees and the Eval inspector's golden set all follow. Every pack is synthetic and CC0, with a
+provenance card that says how it was made and reviewed, and every pack's golden set passes on
+the fake provider (`uv run harnesswalk packs validate`, `uv run harnesswalk eval <pack>`).
+
+| Pack | Business | What it shows |
+|---|---|---|
+| `_starter` | Example Store | A tour of every node, the pack the lessons walk through |
+| `healthcare` | Brindlemoor Family Clinic | PII redaction and refusal: health numbers, emails, phones and names become placeholders before the model sees them, and clinical questions are declined |
+| `ecommerce` | Quillfern Outfitters | A destructive action behind approval: a cancel or a refund pauses for a human |
+| `logistics` | Tallowgate Freight | Multi-step tool use: track, hub capacity, reroute (approved), ETA |
+| `sports` | Copperline Community League | Cheap model routing: the call after a read-only lookup takes the `lookup` rule |
+| `finance` | Hollowmere Capital Partners | Citations and the memory writer: cited fund answers, and a preference remembered in one session and recalled in the next |
+
+![Healthcare: the health number reaches the model as a placeholder](docs/screenshots/pack-healthcare.png)
+
+![Ecommerce: a refund waits for approval](docs/screenshots/pack-ecommerce.png)
+
+![Logistics: track, hub capacity, reroute and ETA in one walk](docs/screenshots/pack-logistics.png)
+
+![Sports: the second model call routed by the lookup rule](docs/screenshots/pack-sports.png)
+
+![Finance: a cited answer, and a remembered preference](docs/screenshots/pack-finance.png)
+
+## Lessons
+
+`lessons/` is a short course, one chapter per node in walk order and one per expert group (21
+in all, indexed in [lessons/README.md](lessons/README.md)). Each chapter says what the node
+does, what breaks without it (the exact pack, fixture and prompt, verified on the fake
+provider), walks its code with links into `harnesswalk/`, and ends with three things to try and
+three questions. In the web app every node's inspector has a Lessons tab with "Disable X and
+try it" (or "Try it"), which sets up the demonstration for the next turn; the five chapters
+whose node can be switched off also show the failure on the domain pack whose feature it is.
+The Lessons drawer in the header lists every chapter with your progress.
+
+![A chapter in the Lessons tab, with its Try buttons](docs/screenshots/lessons-tab.png)
 
 ## Walk through it one node at a time
 
@@ -408,8 +449,8 @@ spec/       the language-agnostic contract
 harnesswalk/ reference implementation (Python); harnesswalk/README.md maps nodes to modules
 config/     harness.yaml, policy.yaml, context.yaml, models.yaml
 web/        chat and diagram UI (React, TypeScript); web/README.md
-datasets/   _starter pack now; five domain packs in P5
-lessons/    one chapter per node (P5)
+datasets/   the packs: _starter and five domain packs (healthcare, ecommerce, logistics, sports, finance)
+lessons/    the course: one chapter per node in walk order, then one per expert group
 deploy/     docker compose: dev and homelab profiles
 docs/       roadmap
 tests/      unit tests, spec checks and the conformance runner
@@ -417,5 +458,5 @@ tests/      unit tests, spec checks and the conformance runner
 
 ## Licence
 
-Code and documentation: [Apache-2.0](LICENSE). Starter dataset content: CC0 1.0. Copyright 2026
+Code and documentation: [Apache-2.0](LICENSE). Dataset pack content: CC0 1.0. Copyright 2026
 Vince Elizaga.
