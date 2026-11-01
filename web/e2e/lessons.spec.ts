@@ -80,6 +80,27 @@ test('a group chapter switches to the expert view and selects its first node', a
   await expect(inspector.getByTestId('lesson-tab')).toHaveAttribute('data-status', /^(ok|missing)$/)
 })
 
+test('an expert node opens its group chapter at its own section', async ({ page }) => {
+  // Until chapter 16 is written, give the mock a stand-in with one long section per store.
+  await page.evaluate(async () => {
+    type Mock = { handle: (p: string) => Promise<Response>; diagram: { nodes: { id: string; label: string; parent?: string }[] }; lessons: { chapters: unknown[] } }
+    const mock = (globalThis as unknown as { __harnesswalkMock: Mock }).__harnesswalkMock
+    if ((await mock.handle('/v1/lessons/16-memory-inside')).ok) return
+    const kids = mock.diagram.nodes.filter((n) => n.parent === 'memory')
+    const filler = Array.from({ length: 12 }, (_, i) => `Paragraph ${i + 1} of this section, long enough to need scrolling.`).join('\n\n')
+    const markdown = `# Inside memory\n\n> The five stores.\n\n## The stores\n\n${kids.map((k) => `### ${k.label}\n\n${filler}`).join('\n\n')}\n`
+    mock.lessons.chapters.push({ slug: '16-memory-inside', n: 16, title: 'Inside memory', hook: 'The five stores.', node_id: 'memory', covers: kids.map((k) => k.id), group: true, words: 900, url: '/v1/lessons/16-memory-inside', markdown, try: null, code_links: [] })
+  })
+  await page.getByRole('switch', { name: 'Expert view' }).click()
+  await node(page, 'semantic').click()
+  const inspector = page.getByTestId('inspector')
+  await inspector.getByRole('tab', { name: 'Lessons' }).click()
+  await expect(inspector.getByTestId('lesson-tab')).toHaveAttribute('data-slug', '16-memory-inside')
+  const section = inspector.locator('h3#semantic')
+  await expect(section).toBeInViewport()
+  await expect(inspector.locator('h3#procedural')).not.toBeInViewport()
+})
+
 test('the Lessons tab opens from the inspector, for a written and an unwritten chapter', async ({ page }) => {
   await node(page, 'input_guardrails').click()
   const inspector = page.getByTestId('inspector')
