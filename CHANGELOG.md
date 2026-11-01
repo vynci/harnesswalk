@@ -60,5 +60,10 @@ The first public release, built in eight phases (P0 to P7 in [docs/ROADMAP.md](d
   line prints each failing node's error message and the first error under the reply.
 - Golden citation cases no longer depend on which other packs a data directory has run: each
   pack keeps its own keyword index.
+- On Linux, the tool sandbox's memory cap measures the child's own resident memory: it read
+  `ru_maxrss`, which keeps the parent's high-water mark across exec, so every subprocess tool
+  call of a server that had once grown past the cap failed with "went over the memory cap".
+- `make web-build` and the other web targets run pnpm from inside `web/`, so corepack uses the
+  pinned pnpm on a fresh machine instead of failing with `ERR_PNPM_BAD_PM_VERSION`.
 
 [Unreleased]: https://github.com/vynci/harnesswalk/commits/main
