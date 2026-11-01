@@ -504,7 +504,12 @@ async def test_per_turn_option_errors_and_mode_checks(tmp_path: Path) -> None:
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         r = await c.post("/v1/turns", json={"message": "hi", "provider": "fake"})
         assert r.status_code == 400
+        # P6 picker fixes: a public turn on the scripted model (here every turn) may name a
+        # fixture of its pack; tests/public covers the refusals.
         r = await c.post("/v1/turns", json={"message": "hi", "fixture": "plain_answer"})
+        assert r.status_code == 202
+        await pub.gateway.wait(r.json()["turn_id"], 5)
+        r = await c.post("/v1/turns", json={"message": "hi", "fixture": "nope"})
         assert r.status_code == 400
         r = await c.post("/v1/turns", json={"message": "hi", "disable": ["policy"]})
         assert r.status_code == 422
