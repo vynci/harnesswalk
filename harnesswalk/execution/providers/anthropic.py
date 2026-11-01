@@ -48,6 +48,13 @@ def to_anthropic(messages: list[Message]) -> tuple[str, list[dict[str, Any]]]:
                 for c in m.tool_calls
             ]
             out.append({"role": "assistant", "content": blocks})
+        elif m.role == "user" and out and out[-1]["role"] == "user":
+            # P6: the quoted retrieved-data message sits just before the new input; two user
+            # messages in a row become one message with two text blocks.
+            previous = out[-1]["content"]
+            if isinstance(previous, str):
+                out[-1]["content"] = [{"type": "text", "text": previous}]
+            out[-1]["content"].append({"type": "text", "text": m.content})
         else:
             out.append({"role": m.role, "content": m.content})
     return system, out

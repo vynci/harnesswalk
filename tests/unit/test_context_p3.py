@@ -7,6 +7,7 @@ import httpx
 import pytest
 
 from harnesswalk.__main__ import main
+from harnesswalk.context.builder import DATA_RULE
 from harnesswalk.context.records import Hit, SourceRef
 from harnesswalk.control.http_api import create_app
 from harnesswalk.execution.providers import ProviderResponse, ProviderUsage
@@ -33,12 +34,19 @@ async def test_all_five_stores_light_on_one_question(tmp_path: Path) -> None:
     assert builder["retrieved"]["semantic"] >= 1 and builder["citations"] >= 1
     assert builder["used_tokens"] == sum(builder["slices"].values())
     ctx = h.context_builder.last["t1"]
-    # Stable first: always tier, then semantic, episodic, knowledge, then the new input.
+    # Stable first: always tier, then semantic, episodic, knowledge, then the new input. P6:
+    # only the always tier is a system message; the retrieved slices are one quoted user-role
+    # data block just before the new input.
     system = [m.content for m in ctx.messages if m.role == "system"]
+    assert len(system) == 1
     assert "read_doc" in system[0] and "trailhead_backpack" in system[0]
-    assert system[1].startswith("Facts on record")
-    assert system[2].startswith("Earlier events")
-    assert system[3].startswith("Knowledge passages") and "[1] " in system[3]
+    assert system[0].endswith(DATA_RULE)
+    data = ctx.messages[-2]
+    assert data.role == "user"
+    facts = data.content.index('<retrieved_data kind="facts">\nFacts on record')
+    events = data.content.index('<retrieved_data kind="events">\nEarlier events')
+    passages = data.content.index('<retrieved_data kind="passages">\nKnowledge passages')
+    assert facts < events < passages and "[1] " in data.content[passages:]
     assert ctx.messages[-1].role == "user"
     assert ctx.citations[0]["n"] == 1 and "doc:returns_policy" in ctx.on_demand_index
 

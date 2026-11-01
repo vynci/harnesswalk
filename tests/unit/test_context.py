@@ -57,9 +57,14 @@ async def test_history_then_compaction(tmp_path: Path) -> None:
     assert compacted["compaction"]["method"] == "truncation"
     assert compacted["slices"]["session"] <= 100
     last = h.context_builder.last["t1"]
+    # P6: the summary is quoted data in a user-role message, never a system message.
     assert any(
-        m.role == "system" and m.content.startswith("Summary of the conversation")
+        m.role == "user"
+        and '<retrieved_data kind="summary">\nSummary of the conversation' in m.content
         for m in last.messages
+    )
+    assert not any(
+        "Summary of the conversation" in m.content for m in last.messages if m.role == "system"
     )
 
 
