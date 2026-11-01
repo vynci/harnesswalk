@@ -102,7 +102,7 @@ record ChannelReply { text: string, citations: [Citation], turn_id: string }
 | `gateway.rate_limit.per_tenant_per_hour` | `120` | |
 | `public.session_ttl_s` | `7200` | Public mode TTL of an anonymous tenant (P6: moved from `gateway.session_ttl_s`) |
 | `gateway.max_open_streams` | `50` | SSE streams open at once (every mode); the next is a `429` (P6) |
-| `gateway.trust_proxy` | `false` | Read the client IP and scheme from proxy headers (env `HARNESSWALK_TRUST_PROXY=1`, P6) |
+| `gateway.trust_proxy` | `false` | Read the client IP and scheme from proxy headers (env `HARNESSWALK_TRUST_PROXY=1`, P6): `X-Harnesswalk-Viewer-Ip`, else the first `X-Forwarded-For` hop, never `CloudFront-Viewer-Address` |
 | `gateway.dev_tenant` | `dev` | Tenant used in dev mode when none is given |
 | `gateway.allow_tenant_header` | `true` in dev | Accept `X-Harnesswalk-Tenant` (dev only, ignored elsewhere) |
 | `gateway.stream_reply_chars` | `24` | Above 0, the reply is also sent as `message_delta` events of this many characters inside the `phase: reply` span; `0` turns streaming off |

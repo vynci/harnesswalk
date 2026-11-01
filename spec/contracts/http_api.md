@@ -1063,9 +1063,10 @@ server built from `public.models`.
 - Rate limits (per IP from `gateway.rate_limit.per_ip_per_hour`, per tenant from
   `per_tenant_per_hour`): `429 {"error": {"code": "rate_limited", "message", "retry_after"}}`
   with `Retry-After` in seconds (until the oldest request of the window leaves it). The IP is
-  the peer address, or with `gateway.trust_proxy` the last `X-Forwarded-For` hop, the one the
-  trusted proxy wrote (P6 review: never `CloudFront-Viewer-Address` or an earlier hop, which a
-  viewer can send through the distribution). IPv6 addresses count by their /64. The table
+  the peer address, or with `gateway.trust_proxy` `X-Harnesswalk-Viewer-Ip` (the CloudFront
+  viewer-ip function overwrites it), else the first `X-Forwarded-For` hop (Caddy writes a single
+  one); never `CloudFront-Viewer-Address`, which a viewer can send through the distribution
+  (P6 review). IPv6 addresses count by their /64. The table
   holds at most `public.rate_limit_max_keys` keys; the least recently used goes first.
 - New tenants and sessions (P6 review): every anonymous tenant minted (any route, a request
   without a valid cookie) and every `POST /v1/sessions` counts in the client's hourly creation
