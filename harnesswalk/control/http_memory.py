@@ -39,7 +39,10 @@ def add_memory_routes(
             return harness
         if not harness.pack_known(pack):
             raise GatewayError(422, "invalid_request", f"no dataset pack {pack!r}")
-        return harness.view(pack)
+        try:
+            return harness.view(pack)
+        except KeyError as exc:  # PackUnavailable
+            raise GatewayError(422, "invalid_request", str(exc.args[0])) from exc
 
     @app.get("/v1/memory/proposals")
     async def list_proposals(request: Request, status: str = "pending", limit: int = 20):

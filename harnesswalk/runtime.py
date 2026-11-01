@@ -83,6 +83,10 @@ from harnesswalk.types import ConfigError, Message, TurnContext
 log = logging.getLogger(__name__)
 
 
+class PackUnavailable(KeyError):
+    """A pack that exists but cannot be built (a broken tools.yaml, a prompt over budget)."""
+
+
 class PackParts:
     """The per-pack components and how they are (re)built, for the configured pack (`Harness`)
     and for every other pack a session picks (`PackRuntime`, P5)."""
@@ -371,7 +375,12 @@ class Harness(PackParts):
         if runtime is None:
             if not self.pack_known(pack):
                 raise KeyError(pack)
-            runtime = self.packs[pack] = PackRuntime(self, pack)
+            try:
+                runtime = PackRuntime(self, pack)
+            except Exception as exc:
+                log.warning("pack %s cannot be loaded: %s: %s", pack, type(exc).__name__, exc)
+                raise PackUnavailable(f"pack {pack!r} cannot be loaded: {exc}") from exc
+            self.packs[pack] = runtime
         return runtime
 
     def candidate(self, pack: str | None = None) -> Any:
@@ -529,7 +538,7 @@ class Harness(PackParts):
             "release": self.release.status(),
             "packs": {
                 "default": self.pack,
-                "ids": [p["id"] for p in self.pack_list()["packs"]],
+                "ids": sorted({self.pack, *pack_index.discover(s)}),
             },
             "limits": {
                 "max_message_chars": int(s.get("gateway.max_message_chars", 32000)),

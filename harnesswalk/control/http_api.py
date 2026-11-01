@@ -502,7 +502,10 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
             raise GatewayError(404, "node_not_found", f"No node {node_id}.")
         if pack is not None and not harness.pack_known(pack):
             raise GatewayError(422, "invalid_request", f"no dataset pack {pack!r}")
-        view = harness.view(pack)  # P5: the inspectors of the pack the UI has picked
+        try:
+            view = harness.view(pack)  # P5: the inspectors of the pack the UI has picked
+        except KeyError as exc:  # PackUnavailable: the pack is there but does not load
+            raise GatewayError(422, "invalid_request", str(exc.args[0])) from exc
         return JSONResponse(
             inspect_node(view, identity.tenant_id, node_id, max(0, min(recent, 50)))
         )

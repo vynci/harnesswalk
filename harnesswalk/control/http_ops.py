@@ -118,7 +118,10 @@ def add_ops_routes(
             return h
         if not h.pack_known(pack):
             raise GatewayError(422, "invalid_request", f"no dataset pack {pack!r}")
-        return h.view(pack)
+        try:
+            return h.view(pack)
+        except KeyError as exc:  # PackUnavailable: the pack is there but does not load
+            raise GatewayError(422, "invalid_request", str(exc.args[0])) from exc
 
     def release_view(release_id: str) -> Any:
         """The view of the pack a release belongs to (release ids are unique across packs)."""

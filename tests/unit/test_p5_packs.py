@@ -268,3 +268,27 @@ async def test_artifacts_releases_and_inspectors_per_pack(tmp_path: Path) -> Non
         golden = (await c.get("/v1/evals/golden", params={"pack": ALT})).json()
         assert golden["pack"] == ALT and golden["cases"]
     await h.aclose()
+
+
+@pytest.mark.anyio
+async def test_a_pack_that_does_not_load_is_422(tmp_path: Path) -> None:
+    root = tmp_path / "packs"
+    (root / "broken").mkdir(parents=True)
+    (root / "broken" / "system_prompt.md").write_text("Hi")
+    (root / "broken" / "tools.yaml").write_text("- name: x\n  nonsense: [\n")
+    h = Harness(
+        settings(
+            tmp_path,
+            "plain_answer",
+            profile=None,
+            overrides={"packs.roots": ["datasets", str(root)]},
+        )
+    )
+    async with client(h) as c:
+        assert "broken" in [p["id"] for p in (await c.get("/v1/packs")).json()["packs"]]
+        r = await c.post("/v1/sessions", json={"pack": "broken"})
+        assert r.status_code == 422 and "cannot be loaded" in r.json()["error"]["message"]
+        r = await c.post("/v1/turns", json={"message": "Hi", "options": {"pack": "broken"}})
+        assert r.status_code == 422
+    assert "broken" not in h.packs
+    await h.aclose()

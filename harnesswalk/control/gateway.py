@@ -328,8 +328,12 @@ class Gateway:
     # -- running a turn -----------------------------------------------------------------------
 
     def _view(self, pack: str) -> Any:
+        from harnesswalk.runtime import PackUnavailable
+
         try:
             return self.h.view(pack)
+        except PackUnavailable as exc:
+            raise GatewayError(422, "invalid_request", str(exc.args[0])) from exc
         except KeyError as exc:
             raise GatewayError(422, "invalid_request", f"no dataset pack {pack!r}") from exc
 

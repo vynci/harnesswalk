@@ -81,8 +81,10 @@ class OfflineRunner:
         )
 
     def golden(self, pack: str) -> list[GoldenCase]:
-        view = self.h.view(pack) if self.h.pack_known(pack) else self.h
-        return load_golden(golden_path(view.settings, pack))
+        settings = self.h.settings
+        if pack != self.h.pack and pack in self.h.packs:
+            settings = self.h.packs[pack].settings
+        return load_golden(golden_path(settings, pack))
 
     def _check_model(self, suite: str, model: str | None) -> None:
         if model is None:
@@ -141,7 +143,10 @@ class OfflineRunner:
         if self.running(tenant_id):
             raise EvalRequestError(409, "eval_running", "an eval run is already running")
         previous = self.store.previous_run(tenant_id, pack, suite)
-        view = runtime or self.h.view(pack)
+        try:
+            view = runtime or self.h.view(pack)
+        except KeyError as exc:  # PackUnavailable
+            raise EvalRequestError(422, "invalid_request", str(exc.args[0])) from exc
         if runtime is None:
             view.refresh_artifacts()  # what another process released is what the run tests
         seq, run_id = self.store.new_run_id()
