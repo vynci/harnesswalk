@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { diagram } from '@/test/fixtures'
+import { routeProblems, type RouteRules } from '@/test/routeChecks'
 import { computeLayout, type DiagramLayout, type VisibleEdge } from './layout'
 import type { Pt } from './route'
+
+/**
+ * What a reader needs to tell the edges apart: clear air round every node an edge does not
+ * connect, parallel lanes at least 14 apart, distinct ports along a side, a straight run for
+ * the arrowhead, and no route hugging a plane or group border it crosses.
+ */
+const RULES: RouteRules = { clear: 12, lane: 14, port: 14, runIn: 12, plane: 10 }
 
 // Geometry checks on the drawn routes: axis-aligned segments against each other and against
 // the node boxes. Kept deliberately simple.
@@ -138,9 +146,85 @@ describe('without hints', () => {
 
 describe('expert view routes', () => {
   const expert = computeLayout(diagram, { view: 'expert', collapsed: new Set() })
+  const byId = new Map(expert.nodes.map((n) => [n.id, n]))
 
   it('routes every edge orthogonally without running through a node', () => {
     for (const e of expert.edges) for (let i = 0; i < e.points.length - 1; i++) expect(e.points[i]![0] === e.points[i + 1]![0] || e.points[i]![1] === e.points[i + 1]![1]).toBe(true)
     expect(problems(expert, expert.edges).filter((p) => p.includes('through'))).toEqual([])
+  })
+
+  it('keeps clear air, lane spacing, distinct ports and a run-in for every arrow', () => {
+    expect(routeProblems(expert, expert.edges, RULES)).toEqual([])
+  })
+
+  it('keeps the same rules with any group collapsed, and with all of them', () => {
+    const parents = [...new Set(diagram.nodes.filter((n) => n.parent).map((n) => n.parent!))]
+    for (const collapsed of [...parents.map((p) => [p]), parents]) {
+      const l = computeLayout(diagram, { view: 'expert', collapsed: new Set(collapsed) })
+      expect(routeProblems(l, l.edges, RULES), collapsed.join(',')).toEqual([])
+    }
+  })
+
+  it('spreads the edges that share a node side along it', () => {
+    const sides = new Map<string, number[]>()
+    for (const e of expert.edges) {
+      for (const [node, side, p] of [
+        [e.source, e.sourceSide, e.points[0]!],
+        [e.target, e.targetSide, e.points[e.points.length - 1]!],
+      ] as const) {
+        const key = `${node}:${side}`
+        sides.set(key, [...(sides.get(key) ?? []), side === 'left' || side === 'right' ? p[1] : p[0]])
+      }
+    }
+    // The context builder takes all five memory stores on one side, each on its own port.
+    expect(new Set(sides.get('context_builder:bottom')).size).toBe(5)
+    for (const [key, at] of sides) expect(new Set(at).size, key).toBe(at.length)
+  })
+
+  it('keeps an edge between two children of one group inside the group', () => {
+    const inner = expert.edges.filter((e) => {
+      const s = byId.get(e.source)!
+      const t = byId.get(e.target)!
+      return (s.parentId && s.parentId === t.parentId) || t.parentId === s.id
+    })
+    expect(inner.map((e) => e.id).sort()).toEqual(['diagnose_to_offline_eval', 'online_eval_to_diagnose', 'registry_to_sandbox', 'router_to_providers', 'trace_to_cost'])
+    for (const e of inner) {
+      const g = byId.get(byId.get(e.target)!.parentId!)!
+      for (const [x, y] of e.points) {
+        expect(x > g.x && x < g.x + g.width && y > g.y && y < g.y + g.height, `${e.id} at ${x},${y}`).toBe(true)
+      }
+    }
+  })
+
+  it('draws the edge from a group to its own child under the title, onto the child', () => {
+    const e = expert.edges.find((x) => x.id === 'trace_to_cost')!
+    const trace = byId.get('trace')!
+    const cost = byId.get('cost')!
+    expect(e.points[0]![1]).toBeGreaterThan(trace.y)
+    expect(e.points[e.points.length - 1]![1]).toBe(cost.y)
+    expect(e.targetSide).toBe('top')
+  })
+
+  it('crosses between planes through the gutters, never along a plane border', () => {
+    const plane = new Map(expert.nodes.map((n) => [n.id, n.node.group]))
+    const cross = expert.edges.filter((e) => plane.get(e.source) !== plane.get(e.target))
+    expect(cross.length).toBeGreaterThan(8)
+    expect(routeProblems(expert, cross, RULES).filter((p) => p.includes('plane'))).toEqual([])
+  })
+
+  it('grows each plane round the lanes of its own edges', () => {
+    const plane = new Map(expert.nodes.map((n) => [n.id, n.node.group]))
+    for (const e of expert.edges) {
+      if (plane.get(e.source) !== plane.get(e.target)) continue
+      const box = expert.planes.find((p) => p.id === plane.get(e.source))!
+      for (const [x, y] of e.points) expect(x > box.x && x < box.x + box.width && y > box.y && y < box.y + box.height, `${e.id}`).toBe(true)
+    }
+  })
+})
+
+describe('simple view route rules', () => {
+  it('meets the same spacing rules, telemetry shown', () => {
+    const l = computeLayout(diagram, { view: 'simple', collapsed: new Set() })
+    expect(routeProblems(l, l.edges.filter((e) => !e.bus), RULES)).toEqual([])
   })
 })

@@ -103,7 +103,7 @@
       "lesson_summary": "What the model actually sees, assembled inside a token budget, stable content first.",
       "source_hint": "harnesswalk/context/builder.py",
       "artifact_hint": "config/context.yaml",
-      "layout": {"x": 374, "y": 112}
+      "layout": {"x": 374, "y": 112, "expert": {"x": 509, "y": 112}}
     },
     {
       "id": "memory",
@@ -115,7 +115,7 @@
       "lesson_url": "lessons/04-memory.md",
       "lesson_summary": "Five stores, one retrieval interface: procedural, session, semantic, episodic, knowledge.",
       "source_hint": "harnesswalk/context/stores/__init__.py",
-      "layout": {"x": 374, "y": 224}
+      "layout": {"x": 374, "y": 224, "expert": {"x": 420, "y": 320}}
     },
     {
       "id": "procedural",
@@ -124,6 +124,7 @@
       "kind": "prompt",
       "view": "expert",
       "parent": "memory",
+      "layout": {"x": 22, "y": 62},
       "lesson": "How the agent should behave: the system prompt (skill zero) and the skills, each a short markdown file. This is text that carries intent, not code that enforces it. Edit a skill while the agent is idle and the change is saved as a new artifact version you can diff and roll back.",
       "lesson_url": "lessons/16-memory-inside.md#procedural",
       "lesson_summary": "The system prompt and the skills index, always in context, and skill bodies read on demand.",
@@ -137,6 +138,7 @@
       "kind": "store",
       "view": "expert",
       "parent": "memory",
+      "layout": {"x": 196, "y": 62},
       "lesson": "The conversation so far: recent turns verbatim and a running summary of older ones, plus the loop's checkpoints. When the history outgrows its budget, old turns are compacted into the summary with pointers back to the originals.",
       "lesson_url": "lessons/16-memory-inside.md#session",
       "lesson_summary": "Earlier turns of this conversation, and the rolling summary once they no longer fit.",
@@ -149,6 +151,7 @@
       "kind": "store",
       "view": "expert",
       "parent": "memory",
+      "layout": {"x": 22, "y": 206},
       "lesson": "Durable facts, such as \"the customer prefers email\". Retrieval favours precision: entity match first, then similarity. Facts only arrive through the memory writer, never directly from the model.",
       "lesson_url": "lessons/16-memory-inside.md#semantic",
       "lesson_summary": "Durable facts matched by key first and similarity second, versioned, written only by the memory writer.",
@@ -162,6 +165,7 @@
       "kind": "store",
       "view": "expert",
       "parent": "memory",
+      "layout": {"x": 196, "y": 206},
       "lesson": "Dated events, such as \"order A-1001 was refunded on 3 October\". Retrieval mixes recency with relevance, so last week's event can outrank a closer match from last year.",
       "lesson_url": "lessons/16-memory-inside.md#episodic",
       "lesson_summary": "Dated events ranked by relevance and recency, one written for every finished turn.",
@@ -175,6 +179,7 @@
       "kind": "store",
       "view": "expert",
       "parent": "memory",
+      "layout": {"x": 22, "y": 134},
       "lesson": "Documents for retrieval-augmented generation: chunked, embedded, searched with keywords and vectors together, then reranked. Answers built from these chunks must cite them, which the output guardrails check.",
       "lesson_url": "lessons/16-memory-inside.md#knowledge",
       "lesson_summary": "Documents cut into chunks, keyword and vector search fused by rank, numbered for the model to cite.",
@@ -192,7 +197,7 @@
       "lesson_summary": "The one gated path that may write facts and events into memory.",
       "source_hint": "harnesswalk/context/memory_writer.py",
       "can_disable": true,
-      "layout": {"x": 374, "y": 388, "expert": {"x": 374, "y": 495}}
+      "layout": {"x": 374, "y": 388, "expert": {"x": 509, "y": 648}}
     },
     {
       "id": "loop",
@@ -204,7 +209,7 @@
       "lesson_url": "lessons/05-loop.md",
       "lesson_summary": "Plan, act, observe, adjust, and every way the loop is made to stop.",
       "source_hint": "harnesswalk/execution/loop.py",
-      "layout": {"x": 786, "y": 112, "expert": {"x": 1054, "y": 112}}
+      "layout": {"x": 786, "y": 112, "expert": {"x": 962, "y": 112}}
     },
     {
       "id": "model_layer",
@@ -217,7 +222,7 @@
       "lesson_summary": "One interface for every model: routing by rules, providers, fallback, cost.",
       "source_hint": "harnesswalk/execution/model_layer.py",
       "artifact_hint": "config/models.yaml",
-      "layout": {"x": 898, "y": 248, "expert": {"x": 1166, "y": 248}}
+      "layout": {"x": 898, "y": 248, "expert": {"x": 1210, "y": 104}}
     },
     {
       "id": "router",
@@ -254,7 +259,7 @@
       "lesson_url": "lessons/07-tools.md",
       "lesson_summary": "Typed tool calls, resolved, checked by policy and executed in a sandbox.",
       "source_hint": "harnesswalk/execution/tools.py",
-      "layout": {"x": 674, "y": 248, "expert": {"x": 808, "y": 248}}
+      "layout": {"x": 674, "y": 248, "expert": {"x": 962, "y": 264}}
     },
     {
       "id": "registry",
@@ -292,7 +297,7 @@
       "lesson_summary": "Schema, content and citation checks on the answer before it leaves.",
       "source_hint": "harnesswalk/execution/output_guardrails.py",
       "can_disable": true,
-      "layout": {"x": 786, "y": 0, "expert": {"x": 1054, "y": 0}}
+      "layout": {"x": 786, "y": 0, "expert": {"x": 962, "y": 0}}
     },
     {
       "id": "trace",
@@ -304,7 +309,7 @@
       "lesson_url": "lessons/13-trace.md",
       "lesson_summary": "Every event of every turn, the cost receipt, and replay.",
       "source_hint": "harnesswalk/ops/trace.py",
-      "layout": {"x": 0, "y": 646, "expert": {"x": 0, "y": 693}}
+      "layout": {"x": 0, "y": 646, "expert": {"x": 0, "y": 880}}
     },
     {
       "id": "cost",
@@ -328,7 +333,7 @@
       "lesson_url": "lessons/14-eval.md",
       "lesson_summary": "Golden sets offline, judges and thumbs online, and diagnosis of what failed where.",
       "source_hint": "harnesswalk/ops/eval/__init__.py",
-      "layout": {"x": 232, "y": 646, "expert": {"x": 232, "y": 693}}
+      "layout": {"x": 232, "y": 646, "expert": {"x": 244, "y": 880}}
     },
     {
       "id": "online_eval",
@@ -337,6 +342,7 @@
       "kind": "code",
       "view": "expert",
       "parent": "eval",
+      "layout": {"x": 22, "y": 62},
       "lesson": "A judge model scores a sample of live turns, alongside user thumbs and task-success signals. It catches drift that no golden set anticipated.",
       "lesson_url": "lessons/20-eval-inside.md#online-eval",
       "lesson_summary": "Thumbs and notes on live turns, and a sampled judge whose scores land on the nodes they judge.",
@@ -349,6 +355,7 @@
       "kind": "code",
       "view": "expert",
       "parent": "eval",
+      "layout": {"x": 196, "y": 62},
       "lesson": "The golden set for each dataset pack, replayed whenever a prompt, skill, tool or model changes. Deterministic checks (expected node path, required citation) run without a model; judged checks run on a sample.",
       "lesson_url": "lessons/20-eval-inside.md#offline-eval",
       "lesson_summary": "The golden set, deterministic scorers first, a diff against the last run, a scratch tenant per run.",
@@ -362,6 +369,7 @@
       "kind": "code",
       "view": "expert",
       "parent": "eval",
+      "layout": {"x": 109, "y": 134},
       "lesson": "Walks a failed trace and names the layer at fault: context, prompt, memory, tool or model. Its output is a regression case for the golden set and, where it fits, a proposed fact or skill for the memory writer.",
       "lesson_url": "lessons/20-eval-inside.md#diagnose",
       "lesson_summary": "Mapping a failed case or a bad turn to the layer that caused it, so the fix goes to the right place.",
@@ -377,7 +385,7 @@
       "lesson_url": "lessons/15-release.md",
       "lesson_summary": "Prompts, skills, policy and config as versioned artifacts with an eval gate and rollback.",
       "source_hint": "harnesswalk/ops/release.py",
-      "layout": {"x": 464, "y": 646, "expert": {"x": 598, "y": 693}}
+      "layout": {"x": 464, "y": 646, "expert": {"x": 700, "y": 920}}
     },
     {
       "id": "artifacts",
@@ -616,7 +624,8 @@
       "label": "always: system prompt + skills index",
       "kind": "data",
       "view": "expert",
-      "refines": "memory_to_context_builder"
+      "refines": "memory_to_context_builder",
+      "layout": {"handles": {"source": "left", "target": "bottom"}}
     },
     {
       "id": "session_to_context_builder",
@@ -625,7 +634,8 @@
       "label": "recent turns + summary",
       "kind": "data",
       "view": "expert",
-      "refines": "memory_to_context_builder"
+      "refines": "memory_to_context_builder",
+      "layout": {"handles": {"source": "right", "target": "bottom"}}
     },
     {
       "id": "semantic_to_context_builder",
@@ -634,7 +644,8 @@
       "label": "facts, entity match",
       "kind": "data",
       "view": "expert",
-      "refines": "memory_to_context_builder"
+      "refines": "memory_to_context_builder",
+      "layout": {"handles": {"source": "left", "target": "bottom"}}
     },
     {
       "id": "episodic_to_context_builder",
@@ -643,7 +654,8 @@
       "label": "events, recency + relevance",
       "kind": "data",
       "view": "expert",
-      "refines": "memory_to_context_builder"
+      "refines": "memory_to_context_builder",
+      "layout": {"handles": {"source": "right", "target": "bottom"}}
     },
     {
       "id": "knowledge_to_context_builder",
@@ -652,7 +664,8 @@
       "label": "chunks, hybrid search + rerank",
       "kind": "data",
       "view": "expert",
-      "refines": "memory_to_context_builder"
+      "refines": "memory_to_context_builder",
+      "layout": {"handles": {"source": "left", "target": "bottom"}}
     },
     {
       "id": "router_to_providers",
@@ -677,7 +690,8 @@
       "label": "checkpoint per step",
       "kind": "data",
       "view": "expert",
-      "refines": "loop_to_memory"
+      "refines": "loop_to_memory",
+      "layout": {"handles": {"source": "left", "target": "right"}}
     },
     {
       "id": "memory_writer_to_semantic",
@@ -755,7 +769,8 @@
       "label": "loaded on release",
       "kind": "release",
       "view": "expert",
-      "refines": "release_to_memory"
+      "refines": "release_to_memory",
+      "layout": {"handles": {"source": "left", "target": "left"}}
     }
   ],
   "walk_order": [
