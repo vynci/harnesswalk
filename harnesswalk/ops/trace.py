@@ -440,7 +440,11 @@ class Tracer:
                 yield event
                 if event["type"] == "turn_end":
                     return
-            if self.turn_ended(tenant_id, turn_id):  # it ended at or before the cursor
+            if self.turn_ended(tenant_id, turn_id):
+                # It ended at or before the cursor (nothing more to send), or while the stored
+                # events were being sent: the rest are stored too.
+                for event in self.get_turn(tenant_id, turn_id, last):
+                    yield event
                 return
             while True:
                 try:

@@ -224,7 +224,9 @@ make setup && make web-build && make run PROVIDER=fake
 Then open http://127.0.0.1:8000. `make run` serves the API and the built app from one process on
 `127.0.0.1:8000`. With `PROVIDER=fake` no model is needed: the fake provider replays scripted
 replies. With [Ollama](https://ollama.com) running (`ollama pull llama3.1:8b`), plain `make run`
-answers with a real local model instead.
+answers with a real local model instead. One Ctrl+C stops the server, even with browser tabs
+open: their event streams end first, then the stores close (an open tab reconnects when the
+server is back).
 
 - **Send a message** and watch it walk the diagram: each node lights while it works and shows a
   one-line stat when it is done. The reply streams into the chat, and the bar above the diagram
