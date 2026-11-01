@@ -370,7 +370,18 @@ async def test_capabilities_per_mode(tmp_path: Path) -> None:
         "feedback": True, "step_over": True,
         "packs": True, "diagnose": True,  # P5
     }  # fmt: skip
-    assert caps["packs"] == {"default": "_starter", "ids": ["_starter", "conformance_alt"]}
+    assert caps["packs"] == {
+        "default": "_starter",
+        "ids": [
+            "_starter",
+            "conformance_alt",
+            "ecommerce",
+            "finance",
+            "healthcare",
+            "logistics",
+            "sports",
+        ],
+    }
     assert caps["release"]["active_release_id"] == "r1"
     assert caps["release"]["working_set_dirty"] is False and caps["release"]["use_working_set"]
     assert caps["limits"]["max_steps"] == h.settings.get("loop.max_steps")

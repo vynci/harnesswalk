@@ -34,6 +34,33 @@ def test_discovery_finds_the_starter_and_five_domain_packs() -> None:
         assert summary["licence"] == "CC0-1.0" and summary["tools"], p.id
 
 
+def test_cards_read_the_same_fields_as_the_ops_index() -> None:
+    """GET /v1/packs (harnesswalk/ops/pack_index.py) and packs.py read one card: the index's
+    fields come out the same from both, so the integration pass can swap one for the other."""
+    from harnesswalk.ops import pack_index
+
+    settings = load_settings(ROOT, provider="fake", fixture="plain_answer", env={})
+    index = pack_index.discover(settings)
+    for p in ALL:
+        mine = p.summary()
+        theirs = index[p.id].summary(default="_starter")
+        for key in ("id", "title", "domain", "feature", "prompts", "counts"):
+            assert mine[key] == theirs[key], (p.id, key)
+        assert mine["feature"] and len(mine["prompts"]) >= 4
+
+
+def test_packs_under_profile_roots_validate(capsys) -> None:
+    """The conformance profile adds spec/conformance/packs to packs.roots; its pack has no
+    files of its own (the profile gives the content inline), so it is a profile-tier pack."""
+    profile = "spec/conformance/profile.yaml"
+    assert main(["packs", "validate", "conformance_alt", "--profile", profile]) == 0
+    assert "1 of 1 pack(s) valid" in capsys.readouterr().out
+    assert main(["packs", "validate", "conformance_alt"]) == 2  # not under the default roots
+    roots = [ROOT / "datasets", ROOT / "spec" / "conformance" / "packs"]
+    alt = packs.get_pack("conformance_alt", roots=roots)
+    assert alt.tier == "profile" and packs.validate(alt, config_root=ROOT) == []
+
+
 @pytest.mark.parametrize("pack_id", [p.id for p in ALL])
 def test_every_pack_is_valid(pack_id: str) -> None:
     issues = packs.validate(packs.get_pack(pack_id, ROOT), ALL, config_root=ROOT)
@@ -110,6 +137,7 @@ def test_cli_list_and_validate(capsys) -> None:
     assert main(["packs", "list", "--json"]) == 0
     listed = json.loads(capsys.readouterr().out)
     assert {r["id"] for r in listed} >= set(DOMAIN)
+    assert {"id", "title", "domain", "feature", "prompts", "counts"} <= set(listed[0])
     assert main(["packs", "validate", "sports"]) == 0
     assert "1 of 1 pack(s) valid" in capsys.readouterr().out
     assert main(["packs", "validate", "no_such_pack"]) == 2

@@ -16,6 +16,7 @@ from tests.unit.support import settings, write_fixture
 from tests.unit.test_http_api import client
 
 ALT = "conformance_alt"
+DOMAIN_PACKS = ("ecommerce", "finance", "healthcare", "logistics", "sports")
 
 
 def remember_fixtures(tmp_path: Path) -> Path:
@@ -120,13 +121,17 @@ async def test_get_packs_and_capabilities(tmp_path: Path) -> None:
         body = (await c.get("/v1/packs")).json()
         assert body["default"] == "_starter"
         by_id = {p["id"]: p for p in body["packs"]}
-        assert set(by_id) == {"_starter", ALT}
+        # The P5 domain packs live under datasets/ beside the starter.
+        assert set(by_id) == {"_starter", ALT, *DOMAIN_PACKS}
         assert by_id["_starter"]["default"] and by_id["_starter"]["loaded"]
         assert by_id[ALT]["title"] == "Conformance alternate pack" and not by_id[ALT]["loaded"]
         assert by_id[ALT]["prompts"] == ["What is my locker code?"]
         caps = (await c.get("/v1/capabilities")).json()
         assert caps["features"]["packs"] is True
-        assert caps["packs"] == {"default": "_starter", "ids": ["_starter", ALT]}
+        assert caps["packs"] == {
+            "default": "_starter",
+            "ids": sorted({"_starter", ALT, *DOMAIN_PACKS}),
+        }
     await h.aclose()
 
 

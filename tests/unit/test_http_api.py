@@ -71,7 +71,9 @@ async def test_request_errors(tmp_path: Path) -> None:
             "/v1/turns", json={"message": "hi", "options": {"disabled_nodes": ["loop"]}}
         )
         assert r.status_code == 422 and r.json()["error"]["code"] == "invalid_request"
-        r = await c.post("/v1/turns", json={"message": "hi", "options": {"dataset": "finance"}})
+        r = await c.post(
+            "/v1/turns", json={"message": "hi", "options": {"dataset": "no_such_pack"}}
+        )
         assert r.status_code == 422
         assert (await c.get("/v1/turns/turn_nope/events")).status_code == 404
         assert (
