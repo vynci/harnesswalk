@@ -19,6 +19,15 @@ public:
   rate_limit_max_keys: 10000    # bound on the in-memory rate-limit table (oldest evicted)
   cookie_secure: auto           # auto (Secure when the request came over HTTPS), always, never
   fake_fixture: public_demo     # fake-small's fixture in public mode unless one is given (config/fixtures)
+  # P6 review: what one client can hold at once (http_api.md, P6 additions).
+  max_running_hosted_turns: 10        # site-paid turns on a priced alias running on the server
+  max_running_hosted_turns_per_ip: 2  # ... and per client (IPv6 by /64)
+  max_streams_per_ip: 4               # SSE streams per client, before gateway.max_open_streams
+  max_streams_per_tenant: 4           # SSE streams per anonymous tenant
+  max_ops_streams: 20                 # GET /v1/events streams on the server (its own pool)
+  max_stream_s: 600                   # an SSE stream closes after this; EventSource reconnects
+  max_turn_wall_s: 600                # a public turn is cancelled after this, paused time included
+  creations_per_ip_per_hour: 60       # new tenants and POST /v1/sessions per client per hour
 
 logging:
   format: text                  # text | json (env HARNESSWALK_LOG_FORMAT): one JSON line per request
