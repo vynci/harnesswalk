@@ -55,8 +55,8 @@ git clone https://github.com/vynci/harnesswalk.git && cd harnesswalk
 make setup && make web-build && make run PROVIDER=fake
 ```
 
-Open http://127.0.0.1:8000, pick a fixture in the header (try `trailhead_return`), and send a
-message. The request walks the diagram node by node; click any node to see its code, config and
+Open http://127.0.0.1:8000, pick a fixture in the Fixture select of the message box (try
+`trailhead_return`), and send a message. The request walks the diagram node by node; click any node to see its code, config and
 events.
 
 Other ways to run it:
@@ -82,7 +82,7 @@ block runs after `make setup && make web-build`, and the fake provider is always
 back to with no key.
 
 With an Anthropic key (the router picks Claude Sonnet 5.5 or Claude Haiku 5.5 per call; the
-model menu in the message box, or `--model` on the command line, pins one):
+Model Selector in the message box, or `--model` on the command line, pins one):
 
 ```sh
 export ANTHROPIC_API_KEY=...                 # in your shell only, never in a file
@@ -295,12 +295,13 @@ server is back).
 - **Send a message** and watch it walk the diagram: each node lights while it works and shows a
   one-line stat when it is done. The reply streams into the chat, and the bar above the diagram
   shows the phase, the exit, tokens, cost and the event count.
-- **Fixtures.** In dev mode the header has a Fixture menu with the starter and conformance
+- **Fixtures.** While the next turn runs on the fake model, the message box has a Fixture
+  select beside the Model Selector with the starter and conformance
   fixtures (`tool_call`, `approval_approve`, `approval_deny`, `step_mode`, `cancel_running`,
   `guardrail_block` and more). Fake replies are canned: each fixture scripts the first turn (or
   first few turns) of a session, whatever you type, and a turn past the script fails with
-  `fixture_exhausted`. Choose New session in the session menu (the `⋯` button), or pick another fixture, to go
-  again.
+  `fixture_exhausted`. Choose New session in the session chip at the right of the header, or
+  pick another fixture, to go again.
 - **Approvals.** Pick `approval_approve` or `approval_deny` and ask to cancel an order. Policy
   marks `cancel_order` as destructive, the turn pauses on the Approval node, and a card in the
   chat waits for your Approve or Deny.
