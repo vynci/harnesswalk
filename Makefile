@@ -1,5 +1,5 @@
 # harnesswalk developer targets. Every target goes through uv.
-.PHONY: setup test conformance eval run turn lint format up down web-build web-dev web-mock web-test web-e2e-mock e2e screenshots
+.PHONY: setup test conformance eval run turn lint format up down web-build web-dev web-mock web-test web-e2e-mock e2e screenshots dist wheel-smoke release-prep fresh-clone
 
 setup: ## Create .venv and install the package with dev tools
 	uv sync
@@ -79,3 +79,20 @@ up: ## Docker compose dev profile: api (its image builds web/ too), postgres and
 
 down: ## Stop the compose stack
 	docker compose -f deploy/docker-compose.yml --profile dev down
+
+# Packaging. The wheel bundles config/, spec/, datasets/, lessons/ and web/dist when it is built
+# (tools/hatch_build.py, switched on here only), so `pip install harnesswalk` runs on its own.
+dist: ## Build the sdist and the wheel into dist/ (make web-build first to ship the app inside the wheel)
+	rm -rf dist
+	HATCH_BUILD_HOOK_ENABLE_CUSTOM=1 uv build --sdist --out-dir dist
+	HATCH_BUILD_HOOK_ENABLE_CUSTOM=1 uv build --wheel --out-dir dist
+
+wheel-smoke: dist ## Install the wheel in a clean venv outside the repo and run it on the fake provider
+	uv run python tools/wheel_smoke.py dist/harnesswalk-*.whl $(if $(wildcard web/dist/index.html),--web)
+
+release-prep: ## Bump the version, move Unreleased in CHANGELOG.md, print the tag command: make release-prep VERSION=0.1.0
+	@test -n "$(VERSION)" || (echo "usage: make release-prep VERSION=x.y.z" >&2 && exit 2)
+	uv run python tools/release.py prep $(VERSION)
+
+fresh-clone: ## Clone HEAD into a clean python:3.12 container: README Quickstart, make test, the web build (Docker)
+	tools/fresh_clone_check.sh
