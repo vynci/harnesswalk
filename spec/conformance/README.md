@@ -74,6 +74,7 @@ literal brace):
 | `{set_args}` | | The same overrides as `--set=key=<json>` arguments, the reference CLI's spelling |
 | `{root}`, `{python}` | | The repository root, and the Python running the runner |
 | | `HARNESSWALK_PROVIDER` | Always `fake` |
+| | `HARNESSWALK_SECRET` | `conformance-secret` unless your environment sets it: the reference harness refuses public mode without a cookie secret (P6) |
 
 The reference harness passes this way too, which is a useful check of the runner itself:
 

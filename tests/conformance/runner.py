@@ -228,6 +228,8 @@ class LiveProcess:
             HARNESSWALK_PORT=fields["port"],
             HARNESSWALK_CONFORMANCE_CONFIG=fields["config_json"],
         )
+        # P6: public mode signs its tenant cookie with this secret (yours wins when it is set).
+        env.setdefault("HARNESSWALK_SECRET", "conformance-secret")
         return cmd, env
 
     def start(self) -> None:
