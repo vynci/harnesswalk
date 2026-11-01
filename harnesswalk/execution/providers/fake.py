@@ -3,8 +3,11 @@
 Semantics are normative (spec/contracts/model_provider.md, "The fake provider"):
 
 - Turn `n` of a session reads `turns[n]`; the `k`th model call in that turn reads
-  `responses[k]`. A fixture picked per turn (http_api.md, `fixture`) counts `n` over the
-  session's turns that ran on it (`relative_turns`), so switching fixture starts at `turns[0]`.
+  `responses[k]`. P6: a fixture with `cycle: true` never runs out (turn `n` reads
+  `turns[n mod len(turns)]`; a call past the turn's last response answers with its last
+  scripted text and no tool calls), for public mode's `fake-small`. A fixture picked per turn
+  (http_api.md, `fixture`) counts `n` over the session's turns that ran on it
+  (`relative_turns`), so switching fixture starts at `turns[0]`.
 - A response has `text`, `tool_calls`, or both; `finish_reason` follows from them.
 - `expect` checks the request (`tools_enabled`, `last_message_role`, `last_message_contains`,
   and since P4 `system_contains` on the first system message) and fails with
@@ -83,6 +86,7 @@ def fixture_dirs(settings: Any) -> list[Path]:
         settings.root / "datasets" / settings.get("dataset", "_starter") / "fixtures" / "fake"
     )
     dirs.append(settings.root / "spec" / "conformance" / "fixtures")
+    dirs.append(settings.root / "config" / "fixtures")  # P6: public_demo and other built-ins
     return dirs
 
 
@@ -150,6 +154,8 @@ class FakeProvider:
         if turn.call_index is not None:  # the model layer's count survives a restart
             k = turn.call_index
         self._calls[turn.turn_id] = k + 1
+        if self.fixture.get("cycle"):
+            return self._cycled(turns[index % len(turns)]["responses"], k)
         if index >= len(turns) or k >= len(turns[index]["responses"]):
             raise ProviderError(
                 "fixture_exhausted",
@@ -172,6 +178,30 @@ class FakeProvider:
             text=response.get("text"),
             tool_calls=calls,
             finish_reason=finish,
+            usage=ProviderUsage(
+                usage.get("input_tokens", 0),
+                usage.get("output_tokens", 0),
+                usage.get("cached_tokens", 0),
+            ),
+        )
+
+    @staticmethod
+    def _cycled(responses: list[dict[str, Any]], k: int) -> ProviderResponse:
+        """A `cycle` fixture's answer: response k, or past the end the last scripted text."""
+        if k < len(responses):
+            response = responses[k]
+        else:
+            texts = [r["text"] for r in responses if r.get("text")]
+            response = {"text": texts[-1] if texts else "", "usage": responses[-1].get("usage", {})}
+        calls = [
+            ToolCall(call_id=c.get("call_id", ""), name=c["name"], arguments=c["arguments"])
+            for c in response.get("tool_calls", [])
+        ]
+        usage = response.get("usage", {})
+        return ProviderResponse(
+            text=response.get("text"),
+            tool_calls=calls,
+            finish_reason="tool_calls" if calls else "stop",
             usage=ProviderUsage(
                 usage.get("input_tokens", 0),
                 usage.get("output_tokens", 0),

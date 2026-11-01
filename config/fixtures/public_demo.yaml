@@ -1,0 +1,14 @@
+fixture: public_demo
+description: >-
+  The scripted model a public server offers as fake-small (public.fake_fixture). It never runs
+  out (cycle), never reads the message and costs nothing, so the walk through the harness stays
+  real when no Claude model is available.
+model: fake-small
+cycle: true
+turns:
+  - responses:
+      - text: >-
+          This reply comes from the scripted fake model: it replays a canned answer and does not
+          read your message. Every node you see lit up in the walk is real, though. Pick a Claude
+          model, or bring your own key, for a real answer.
+        usage: { input_tokens: 0, output_tokens: 0 }
