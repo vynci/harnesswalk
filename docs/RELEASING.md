@@ -25,7 +25,7 @@ its tooling tags or pushes on its own: the owner does both by hand.
 
    ```sh
    git commit -am "chore(release): v0.1.0"
-   git tag -a v0.1.0 -m "harnesswalk 0.1.0"
+   git tag -a v0.1.0 -m "Harnesswalk 0.1.0"
    git push origin main v0.1.0
    ```
 
