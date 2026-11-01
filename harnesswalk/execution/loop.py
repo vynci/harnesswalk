@@ -103,6 +103,7 @@ class LoopResult:
     exit_reason: str
     usage: Usage
     proposals: list[Any] = field(default_factory=list)  # context.memory_writer.MemoryProposal
+    observations: list[str] = field(default_factory=list)  # tool results, for the guardrails
 
 
 @dataclass
@@ -346,6 +347,7 @@ class Loop:
             exit_reason=exit_reason,
             usage=state.usage,
             proposals=state.proposals,
+            observations=[m.content for m in state.messages if m.role == "tool" and m.content],
         )
 
     def _checkpoint(self, ctx: TurnContext, state: LoopState, pending: ToolCall | None = None):

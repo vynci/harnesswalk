@@ -183,6 +183,7 @@ class ContextBuilder:
                 for n, h in enumerate(hits["knowledge"], start=1)
             ]
             ctx.citations = citations
+            ctx.recalled = [h.text for h in hits["semantic"]]  # facts the answer may use uncited
             on_demand = sorted(self.memory.procedural.skills)
             if self.memory.knowledge is not None:
                 on_demand += [f"doc:{d}" for d, _ in self.memory.knowledge.pack_index()]

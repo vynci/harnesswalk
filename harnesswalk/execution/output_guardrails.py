@@ -11,9 +11,11 @@ Checks, in configured order:
 - `length`: an answer over `output_guardrails.max_chars` is repaired by truncation.
 - `citations`: when knowledge chunks were in context (`ctx.citations`, numbered by the context
   builder) and the answer makes a claim from them (a sentence that shares enough content
-  words with a chunk), count `[n]` markers, markers that name no chunk, and drawn claims
-  without a marker. No citation at all is repaired once with a notice, or blocked
-  (`on_missing: block`, or `block_public` in public mode). An answer that draws nothing from
+  words with a chunk, and more than with the turn's tool results or recalled facts), count
+  `[n]` markers, markers that name no chunk, and drawn claims without a marker. An answer
+  that cites nothing on a turn that ran tools is the tools' answer and needs no citation.
+  No citation at all is repaired once with a notice, or blocked (`on_missing: block`, or
+  `block_public` in public mode). An answer that draws nothing from
   the chunks, or no chunks at all, reports `required: false`.
 - `pii`: personal data in the answer that is not one of this turn's input placeholders is a
   leak (from a tool result, say). It is redacted with a typed placeholder, or blocked.
@@ -123,22 +125,41 @@ def _words(text: str) -> set[str]:
     return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) >= 4} - STOPWORDS
 
 
-def draws_from(sentence: str, chunks: list[dict[str, Any]]) -> bool:
-    """Whether a sentence makes a claim from a chunk: it shares at least three content words
-    with one, or two in five of its own content words. Deterministic, crude on purpose."""
+def _overlap(words: set[str], texts: list[str]) -> int:
+    return max((len(words & _words(t)) for t in texts), default=0)
+
+
+def draws_from(
+    sentence: str, chunks: list[dict[str, Any]], others: list[str] | None = None
+) -> bool:
+    """Whether a sentence makes a claim from a chunk. Deterministic, crude on purpose:
+
+    - it shares at least three content words with one chunk, or two in five of its own
+      content words;
+    - and the turn's other sources do not explain it as well (P5 integration): a sentence that
+      shares as many words with a tool result, or with a fact recalled from semantic memory,
+      as with the chunk is that source's answer, not a claim from the documents. Episodes are
+      not such a source: they hold earlier replies, so an uncited answer would explain itself
+      the next time."""
     words = _words(sentence)
     if not words:
         return False
+    best = 0
     for chunk in chunks:
-        shared = words & _words(str(chunk.get("text", "")))
-        if len(shared) >= DRAWN_MIN_WORDS or len(shared) / len(words) >= DRAWN_MIN_SHARE:
-            return True
-    return False
+        shared = len(words & _words(str(chunk.get("text", ""))))
+        if shared >= DRAWN_MIN_WORDS or shared / len(words) >= DRAWN_MIN_SHARE:
+            best = max(best, shared)
+    if not best:
+        return False
+    return not others or _overlap(words, others) < best
 
 
-def citation_report(text: str, chunks: list[dict[str, Any]]) -> dict[str, int]:
+def citation_report(
+    text: str, chunks: list[dict[str, Any]], others: list[str] | None = None
+) -> dict[str, int]:
     """Markers present, markers naming no chunk, claims drawn from the chunks, and the drawn
-    claims (sentences of six or more words) without a marker.
+    claims (sentences of six or more words) without a marker. `others` are the turn's other
+    sources: tool results and recalled facts (see `draws_from`).
 
     A chunk without its text (a caller that only numbers sources) counts every claim sentence
     as drawn from it, the strict reading.
@@ -152,7 +173,7 @@ def citation_report(text: str, chunks: list[dict[str, Any]]) -> dict[str, int]:
         if s.endswith("?") or len(s.split()) < CLAIM_WORDS:
             continue
         cited = bool(MARKER.search(s))
-        if cited or not has_text or draws_from(s, chunks):
+        if cited or not has_text or draws_from(s, chunks, others):
             drawn += 1
             if not cited:
                 uncited += 1
@@ -199,7 +220,11 @@ class OutputGuardrails:
         output_schema: dict[str, Any] | None = None,
         knowledge_chunks: list[dict[str, Any]] | None = None,
         citations: int | None = None,
+        observations: list[str] | None = None,
+        recalled: list[str] | None = None,
     ) -> OutputResult:
+        """`observations` are this turn's tool results, `recalled` the facts semantic memory put
+        in context: sources an answer may use without a citation."""
         chunks = knowledge_chunks or []
         action, reasons = "pass", []
         result_citations: dict[str, Any] = {"required": False, "present": citations or 0}
@@ -224,17 +249,23 @@ class OutputGuardrails:
                 text = text[: self.max_chars] + " [reply truncated]"
                 action, reasons = "repair", [*reasons, "length"]
             elif check_id == "citations":
-                report = citation_report(text, chunks)
+                report = citation_report(text, chunks, [*(observations or []), *(recalled or [])])
                 if citations is not None:
                     report["present"] = max(report["present"], citations)
                 # Required only when the answer makes a claim from the chunks (guardrail.md):
-                # knowledge in context that the answer does not use is not penalised.
+                # knowledge in context that the answer does not use is not penalised. An
+                # answer that cites nothing on a turn that ran tools is the tools' answer (a
+                # lookup), so it is not required to cite the documents either (P5 integration).
+                from_tools = bool(observations) and report["present"] == 0
                 required = (
                     bool(chunks)
                     and bool(self.citations_cfg.get("required", True))
                     and (report["drawn_claims"] > 0 or report["present"] > 0)
+                    and not from_tools
                 )
                 result_citations = {"required": required, **report}
+                if from_tools and report["drawn_claims"]:
+                    result_citations["from_tools"] = True
                 if not required:
                     continue
                 blocking = self.citations_cfg.get("on_missing") == "block" or (
@@ -271,6 +302,7 @@ class OutputGuardrails:
         text: str,
         output_schema: dict[str, Any] | None = None,
         knowledge_chunks: list[dict[str, Any]] | None = None,
+        observations: list[str] | None = None,
     ) -> OutputResult:
         async with node(ctx, "output_guardrails") as span:
             if (not self.enabled or ctx.is_disabled("output_guardrails")) and ctx.mode != "public":
@@ -278,7 +310,13 @@ class OutputGuardrails:
                 span.skip(disabled=True, action="pass", restored=restored)
                 return OutputResult("pass", restored_text, [], restored=restored)
             try:
-                result = self.check(text, output_schema, knowledge_chunks)
+                result = self.check(
+                    text,
+                    output_schema,
+                    knowledge_chunks,
+                    observations=observations,
+                    recalled=list(ctx.recalled),
+                )
             except Exception:
                 result = OutputResult(
                     "block", SAFE_CONTENT_MESSAGE, self.checks, ["guardrail_error"]

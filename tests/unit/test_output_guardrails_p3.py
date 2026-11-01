@@ -116,3 +116,63 @@ async def test_turn_redacts_before_the_model_and_keeps_placeholders_in_the_sessi
     row = h.session.db.one("SELECT user_text, reply_text FROM turns")
     assert "ana@example.com" not in row["user_text"] + row["reply_text"]
     assert "[EMAIL_1]" in row["user_text"] and "[EMAIL_1]" in row["reply_text"]
+
+
+HOURS = [{"n": 1, "doc": "sites", "text": "The riverside site is open Monday to Friday and closed"
+          " on Saturday, with free parking on Willowbank Row and no walk-ins."}]  # fmt: skip
+LOOKUP_REPLY = (
+    "Riverside is open Monday to Friday 08:00 to 18:00 and closed on Saturday, with free"
+    " parking on Willowbank Row."
+)
+
+
+def test_a_lookup_answer_needs_no_citation() -> None:
+    """P5 integration: a tool's answer that shares words with a document is not a claim drawn
+    from the document. Before, lookups got "(No sources were cited for this answer.)"."""
+    g = OutputGuardrails({"citations": {"required": True, "on_missing": "repair"}}, "dev")
+    alone = g.check(LOOKUP_REPLY, None, HOURS)
+    assert alone.action == "repair" and "No sources were cited" in alone.text
+    tool = '{"site": "riverside", "weekdays": "08:00-18:00", "saturday": "closed"}'
+    looked_up = g.check(LOOKUP_REPLY, None, HOURS, observations=[tool])
+    assert looked_up.action == "pass" and "No sources were cited" not in looked_up.text
+    assert looked_up.citations["required"] is False and looked_up.citations["from_tools"]
+    # A cited answer on a turn with tools is still checked (a mixed answer).
+    cited = g.check(LOOKUP_REPLY + " [3]", None, HOURS, observations=[tool])
+    assert cited.citations["required"] is True and cited.citations["invalid"] == 1
+
+
+def test_a_fact_recalled_from_memory_explains_a_sentence() -> None:
+    fact = "Investor prefers notices by portal plus courier copy for the riverside site"
+    reply = "You asked for notices by portal plus a courier copy for the riverside site."
+    chunk = [{"n": 1, "doc": "notices", "text": "Notices go by portal, with a courier copy on"
+              " request, to the riverside site and every other site."}]  # fmt: skip
+    assert citation_report(reply, chunk)["drawn_claims"] == 1
+    assert citation_report(reply, chunk, [fact])["drawn_claims"] == 0
+
+
+@pytest.mark.anyio
+async def test_a_lookup_turn_on_the_healthcare_pack_gets_no_notice(tmp_path: Path) -> None:
+    from harnesswalk.config.loader import load_settings
+    from harnesswalk.runtime import Harness
+    from tests.spec.support import ROOT
+
+    settings = load_settings(
+        ROOT,
+        provider="fake",
+        fixture="tool_clinic_hours",
+        overrides={"dataset": "healthcare", "sandbox.level": "inprocess"},
+        data_dir=tmp_path / "d",
+        env={},
+    )
+    h = Harness(settings)
+    try:
+        events = await run_turn(h, "What are the opening hours at the riverside site?")
+        end = next(e for e in events if e["type"] == "turn_end")
+        assert "No sources were cited" not in end["summary"]["reply"]
+        og = next(
+            e for e in events if e["type"] == "node_exit" and e["node_id"] == "output_guardrails"
+        )
+        assert og["summary"]["action"] == "pass"
+        assert og["summary"]["citations"]["required"] is False
+    finally:
+        await h.aclose()

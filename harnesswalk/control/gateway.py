@@ -105,6 +105,7 @@ class TurnState:
     replied: bool = False  # the reply phase closed: a cancel has nothing left to stop
     cost: dict[str, Any] | None = None  # the receipt total, for the budget ledger
     proposals: list[Any] = field(default_factory=list)  # memory proposals from the loop
+    observations: list[str] = field(default_factory=list)  # tool results (output guardrails)
     recorded: bool = False  # the session holds this turn: a later failure must not rewrite it
     finished_at: float | None = None  # monotonic time the turn ended, for eviction
     byo_key: bool = False  # the turn came with a BYO key (kept as a flag only, P4)
@@ -375,6 +376,7 @@ class Gateway:
                 )
                 answer, steps = result.answer.text, result.steps
                 state.proposals = list(result.proposals)
+                state.observations = list(result.observations)
                 exit_ = EXIT_FOR_REASON[result.exit_reason]
             except Exception:
                 # A downstream node failed and closed its own span: answer with a notice.
@@ -406,7 +408,7 @@ class Gateway:
         try:
             ctx.emit.edge("loop_to_output_guardrails")
             checked = await h.output_guardrails.run(
-                ctx, answer, state.request.output_schema, chunks
+                ctx, answer, state.request.output_schema, chunks, state.observations
             )
             if checked.action == "block":
                 exit_ = "blocked"
@@ -662,6 +664,7 @@ class Gateway:
                 )
                 answer, steps = result.answer.text, result.steps
                 state.proposals = list(result.proposals)
+                state.observations = list(result.observations)
                 exit_ = EXIT_FOR_REASON[result.exit_reason]
             except Exception:
                 if ctx.emit.stack:

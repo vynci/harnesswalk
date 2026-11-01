@@ -153,6 +153,7 @@ class TurnContext:
     # The knowledge chunks the context builder numbered for this turn ([n] -> doc and chunk),
     # so the reply's citation markers can be checked against them.
     citations: list[dict[str, Any]] = field(default_factory=list)
+    recalled: list[str] = field(default_factory=list)  # semantic facts in context (P5)
     # P4 checkpoints: what a turn re-attached after a restart must keep. The structured reply
     # schema it asked for, and whether a BYO key was present (never the key itself).
     output_schema: dict[str, Any] | None = None
