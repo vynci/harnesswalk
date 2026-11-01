@@ -90,6 +90,11 @@ describe('HarnesswalkOrigin instance', () => {
     origin.hasOutput('AlarmTopicArn', {});
   });
 
+  it('exports nothing, so no other stack pins the instance or the data volume', () => {
+    const outputs = Object.values(origin.toJSON().Outputs ?? {}) as any[];
+    expect(outputs.filter((o) => o.Export)).toEqual([]);
+  });
+
   it('boots without echoing secrets and installs a checksummed compose plugin', () => {
     const script = fs.readFileSync(path.join(__dirname, '..', 'lib', 'origin', 'user-data.sh'), 'utf8');
     expect(script).not.toMatch(/^\s*set\s+-[a-z]*x/m);

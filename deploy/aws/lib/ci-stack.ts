@@ -3,22 +3,24 @@ import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 import {
+  DEPLOY_DOCUMENT,
   ECR_REPOSITORY,
   GITHUB_BRANCH,
   GITHUB_OIDC_URL,
   GITHUB_REPO,
+  ORIGIN_ROLE_TAG,
   SSM_PARAMS,
 } from './config';
 
 // CI: the image repository and the role .github/workflows/deploy.yml assumes with GitHub OIDC.
 // The role can do exactly what the deploy scripts do and nothing else: sync the web bucket,
-// invalidate the distribution, push the api image, set the image tag parameter and run
-// AWS-RunShellScript on the one origin instance.
+// invalidate the distribution, push the api image, set the image tag parameter and send the
+// harnesswalk-deploy document (never AWS-RunShellScript) to the instance tagged as the origin.
+// Nothing here refers to the Origin stack, so the instance can be replaced freely.
 
 export interface CiStackProps extends cdk.StackProps {
   bucketArn: string;
   distributionId: string;
-  instanceId: string;
   // An existing token.actions.githubusercontent.com provider (an account holds one per URL).
   // Unset: this stack creates it.
   githubOidcProviderArn?: string;
@@ -92,15 +94,22 @@ export class CiStack extends cdk.Stack {
       ['ssm:GetParameter', 'ssm:PutParameter'],
       [cdk.Arn.format({ service: 'ssm', resource: 'parameter', resourceName: SSM_PARAMS.imageTag.slice(1) }, this)],
     );
+    // SendCommand is authorised on the instance and on the document separately, so these are
+    // two statements: any instance tagged as the origin, and only the deploy document.
     add(
       'RunOnOrigin',
       ['ssm:SendCommand'],
-      [
-        cdk.Arn.format({ service: 'ec2', resource: 'instance', resourceName: props.instanceId }, this),
-        cdk.Arn.format({ service: 'ssm', account: '', resource: 'document', resourceName: 'AWS-RunShellScript' }, this),
-      ],
+      [cdk.Arn.format({ service: 'ec2', resource: 'instance', resourceName: '*' }, this)],
+      { StringEquals: { [`ssm:resourceTag/${ORIGIN_ROLE_TAG.key}`]: ORIGIN_ROLE_TAG.value } },
     );
-    // Reading a command's result has no resource-level scope.
+    add(
+      'RunDeployDocument',
+      ['ssm:SendCommand'],
+      [cdk.Arn.format({ service: 'ssm', resource: 'document', resourceName: DEPLOY_DOCUMENT }, this)],
+    );
+    // deploy-origin.sh finds the instance by its tag. Describe* and reading a command's
+    // result have no resource-level scope.
+    add('FindOrigin', ['ec2:DescribeInstances'], ['*']);
     add('ReadCommandResult', ['ssm:GetCommandInvocation', 'ssm:ListCommandInvocations'], ['*']);
 
     new cdk.CfnOutput(this, 'DeployRoleArn', {

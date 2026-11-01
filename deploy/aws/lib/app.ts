@@ -47,7 +47,6 @@ export function buildApp(app: cdk.App) {
     env,
     bucketArn: edge.bucket.bucketArn,
     distributionId: edge.distribution.distributionId,
-    instanceId: origin.instance.instanceId,
     githubOidcProviderArn: ctx('githubOidcProviderArn'),
     description: 'harnesswalk CI: ECR repository and the GitHub OIDC deploy role',
   });
