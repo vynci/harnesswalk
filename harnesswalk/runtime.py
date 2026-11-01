@@ -80,6 +80,7 @@ from harnesswalk.ops.release import ReleaseManager
 from harnesswalk.ops.trace import Tracer
 from harnesswalk.types import ConfigError, Message, TurnContext
 
+DEFAULT_REPO_URL = "https://github.com/vynci/harnesswalk"
 log = logging.getLogger(__name__)
 
 
@@ -397,11 +398,20 @@ class Harness(PackParts):
         """GET /v1/packs."""
         loaded = {self.pack, *self.packs}
         found = packs_mod.discover(self.settings)
-        items = [info.summary(self.pack, info.id in loaded) for info in found.values()]
+        dev = self.settings.mode == "dev"
+        items = [
+            {
+                **info.summary(self.pack, info.id in loaded),
+                # The fixtures the pack ships (dev only, like capabilities.fixtures), so the
+                # UI's fixture menu can show the pack's own first.
+                "fixtures": list_fixtures([info.path / "fixtures" / "fake"]) if dev else [],
+            }
+            for info in found.values()
+        ]
         if self.pack not in found:  # a configured pack given inline by a profile
             items.insert(0, {
                 "id": self.pack, "title": self.pack, "domain": None, "feature": None,
-                "prompts": [], "counts": {}, "default": True, "loaded": True,
+                "prompts": [], "counts": {}, "default": True, "loaded": True, "fixtures": [],
             })  # fmt: skip
         return {"default": self.pack, "packs": items}
 
@@ -535,6 +545,8 @@ class Harness(PackParts):
             "spec_version": SPEC_VERSION,
             "providers": providers,
             "fixtures": self.fixtures() if mode == "dev" else [],
+            # Where the lessons' code links point (P5 integration): `project.repo_url`.
+            "repo_url": str(s.get("project.repo_url", DEFAULT_REPO_URL)).rstrip("/"),
             "features": {
                 "step_mode": True,
                 "approvals": True,

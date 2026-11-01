@@ -20,6 +20,7 @@ identity rules, error shape and content-type rule as every other route.
 P5 (http_api.md, "P5 additions"):
 
     GET  /v1/packs                                    the dataset packs this harness can load
+    GET  /v1/packs/{id}, /v1/packs/{id}/files/{path}  one pack's card and file tree, one file
     POST /v1/sessions, GET /v1/sessions/{id}          a session on a pack, and its summary
     POST /v1/diagnose                                 a failed case or a bad turn, diagnosed
     POST /v1/releases                                 runs the eval gate first (409 gate_failed)
@@ -54,6 +55,7 @@ if TYPE_CHECKING:
 
 CURSOR = re.compile(r"-?\d{1,18}")
 SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+PACK_FILE_MAX_BYTES = 512 * 1024
 SESSION_COOKIE = "harnesswalk_session"  # http_api.py sets the same cookie on POST /v1/turns
 TENANT_COOKIE = "harnesswalk_tenant"
 
@@ -135,6 +137,44 @@ def add_ops_routes(
     @app.get("/v1/packs")
     async def list_packs() -> JSONResponse:
         return JSONResponse(h.pack_list())
+
+    def find_pack(pack_id: str) -> Any:
+        from harnesswalk import packs
+
+        info = packs.find(h.settings, pack_id)
+        if info is None:
+            raise GatewayError(404, "pack_not_found", f"No dataset pack {pack_id}.")
+        return info
+
+    @app.get("/v1/packs/{pack_id}")
+    async def get_pack(pack_id: str) -> JSONResponse:
+        # Tenant-free like GET /v1/packs: pack content is the same for everyone (CC0).
+        info = find_pack(pack_id)
+        loaded = pack_id == h.pack or pack_id in h.packs
+        card = info.card()
+        card.pop("path", None)  # no server paths in a response
+        return JSONResponse({**card, **info.summary(h.pack, loaded), "files": info.files()})
+
+    @app.get("/v1/packs/{pack_id}/files/{path:path}")
+    async def get_pack_file(pack_id: str, path: str) -> JSONResponse:
+        info = find_pack(pack_id)
+        listed = {f["path"]: f for f in info.files()}
+        entry = listed.get(path)
+        if entry is None:  # only files the tree lists: no `..`, no hidden files
+            raise GatewayError(404, "file_not_found", f"No file {path} in pack {pack_id}.")
+        target = info.path / path
+        if entry["bytes"] > PACK_FILE_MAX_BYTES:
+            raise GatewayError(413, "file_too_large", f"{path} is over the size the UI shows.")
+        if target.suffix.lower() == ".pdf":
+            from harnesswalk.packs import pdf_text
+
+            text, kind = pdf_text(target), "pdf_text"
+        else:
+            try:
+                text, kind = target.read_text(encoding="utf-8"), "text"
+            except UnicodeDecodeError as exc:
+                raise GatewayError(415, "not_text", f"{path} is not a text file.") from exc
+        return JSONResponse({"pack": pack_id, **entry, "kind": kind, "text": text})
 
     @app.post("/v1/sessions", status_code=201)
     async def create_session(request: Request) -> JSONResponse:

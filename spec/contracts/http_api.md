@@ -805,6 +805,8 @@ Additive. Every existing endpoint keeps its shape; new fields are listed where t
 | Method and path | Purpose | Since |
 |---|---|---|
 | `GET /v1/packs` | The dataset packs this harness can load | P5 |
+| `GET /v1/packs/{pack_id}` | One pack's card and file tree | P5 integration |
+| `GET /v1/packs/{pack_id}/files/{path}` | One file of a pack, as text | P5 integration |
 | `POST /v1/sessions` | Start a session on a pack | P5 |
 | `GET /v1/sessions/{session_id}` | One session: its pack and turn count | P5 |
 | `POST /v1/diagnose` | Map a failed eval case or a bad turn to the layer at fault | P5 |
@@ -826,6 +828,29 @@ default `[datasets]`): a directory with a `pack.yaml`, or else one with a `syste
 | `counts` | `{docs, facts, episodes, skills, tools, golden}` counted from the pack's files |
 | `default` | True for the configured `dataset` |
 | `loaded` | True when this process has built the pack (a session ran on it) |
+| `fixtures` | P5 integration: the fake fixtures the pack ships (`fixtures/fake/`), dev mode only, else `[]`. `capabilities.fixtures` still lists every name a turn may ask for |
+
+`GET /v1/packs/{pack_id}` (every mode, tenant-free; P5 integration): the item above plus
+`summary`, `tier`, `demonstrates`, `licence`, `tools` (names), `size_bytes` and `files`, every
+file under the pack but hidden ones and caches, `[{path, bytes, role}]` sorted by path, where
+`role` is `procedural` (`system_prompt.md`, `skills/`), `knowledge` (`docs/`),
+`knowledge_source` (`sources/`, the markdown a PDF was rendered from), `tools`, `guardrails`,
+`semantic` (`facts.jsonl`), `episodic` (`episodes.jsonl`), `golden`, `fixture`, `card`
+(`pack.yaml`, `provenance.md`, `prompts.md` and other top-level files) or `other`. `404
+pack_not_found` for an unknown pack.
+
+`GET /v1/packs/{pack_id}/files/{path}`: `{pack, path, bytes, role, kind, text}` for a path the
+file tree lists (anything else, `..` included, is `404 file_not_found`); `kind` is `text`, or
+`pdf_text` with the text extracted from a PDF. Files over 512 KiB are `413 file_too_large`, a
+file that is not UTF-8 is `415 not_text`.
+
+`GET /v1/memory/proposals` takes `?pack=` (P5 integration): only that pack's proposals, `422
+invalid_request` for an unknown pack; the response then echoes `pack`. Each proposal carries
+`pack`, the pack whose memory writer made it (a row from before this field is placed by its
+session's pack).
+
+`GET /v1/capabilities` gains `repo_url` (P5 integration), `project.repo_url` in
+`config/harness.yaml` without a trailing slash: the repository the lessons' code links open.
 
 `POST /v1/sessions` (every mode; the content-type rule applies) body `{ "pack": "ecommerce" }`
 (`pack` optional, default the configured `dataset`). `201` `{ session_id, pack, tenant_id,

@@ -40,6 +40,7 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any
@@ -231,6 +232,19 @@ class MemoryWriter:
         self.injection_block = float(inj.get("block_threshold", 0.8))
         self.injection_review = float(inj.get("review_threshold", 0.45))
         self._queued: dict[str, list[MemoryProposal]] = {}  # turn_id -> proposals (ops seam)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """P5 integration: proposals carry the pack whose writer made them (`?pack=` on
+        GET /v1/memory/proposals). Rows from before have NULL; the route resolves those by the
+        session's pack."""
+        columns = {r["name"] for r in self.db.query("PRAGMA table_info(memory_proposals)")}
+        if "pack" not in columns:
+            self.db.execute("ALTER TABLE memory_proposals ADD COLUMN pack TEXT")
+
+    @property
+    def pack(self) -> str:
+        return self.semantic.pack
 
     # -- the ops seam --------------------------------------------------------------------------
 
@@ -555,8 +569,8 @@ class MemoryWriter:
     def _insert(self, ctx, proposal, content, record) -> None:
         self.db.execute(
             "INSERT INTO memory_proposals (proposal_id, tenant_id, user_id, session_id, turn_id,"
-            " store, content, source, evidence, gate, status, created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " store, content, source, evidence, gate, status, created_at, pack)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 record.proposal_id,
                 ctx.tenant_id,
@@ -570,6 +584,7 @@ class MemoryWriter:
                 record.gate,
                 "pending",
                 iso(time.time()),
+                self.pack,
             ),
         )
 
@@ -597,27 +612,58 @@ class MemoryWriter:
         )
         return self._row(row) if row else None
 
-    def pending(self, tenant_id: str, limit: int = 50) -> list[dict[str, Any]]:
-        rows = self.db.query(
-            "SELECT * FROM memory_proposals WHERE tenant_id = ? AND status = 'pending'"
-            " AND gate = 'review' ORDER BY created_at DESC, proposal_id LIMIT ?",
-            (tenant_id, limit),
-        )
-        return [self._row(r) for r in rows]
-
-    def recent(self, tenant_id: str, limit: int = 10) -> list[dict[str, Any]]:
-        """The last proposals with their outcome, and for writes a diff (before, after)."""
-        rows = self.db.query(
-            "SELECT * FROM memory_proposals WHERE tenant_id = ?"
-            " ORDER BY created_at DESC, proposal_id DESC LIMIT ?",
-            (tenant_id, limit),
-        )
+    def _rows(
+        self,
+        where: str,
+        params: tuple[Any, ...],
+        limit: int,
+        pack: str | None,
+        pack_of: Callable[[dict[str, Any]], str | None] | None,
+    ) -> list[dict[str, Any]]:
+        """Proposals of a tenant, newest first, optionally of one pack. A row from before
+        proposals carried their pack asks `pack_of` (the session's pack)."""
+        sql = f"SELECT * FROM memory_proposals WHERE {where}"
+        args: tuple[Any, ...] = params
+        if pack is not None:
+            sql += " AND (pack = ? OR pack IS NULL)"
+            args = (*args, pack)
+        sql += " ORDER BY created_at DESC, proposal_id DESC LIMIT ?"
+        rows = [self._row(r) for r in self.db.query(sql, (*args, limit * 4 if pack else limit))]
         out = []
-        for r in rows:
-            item = self._row(r)
+        for item in rows:
+            if item.get("pack") is None and pack_of is not None:
+                item["pack"] = pack_of(item)
+            if pack is None or item.get("pack") == pack:
+                out.append(item)
+        return out[:limit]
+
+    def pending(
+        self,
+        tenant_id: str,
+        limit: int = 50,
+        pack: str | None = None,
+        pack_of: Callable[[dict[str, Any]], str | None] | None = None,
+    ) -> list[dict[str, Any]]:
+        return self._rows(
+            "tenant_id = ? AND status = 'pending' AND gate = 'review'",
+            (tenant_id,),
+            limit,
+            pack,
+            pack_of,
+        )
+
+    def recent(
+        self,
+        tenant_id: str,
+        limit: int = 10,
+        pack: str | None = None,
+        pack_of: Callable[[dict[str, Any]], str | None] | None = None,
+    ) -> list[dict[str, Any]]:
+        """The last proposals with their outcome, and for writes a diff (before, after)."""
+        out = self._rows("tenant_id = ?", (tenant_id,), limit, pack, pack_of)
+        for item in out:
             if item["status"] == "accepted":
                 item["diff"] = {"op": item["op"], "before": item["before"], "after": item["after"]}
-            out.append(item)
         return out
 
     def history(self, tenant_id: str, record_id: str) -> list[dict[str, Any]]:

@@ -3,7 +3,8 @@
 Part of spec/contracts/http_api.md, served by http_api.py. Every route is tenant-scoped through
 the same identity rules as the rest of the API.
 
-    GET  /v1/memory/proposals?status=pending   the caller's proposals (pending review by default)
+    GET  /v1/memory/proposals?status=pending   the caller's proposals (pending review by default;
+                                               `&pack=` one pack's)
     POST /v1/memory/proposals/{proposal_id}    {"decision": "accept" | "reject", "reason"?}
     GET  /v1/knowledge/docs                    documents the caller can retrieve from
     GET  /v1/knowledge/docs/{doc_id}           one document, its chunks and their citations
@@ -45,16 +46,26 @@ def add_memory_routes(
             raise GatewayError(422, "invalid_request", str(exc.args[0])) from exc
 
     @app.get("/v1/memory/proposals")
-    async def list_proposals(request: Request, status: str = "pending", limit: int = 20):
+    async def list_proposals(
+        request: Request, status: str = "pending", limit: int = 20, pack: str | None = None
+    ):
         identity, _ = identities.resolve(request)
         limit = max(1, min(limit, 100))
+        if pack is not None and not harness.pack_known(pack):
+            raise GatewayError(422, "invalid_request", f"no dataset pack {pack!r}")
+        tenant_id = identity.tenant_id
+
+        def pack_of(item: dict[str, Any]) -> str | None:  # a row from before rows had a pack
+            return harness.session.dataset_of(tenant_id, item["session_id"]) or harness.pack
+
+        writer = harness.memory_writer  # one table for every pack; `pack` filters it
         if status == "pending":
-            items = harness.memory_writer.pending(identity.tenant_id, limit)
+            items = writer.pending(tenant_id, limit, pack, pack_of)
         elif status == "all":
-            items = harness.memory_writer.recent(identity.tenant_id, limit)
+            items = writer.recent(tenant_id, limit, pack, pack_of)
         else:
             raise GatewayError(400, "invalid_request", "status must be pending or all")
-        return JSONResponse({"proposals": items})
+        return JSONResponse({"proposals": items, **({"pack": pack} if pack else {})})
 
     @app.post("/v1/memory/proposals/{proposal_id}")
     async def decide_proposal(request: Request, proposal_id: str) -> JSONResponse:

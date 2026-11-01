@@ -223,6 +223,51 @@ async def test_a_reviewed_proposal_lands_in_the_sessions_pack(tmp_path: Path) ->
     await h.aclose()
 
 
+@pytest.mark.anyio
+async def test_proposals_filter_by_pack(tmp_path: Path) -> None:
+    """GET /v1/memory/proposals?pack= lists one pack's proposals (P5 integration); a row from
+    before proposals carried their pack is placed by its session's pack."""
+    h = harness(tmp_path, **{"memory_writer.gate": "review"})
+    await turn(h, "Remember 4417", session="s1", pack=ALT, fixture="remember_code")
+    await turn(h, "Remember 4417", session="s2", pack=None, fixture="remember_code")
+    async with client(h) as c:
+        every = (await c.get("/v1/memory/proposals")).json()["proposals"]
+        assert sorted(p["pack"] for p in every) == sorted([ALT, "_starter"])
+        alt = (await c.get(f"/v1/memory/proposals?pack={ALT}")).json()
+        assert alt["pack"] == ALT and [p["session_id"] for p in alt["proposals"]] == ["s1"]
+        h.memory_db.execute("UPDATE memory_proposals SET pack = NULL")  # a pre-P5 data dir
+        old = (await c.get("/v1/memory/proposals?pack=_starter&status=all")).json()
+        assert [p["session_id"] for p in old["proposals"]] == ["s2"]
+        assert (await c.get("/v1/memory/proposals?pack=nope")).status_code == 422
+    await h.aclose()
+
+
+@pytest.mark.anyio
+async def test_a_packs_card_files_and_one_file(tmp_path: Path) -> None:
+    h = harness(tmp_path)
+    async with client(h) as c:
+        body = (await c.get("/v1/packs/finance")).json()
+        assert body["id"] == "finance" and body["licence"] == "CC0-1.0" and "path" not in body
+        roles = {f["path"]: f["role"] for f in body["files"]}
+        assert roles["system_prompt.md"] == "procedural"
+        assert any(r == "knowledge" and p.endswith(".pdf") for p, r in roles.items())
+        assert any(r == "knowledge_source" for r in roles.values())
+        doc = next(p for p, r in roles.items() if r == "knowledge" and p.endswith(".md"))
+        one = (await c.get(f"/v1/packs/finance/files/{doc}")).json()
+        assert one["kind"] == "text" and one["text"].strip()
+        pdf = next(p for p, r in roles.items() if p.endswith(".pdf"))
+        assert (await c.get(f"/v1/packs/finance/files/{pdf}")).json()["kind"] == "pdf_text"
+        for bad in ("../../config/harness.yaml", "nope.md", "%2e%2e/pack.yaml"):
+            assert (await c.get(f"/v1/packs/finance/files/{bad}")).status_code == 404
+        assert (await c.get("/v1/packs/nope")).status_code == 404
+        listed = {p["id"]: p for p in (await c.get("/v1/packs")).json()["packs"]}
+        assert "cite_hurdle_hcp03" in listed["finance"]["fixtures"]
+        assert "cite_hurdle_hcp03" not in listed["sports"]["fixtures"]
+        caps = (await c.get("/v1/capabilities")).json()
+        assert caps["repo_url"] == "https://github.com/vynci/harnesswalk"
+    await h.aclose()
+
+
 def test_an_unknown_pack_is_refused_before_a_turn(tmp_path: Path) -> None:
     h = harness(tmp_path)
     with pytest.raises(KeyError):

@@ -3,6 +3,9 @@
 mode: dev                       # dev | public | private (env HARNESSWALK_MODE)
 dataset: _starter               # active dataset pack under datasets/
 
+project:
+  repo_url: https://github.com/vynci/harnesswalk   # the lessons' code links (GET /v1/capabilities repo_url)
+
 gateway:
   channels: [web]
   max_body_bytes: 65536         # request size limit, checked before the body is parsed
