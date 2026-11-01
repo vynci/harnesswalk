@@ -35,6 +35,7 @@ import jsonschema
 
 from harnesswalk.control.pii import PiiDetector
 from harnesswalk.nodes import node, register
+from harnesswalk.ops import payloads
 from harnesswalk.types import TurnContext
 
 register("output_guardrails", __name__)
@@ -195,6 +196,8 @@ class OutputResult:
     schema: str = "none"
     leaks: dict[str, int] = field(default_factory=dict)
     restored: int = 0
+    # Per check, in order: {check, verdict (pass, repair, block, skipped), note}. Payloads only.
+    verdicts: list[dict[str, Any]] = field(default_factory=list)
 
 
 class OutputGuardrails:
@@ -230,24 +233,46 @@ class OutputGuardrails:
         result_citations: dict[str, Any] = {"required": False, "present": citations or 0}
         schema_state, leaks = "none", {}
         ran: list[str] = []
+        verdicts: list[dict[str, Any]] = []
+
+        def said(check: str, verdict: str, note: str) -> None:
+            verdicts.append({"check": check, "verdict": verdict, "note": note})
+
+        def blocked(result: OutputResult, note: str) -> OutputResult:
+            said(ran[-1], "block", note)
+            result.verdicts = verdicts
+            return result
+
         for check_id in self.checks:
             ran.append(check_id)
             if check_id == "schema":
                 if output_schema is None:
+                    said("schema", "skipped", "no structured reply was asked for")
                     continue
                 try:
                     jsonschema.validate(json.loads(text), output_schema)
                     schema_state = "valid"
+                    said("schema", "pass", "valid JSON for the requested schema")
                 except (json.JSONDecodeError, jsonschema.ValidationError):
-                    return OutputResult(
-                        "block", SAFE_SCHEMA_MESSAGE, ran, ["schema"], schema="invalid"
+                    return blocked(
+                        OutputResult(
+                            "block", SAFE_SCHEMA_MESSAGE, ran, ["schema"], schema="invalid"
+                        ),
+                        "not valid for the requested schema; a safe message replaces it",
                     )
             elif check_id == "content":
                 if any(p and p in text for p in self.blocklist):
-                    return OutputResult("block", SAFE_CONTENT_MESSAGE, ran, ["content"])
+                    return blocked(
+                        OutputResult("block", SAFE_CONTENT_MESSAGE, ran, ["content"]),
+                        "a blocklisted pattern; a safe message replaces it",
+                    )
+                said("content", "pass", f"no blocklisted text ({len(self.blocklist)} patterns)")
             elif check_id == "length" and len(text) > self.max_chars:
+                said("length", "repair", f"{len(text)} characters, cut to {self.max_chars}")
                 text = text[: self.max_chars] + " [reply truncated]"
                 action, reasons = "repair", [*reasons, "length"]
+            elif check_id == "length":
+                said("length", "pass", f"{len(text)} characters, the limit is {self.max_chars}")
             elif check_id == "citations":
                 report = citation_report(text, chunks, [*(observations or []), *(recalled or [])])
                 if citations is not None:
@@ -267,34 +292,65 @@ class OutputGuardrails:
                 if from_tools and report["drawn_claims"]:
                     result_citations["from_tools"] = True
                 if not required:
+                    why = "the answer uses no knowledge passage" if chunks else "no passages"
+                    said("citations", "pass", f"not required: {why}")
                     continue
                 blocking = self.citations_cfg.get("on_missing") == "block" or (
                     self.mode == "public" and self.citations_cfg.get("block_public", False)
                 )
                 if report["present"] == 0:
                     if blocking:
-                        return OutputResult(
-                            "block", SAFE_CITATION_MESSAGE, ran, ["citations"], result_citations
+                        return blocked(
+                            OutputResult(
+                                "block", SAFE_CITATION_MESSAGE, ran, ["citations"], result_citations
+                            ),
+                            "no citation for a claim from the passages",
                         )
+                    said("citations", "repair", "no citation: a notice was added")
                     text += MISSING_NOTICE
                     action = max(action, "repair", key=STRENGTH.__getitem__)
                     reasons.append("citations")
                 elif report["uncited_claims"] and blocking and self.mode == "public":
-                    return OutputResult(
-                        "block", SAFE_CITATION_MESSAGE, ran, ["uncited_claims"], result_citations
+                    return blocked(
+                        OutputResult(
+                            "block",
+                            SAFE_CITATION_MESSAGE,
+                            ran,
+                            ["uncited_claims"],
+                            result_citations,
+                        ),
+                        f"{report['uncited_claims']} claims without a citation",
                     )
+                else:
+                    said("citations", "pass", f"{report['present']} citation markers")
             elif check_id == "pii":
                 findings = self.pii.find(text)  # this turn's placeholders are never findings
                 if findings:
                     leaks = PiiDetector.counts(findings)
+                    kinds = ", ".join(
+                        f"{n} {k.replace('_', ' ')}" for k, n in sorted(leaks.items())
+                    )
                     if self.pii_action == "block":
-                        return OutputResult(
-                            "block", SAFE_PII_MESSAGE, ran, ["pii"], result_citations, leaks=leaks
+                        return blocked(
+                            OutputResult(
+                                "block",
+                                SAFE_PII_MESSAGE,
+                                ran,
+                                ["pii"],
+                                result_citations,
+                                leaks=leaks,
+                            ),
+                            f"personal data not from the input ({kinds})",
                         )
+                    said("pii", "repair", f"redacted personal data not from the input ({kinds})")
                     text = PiiDetector.redact(text, findings)
                     action = max(action, "repair", key=STRENGTH.__getitem__)
                     reasons.append("pii")
-        return OutputResult(action, text, ran, reasons, result_citations, schema_state, leaks)
+                else:
+                    said("pii", "pass", "no personal data beyond this turn's placeholders")
+        result = OutputResult(action, text, ran, reasons, result_citations, schema_state, leaks)
+        result.verdicts = verdicts
+        return result
 
     async def run(
         self,
@@ -304,11 +360,20 @@ class OutputGuardrails:
         knowledge_chunks: list[dict[str, Any]] | None = None,
         observations: list[str] | None = None,
     ) -> OutputResult:
-        async with node(ctx, "output_guardrails") as span:
+        capture = payloads.capturing(ctx)
+        about = None
+        if capture:
+            about = {
+                "payload": payloads.record("output_guardrails", "enter", before=payloads.text(text))
+            }
+        async with node(ctx, "output_guardrails", enter_detail=about) as span:
             if (not self.enabled or ctx.is_disabled("output_guardrails")) and ctx.mode != "public":
                 restored_text, restored = self._restore(ctx, text)
                 span.skip(disabled=True, action="pass", restored=restored)
-                return OutputResult("pass", restored_text, [], restored=restored)
+                skipped = OutputResult("pass", restored_text, [], restored=restored)
+                if capture:
+                    span.detail = self.payload(ctx, text, skipped, disabled=True)
+                return skipped
             try:
                 result = self.check(
                     text,
@@ -334,7 +399,30 @@ class OutputGuardrails:
                 span.set(leaks=result.leaks)
             if result.reasons:
                 span.set(reasons=result.reasons)
+            if capture:
+                span.detail = self.payload(ctx, text, result)
         return result
+
+    def payload(
+        self, ctx: TurnContext, before: str, result: OutputResult, disabled: bool = False
+    ) -> dict[str, Any]:
+        """The exit payload: the answer before and the reply after, every check's verdict, the
+        repairs made and how many placeholders were put back (tracer.md, Payloads)."""
+        out = payloads.record(
+            "output_guardrails",
+            "exit",
+            before=payloads.text(before),
+            after=payloads.text(result.text),
+            action=result.action,
+            repairs=list(result.reasons) if result.action == "repair" else [],
+            reasons=list(result.reasons),
+            checks=list(result.verdicts),
+            restored=result.restored,
+            restore_mode=ctx.mode in self.restore_modes,
+        )
+        if disabled:
+            out["disabled"] = True
+        return {"payload": out}
 
     def _restore(self, ctx: TurnContext, text: str) -> tuple[str, int]:
         vault = ctx.pii_vault

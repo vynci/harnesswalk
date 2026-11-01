@@ -62,7 +62,7 @@ async def test_trace_serves_by_tenant_and_cursor(tmp_path: Path) -> None:
     detail = next(
         e["detail_ref"]
         for e in events
-        if e.get("node_id") == "context_builder" and "detail_ref" in e
+        if e.get("node_id") == "context_builder" and e["type"] == "node_exit" and "detail_ref" in e
     )
     assert (
         h.tracer.get_detail("alpha", detail)["messages"][-1]["content"] == "Where is order A-1001?"
