@@ -286,7 +286,10 @@ def load_settings(
 def _fill_public_rule(data: dict[str, Any]) -> None:
     """The router rule whose `use` is `public.models` gets `public.models`, default first."""
     public = data.get("public") or {}
-    aliases = list(public.get("models") or [])
+    # Only aliases the models file defines: outside public mode an edited models.yaml without
+    # them must not fail on this rule (public mode reports unknown aliases in validate_public).
+    known = (data.get("models") or {}).get("models") or {}
+    aliases = [a for a in public.get("models") or [] if a in known]
     default = public.get("default_model")
     if default in aliases:
         aliases.remove(default)
