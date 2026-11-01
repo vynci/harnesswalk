@@ -7,6 +7,8 @@ import { defineConfig, loadEnv } from 'vite'
 // The spec folder is the single source for the diagram, the event schema and the example
 // streams. The web app imports it directly instead of copying it, so it cannot drift.
 const specDir = fileURLToPath(new URL('../spec', import.meta.url))
+// Mock mode also reads the lesson chapters and the repo files the inspector shows (src/mock).
+const mockDirs = ['../lessons', '../harnesswalk', '../config', '../datasets/_starter'].map((d) => fileURLToPath(new URL(d, import.meta.url)))
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -23,7 +25,7 @@ export default defineConfig(({ mode }) => {
       host: '127.0.0.1',
       port: 5173,
       strictPort: true,
-      fs: { allow: ['.', specDir] },
+      fs: { allow: ['.', specDir, ...mockDirs] },
       // Same-origin in dev: the API's session cookie and SSE work without relying on CORS.
       proxy: {
         '/v1': { target: apiTarget, changeOrigin: false },
