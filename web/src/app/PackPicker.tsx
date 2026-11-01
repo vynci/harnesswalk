@@ -46,8 +46,8 @@ export function PackPicker() {
         <DropdownMenuTrigger asChild>
           <Button
             size="sm"
-            variant="outline"
-            className="w-auto max-w-[min(24rem,40vw)] min-w-0 shrink gap-1.5 max-sm:max-w-40"
+            variant="default"
+            className="w-auto max-w-[min(24rem,40vw)] min-w-0 shrink gap-1.5 font-medium shadow-xs max-sm:max-w-40"
             aria-label={`Dataset pack: ${title}`}
             aria-disabled={running || switching ? true : undefined}
             onClick={(e) => {

@@ -27,6 +27,23 @@ function ThemeButton() {
   )
 }
 
+const REPO_URL = 'https://github.com/vynci/harnesswalk'
+
+/** The repository link: the right-most icon button in the header, after the session chip and a divider. */
+function GitHubButton() {
+  return (
+    <Hint label="Source on GitHub">
+      <Button asChild size="icon-sm" variant="ghost" aria-label="Harnesswalk on GitHub" data-testid="github-link">
+        <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" aria-hidden className="size-4 fill-current">
+            <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2.17c-3.2.7-3.87-1.37-3.87-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.76 2.69 1.25 3.35.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.8 1.18 1.83 1.18 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z" />
+          </svg>
+        </a>
+      </Button>
+    </Hint>
+  )
+}
+
 export function Header() {
   const capabilities = useApp((s) => s.capabilities)
   const provider = useApp((s) => s.provider)
@@ -83,6 +100,8 @@ export function Header() {
             <GuideButton />
             <ThemeButton />
             <SessionChip />
+            <Separator orientation="vertical" className="mx-0.5 my-1.5" />
+            <GitHubButton />
           </div>
         </div>
       </div>
