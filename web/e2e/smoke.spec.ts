@@ -273,8 +273,8 @@ test('the theme button and the Expert view switch, and the session menu starts a
   await expect(node(page, 'procedural')).toHaveCount(0)
 
   await expect(page.getByTestId('chat-turn').first()).toBeVisible()
-  await page.getByRole('button', { name: 'Session actions' }).click()
-  await page.getByRole('menuitem', { name: 'New session' }).click()
+  await page.getByTestId('session-menu').click()
+  await page.getByTestId('session-popover').getByRole('button', { name: 'New session' }).click()
   await expect(page.getByTestId('chat-turn')).toHaveCount(0)
   await expect(page.getByTestId('try-prompt').first()).toBeVisible()
 })
@@ -311,8 +311,8 @@ test('the composer: a plus button for attachments later, and the arrow-up send t
 })
 
 test('an empty chat suggests prompts, and a suggestion sends', async ({ page }) => {
-  await page.getByRole('button', { name: 'Session actions' }).click()
-  await page.getByRole('menuitem', { name: 'New session' }).click()
+  await page.getByTestId('session-menu').click()
+  await page.getByTestId('session-popover').getByRole('button', { name: 'New session' }).click()
   await expect(page.getByText('Walk the harness')).toBeVisible()
   await page.getByRole('group', { name: 'Try these' }).getByRole('button', { name: 'Where is order A-1001?' }).click()
   await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')

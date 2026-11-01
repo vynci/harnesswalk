@@ -5,8 +5,9 @@ Send a message and watch it walk through the nodes. Click a node to read its les
 prompt, its code and its events. Turn on step mode to stop at every node, or replay a past turn
 with a slider. The LLM Ops nodes run the harness's lifecycle: edit a skill or a config, run the
 golden set from Eval and see what regressed, ship the working set from Release and roll it back,
-and query stored turns with their receipts from Trace. Each node has a chapter in its Lessons tab,
-and the Lessons drawer in the header walks them in order, with a short check at the end of each.
+and query stored turns with their receipts from Trace. Each node has a chapter in the Guide (the
+header's Guide button, or Open in Guide in the inspector), which walks them in order, with a short
+check at the end of each.
 
 Stack: React 19, Vite, TypeScript (strict), Tailwind 4, shadcn/ui on Radix (see
 [Components](#components)), React Flow (`@xyflow/react`, attribution kept), shiki (code
@@ -44,8 +45,8 @@ pnpm test          # Vitest: reducer, layout, edge routes, colour contrast, memo
 pnpm test:e2e      # Playwright against a mock build (Chromium only): smoke.spec.ts, ops.spec.ts
                    # for P4 (the gate: edit a skill, run golden, see the regression; release,
                    # roll back, see the old version; feedback, step-over, the trace query), and
-                   # lessons.spec.ts for P5 (the drawer, the Lessons tab, a code walk link, the
-                   # three checks, disable and try)
+                   # guide.spec.ts for P5 (the Guide: chapter list, Open in Guide, a code walk
+                   # link, the three checks, disable and try)
 pnpm lint          # ESLint, then tsc -b
 pnpm test:e2e:live # Playwright against the real API with the fake provider, see below
 ```
@@ -209,9 +210,9 @@ reason}` for `artifact_edit`, `uploads`, `memory_review`, `evals`, `judge`, `rel
 audit, the releases list, lessons, packs) stay live. The composer's Model Selector lists
 `capabilities.public.models` (unavailable ones disabled with the reason as a tooltip, the
 default preselected), the key button holds a bring-your-own key in memory only and sends it as
-`X-Harnesswalk-Provider-Key` on each turn, the header counts down `session_expires_at`, and the
-Context hover card on the status bar shows the requests left this hour, the step cap and the
-token cap. Capabilities are read again after every turn and every 60 s while the tab is visible.
+`X-Harnesswalk-Provider-Key` on each turn, the header's session chip counts down `session_expires_at`, and
+its popover (also opened by the status bar's budget readout) shows the requests left this hour,
+the step cap and the token cap. Capabilities are read again after every turn and every 60 s while the tab is visible.
 Replies and knowledge documents render as GitHub-flavoured markdown (`src/components/markdown.tsx`:
 react-markdown and remark-gfm, fenced code on the Code Block, links in a new tab, raw HTML
 dropped), the chat's citation chips and redaction placeholders included.
@@ -252,8 +253,8 @@ legend and diagram chrome read as one system:
 | Sources, Inline Citation (Hover Card) | `chat/Citations.tsx` | `[n]` chips with a hover card, click opens the document reader (a Dialog); "Cited N passages" starts closed |
 | Empty, Suggestion | `chat/ChatPanel.tsx`, `chat/usePackPrompts.ts` | An empty chat: Empty in the thread, a row of suggested prompts above the input. The prompts are the active pack's once the API lists packs (`features.packs`, `GET /v1/packs`), else the `_starter` ones |
 | Questionnaire | `lessons/CheckYourself.tsx` | A chapter's Check yourself: one question at a time, Previous question and Next question, letters as shortcuts; a choice says at once whether it was right and shows the explanation |
-| Sheet | `lessons/LessonsDrawer.tsx` | The lessons drawer, from the left: the chapters with their hooks and progress, and Next chapter |
-| Context (Hover Card, Progress) | `diagram/TurnStatusBar.tsx` | "{n}% budget" opens a Progress bar per budget (tokens, cost, steps, policy) |
+| Resizable, Sheet | `lessons/GuideDrawer.tsx` | The Guide: the chapters with their hooks and progress and Next chapter, or one chapter; docked under or beside the inspector, a Sheet on a narrow screen |
+| Context (Popover, Progress) | `app/SessionChip.tsx`, `diagram/BudgetDetails.tsx` | The session chip's popover: the sandbox limits and a Progress bar per budget of the turn (tokens, cost, steps, policy); the status bar's "{n}% budget" readout opens it |
 | Reasoning, Plan | `chat/Reasoning.tsx` | Mounted as empty slots. Neither the event schema nor the P4 contract has a reasoning or plan field yet, so they stay empty until one does |
 | Marker | `chat/ChatPanel.tsx` | Turn separators, the working shimmer, system notices, and the restart checkpoint notice (`checkpoint.restored`) |
 | Checkpoint (Marker, Button) | `chat/OpsMarker.tsx` | "Skill returns v2 saved", "Release r2 active", "Rolled back: release r1 active" after the turn they followed; Restore asks first (Confirmation), then saves the previous version again or rolls back to the release before |
@@ -263,7 +264,7 @@ legend and diagram chrome read as one system:
 | Code Block in edit mode | `inspector/ArtifactEditor.tsx` | The system prompt, each skill and the YAML configs: Edit opens a mono Textarea with Save and Cancel and a "Review the change" diff; Save shows the API's diff and a toast. Blocked with the reason in public mode, without `features.artifact_edit`, or while a turn runs |
 | Trace (query) | `inspector/TracePanel.tsx` | The Trace node's query (session, node, status, since) and turn lines with receipt totals, opening to the per-node receipt Table and to replay |
 | Trace | `inspector/EventsTab.tsx`, `chat/ToolTrace.tsx` | The inspector's Events tab is a Trace too; its icons keep the node kind colours |
-| Resizable | `app/App.tsx` | The chat and diagram split and the docked inspector, with the grip handle; sizes kept per viewer |
+| Resizable | `app/App.tsx` | The chat and diagram split, the docked inspector and the docked Guide, with the grip handle; sizes kept per viewer |
 
 Later phases: Reasoning and Plan get data once the stream carries it; Task, Chain of Thought,
 Terminal and Stack Trace are still unused; File Tree in P5 (the pack browser); Attachment behind
@@ -273,7 +274,7 @@ the plus button and the Model Selector for your own key in P6; Subagent in P7.
 
 | App part | shadcn components |
 |---|---|
-| Header | Select (provider, fixture), a ghost Button for the lessons drawer (a Sheet with a Scroll Area), a ghost icon Button for the theme (Sun in dark, Moon in light; it follows `prefers-color-scheme` until pressed), Dropdown Menu (session: new, copy id), Badge (mode), Tooltip on every unlabelled control |
+| Header | Select (provider, fixture), the pack picker (a Dropdown Menu, sized to the pack's name), a ghost Button for the Guide, a ghost icon Button for the theme (Sun in dark, Moon in light; it follows `prefers-color-scheme` until pressed), the session chip at the far right (a Badge for the mode and, in public mode, the countdown) opening a Popover (the session's end in words, the session id with Copy, New session, the sandbox limits, the turn's budgets), Tooltip on every unlabelled control |
 | Notices | Sonner toasts (errors carry `role="alert"`), plus a toast when the event stream drops and when it reconnects |
 | Chat | Message Scroller, Message, Bubble, Marker, Spinner, Empty, Button (suggestions, message actions), Tooltip |
 | Tool calls and memory | Trace lines opening to a Code Block, a Badge for the sandbox; a Memory Trace line per `remember` proposal (written, waiting, rejected) |
@@ -281,8 +282,8 @@ the plus button and the Model Selector for your own key in P6; Subagent in P7.
 | Composer | Input Group (Textarea, Buttons, Text), Dropdown Menu (model hint), Textarea (`output_schema`, dev only), Kbd, Tooltip, Spinner; Switch (Step mode) on the hint line under the input, right-aligned |
 | Approval, step controls | Item (Media, Content, Title, Description, Actions, Footer), Code Block, Badge, Button |
 | Inspector | A Resizable pane docked beside the diagram (not a modal Sheet, so step mode keeps it open) with Tabs and Scroll Area; the LLM Ops tabs (Runs, Releases, Turns) with Input, Select, Toggle Group, Badge, Table and the Confirmation Item; artifact edits with Textarea, Input and the Code Block diff; Badge (kind, view); Events as a Trace opening to the event JSON in a Code Block; Code and config in a Code Block with line numbers; prompts in `Prose`; records in a Table; payload views picked by shape (`src/inspector/shapes.ts`): the audit chain with a Verify Button, store records with a scope Badge, the document list, memory writes as Cards with a diff and Accept/Reject, the context budget as Progress bars; Switch (disable next turn); Kbd (Esc) |
-| Diagram | Nodes are Cards (CardTitle, CardDescription) on their own warm surface (`--node-surface`) with Badges for the kind chip, store badges, the off and not-yet tags and the regressions chip on the node that runs evals; the canvas controls are one Card with two Switches (Expert view, Telemetry) and a Button opening the legend Dialog; the turn status bar is a Card with the Context hover card. The canvas, edges and layout stay React Flow |
-| Lessons | The inspector's Lessons tab: the chapter in `Prose` (react-markdown, remark-gfm), Buttons (try it, code walk links, Previous and Next chapter), the Questionnaire; the drawer is a Sheet with a Scroll Area |
+| Diagram | Nodes are Cards (CardTitle, CardDescription) on their own warm surface (`--node-surface`) with Badges for the kind chip, store badges, the off and not-yet tags and the regressions chip on the node that runs evals; the canvas controls are one Card with two Switches (Expert view, Telemetry) and a Button opening the legend Dialog; the turn status bar is a Card with a budget readout that opens the session chip's popover. The canvas, edges and layout stay React Flow |
+| Guide | A Resizable pane (under the inspector, or beside it from 1680 px) or a Sheet (under 1024 px) with a Scroll Area: the chapter list, or one chapter in `Prose` (react-markdown, remark-gfm) with Buttons (try it, code walk links, Previous and Next chapter) and the Questionnaire |
 | Replay bar | Card, Button Group (previous, play, next, step over), Slider, Tooltip with Kbd |
 | Feedback | Popover (the optional note), Textarea, Badge (judge scores) |
 
@@ -336,19 +337,21 @@ order, then `NN-<parent>-inside.md` per expert group), served by `GET /v1/lesson
 (`lessons/02-input_guardrails.md`, or `lessons/16-memory-inside.md#semantic` for an expert node)
 and says what it teaches in `lesson_summary`. The code is in `src/lessons/`.
 
-- **The Lessons tab** (every node, `LessonTab.tsx`). It fetches the chapter `lesson_url` names
+- **A chapter** (`GuideChapter.tsx`, in the Guide). It fetches the chapter `lesson_url` names
   and renders it in `Prose` with react-markdown and remark-gfm; headings get GitHub slugs as ids
   (`slug.ts`, a small rehype plugin), so an expert node scrolls to its own section of the group
-  chapter (no smooth scroll under reduced motion). The tab draws the title and hook itself, so
+  chapter (no smooth scroll under reduced motion). The Guide draws the title and hook itself, so
   `parse.ts` takes them off the top, and it splits the markdown around Check yourself, which
   becomes the Questionnaire. A chapter the API does not serve yet (404 `lesson_not_found`) shows
   "This chapter is not written yet" with the node's summary. The inspector header keeps the
-  node's one-paragraph `lesson` and adds "Read the chapter", which opens this tab.
+  node's one-paragraph `lesson` and adds "Open in Guide", which opens the Guide on its chapter.
 - **Links** (`links.ts`, read relative to `lessons/`). A code walk link
-  (`../harnesswalk/<path>#<Symbol>`) opens the Code tab at the symbol's line from the chapter's
+  (`../harnesswalk/<path>#<Symbol>`) opens the node's inspector on the Code tab at the symbol's
+  line from the chapter's
   `code_links`, highlighted: in the node's own code peek when the link's `node_id` is the
   inspected node, otherwise in that file from the lesson source route, with "Back to" the node's
-  own file. A link to another chapter opens it in the tab; `#section` scrolls; any other repo path
+  own file (a stacked inspector grows to make room). A link to another chapter opens it in the
+  Guide; `#section` scrolls; any other repo path
   opens on GitHub (`REPO_BLOB_URL`) and an https link as is, both in a new tab with a hidden
   "(opens in a new tab)".
 - **Try it.** A chapter's front matter `try` (`fixture`, `prompt`, `disable`) becomes a button
@@ -362,17 +365,21 @@ and says what it teaches in `lesson_summary`. The code is in `src/lessons/`.
   `### N. Question`, a task list of three choices with one `- [x]`, then `Answer:` and the
   explanation. One at a time in the Questionnaire; a choice shows at once whether it was right
   and the explanation; a choice can be changed. Answers stay in this browser only.
-- **The drawer** (`LessonsDrawer.tsx`, its own chunk, opened by `LessonsButton.tsx` in the
-  header). A Sheet from the left (a Radix Dialog: focus is trapped, Esc closes it and focus goes
-  back to the button) listing the chapters in order (`outline.ts`: the diagram's `lesson_url`s
-  in walk order, then the groups, marked "inside", merged with what `GET /v1/lessons` serves, so
-  a chapter not written yet still has its row). Each row has the title, the hook and its
-  progress in words. A chapter opens its node on the Lessons tab, and a group chapter switches to
-  the expert view and selects its first covered node; focus moves to the chapter's title.
-  Next chapter (here and at the end of the tab) does the same for the next one.
+- **The Guide** (`GuideDrawer.tsx`, its own chunk; `GuideButton.tsx` in the header opens and
+  closes it, state in `src/state/panels.ts`). Not modal: from 1024 px it is a Resizable pane
+  under the inspector in the right column (the inspector's summary cut to two lines), from
+  1680 px a pane beside it, and under 1024 px a Sheet with its own close. Esc or the close
+  button closes it and focus goes back to the Guide button. It shows the chapter list in order
+  (`outline.ts`: the diagram's `lesson_url`s in walk order, then the groups, marked "inside",
+  merged with what `GET /v1/lessons` serves, so a chapter not written yet still has its row),
+  each row with the title, the hook and its progress in words, or one chapter with "All
+  chapters" back to the list. A chapter from the list selects its node on the canvas (a group
+  chapter switches to the expert view and selects its first covered node) and focus moves to
+  the chapter's title; Next chapter (in the list and at the end of a chapter) does the same for
+  the next one. While the Guide is open it follows the node picked on the canvas to its chapter.
 - **Progress** (`progress.ts`, `useProgress.ts`) is kept per viewer in `localStorage` as
   `harnesswalk.lessons`: `{"<slug>": {"read": true, "answers": {"0": 1}, "checked": true}}`.
-  A chapter is read once it was opened in the Lessons tab and checked once every question has an
+  A chapter is read once it was opened in the Guide and checked once every question has an
   answer. Storage failures are ignored, as everywhere.
 
 ## Reading the diagram: the colour system
@@ -440,9 +447,9 @@ src/state      the reducer (events to state), turn facts read from summary keys,
 src/diagram    layout, React Flow nodes and edges, stats and memory badges, ops roles
 src/chat       chat panel, composer, approval confirmation, step controls, tool calls, citations,
                the document reader, guardrail badges, reasoning and plan slots, feedback, markers
-src/inspector  node drawer: overview, lessons, config or prompt or records, code, events (Trace),
+src/inspector  node drawer: overview, config or prompt or records, code, events (Trace),
                and the LLM Ops panels (eval runs, releases, trace query) and the artifact editor
-src/lessons    the Lessons tab, Check yourself, the drawer, and their pure parts: the chapter
+src/lessons    the Guide (its button, the chapter list, a chapter), Check yourself, and their pure parts: the chapter
                parser, heading slugs, link kinds, the outline, the checks and the progress store
 src/components shadcn/ui in ui/, plus hint, code, prose, the diff view and the confirm item
 src/lib, hooks cn() and the shiki highlighter, from the shadcn CLI, and line diffs

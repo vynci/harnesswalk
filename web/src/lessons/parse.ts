@@ -1,5 +1,5 @@
 // Reads a chapter's markdown (front matter already stripped by the API) into the parts the
-// Lessons tab renders: the title and hook it shows itself, the markdown before and after the
+// Guide renders for a chapter: the title and hook it shows itself, the markdown before and after the
 // "Check yourself" section, and that section's questions for the Questionnaire. A section that
 // does not parse falls back to plain markdown, so a chapter in progress still renders.
 

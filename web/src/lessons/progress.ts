@@ -1,5 +1,5 @@
 // What this viewer has done with each chapter, kept in localStorage as `harnesswalk.lessons`:
-// `read` once the chapter was opened in the Lessons tab, the choice picked per question, and
+// `read` once the chapter was opened in the Guide, the choice picked per question, and
 // `checked` once every question has an answer. Pure functions, guarded storage.
 import { load, save } from '@/state/persist'
 
