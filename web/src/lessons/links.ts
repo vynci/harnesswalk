@@ -1,6 +1,6 @@
 // What a link in a chapter points at. Chapters live in `lessons/`, so their relative links are
 // read from there: `../harnesswalk/...#Symbol` is a code walk link (the Code tab), `NN-x.md` is
-// another chapter (the Lessons tab), `#x` a section of this one, any other repo path opens in the
+// another chapter (in the Guide), `#x` a section of this one, any other repo path opens in the
 // repository the API names (`capabilities.repo_url`) and an absolute URL opens as is, both in a
 // new tab.
 

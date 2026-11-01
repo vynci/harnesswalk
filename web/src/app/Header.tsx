@@ -1,24 +1,15 @@
-import { Copy, Ellipsis, Hourglass, Moon, RotateCcw, Sun } from 'lucide-react'
+import { Moon, Sun } from 'lucide-react'
 import { Logo } from '@/components/logo'
 import { Hint } from '@/components/hint'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { LessonsButton } from '@/lessons/LessonsButton'
-import { fixtureChoices, packTitle } from '@/state/packs'
+import { GuideButton } from '@/lessons/GuideButton'
+import { fixtureChoices } from '@/state/packs'
 import { useApp } from '@/state/store'
 import { PackPicker } from './PackPicker'
-import { leftText } from './sandbox'
-import { useNow } from './useSandbox'
+import { SessionChip } from './SessionChip'
 import { useDarkTheme } from './useTheme'
 
 const AUTO = '__auto__'
@@ -33,83 +24,6 @@ function ThemeButton() {
       <Button size="icon-sm" variant="ghost" aria-label={label} onClick={() => setTheme(dark ? 'light' : 'dark')} data-testid="theme-toggle">
         {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
       </Button>
-    </Hint>
-  )
-}
-
-function SessionMenu() {
-  const sessionId = useApp((s) => s.sessionId)
-  const turns = useApp((s) => s.order.length)
-  const newSession = useApp((s) => s.newSession)
-  const notify = useApp((s) => s.notify)
-  const packName = useApp((s) => (s.packs ? packTitle(s.packs, s.pack) : null))
-  const copy = () => {
-    if (!sessionId) return
-    navigator.clipboard?.writeText(sessionId).then(
-      () => notify('info', 'Session id copied.'),
-      () => notify('error', 'Could not copy the session id.'),
-    )
-  }
-  return (
-    <DropdownMenu>
-      <Hint label="Session">
-        <DropdownMenuTrigger asChild>
-          <Button size="icon" variant="ghost" aria-label="Session actions" data-testid="session-menu">
-            <Ellipsis />
-          </Button>
-        </DropdownMenuTrigger>
-      </Hint>
-      <DropdownMenuContent align="end" className="w-60">
-        <DropdownMenuLabel className="flex flex-col gap-0.5">
-          <span>Session</span>
-          <span className="truncate font-mono text-xs font-normal text-muted-foreground">
-            {sessionId ?? 'starts with your first message'}
-            {turns ? ` · ${turns} turn${turns === 1 ? '' : 's'}` : ''}
-          </span>
-          {packName && (
-            <span className="truncate text-xs font-normal text-muted-foreground" data-testid="session-pack">
-              on {packName}
-            </span>
-          )}
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={newSession}>
-          <RotateCcw /> New session
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={copy} disabled={!sessionId}>
-          <Copy /> Copy session id
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
-/**
- * Public mode: how long this browser's sandbox session has left. When it ends, the API deletes
- * everything in it (sessions, turns, memory), so the header says so in plain words.
- */
-function SessionCountdown() {
-  const expiresAt = useApp((s) => (s.capabilities?.mode === 'public' ? (s.capabilities.public?.session_expires_at ?? null) : null))
-  const now = useNow(15_000)
-  if (!expiresAt) return null
-  const end = Date.parse(expiresAt)
-  if (!Number.isFinite(end)) return null
-  const left = end - now
-  const text = left > 0 ? `${leftText(left)} left` : 'ended'
-  const full = left > 0 ? `Sandbox session: ${leftText(left)} left, then everything here is deleted` : 'Sandbox session ended: everything here was deleted. Your next message starts a fresh one.'
-  return (
-    <Hint label={full}>
-      <span
-        className={`flex items-center gap-1.5 text-xs tabular-nums ${left <= 5 * 60_000 ? 'text-state-waiting' : 'text-muted-foreground'}`}
-        data-testid="session-countdown"
-        data-expires-at={expiresAt}
-        aria-label={full}
-        tabIndex={0}
-      >
-        <Hourglass className="size-3.5" aria-hidden />
-        <span className="hidden lg:inline">Sandbox session: {text}, then everything here is deleted</span>
-        <span className="lg:hidden">{text}</span>
-      </span>
     </Hint>
   )
 }
@@ -136,15 +50,6 @@ export function Header() {
         <h1 className="text-base font-medium tracking-tight">Harnesswalk</h1>
         <span className="hidden text-xs text-muted-foreground md:inline">An interactive way to understand AI agent harnesses</span>
       </div>
-      {capabilities && (
-        <Hint label={`API ${capabilities.version}${mock ? ', in-browser mock' : ''}`}>
-          <Badge variant="outline" className="font-mono" data-testid="mode-badge">
-            {capabilities.mode}
-            {mock ? ' · mock' : ''}
-          </Badge>
-        </Hint>
-      )}
-      <SessionCountdown />
       {invalidEvents > 0 && (
         <Hint label="Events that failed schema validation (see the console)">
           <Badge variant="destructive">{invalidEvents} invalid events</Badge>
@@ -214,11 +119,13 @@ export function Header() {
           </Hint>
         )}
         {(dev || disabled.length > 0) && <Separator orientation="vertical" className="my-1.5" />}
-        <PackPicker />
-        <div className="flex items-center gap-1">
-          <LessonsButton />
-          <ThemeButton />
-          <SessionMenu />
+        <div className="flex min-w-0 items-center gap-2">
+          <PackPicker />
+          <div className="flex shrink-0 items-center gap-1">
+            <GuideButton />
+            <ThemeButton />
+            <SessionChip />
+          </div>
         </div>
       </div>
     </header>

@@ -67,12 +67,16 @@ test('a turn on fake-small: the request names the model, and the markdown reply 
   await expect(reply).not.toContainText('**A-1001**')
 })
 
-test('the sandbox countdown and the limits card follow capabilities.public', async ({ page }) => {
+test('the session chip counts down and its popover shows the limits, following capabilities.public', async ({ page }) => {
   const caps = await open(page)
   test.skip(!caps.public?.session_expires_at, 'needs the P6 API (capabilities.public)')
-  await expect(page.getByTestId('session-countdown')).toContainText(/left, then everything here is deleted/)
-  await page.getByTestId('budget-trigger').hover()
-  await expect(page.getByTestId('limits-card').getByTestId('limit-remaining')).toHaveText(/^\d+ \/ \d+$/)
+  const chip = page.getByTestId('session-menu')
+  await expect(chip.getByTestId('session-countdown')).toHaveText(/^(\d+ h )?\d+ m$/)
+  // The status bar's readout opens the same popover.
+  await page.getByTestId('budget-trigger').click()
+  const pop = page.getByTestId('session-popover')
+  await expect(pop.getByTestId('session-ends')).toContainText(/Everything in it is deleted then\.$/)
+  await expect(pop.getByTestId('limits-card').getByTestId('limit-remaining')).toHaveText(/^\d+ \/ \d+$/)
 })
 
 test('private-only controls stay visible and disabled with their reason; read-only views stay live', async ({ page }) => {

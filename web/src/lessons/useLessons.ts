@@ -1,11 +1,13 @@
-// Fetches for the Lessons tab and drawer: the chapter list, one chapter and a linked file, each
+// Fetches for the Guide: the chapter list, one chapter and a linked file, each
 // cached per API (the chapters do not change while the app runs). A chapter the API does not
-// serve yet (404 lesson_not_found) is `missing`, which the tab shows as not written yet.
+// serve yet (404 lesson_not_found) is `missing`, which the Guide shows as not written yet.
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError, type Api } from '@/api/client'
 import type { Lesson, LessonList, LessonSource } from '@/api/types'
+import { usePanels } from '@/state/panels'
 import { useApp } from '@/state/store'
 import { buildOutline, type OutlineEntry } from './outline'
+import { lessonRef } from './parse'
 
 export type LessonLoad<T> = { status: 'idle' | 'loading' | 'ok' | 'missing' | 'error'; data?: T; error?: string }
 
@@ -70,32 +72,52 @@ export function useOutline(): { outline: OutlineEntry[]; status: LessonLoad<Less
   return { outline, status: list.status }
 }
 
-/** Open a chapter: select its node (the expert view for a group chapter) on the Lessons tab. */
+/**
+ * Open a chapter in the Guide: select its node on the canvas (the expert view for a group
+ * chapter), show its chapter and move focus to the chapter's title.
+ */
 export function openChapter(entry: OutlineEntry): void {
   const s = useApp.getState()
   if (!entry.nodeId) return
   if (entry.view === 'expert' && s.view !== 'expert') s.setView('expert')
-  s.openInspector(entry.nodeId, LESSONS_TAB)
+  s.selectNode(entry.nodeId)
+  usePanels.getState().openGuide(entry.nodeId)
+  requestLessonFocus(entry.slug)
 }
 
-let focusPending = false
+/** Open the Guide on a node's own chapter (the inspector's Open in Guide). */
+export function openNodeChapter(nodeId: string): void {
+  const node = useApp.getState().diagram?.nodes.find((n) => n.id === nodeId)
+  usePanels.getState().openGuide(nodeId)
+  const slug = lessonRef(node?.lesson_url)?.slug
+  if (slug) requestLessonFocus(slug)
+}
+
+let focusPending: string | null = null
 
 /**
- * Move focus to the chapter's title once the Lessons tab shows it (the drawer closed after
- * opening a chapter). Focuses it now if it is already there.
+ * Move focus to chapter `slug`'s title once the Guide shows it: now when it is already there,
+ * else when the chapter renders (it calls `takeLessonFocus`).
  */
-export function requestLessonFocus(): void {
-  const title = document.getElementById('lesson-title')
-  if (title) title.focus()
-  else focusPending = true
+export function requestLessonFocus(slug: string): void {
+  focusPending = slug
+  requestAnimationFrame(() => {
+    const title = document.getElementById('lesson-title')
+    if (title && title.dataset.slug === slug && focusPending === slug) {
+      focusPending = null
+      title.focus()
+    }
+  })
 }
 
-/** True once after `requestLessonFocus` found no title yet: the tab focuses its title then. */
-export function takeLessonFocus(): boolean {
-  const pending = focusPending
-  focusPending = false
-  return pending
+/** A chapter asked for focus and has not taken it yet. */
+export function lessonFocusPending(): boolean {
+  return focusPending !== null
 }
 
-/** The inspector tab value of the Lessons tab. */
-export const LESSONS_TAB = 'lessons'
+/** True once after `requestLessonFocus(slug)`: the chapter focuses its title then. */
+export function takeLessonFocus(slug: string | null): boolean {
+  if (!slug || focusPending !== slug) return false
+  focusPending = null
+  return true
+}
