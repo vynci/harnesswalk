@@ -9,6 +9,6 @@ turns:
   - responses:
       - text: >-
           This reply comes from the scripted fake model: it replays a canned answer and does not
-          read your message. Every node you see lit up in the walk is real, though. Pick a Claude
-          model, or bring your own key, for a real answer.
+          read your message. Every node you see lit up in the walk is real, though. Pick Auto or a
+          Claude model, when one is available, for a real answer.
         usage: { input_tokens: 0, output_tokens: 0 }

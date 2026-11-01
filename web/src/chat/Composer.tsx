@@ -1,15 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { ArrowUp, ChevronDown, Plus, SlidersHorizontal, Square } from 'lucide-react'
+import { ArrowUp, Plus, SlidersHorizontal, Square } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupText, InputGroupTextarea } from '@/components/ui/input-group'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { Spinner } from '@/components/ui/spinner'
@@ -17,9 +9,9 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useFeature } from '@/state/hooks'
 import { parseOutputSchema, useApp } from '@/state/store'
-import { ByoKeyButton, PublicModelPicker } from './PublicControls'
+import { BudgetBanner, FixturePicker, ModelPicker } from './ModelPicker'
+import { ByoKeyButton } from './PublicControls'
 
-const NO_HINT = '__none__'
 const EXAMPLE_SCHEMA = '{"type": "object", "required": ["answer"], "properties": {"answer": {"type": "string"}}}'
 
 /**
@@ -50,35 +42,6 @@ function SchemaOption() {
       />
       {schemaError && <span className="text-destructive">{schemaError}</span>}
     </div>
-  )
-}
-
-/** Dev mode only: the model hint as a Model Selector menu. The router honours it only when its rule allows. */
-function ModelHint() {
-  const capabilities = useApp((s) => s.capabilities)
-  const modelHint = useApp((s) => s.modelHint)
-  const setModelHint = useApp((s) => s.setModelHint)
-  const models = [...new Set(capabilities?.providers.filter((p) => p.configured).flatMap((p) => p.models) ?? [])]
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <InputGroupButton size="xs" className="text-muted-foreground" aria-label={`Model hint for the router: ${modelHint ?? 'router decides'}`} data-testid="model-hint">
-          {modelHint ?? 'Auto model'}
-          <ChevronDown aria-hidden />
-        </InputGroupButton>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="start" className="w-56">
-        <DropdownMenuLabel>Model hint</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={modelHint ?? NO_HINT} onValueChange={(v) => setModelHint(v === NO_HINT ? null : v)}>
-          <DropdownMenuRadioItem value={NO_HINT}>Auto (router decides)</DropdownMenuRadioItem>
-          {models.map((m) => (
-            <DropdownMenuRadioItem key={m} value={m} className="font-mono">
-              {m}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
   )
 }
 
@@ -131,8 +94,8 @@ export function Composer({
   const input = useRef<HTMLTextAreaElement>(null)
   const [options, setOptions] = useState(false)
   const dev = useApp((s) => s.capabilities?.mode === 'dev')
-  const isPublic = useApp((s) => s.capabilities?.mode === 'public')
-  const byoKey = useApp((s) => s.capabilities?.features.byo_key === true)
+  // Public mode shows the key button disabled (keys arrive with accounts); dev has none.
+  const keyButton = useApp((s) => s.capabilities?.mode === 'public' || s.capabilities?.features.byo_key === true)
   const uploads = useFeature('uploads')
   // P5: the pack the next message goes to names the placeholder; the starter pack keeps its own.
   const packName = useApp((s) => {
@@ -170,6 +133,7 @@ export function Composer({
         void submit()
       }}
     >
+      <BudgetBanner />
       {suggestions}
       {dev && options && <SchemaOption />}
       <label htmlFor="composer" className="sr-only">
@@ -189,7 +153,7 @@ export function Composer({
           aria-invalid={tooLong}
           data-testid="composer-input"
         />
-        <InputGroupAddon align="block-end" className="gap-1.5 pt-1">
+        <InputGroupAddon align="block-end" className="flex-wrap gap-1.5 pt-1">
           <Hint label={uploads.reason ?? 'Attach files'} side="top">
             <InputGroupButton
               size="icon-sm"
@@ -216,11 +180,11 @@ export function Composer({
                 <SlidersHorizontal aria-hidden />
                 {schemaSet ? 'Schema' : 'Options'}
               </InputGroupButton>
-              <ModelHint />
             </>
           )}
-          {isPublic && <PublicModelPicker />}
-          {byoKey && <ByoKeyButton />}
+          <ModelPicker />
+          <FixturePicker />
+          {keyButton && <ByoKeyButton />}
           <span className="ml-auto flex items-center gap-2">
             <InputGroupText className={tooLong ? 'text-xs text-destructive tabular-nums' : 'text-xs tabular-nums'} aria-live="polite">
               {text.length > maxChars * 0.8 ? `${text.length} / ${maxChars}` : ''}

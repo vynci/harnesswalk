@@ -156,11 +156,15 @@ export interface Segment {
 const BEND = 26
 const OVERLAP = 5000
 const NEAR = 400
-const NEAR_GAP = 7
+/** Parallel lanes of different edges keep at least this far apart. */
+export const LANE_GAP = 16
 const CROSS = 40
 const AWAY = 240
 const PORT_GAP = 20
 const AVOID = 2.5
+/** Running along a rail (a group or plane border the edge may cross): a fixed cost plus this per unit. */
+const RAIL = 300
+const RAIL_PER = 4
 
 export interface Obstacle extends Rect {
   /** Clearance the router keeps from this box. */
@@ -180,8 +184,18 @@ export interface AutoRouteRequest {
   /** How far each end runs straight out first (shorter for boxes nested in a parent). */
   sourceStub?: number
   targetStub?: number
+  /** Ports on the left or right side keep within this many units of the top (an open group's title band). */
+  sourceBand?: number
+  targetBand?: number
   /** Areas the edge may cross but should not run along: each unit of length inside costs `AVOID` more. */
   avoid?: Rect[]
+  /**
+   * Borders the edge may cross but must not run along closer than `pad`: the open group it
+   * leaves or enters, and the planes. The grid gets lanes at `pad` on both sides of each border.
+   */
+  rails?: Obstacle[]
+  /** A box the whole route stays inside (an edge between two children of one group). */
+  within?: Rect
 }
 
 /** Remembers routed segments and taken port slots across the edges of one layout. */
@@ -196,12 +210,30 @@ export class RouteBook {
       const s: Segment = { id, a: points[i]!, b: points[i + 1]! }
       this.segments.push(s)
       const horizontal = s.a[1] === s.b[1]
-      const key = Math.round((horizontal ? s.a[1] : s.a[0]) / NEAR_GAP)
+      const key = Math.round((horizontal ? s.a[1] : s.a[0]) / LANE_GAP)
       const buckets = horizontal ? this.hBuckets : this.vBuckets
       const list = buckets.get(key) ?? []
       list.push(s)
       buckets.set(key, list)
     }
+  }
+
+  /**
+   * Coordinates one lane gap either side of the routed segments that overlap [lo, hi] on the
+   * other axis: where a new edge can run parallel to an earlier one at the right distance.
+   */
+  laneLines(vertical: boolean, lo: number, hi: number): number[] {
+    const out: number[] = []
+    for (const s of this.segments) {
+      const isVertical = s.a[0] === s.b[0]
+      if (isVertical !== vertical) continue
+      const c = vertical ? s.a[0] : s.a[1]
+      const slo = vertical ? Math.min(s.a[1], s.b[1]) : Math.min(s.a[0], s.b[0])
+      const shi = vertical ? Math.max(s.a[1], s.b[1]) : Math.max(s.a[0], s.b[0])
+      if (shi < lo || slo > hi) continue
+      out.push(c - LANE_GAP, c + LANE_GAP)
+    }
+    return out
   }
 
   /** Record the port an edge took, so later edges on that side keep their distance. */
@@ -230,7 +262,17 @@ export class RouteBook {
       if (c < lo || c > hi) continue
       if (taken.every((t) => Math.abs(t - c) >= PORT_GAP - 0.5)) return c
     }
-    return Math.round(want)
+    // A crowded side: the spot furthest from the ports already taken, nearest `want` on a tie.
+    let best = Math.round(want)
+    let bestGap = -1
+    for (let c = Math.ceil(lo); c <= hi; c++) {
+      const gap = Math.min(...taken.map((t) => Math.abs(t - c)))
+      if (gap > bestGap + 0.5 || (Math.abs(gap - bestGap) <= 0.5 && Math.abs(c - want) < Math.abs(best - want))) {
+        best = c
+        bestGap = gap
+      }
+    }
+    return best
   }
 
   /** Extra cost of a step from p to q (axis-aligned) given what is already routed. */
@@ -241,7 +283,7 @@ export class RouteBook {
     const hi = horizontal ? Math.max(p[0], q[0]) : Math.max(p[1], q[1])
     const buckets = horizontal ? this.hBuckets : this.vBuckets
     let cost = 0
-    const key = Math.round(c / NEAR_GAP)
+    const key = Math.round(c / LANE_GAP)
     for (let k = key - 1; k <= key + 1; k++) {
       for (const s of buckets.get(k) ?? []) {
         const sc = horizontal ? s.a[1] : s.a[0]
@@ -251,13 +293,13 @@ export class RouteBook {
         if (overlap <= 0) continue
         const gap = Math.abs(sc - c)
         if (gap < 0.5) cost += OVERLAP
-        else if (gap < NEAR_GAP) cost += NEAR
+        else if (gap < LANE_GAP - 0.5) cost += NEAR + overlap * 4
       }
     }
     // Crossing a perpendicular segment at q.
     const perp = horizontal ? this.vBuckets : this.hBuckets
     const qc = horizontal ? q[0] : q[1]
-    const qk = Math.round(qc / NEAR_GAP)
+    const qk = Math.round(qc / LANE_GAP)
     for (let k = qk - 1; k <= qk + 1; k++) {
       for (const s of perp.get(k) ?? []) {
         const sc = horizontal ? s.a[0] : s.a[1]
@@ -338,23 +380,28 @@ interface End {
   penalty: number
 }
 
-function ends(book: RouteBook, nodeId: string, r: Rect, other: Rect, sides: Side[], stub: number): End[] {
+function banded(r: Rect, band: number | undefined, side: Side): Rect {
+  return band !== undefined && isHorizontalSide(side) ? { ...r, height: Math.min(band, r.height) } : r
+}
+
+function ends(book: RouteBook, nodeId: string, box: Rect, other: Rect, sides: Side[], stub: number, band?: number, otherBand?: number): End[] {
   return sides.map((side) => {
-    const port = sidePoint(r, side, book.portAlong(nodeId, side, r, other))
+    const r = banded(box, band, side)
+    const port = sidePoint(r, side, book.portAlong(nodeId, side, r, banded(other, otherBand, side)))
     const [ox, oy] = outward(side)
     return {
       side,
       port,
       stub: [port[0] + ox * stub, port[1] + oy * stub] as Pt,
-      penalty: facing(r, side, other) ? 0 : AWAY,
+      penalty: facing(box, side, other) ? 0 : AWAY,
     }
   })
 }
 
 /** Route one edge around `obstacles`, avoiding what `book` already holds, and record it. */
 export function autoRoute(req: AutoRouteRequest, book: RouteBook): { points: Pt[]; sourceSide: Side; targetSide: Side } {
-  const starts = ends(book, req.sourceId, req.src, req.tgt, req.sourceSides ?? SIDES, req.sourceStub ?? STUB)
-  const goals = ends(book, req.targetId, req.tgt, req.src, req.targetSides ?? SIDES, req.targetStub ?? STUB)
+  const starts = ends(book, req.sourceId, req.src, req.tgt, req.sourceSides ?? SIDES, req.sourceStub ?? STUB, req.sourceBand, req.targetBand)
+  const goals = ends(book, req.targetId, req.tgt, req.src, req.targetSides ?? SIDES, req.targetStub ?? STUB, req.targetBand, req.sourceBand)
 
   const xsRaw: number[] = []
   const ysRaw: number[] = []
@@ -362,20 +409,32 @@ export function autoRoute(req: AutoRouteRequest, book: RouteBook): { points: Pt[
     xsRaw.push(o.x - o.pad, o.x + o.width + o.pad, o.x - 2.4 * o.pad, o.x + o.width + 2.4 * o.pad)
     ysRaw.push(o.y - o.pad, o.y + o.height + o.pad, o.y - 2.4 * o.pad, o.y + o.height + 2.4 * o.pad)
   }
+  for (const r of req.rails ?? []) {
+    for (const k of [-2, -1, 1, 2]) {
+      xsRaw.push(r.x + k * r.pad, r.x + r.width + k * r.pad)
+      ysRaw.push(r.y + k * r.pad, r.y + r.height + k * r.pad)
+    }
+  }
   for (const e of [...starts, ...goals]) {
     xsRaw.push(e.stub[0])
     ysRaw.push(e.stub[1])
   }
   const all = [...starts, ...goals].map((e) => e.stub)
-  const minX = Math.min(...all.map((p) => p[0]), ...req.obstacles.map((o) => o.x)) - 60
-  const maxX = Math.max(...all.map((p) => p[0]), ...req.obstacles.map((o) => o.x + o.width)) + 60
-  const minY = Math.min(...all.map((p) => p[1]), ...req.obstacles.map((o) => o.y)) - 60
-  const maxY = Math.max(...all.map((p) => p[1]), ...req.obstacles.map((o) => o.y + o.height)) + 60
-  xsRaw.push(minX, maxX)
-  ysRaw.push(minY, maxY)
+  let minX = Math.min(...all.map((p) => p[0]), ...req.obstacles.map((o) => o.x)) - 60
+  let maxX = Math.max(...all.map((p) => p[0]), ...req.obstacles.map((o) => o.x + o.width)) + 60
+  let minY = Math.min(...all.map((p) => p[1]), ...req.obstacles.map((o) => o.y)) - 60
+  let maxY = Math.max(...all.map((p) => p[1]), ...req.obstacles.map((o) => o.y + o.height)) + 60
+  if (req.within) {
+    minX = Math.max(minX, req.within.x)
+    maxX = Math.min(maxX, req.within.x + req.within.width)
+    minY = Math.max(minY, req.within.y)
+    maxY = Math.min(maxY, req.within.y + req.within.height)
+  }
+  xsRaw.push(minX, maxX, ...book.laneLines(true, minY, maxY))
+  ysRaw.push(minY, maxY, ...book.laneLines(false, minX, maxX))
   const addMidpoints = (v: number[]) => {
     const out = [...v]
-    for (let i = 0; i < v.length - 1; i++) if (v[i + 1]! - v[i]! > 36) out.push((v[i]! + v[i + 1]!) / 2)
+    for (let i = 0; i < v.length - 1; i++) if (v[i + 1]! - v[i]! > 20) out.push((v[i]! + v[i + 1]!) / 2)
     return uniqueSorted(out)
   }
   const xs = addMidpoints(uniqueSorted(xsRaw).filter((x) => x >= minX && x <= maxX))
@@ -389,6 +448,21 @@ export function autoRoute(req: AutoRouteRequest, book: RouteBook): { points: Pt[
     req.obstacles.some((o) => x > o.x - o.pad && x < o.x + o.width + o.pad && y > o.y - o.pad && y < o.y + o.height + o.pad)
   const blocked = new Uint8Array(nx * ny)
   for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) blocked[j * nx + i] = strictlyInside(xs[i]!, ys[j]!) ? 1 : 0
+  // A step that runs along a rail, closer than its pad, on the inside or the outside.
+  const railCost = (x: number, y: number, qx: number, qy: number): number => {
+    let cost = 0
+    const horizontal = y === qy
+    const c = horizontal ? y : x
+    const lo = horizontal ? Math.min(x, qx) : Math.min(y, qy)
+    const hi = horizontal ? Math.max(x, qx) : Math.max(y, qy)
+    for (const r of req.rails ?? []) {
+      const [blo, bhi] = horizontal ? [r.x, r.x + r.width] : [r.y, r.y + r.height]
+      if (Math.min(hi, bhi) - Math.max(lo, blo) <= 0) continue
+      const lines = horizontal ? [r.y, r.y + r.height] : [r.x, r.x + r.width]
+      if (lines.some((l) => Math.abs(l - c) < r.pad - 0.5)) cost += RAIL + (hi - lo) * RAIL_PER
+    }
+    return cost
+  }
 
   const STATES = nx * ny * 2
   const g = new Float64Array(STATES).fill(Infinity)
@@ -460,7 +534,7 @@ export function autoRoute(req: AutoRouteRequest, book: RouteBook): { points: Pt[
       const len = Math.abs(qx - x) + Math.abs(qy - y)
       const mid: Pt = [(x + qx) / 2, (y + qy) / 2]
       const soft = req.avoid?.some((r) => insideRect(mid, r)) ? len * AVOID : 0
-      const step = len + soft + (nd === dir ? 0 : BEND) + book.stepPenalty([x, y], [qx, qy])
+      const step = len + soft + (nd === dir ? 0 : BEND) + book.stepPenalty([x, y], [qx, qy]) + railCost(x, y, qx, qy)
       const ns = ncell * 2 + nd
       const ng = gc + step
       if (ng < g[ns]!) {

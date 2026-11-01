@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { ApiError, PROVIDER_KEY_HEADER } from '@/api/client'
 import { MockServer, type MockPublicOptions } from '@/mock/server'
-import { noticeDetail, turnRefusal, useApp, waitText } from './store'
+import { noticeDetail, selectBudgetBanner, turnRefusal, useApp, waitText } from './store'
 
 // P6 public mode against the in-browser mock: the turn names the picked model, a key of the
 // reader's own rides along as a header and nowhere else, and the refusals come back as words.
@@ -35,38 +35,89 @@ async function until(check: () => boolean, ms = 3000) {
 afterEach(() => useApp.setState(initial, true))
 
 describe('store: public mode', () => {
-  it('sends the default model, then the picked one, and no key header without a key', async () => {
+  const done = () => until(() => useApp.getState().liveTurnId !== null && useApp.getState().turns[useApp.getState().liveTurnId!]?.state?.phase === 'done')
+
+  it('Auto is the default: the turn names no model; a pick is named; no key header without a key', async () => {
     const { sent } = await boot()
     expect(useApp.getState().capabilities?.mode).toBe('public')
+    expect(useApp.getState().pickedModel).toBeNull()
     await useApp.getState().send('What are your support hours?')
-    expect(sent[0]!.body.model).toBe('hosted-haiku')
+    expect(sent[0]!.body).not.toHaveProperty('model')
     expect(Object.keys(sent[0]!.headers).map((k) => k.toLowerCase())).not.toContain(PROVIDER_KEY_HEADER.toLowerCase())
-    await until(() => useApp.getState().liveTurnId !== null && useApp.getState().turns[useApp.getState().liveTurnId!]?.state?.phase === 'done')
-    useApp.getState().setPublicModel('fake-small')
+    await done()
+    useApp.getState().pickModel('fake-small')
     await useApp.getState().send('And on weekends?')
     expect(sent[1]!.body.model).toBe('fake-small')
   })
 
-  it('an unavailable pick falls back to the default; a key unlocks it and goes out as the header only', async () => {
+  it('an unavailable pick is Auto again; in public mode a key is never sent and unlocks nothing', async () => {
     const { sent } = await boot()
-    useApp.getState().setPublicModel('hosted-sonnet')
+    useApp.getState().pickModel('hosted-sonnet')
     await useApp.getState().send('Hello?')
-    expect(sent[0]!.body.model).toBe('hosted-haiku')
-    await until(() => useApp.getState().turns[useApp.getState().liveTurnId!]?.state?.phase === 'done')
+    expect(sent[0]!.body).not.toHaveProperty('model')
+    await done()
+    // The key button is disabled in public mode; a key in the store (an old tab) stays home.
     useApp.getState().setByoKey('  sk-ant-test-key-1234 ')
-    expect(useApp.getState().byoKey).toBe('sk-ant-test-key-1234')
     await useApp.getState().send('Hello again?')
-    expect(sent[1]!.body.model).toBe('hosted-sonnet')
-    expect(sent[1]!.headers[PROVIDER_KEY_HEADER]).toBe('sk-ant-test-key-1234')
-    expect(JSON.stringify(sent[1]!.body)).not.toContain('sk-ant')
+    expect(sent[1]!.body).not.toHaveProperty('model')
+    expect(Object.keys(sent[1]!.headers).map((k) => k.toLowerCase())).not.toContain(PROVIDER_KEY_HEADER.toLowerCase())
+    expect(JSON.stringify(sent[1])).not.toContain('sk-ant')
     useApp.getState().setByoKey(null)
     expect(useApp.getState().byoKey).toBeNull()
   })
 
-  it('with the budget spent the turn runs on the fake model', async () => {
+  it('with the budget spent Auto names no model, the API runs the fake model, and the banner shows', async () => {
     const { sent } = await boot({ budget: 'spent' })
+    expect(selectBudgetBanner(useApp.getState())).toMatch(/T00:00:00Z$/)
     await useApp.getState().send('Hello?')
-    expect(sent[0]!.body.model).toBe('fake-small')
+    expect(sent[0]!.body).not.toHaveProperty('model')
+    // Closing the banner holds for this budget day in this tab.
+    useApp.getState().dismissBudgetBanner()
+    expect(selectBudgetBanner(useApp.getState())).toBeNull()
+  })
+
+  it('when the budget runs out a Claude pick moves to the fake model with a toast, and stays there after', async () => {
+    const { server } = await boot()
+    useApp.getState().pickModel('hosted-haiku')
+    const opts = (server as unknown as { opts: { public: MockPublicOptions } }).opts.public
+    opts.budget = 'spent'
+    await useApp.getState().refreshCapabilities()
+    expect(useApp.getState().pickedModel).toBe('fake-small')
+    expect(useApp.getState().notices.at(-1)?.text).toMatch(/^Today's shared Claude budget is used up\. You're on the scripted fake model until 00:00 UTC( \(.+ your time\))?\.$/)
+    expect(selectBudgetBanner(useApp.getState())).not.toBeNull()
+    // Once only: a second read changes nothing.
+    const count = useApp.getState().notices.length
+    await useApp.getState().refreshCapabilities()
+    expect(useApp.getState().notices).toHaveLength(count)
+    // The budget is back: the banner goes, the pick stays as the reader left it.
+    opts.budget = 'ok'
+    await useApp.getState().refreshCapabilities()
+    expect(selectBudgetBanner(useApp.getState())).toBeNull()
+    expect(useApp.getState().pickedModel).toBe('fake-small')
+    // Auto is never moved.
+    useApp.getState().pickModel(null)
+    opts.budget = 'spent'
+    await useApp.getState().refreshCapabilities()
+    expect(useApp.getState().pickedModel).toBeNull()
+  })
+
+  it('a fixture goes with a turn on the scripted model only', async () => {
+    const { sent, server } = await boot({ budget: 'spent' })
+    expect(useApp.getState().capabilities?.public?.default_fixture).toBe('public_demo')
+    useApp.getState().setFixture('tool_call')
+    await useApp.getState().send('Where is order A-1001?') // Auto runs on the fake model now
+    expect(sent[0]!.body.fixture).toBe('tool_call')
+    expect(sent[0]!.body).not.toHaveProperty('model')
+    await done()
+    // The budget is back: Auto is Claude Haiku again, so the fixture stays home.
+    ;(server as unknown as { opts: { public: MockPublicOptions } }).opts.public.budget = 'ok'
+    await useApp.getState().refreshCapabilities()
+    await useApp.getState().send('Hello?')
+    expect(sent[1]!.body).not.toHaveProperty('fixture')
+    await done()
+    useApp.getState().pickModel('fake-small')
+    await useApp.getState().send('Hello again?')
+    expect(sent[2]!.body).toMatchObject({ model: 'fake-small', fixture: 'tool_call' })
   })
 
   it('a 429 says when to try again', async () => {
@@ -85,14 +136,17 @@ describe('store: public mode', () => {
     expect(noticeDetail(new ApiError(500, 'internal', 'boom'))).toBeUndefined()
   })
 
-  it('a turn that fell through to the fake model keeps the notice for the reply', async () => {
+  it('a turn that fell through to the fake model keeps the notice for the reply, and the banner shows', async () => {
     await boot({ budget: 'midturn' })
+    expect(selectBudgetBanner(useApp.getState())).toBeNull()
     await useApp.getState().send('What are your support hours?')
     await until(() => useApp.getState().turns[useApp.getState().liveTurnId!]?.state?.phase === 'done')
     const state = useApp.getState().turns[useApp.getState().liveTurnId!]!.state!
     expect(state.notices).toEqual([{ reason: 'budget_exhausted', message: expect.stringContaining('ran on the fake model') }])
+    expect(useApp.getState().budgetNoticeAt).not.toBeNull()
+    expect(selectBudgetBanner(useApp.getState())).not.toBeNull()
     // The fake model itself is never budget-gated: no notice.
-    useApp.getState().setPublicModel('fake-small')
+    useApp.getState().pickModel('fake-small')
     await useApp.getState().send('And on weekends?')
     await until(() => useApp.getState().order.length === 2 && useApp.getState().turns[useApp.getState().liveTurnId!]?.state?.phase === 'done')
     expect(useApp.getState().turns[useApp.getState().liveTurnId!]!.state!.notices).toEqual([])
@@ -117,9 +171,12 @@ describe('store: public mode', () => {
   })
 
   it('words the refusals', () => {
-    expect(turnRefusal(new ApiError(409, 'budget_exhausted', 'spent', { error: { code: 'budget_exhausted', resets_at: '2026-11-02T00:00:00Z' } }))).toBe(
-      "Today's shared budget for Claude models is spent. It resets at 00:00 UTC. Bring your own key or use the fake model.",
+    expect(turnRefusal(new ApiError(409, 'budget_exhausted', 'spent', { error: { code: 'budget_exhausted', resets_at: '2026-11-02T00:00:00Z' } }))).toMatch(
+      /^Today's shared Claude budget is used up\. Back at 00:00 UTC( \(.+ your time\))?\. Auto and the fake model still work\.$/,
     )
+    // Public mode never suggests a key of the reader's own.
+    const pub = { mode: 'public', features: { byo_key: true } } as never
+    expect(turnRefusal(new ApiError(422, 'provider_not_configured', 'No key is configured for hosted-sonnet. Bring your own key.'), pub)).toBe('This model is not set up on this server.')
     expect(turnRefusal(new ApiError(429, 'rate_limited', 'slow down', undefined, 40))).toContain('Try again in 40 s.')
     expect(turnRefusal(new ApiError(429, 'rate_limited', 'busy', { error: { code: 'rate_limited', limit: 'running_turns' } }, 10))).toBe(
       'Too many Claude turns are running right now. Try again in 10 s, or use the fake model.',
