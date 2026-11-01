@@ -8,6 +8,11 @@ markdown and PDF file in `datasets/<pack>/docs/`, chunks it by heading then by s
 in the vector index for similarity. Pack documents live in the shared pack scope, so every
 tenant on the pack reads them; a tenant's own uploads (P6) would live in its own scope.
 
+Each pack has its own FTS5 table (`fts_table(pack)`). BM25 weighs a word by how rare it is in
+the whole table, so one table for every pack let the documents of the other packs ingested in
+the same data directory reorder a pack's keyword hits, and with them the `[n]` numbers its
+answers cite (P5 integration). A pack's retrieval now depends on the pack's own documents only.
+
 Retrieval is hybrid:
 
 1. keyword: FTS5 `MATCH` on the query's words, ordered by `bm25()`, best `rerank_k`, keeping
@@ -29,6 +34,7 @@ import asyncio
 import hashlib
 import json
 import math
+import re
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -80,10 +86,6 @@ CREATE TABLE IF NOT EXISTS kn_chunks (
     text TEXT NOT NULL,
     tokens INTEGER NOT NULL
 );
-CREATE VIRTUAL TABLE IF NOT EXISTS kn_fts USING fts5(
-    text, vid UNINDEXED, scope UNINDEXED, pack UNINDEXED, doc_id UNINDEXED,
-    tokenize = 'porter unicode61'
-);
 CREATE TABLE IF NOT EXISTS kn_ingests (
     scope TEXT NOT NULL,
     pack TEXT NOT NULL,
@@ -108,8 +110,28 @@ def register_reranker(name: str, fn: Reranker) -> None:
     RERANKERS[name] = fn
 
 
+FTS_COLUMNS = (
+    "text, vid UNINDEXED, scope UNINDEXED, pack UNINDEXED, doc_id UNINDEXED,"
+    " tokenize = 'porter unicode61'"
+)
+LEGACY_FTS = "kn_fts"  # the one table every pack shared before P5 integration
+
+
+def fts_table(pack: str) -> str:
+    """The pack's FTS5 table. A pack id of lower-case letters, digits and `_` names it directly;
+    any other id (a `-`, say) is hashed under another prefix, so two packs never share one."""
+    if re.fullmatch(r"[a-z0-9_]{1,64}", pack):
+        return f"kn_fts_p_{pack}"
+    return "kn_fts_h_" + hashlib.sha256(pack.encode()).hexdigest()[:16]
+
+
 def citation_for(title: str, heading: str) -> str:
     return f"{title}, {heading}" if heading else title
+
+
+def _indexed(title: str, heading: str, text: str) -> str:
+    """What the FTS5 table indexes for a chunk: its document title and heading with the text."""
+    return f"{title}. {heading}. {text}" if heading else f"{title}. {text}"
 
 
 class KnowledgeStore:
@@ -141,6 +163,38 @@ class KnowledgeStore:
                 f"stores.knowledge.reranker {self.reranker!r} is not registered (none ships)"
             )
         self.estimator = estimator
+        self.fts = fts_table(pack)
+        self._ensure_fts()
+
+    def _ensure_fts(self) -> None:
+        """Create the pack's FTS5 table. A data directory from before P5 integration has the
+        pack's rows in the shared `kn_fts`: copy them over from `kn_chunks` (the same indexed
+        text, no new embeddings) and drop them from the shared table."""
+        exists = self.db.one(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (self.fts,)
+        )
+        self.db.execute(f"CREATE VIRTUAL TABLE IF NOT EXISTS {self.fts} USING fts5({FTS_COLUMNS})")
+        if exists:
+            return
+        rows = self.db.query(
+            "SELECT c.vid, c.scope, c.doc_id, c.heading, c.text, d.title FROM kn_chunks c"
+            " JOIN kn_docs d ON d.scope = c.scope AND d.pack = c.pack AND d.doc_id = c.doc_id"
+            " WHERE c.pack = ? ORDER BY c.vid",
+            (self.pack,),
+        )
+        self.db.executemany(
+            f"INSERT INTO {self.fts} (text, vid, scope, pack, doc_id) VALUES (?, ?, ?, ?, ?)",
+            [
+                (_indexed(r["title"], r["heading"], r["text"]), r["vid"], r["scope"], self.pack,
+                 r["doc_id"])
+                for r in rows
+            ],
+        )  # fmt: skip
+        legacy = self.db.one(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (LEGACY_FTS,)
+        )
+        if legacy:
+            self.db.execute(f"DELETE FROM {LEGACY_FTS} WHERE pack = ?", (self.pack,))
 
     # -- ingestion -----------------------------------------------------------------------------
 
@@ -203,7 +257,7 @@ class KnowledgeStore:
             )
         ]
         self.vectors.delete(NS, old)
-        for table in ("kn_chunks", "kn_fts", "kn_docs"):
+        for table in ("kn_chunks", self.fts, "kn_docs"):
             self.db.execute(f"DELETE FROM {table} WHERE scope = ? AND pack = ?", (scope, self.pack))
 
     def _index(self, doc: Document, scope: str) -> int:
@@ -227,9 +281,7 @@ class KnowledgeStore:
         rows, fts, texts = [], [], []
         for c in chunks:
             vid = f"{scope}/{self.pack}/{doc.doc_id}#{c.position}"
-            indexed = (
-                f"{doc.title}. {c.heading}. {c.text}" if c.heading else f"{doc.title}. {c.text}"
-            )
+            indexed = _indexed(doc.title, c.heading, c.text)
             rows.append(
                 (
                     vid,
@@ -246,7 +298,7 @@ class KnowledgeStore:
             texts.append(indexed)
         self.db.executemany("INSERT INTO kn_chunks VALUES (?, ?, ?, ?, ?, ?, ?, ?)", rows)
         self.db.executemany(
-            "INSERT INTO kn_fts (text, vid, scope, pack, doc_id) VALUES (?, ?, ?, ?, ?)", fts
+            f"INSERT INTO {self.fts} (text, vid, scope, pack, doc_id) VALUES (?, ?, ?, ?, ?)", fts
         )
         if texts:
             vectors = self.embedder.embed(texts)
@@ -351,7 +403,7 @@ class KnowledgeStore:
             where, params = " AND doc_id = ?", [query.filters["doc"]]
         tenant = require_tenant(ctx)
         rows = self.db.query(
-            "SELECT vid, bm25(kn_fts) AS rank FROM kn_fts WHERE kn_fts MATCH ?"
+            f"SELECT vid, bm25({self.fts}) AS rank FROM {self.fts} WHERE {self.fts} MATCH ?"
             " AND pack = ? AND scope IN (?, ?)" + where + " ORDER BY rank, vid LIMIT ?",
             (" OR ".join(quoted), self.pack, tenant, PACK_SCOPE, *params, self.rerank_k),
         )
@@ -362,7 +414,7 @@ class KnowledgeStore:
         matched: dict[str, int] = {}
         for term in quoted:
             for r in self.db.query(
-                f"SELECT vid FROM kn_fts WHERE kn_fts MATCH ? AND vid IN ({marks})",
+                f"SELECT vid FROM {self.fts} WHERE {self.fts} MATCH ? AND vid IN ({marks})",
                 (term, *[vid for vid, _ in found]),
             ):
                 matched[r["vid"]] = matched.get(r["vid"], 0) + 1

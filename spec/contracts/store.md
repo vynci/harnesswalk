@@ -61,6 +61,11 @@ heading). The `SourceRef` is `{store: knowledge, id: "<doc>#<chunk>", title, uri
 "knowledge://<pack>/<doc>#<chunk>", version}`. Chunking is by heading (`#` to `###`) first,
 then by size (`chunk_tokens`, `chunk_overlap`).
 
+Ranking depends on the pack's own documents only (P5 integration): every statistic a ranker
+uses (BM25 document frequencies and lengths, candidate lists) is computed over the pack's
+chunks, never over the other packs indexed in the same data directory, so the same pack and
+query give the same hits, and the same `[n]` numbering, whatever else was ingested.
+
 ## Inputs and outputs
 
 - In: a `Query` from `memory` (built by the context builder) or a `write` from an allowed writer.

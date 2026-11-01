@@ -205,3 +205,56 @@ def test_read_doc_tool(tmp_path: Path) -> None:
     assert '"unknown_doc"' in tool.impl({"doc": "nope"})
     assert k.pack_index() == [("returns", "Returns policy")]
     assert k.count("anyone")["pack_docs"] == 1 and PACK_SCOPE == "_pack"
+
+
+def test_another_packs_documents_do_not_reorder_a_packs_hits(tmp_path: Path) -> None:
+    """BM25 weighs a word by its rarity in the FTS table: one table for every pack let the
+    documents of other packs in the same data directory reorder a pack's keyword hits, and with
+    them the [n] its answers cite (P5 integration). Each pack now has its own table."""
+    docs = write_docs(
+        tmp_path / "a",
+        {
+            "hurdle.md": "# Hurdle\n\nThe hurdle hurdle hurdle comes before carry.\n",
+            "rate.md": "# Rate\n\nThe rate rate rate comes before carry.\n",
+            "other.md": "# Other\n\nNothing about fees here, only the calendar.\n",
+        },
+    )
+    # Another pack where "hurdle" is everywhere: in a shared table its BM25 weight collapses.
+    noise = write_docs(
+        tmp_path / "b",
+        {f"n{i}.md": f"# Noise {i}\n\nhurdle notes {i}\n" for i in range(40)},
+    )
+    db = open_memory_db(str(tmp_path / "memory.db"))
+    a = KnowledgeStore(db, SqliteVectors(db), FakeEmbedder(), "alpha")
+    a.ingest(docs)
+    ctx, _ = make_ctx()
+    query = Query("hurdle rate carry", top_k=5, max_tokens=2000)
+    before = [h.id for h in a.retrieve(ctx, query)]
+    keyword = a.keyword(ctx, query)
+    assert before and [vid for vid, _ in keyword] == ["_pack/alpha/hurdle#0", "_pack/alpha/rate#0"]
+    b = KnowledgeStore(db, SqliteVectors(db), FakeEmbedder(), "beta-pack")
+    b.ingest(noise)
+    assert kn.fts_table("alpha") != kn.fts_table("beta-pack")
+    assert a.keyword(ctx, query) == keyword  # same order, same BM25 scores
+    assert [h.id for h in a.retrieve(ctx, query)] == before
+    assert all("/beta-pack/" in h.id for h in b.retrieve(ctx, query))
+
+
+def test_a_data_dir_with_the_shared_fts_table_migrates(tmp_path: Path) -> None:
+    """A data directory from before the per-pack tables keeps its index: the pack's rows move
+    from the shared `kn_fts` to the pack's table without a re-ingest."""
+    db = open_memory_db(str(tmp_path / "memory.db"))
+    s = KnowledgeStore(db, SqliteVectors(db), FakeEmbedder(), "pack")
+    s.ingest(write_docs(tmp_path / "docs", {"returns.md": DOC}))
+    ctx, _ = make_ctx()
+    query = Query("refunds business days", top_k=3, max_tokens=2000)
+    want = [h.id for h in s.retrieve(ctx, query)]
+    db.execute(f"DROP TABLE {s.fts}")  # the old layout: every pack in kn_fts
+    db.execute(
+        "CREATE VIRTUAL TABLE kn_fts USING fts5(text, vid UNINDEXED, scope UNINDEXED,"
+        " pack UNINDEXED, doc_id UNINDEXED, tokenize = 'porter unicode61')"
+    )
+    db.execute("INSERT INTO kn_fts VALUES ('x', 'v', '_pack', 'pack', 'd')")
+    again = KnowledgeStore(db, SqliteVectors(db), FakeEmbedder(), "pack")
+    assert [h.id for h in again.retrieve(ctx, query)] == want
+    assert db.one("SELECT count(*) AS n FROM kn_fts WHERE pack = 'pack'")["n"] == 0

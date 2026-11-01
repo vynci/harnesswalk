@@ -251,3 +251,26 @@ def test_check_case_reads_router_rules_and_retrieved_memory(tmp_path: Path) -> N
     alone = asyncio.run(_case_events("finance", [recall.id], tmp_path / "f2"))
     events, detail = alone[recall.id]
     assert packs.check_case(recall.raw["checks"], events, detail) != []
+
+
+def test_golden_results_do_not_depend_on_other_packs_in_the_data_dir(tmp_path: Path) -> None:
+    """A pack's golden result is a function of the pack and its artifacts only (P5 gate). Two
+    suites share one data directory, then the first runs again: same statuses, same citations.
+    Before each pack had its own FTS5 table, BM25 statistics over every pack's documents
+    reordered the starter's hits once finance was ingested, and `trailhead_cited` failed."""
+    data = tmp_path / "data"
+
+    def outcome(cases: list[dict]) -> dict[str, tuple]:
+        return {
+            c["case_id"]: (c["status"], [(x.get("doc"), x.get("chunk")) for x in
+                                         (c.get("actual") or {}).get("citations") or []])
+            for c in cases
+        }  # fmt: skip
+
+    first, first_cases, _ = asyncio.run(_golden("_starter", data))
+    other, _, _ = asyncio.run(_golden("finance", data))
+    again, again_cases, _ = asyncio.run(_golden("_starter", data))
+    assert other["totals"]["failed"] == 0
+    assert first["totals"]["failed"] == again["totals"]["failed"] == 0
+    assert outcome(again_cases) == outcome(first_cases)
+    assert again["regressions"] == 0
