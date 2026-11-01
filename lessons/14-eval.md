@@ -1,6 +1,7 @@
 ---
 node: eval
 try:
+  pack: _starter
   fixture: golden_returns_window
   prompt: "How long do I have to return a shipped order?"
 ---

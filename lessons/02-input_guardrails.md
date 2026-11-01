@@ -1,6 +1,7 @@
 ---
 node: input_guardrails
 try:
+  pack: _starter
   disable: [input_guardrails]
   fixture: tool_call
   prompt: "My email is ana.diaz@example.com. Where is order A-1001?"

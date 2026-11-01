@@ -1,6 +1,7 @@
 ---
 node: output_guardrails
 try:
+  pack: _starter
   disable: [output_guardrails]
   fixture: golden_pii_leak
   prompt: "Who handles returns?"

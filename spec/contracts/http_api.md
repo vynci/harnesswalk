@@ -933,7 +933,9 @@ lessons, like the code, are the same for every tenant.
   node the chapter is about (the parent for an expert group chapter, `group: true`), `covers` the
   nodes it teaches, `words` the length without link targets.
 - `GET /v1/lessons/{slug}`: the list item plus `markdown` (front matter removed), `try`
-  (`{ fixture?, prompt?, disable? }` or `null`), `code_links: [{ path, symbol, line, node_id }]`
+  (`{ pack, fixture?, prompt, disable? }` or `null`; `pack` is `_starter` when the chapter does
+  not name one, P5 integration), `also` (P5 integration: the same demonstration on a domain
+  pack, `[{ pack, fixture?, prompt, disable?, note }]`, possibly empty), `code_links: [{ path, symbol, line, node_id }]`
   (`line` resolved from the file's syntax tree, `null` when the symbol is gone; `node_id` is the
   node whose code peek is that file, else `null`), `prev` and `next`. Unknown slug:
   `404 lesson_not_found`.

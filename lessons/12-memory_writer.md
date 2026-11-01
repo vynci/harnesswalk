@@ -1,6 +1,7 @@
 ---
 node: memory_writer
 try:
+  pack: _starter
   disable: [memory_writer]
   fixture: remember_fact
   prompt: "Please remember that my preferred name is Sam."

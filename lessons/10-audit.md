@@ -1,6 +1,7 @@
 ---
 node: audit
 try:
+  pack: _starter
   fixture: cancel_order
   prompt: "Please cancel order A-1002."
 ---

@@ -1,6 +1,7 @@
 ---
 node: tools
 try:
+  pack: _starter
   fixture: tool_call
   prompt: "Where is order A-1001?"
 ---

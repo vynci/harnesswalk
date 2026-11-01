@@ -10,7 +10,9 @@ every tenant), and every mode serves them.
 A chapter is `lessons/NN-<name>.md`: YAML front matter, then markdown that starts with
 `# Title` and a one-line `> hook`. The front matter names the node the chapter is about
 (`node`), the nodes it covers when that is not just `node` (`covers`, for the expert groups),
-and an optional `try` (`fixture`, `prompt`, `disable`) the UI offers as a button. Code walk
+and an optional `try` (`pack`, `fixture`, `prompt`, `disable`) the UI offers as a button, plus
+`also`, the same demonstration on a domain pack (a list of `try`s with a one-line `note`;
+P5 integration). A `try` without `pack` runs on `_starter`. Code walk
 links are relative markdown links into the package, `[text](../harnesswalk/<path>#<Symbol>)`,
 where `Symbol` is a top-level name or `Class.method`; each comes back with its line.
 """
@@ -115,6 +117,13 @@ def _source_nodes() -> dict[str, str]:
     }
 
 
+def _try(raw: Any) -> dict[str, Any] | None:
+    """A chapter's demonstration with its pack spelled out (`_starter` when not given)."""
+    if not isinstance(raw, dict) or not raw.get("prompt"):
+        return None
+    return {"pack": "_starter", **raw}
+
+
 @lru_cache(maxsize=64)
 def _read(path: Path, mtime: float) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8")
@@ -152,7 +161,8 @@ def _read(path: Path, mtime: float) -> dict[str, Any]:
         "words": _words(body),
         "url": f"/v1/lessons/{path.stem}",
         "markdown": body.lstrip("\n"),
-        "try": meta.get("try") or None,
+        "try": _try(meta.get("try")),
+        "also": [t for t in (_try(a) for a in meta.get("also") or []) if t],
         "code_links": links,
     }
 

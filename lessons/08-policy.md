@@ -1,6 +1,7 @@
 ---
 node: policy
 try:
+  pack: _starter
   disable: [policy]
   fixture: cancel_order
   prompt: "Please cancel order A-1002."

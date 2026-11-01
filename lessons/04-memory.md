@@ -1,6 +1,7 @@
 ---
 node: memory
 try:
+  pack: _starter
   fixture: trailhead_return
   prompt: "Can I return order A-1003, the Trailhead backpack?"
 ---

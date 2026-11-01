@@ -2,6 +2,7 @@
 node: model_layer
 covers: [router, providers]
 try:
+  pack: _starter
   fixture: cancel_order
   prompt: "Please cancel order A-1002."
 ---

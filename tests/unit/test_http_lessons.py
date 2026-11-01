@@ -138,18 +138,25 @@ def test_further_reading_is_primary_sources() -> None:
 
 
 def test_try_names_real_fixtures_and_disableable_nodes() -> None:
+    """Every demonstration (`try`, and `also` on a domain pack) names a pack that exists, a
+    fixture that pack or the conformance suite ships, and only nodes that can be disabled."""
     nodes = {n["id"]: n for n in diagram()["nodes"]}
-    fixtures = {p.stem for p in (ROOT / "datasets" / "_starter" / "fixtures" / "fake").iterdir()}
-    fixtures |= {p.stem for p in (ROOT / "spec" / "conformance" / "fixtures").iterdir()}
+    shared = {p.stem for p in (ROOT / "spec" / "conformance" / "fixtures").iterdir()}
     for c in all_chapters():
-        t = c["try"]
-        if not t:
-            continue
-        assert t.get("prompt"), c["slug"]
-        if t.get("fixture"):
-            assert t["fixture"] in fixtures, (c["slug"], t["fixture"])
-        for node_id in t.get("disable") or []:
-            assert nodes[node_id].get("can_disable"), (c["slug"], node_id)
+        demos = [t for t in [c["try"], *c["also"]] if t]
+        assert c["try"], c["slug"]
+        assert c["try"]["pack"] == "_starter", c["slug"]  # the walk's demos share one pack
+        for t in demos:
+            assert t.get("prompt"), c["slug"]
+            pack = ROOT / "datasets" / t["pack"]
+            assert (pack / "pack.yaml").is_file(), (c["slug"], t["pack"])
+            own = {p.stem for p in (pack / "fixtures" / "fake").iterdir()}
+            if t.get("fixture"):
+                assert t["fixture"] in own | shared, (c["slug"], t["pack"], t["fixture"])
+            for node_id in t.get("disable") or []:
+                assert nodes[node_id].get("can_disable"), (c["slug"], node_id)
+        for t in c["also"]:
+            assert t["pack"] != "_starter" and t.get("note"), c["slug"]
 
 
 def test_index_lists_every_chapter() -> None:

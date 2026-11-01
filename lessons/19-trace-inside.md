@@ -2,6 +2,7 @@
 node: trace
 covers: [cost]
 try:
+  pack: _starter
   fixture: read_skill
   prompt: "How long do I have to return order A-1003?"
 ---
