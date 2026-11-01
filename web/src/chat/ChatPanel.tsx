@@ -40,7 +40,9 @@ import { ReplyText, Sources } from './Citations'
 import { Plan, Reasoning } from './Reasoning'
 import { InputGuardBadges, OutputGuardBadges } from './Guardrails'
 import { MemoryTrace, ToolTrace } from './ToolTrace'
+import { usePackPrompts } from './usePackPrompts'
 
+/** The `_starter` pack's prompts, shown until the API lists packs (see usePackPrompts). */
 const TRY_THESE = [
   'What are your support hours?',
   'Where is order A-1001?',
@@ -286,6 +288,7 @@ export function ChatPanel() {
   const exitReplay = useApp((s) => s.exitReplay)
   const replayState = useDisplayTurn()
   const marks = useApp((s) => s.marks)
+  const prompts = usePackPrompts() ?? TRY_THESE
   // Markers go after the turn they followed; one whose turn is not here goes first.
   const marksAfter = useMemo(() => {
     const out = new Map<string | null, OpsMark[]>()
@@ -306,7 +309,7 @@ export function ChatPanel() {
 
   const suggestions = visible.length === 0 && (
     <div className="-mx-3 flex scroll-fade-x no-scrollbar gap-2 overflow-x-auto px-3" role="group" aria-label="Try these">
-      {TRY_THESE.map((t) => (
+      {prompts.map((t) => (
         <Button key={t} type="button" variant="outline" size="sm" className="shrink-0" onClick={() => void send(t)} disabled={busy || sending} data-testid="try-prompt">
           {t}
         </Button>
