@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { opsRole, type OpsRole } from '@/diagram/opsRoles'
 import { KIND_HINT, KIND_ICON, planeStyle } from '@/diagram/planes'
 import { inspectorArtifact } from '@/state/ops'
-import { useDisplayTurn } from '@/state/hooks'
+import { useDisplayTurn, useFeature } from '@/state/hooks'
 import { useApp } from '@/state/store'
 import { CodeView } from './CodeView'
 import { DetailsTab } from './DetailsTab'
@@ -45,8 +45,7 @@ export function InspectorDrawer() {
   const nodeId = useApp((s) => s.selectedNode)
   const diagram = useApp((s) => s.diagram)
   const selectNode = useApp((s) => s.selectNode)
-  const mode = useApp((s) => s.capabilities?.mode)
-  const canDisableNodes = useApp((s) => s.capabilities?.features.disable_nodes !== false)
+  const disableNodes = useFeature('disable_nodes')
   const disabled = useApp((s) => s.disabled)
   const toggleDisabled = useApp((s) => s.toggleDisabled)
   const turn = useDisplayTurn()
@@ -108,7 +107,6 @@ export function InspectorDrawer() {
   const group = diagram?.groups.find((g) => g.id === node.group)
   const KindIcon = KIND_ICON[node.kind]
   const turnOver = turn.phase === 'done' || turn.phase === 'error'
-  const canDisable = node.can_disable && canDisableNodes && mode !== undefined && mode !== 'public'
 
   return (
     <aside
@@ -160,11 +158,20 @@ export function InspectorDrawer() {
             </>
           )}
         </p>
-        {canDisable && (
+        {node.can_disable && disableNodes.enabled && (
           <label className="flex items-center gap-2 text-xs">
             <Switch checked={disabled.includes(node.id)} onCheckedChange={() => toggleDisabled(node.id)} aria-label={`Disable ${node.label} on the next turn`} />
             Disable on the next turn to see what breaks without it
           </label>
+        )}
+        {/* Private-only in public mode: the switch stays, off and disabled, with the reason. */}
+        {node.can_disable && !disableNodes.enabled && (
+          <Hint label={disableNodes.reason}>
+            <span className="flex w-fit items-center gap-2 text-xs text-muted-foreground" tabIndex={0} data-testid="disable-node-off" aria-label={`Disable ${node.label} on the next turn: ${disableNodes.reason}`}>
+              <Switch checked={false} disabled aria-hidden tabIndex={-1} />
+              Disable on the next turn to see what breaks without it
+            </span>
+          </Hint>
         )}
       </header>
       <Tabs value={activeTab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">

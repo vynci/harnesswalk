@@ -1,0 +1,7 @@
+# The P6 live e2e server in public mode (p6.spec.ts starts it on its own port): the fake
+# provider answers from the markdown fixture next to this file, so the chat has a table to render.
+models:
+  providers:
+    fake:
+      fixture_dir: web/e2e-live/fixtures
+      fixture: markdown_reply

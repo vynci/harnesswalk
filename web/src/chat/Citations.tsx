@@ -1,9 +1,11 @@
-// Knowledge citations in the chat: the reply's `[n]` markers become chips, and a Sources list
+// Knowledge citations in the chat: the reply (markdown) has its `[n]` markers as chips, and a Sources list
 // under the reply names every cited chunk. Both open the document reader at that chunk
 // (GET /v1/knowledge/docs/{doc}). The data is `turn_end.summary.citations`, nothing else.
 import { BookOpen } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { lazy, Suspense, useMemo } from 'react'
+import type { Components } from 'react-markdown'
 import type { Citation } from '@/api/types'
+import { rehypeReplyMarks } from '@/lib/markdown'
 import { Button } from '@/components/ui/button'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import {
@@ -17,7 +19,6 @@ import {
   TraceTitle,
 } from '@/components/ui/trace'
 import { cn } from '@/lib/utils'
-import { splitPlaceholders } from '@/state/turnFacts'
 
 /** The number of a citation as a small round chip, shared by the inline citation and Sources. */
 const NUMBER = 'h-5 min-w-5 rounded-full px-1.5 font-mono text-xs tabular-nums'
@@ -55,36 +56,33 @@ export function CitationChip({ citation, onOpen, className }: { citation: Citati
   )
 }
 
-const MARKER = /\[(\d{1,3})\]/g
+// The markdown renderer (react-markdown, remark-gfm) is its own chunk, fetched at start-up in
+// parallel with the API boot; until it lands a reply shows as plain text.
+const markdownChunk = import('@/components/markdown')
+const Markdown = lazy(() => markdownChunk.then((m) => ({ default: m.Markdown })))
 
 /**
- * Reply text with its `[n]` markers as chips (only the numbers the turn cited) and its
- * redaction placeholders (`[EMAIL_1]`) highlighted, so the reader sees both at a glance.
+ * The assistant's reply as GitHub-flavoured markdown, with the turn's citation chips and the
+ * redaction placeholders inside it. While it streams there are no citations yet, so the markers
+ * stay text until the turn ends.
  */
-export function ReplyText({ text, citations, onOpen }: { text: string; citations: Citation[]; onOpen: (c: Citation) => void }) {
-  const byN = new Map(citations.map((c) => [c.n, c]))
-  const out: ReactNode[] = []
-  let key = 0
-  for (const part of splitPlaceholders(text)) {
-    if (part.placeholder) {
-      out.push(
-        <mark key={key++} className="rounded-md bg-state-waiting/15 px-1 font-mono text-[0.92em] text-foreground" data-testid="placeholder">
-          {part.text}
-        </mark>,
-      )
-      continue
+export function ReplyMarkdown({ text, citations, onOpen }: { text: string; citations: Citation[]; onOpen: (c: Citation) => void }) {
+  const plugins = useMemo(() => [rehypeReplyMarks(new Set(citations.map((c) => c.n)))], [citations])
+  const components = useMemo<Components>(() => {
+    const byN = new Map(citations.map((c) => [c.n, c]))
+    return {
+      span: ({ node: _node, ...props }) => {
+        const n = (props as Record<string, unknown>)['data-hw-cite']
+        const c = n !== undefined ? byN.get(Number(n)) : undefined
+        return c ? <CitationChip citation={c} onOpen={onOpen} /> : <span {...props} />
+      },
     }
-    let last = 0
-    for (const m of part.text.matchAll(MARKER)) {
-      const c = byN.get(Number(m[1]))
-      if (!c) continue
-      if (m.index! > last) out.push(part.text.slice(last, m.index))
-      out.push(<CitationChip key={key++} citation={c} onOpen={onOpen} />)
-      last = m.index! + m[0].length
-    }
-    if (last < part.text.length) out.push(part.text.slice(last))
-  }
-  return <>{out}</>
+  }, [citations, onOpen])
+  return (
+    <Suspense fallback={<p className="whitespace-pre-wrap">{text}</p>}>
+      <Markdown text={text} rehypePlugins={plugins} components={components} />
+    </Suspense>
+  )
 }
 
 /**

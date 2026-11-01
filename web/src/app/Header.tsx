@@ -1,4 +1,5 @@
-import { Copy, Ellipsis, Moon, RotateCcw, Sun } from 'lucide-react'
+import { Copy, Ellipsis, Hourglass, Moon, RotateCcw, Sun } from 'lucide-react'
+import { Logo } from '@/components/logo'
 import { Hint } from '@/components/hint'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,6 +17,8 @@ import { LessonsButton } from '@/lessons/LessonsButton'
 import { fixtureChoices, packTitle } from '@/state/packs'
 import { useApp } from '@/state/store'
 import { PackPicker } from './PackPicker'
+import { leftText } from './sandbox'
+import { useNow } from './useSandbox'
 import { useDarkTheme } from './useTheme'
 
 const AUTO = '__auto__'
@@ -81,6 +84,36 @@ function SessionMenu() {
   )
 }
 
+/**
+ * Public mode: how long this browser's sandbox session has left. When it ends, the API deletes
+ * everything in it (sessions, turns, memory), so the header says so in plain words.
+ */
+function SessionCountdown() {
+  const expiresAt = useApp((s) => (s.capabilities?.mode === 'public' ? (s.capabilities.public?.session_expires_at ?? null) : null))
+  const now = useNow(15_000)
+  if (!expiresAt) return null
+  const end = Date.parse(expiresAt)
+  if (!Number.isFinite(end)) return null
+  const left = end - now
+  const text = left > 0 ? `${leftText(left)} left` : 'ended'
+  const full = left > 0 ? `Sandbox session: ${leftText(left)} left, then everything here is deleted` : 'Sandbox session ended: everything here was deleted. Your next message starts a fresh one.'
+  return (
+    <Hint label={full}>
+      <span
+        className={`flex items-center gap-1.5 text-xs tabular-nums ${left <= 5 * 60_000 ? 'text-state-waiting' : 'text-muted-foreground'}`}
+        data-testid="session-countdown"
+        data-expires-at={expiresAt}
+        aria-label={full}
+        tabIndex={0}
+      >
+        <Hourglass className="size-3.5" aria-hidden />
+        <span className="hidden lg:inline">Sandbox session: {text}, then everything here is deleted</span>
+        <span className="lg:hidden">{text}</span>
+      </span>
+    </Hint>
+  )
+}
+
 export function Header() {
   const capabilities = useApp((s) => s.capabilities)
   const mock = useApp((s) => s.mock)
@@ -98,7 +131,8 @@ export function Header() {
 
   return (
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2">
-      <div className="flex items-baseline gap-2">
+      <div className="flex items-center gap-2">
+        <Logo className="h-5 w-auto shrink-0 text-brand" data-testid="brand-mark" />
         <h1 className="text-base font-medium tracking-tight">harnesswalk</h1>
         <span className="hidden text-xs text-muted-foreground md:inline">walk through an AI harness, one node at a time</span>
       </div>
@@ -110,6 +144,7 @@ export function Header() {
           </Badge>
         </Hint>
       )}
+      <SessionCountdown />
       {invalidEvents > 0 && (
         <Hint label="Events that failed schema validation (see the console)">
           <Badge variant="destructive">{invalidEvents} invalid events</Badge>

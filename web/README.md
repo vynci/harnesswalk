@@ -132,6 +132,14 @@ run as against the real API. It:
   indentation for `Class.method`) and the node whose code peek is that file. A chapter that is
   not there answers 404 `lesson_not_found`, a file the chapter does not link to 404
   `source_not_found`.
+- P6: a message asking for a `table` or `markdown` gets the markdown reply of
+  `src/mock/markdown.ts` (headings, lists, a table, code, a link). `?mode=public` serves the
+  public site instead of dev: `capabilities.public` with Claude Sonnet out of today's budget
+  (`&budget=spent` for both Claude models), no seeded history, the model allowlist (400), 409
+  `budget_exhausted` for an unavailable model sent without the provider key header, a 429 with
+  `Retry-After` once the requests left this hour run out (`&mockRemaining=0` for the first
+  turn), and a sandbox session of `&mockTtl=` seconds (default 7200) after which every turn and
+  session is gone.
 
 The mock and the schema validator are dynamic imports behind build-time constants, so a
 production build contains neither (nor the chapters the mock bundles). The diagram (React Flow), the inspector and shiki are their
@@ -182,6 +190,31 @@ channels (`--plane-*`, `--state-*`, `--kind-*`, `--edge-*`). `@theme inline` map
 Tailwind colours, so components write `bg-card`, `text-state-waiting` or `text-kind-store`,
 never a hex value. A restyle is an edit to that one file; `colors.test.ts` checks the contrast
 of the diagram tokens in both themes.
+
+The brand (P6, the owner's palette) sets `--primary` `#0ea47a` (hover `--primary-hover`
+`#0a7557`; in dark mode the primary is `#0a7557`), `--ring` `#12d39d`, `--accent` a mint wash
+of it, `--border`, `--input` and `--muted` `#e6e6e6`, `--foreground` and the dark background
+`#111111`, the light background `#ffffff`, `--state-active` (the lit node's glow and the active
+edge's glow: `#0a7557` in light mode, where `#12d39d` falls under 3:1, `#12d39d` in dark) and
+`::selection`. `--brand` colours the header mark (`src/components/logo.tsx`, the same path as
+`public/favicon.svg`). The plane hues and the bone node surface are unchanged.
+
+### Public mode and private-only controls (P6)
+
+`useFeature(name)` (`src/state/hooks.ts` over `src/state/features.ts`) returns `{enabled,
+reason}` for `artifact_edit`, `uploads`, `memory_review`, `evals`, `judge`, `release`,
+`disable_nodes` and `diagnose`. In public mode every one is disabled with the contract's reason
+("Editing needs a private workspace. Coming later."), and the control stays on screen with
+`aria-disabled` and a Tooltip on its wrapper, never hidden; read-only views (trace, replay,
+audit, the releases list, lessons, packs) stay live. The composer's Model Selector lists
+`capabilities.public.models` (unavailable ones disabled with the reason as a tooltip, the
+default preselected), the key button holds a bring-your-own key in memory only and sends it as
+`X-Harnesswalk-Provider-Key` on each turn, the header counts down `session_expires_at`, and the
+Context hover card on the status bar shows the requests left this hour, the step cap and the
+token cap. Capabilities are read again after every turn and every 60 s while the tab is visible.
+Replies and knowledge documents render as GitHub-flavoured markdown (`src/components/markdown.tsx`:
+react-markdown and remark-gfm, fenced code on the Code Block, links in a new tab, raw HTML
+dropped), the chat's citation chips and redaction placeholders included.
 
 ### The style rules
 

@@ -11,6 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import { Hint } from '@/components/hint'
+import { useFeature } from '@/state/hooks'
 import { useApp } from '@/state/store'
 import { KeyValues } from './DataView'
 import { isRecord } from './shapes'
@@ -280,7 +282,7 @@ export function WritesView({ writes }: { writes: MemoryProposal[] }) {
 
 /** Proposals waiting at the review gate, with Accept and Reject when this mode allows review. */
 export function PendingView({ pending }: { pending: MemoryProposal[] }) {
-  const review = useApp((s) => s.capabilities?.features.memory_review === true)
+  const review = useFeature('memory_review')
   const decideProposal = useApp((s) => s.decideProposal)
   const [busy, setBusy] = useState<string | null>(null)
   if (pending.length === 0) return <p className="text-xs text-muted-foreground">Nothing waiting at the review gate.</p>
@@ -291,22 +293,42 @@ export function PendingView({ pending }: { pending: MemoryProposal[] }) {
   }
   return (
     <div className="flex flex-col gap-2" data-testid="memory-pending">
-      {!review && <p className="text-xs text-muted-foreground">Review is off in this mode: nothing here can be accepted.</p>}
+      {!review.enabled && <p className="text-xs text-muted-foreground">{review.reason}</p>}
       {pending.map((p) => (
         <Card key={p.proposal_id} className="gap-1.5 py-2 shadow-none" data-testid="pending-proposal" data-store={p.store}>
           <ProposalHead p={p} />
           <CardContent className="flex flex-col gap-1.5 px-2.5 text-xs">
             <span className="break-words">{contentText(p.content)}</span>
-            {review && (
-              <div className="flex gap-1.5">
-                <Button size="xs" onClick={() => void decide(p.proposal_id, 'accept')} disabled={busy !== null} aria-label={`Accept proposal ${p.proposal_id}`}>
+            {/* Private-only in public mode: the buttons stay, disabled, with the reason (useFeature). */}
+            <div className="flex gap-1.5">
+              <Hint label={review.reason ?? 'Write it to memory'} side="top">
+                <Button
+                  size="xs"
+                  onClick={() => review.enabled && void decide(p.proposal_id, 'accept')}
+                  disabled={busy !== null}
+                  aria-disabled={!review.enabled || undefined}
+                  className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                  aria-label={`Accept proposal ${p.proposal_id}`}
+                  data-testid="proposal-accept"
+                >
                   <Check aria-hidden /> Accept
                 </Button>
-                <Button size="xs" variant="outline" onClick={() => void decide(p.proposal_id, 'reject')} disabled={busy !== null} aria-label={`Reject proposal ${p.proposal_id}`}>
+              </Hint>
+              <Hint label={review.reason ?? 'Drop it: nothing is written'} side="top">
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => review.enabled && void decide(p.proposal_id, 'reject')}
+                  disabled={busy !== null}
+                  aria-disabled={!review.enabled || undefined}
+                  className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                  aria-label={`Reject proposal ${p.proposal_id}`}
+                  data-testid="proposal-reject"
+                >
                   <X aria-hidden /> Reject
                 </Button>
-              </div>
-            )}
+              </Hint>
+            </div>
           </CardContent>
         </Card>
       ))}

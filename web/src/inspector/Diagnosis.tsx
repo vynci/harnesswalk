@@ -6,6 +6,7 @@ import type { Diagnosis } from '@/api/types'
 import { Hint } from '@/components/hint'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useFeature } from '@/state/hooks'
 import { useApp } from '@/state/store'
 import { LAYER_HINT, layerLabel } from './p5View'
 
@@ -57,7 +58,7 @@ export function DiagnosisView({ diagnosis }: { diagnosis: Pick<Diagnosis, 'layer
 
 /**
  * The stored diagnosis, or a Diagnose button that asks for one (POST /v1/diagnose) and shows it.
- * Hidden without `features.diagnose`.
+ * Without `features.diagnose` (public mode) the button stays, disabled, with the reason.
  */
 export function DiagnoseAction({
   stored,
@@ -68,21 +69,22 @@ export function DiagnoseAction({
   target: { run_id?: string; case_id: string } | { turn_id: string }
   label?: string
 }) {
-  const on = useApp((s) => s.capabilities?.features.diagnose === true)
+  const feature = useFeature('diagnose')
   const diagnose = useApp((s) => s.diagnose)
   const [mine, setMine] = useState<Diagnosis | null>(null)
   const [busy, setBusy] = useState(false)
   const shown = mine ?? stored
   if (shown) return <DiagnosisView diagnosis={shown} />
-  if (!on) return null
   return (
-    <Hint label="Read the stored trace and name the layer at fault: retrieval, prompt or skill, tool, model, guardrail or budget" side="top">
+    <Hint label={feature.reason ?? 'Read the stored trace and name the layer at fault: retrieval, prompt or skill, tool, model, guardrail or budget'} side="top">
       <Button
         size="xs"
         variant="outline"
-        className="self-start"
+        className="self-start aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
         disabled={busy}
+        aria-disabled={!feature.enabled || undefined}
         onClick={async () => {
+          if (!feature.enabled) return
           setBusy(true)
           const out = await diagnose(target)
           setBusy(false)

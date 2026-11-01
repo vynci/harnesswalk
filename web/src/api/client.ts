@@ -61,13 +61,31 @@ export class ApiError extends Error {
   readonly status: number
   readonly code: string
   readonly body: unknown
-  constructor(status: number, code: string, message: string, body?: unknown) {
+  /** P6: seconds to wait, from a 429's `Retry-After` header (or its body's `retry_after`). */
+  readonly retryAfter: number | null
+  constructor(status: number, code: string, message: string, body?: unknown, retryAfter: number | null = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     this.body = body
+    this.retryAfter = retryAfter
   }
+}
+
+/**
+ * The BYO key header (http_api.md, P3, kept in P6): sent on POST /v1/turns only, never stored by
+ * the web app beyond the tab's memory.
+ */
+export const PROVIDER_KEY_HEADER = 'X-Harnesswalk-Provider-Key'
+
+function retryAfterOf(res: Response, data: unknown): number | null {
+  const header = res.headers.get('Retry-After')
+  const fromHeader = header !== null && /^\d+$/.test(header.trim()) ? Number(header) : header ? Math.max(0, Math.round((Date.parse(header) - Date.now()) / 1000)) : NaN
+  if (Number.isFinite(fromHeader)) return fromHeader
+  const body = (data as { error?: { retry_after?: unknown }; retry_after?: unknown } | undefined) ?? {}
+  const value = body.error?.retry_after ?? body.retry_after
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
 export function browserTransport(baseUrl = ''): Transport {
@@ -114,10 +132,13 @@ export function createApi(t: Transport) {
   let pack: string | null = null
   const scoped = (extra: Record<string, string | number | undefined | null> = {}) => query({ ...extra, pack })
 
-  async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+  async function call<T>(method: string, path: string, body?: unknown, extra?: Record<string, string>): Promise<T> {
     const res = await t.fetch(`${t.baseUrl}${path}`, {
       method,
-      headers: body === undefined ? { Accept: 'application/json' } : { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: {
+        ...(body === undefined ? { Accept: 'application/json' } : { 'Content-Type': 'application/json', Accept: 'application/json' }),
+        ...extra,
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
       credentials: 'include',
     })
@@ -132,7 +153,7 @@ export function createApi(t: Transport) {
     }
     if (!res.ok) {
       const err = (data as ApiErrorBody | undefined)?.error
-      throw new ApiError(res.status, err?.code ?? `http_${res.status}`, err?.message ?? res.statusText, data)
+      throw new ApiError(res.status, err?.code ?? `http_${res.status}`, err?.message ?? res.statusText, data, res.status === 429 ? retryAfterOf(res, data) : null)
     }
     return data as T
   }
@@ -141,7 +162,9 @@ export function createApi(t: Transport) {
     transport: t,
     capabilities: () => call<Capabilities>('GET', '/v1/capabilities'),
     diagram: () => call<Diagram>('GET', '/v1/diagram'),
-    startTurn: (req: StartTurnRequest) => call<StartTurnResponse>('POST', '/v1/turns', req),
+    /** POST /v1/turns; `apiKey` (P6, BYO key) goes in the provider key header for this turn only. */
+    startTurn: (req: StartTurnRequest, opts: { apiKey?: string | null } = {}) =>
+      call<StartTurnResponse>('POST', '/v1/turns', req, opts.apiKey ? { [PROVIDER_KEY_HEADER]: opts.apiKey } : undefined),
     turn: (turnId: string) => call<TurnSummary>('GET', `/v1/turns/${encodeURIComponent(turnId)}`),
     sessionTurns: (sessionId: string, limit = 50) =>
       call<TurnSummary[]>('GET', `/v1/sessions/${encodeURIComponent(sessionId)}/turns?limit=${limit}`),
