@@ -153,7 +153,7 @@ export function Composer({
           aria-invalid={tooLong}
           data-testid="composer-input"
         />
-        <InputGroupAddon align="block-end" className="gap-1.5 pt-1">
+        <InputGroupAddon align="block-end" className="flex-wrap gap-1.5 pt-1">
           <Hint label={uploads.reason ?? 'Attach files'} side="top">
             <InputGroupButton
               size="icon-sm"
