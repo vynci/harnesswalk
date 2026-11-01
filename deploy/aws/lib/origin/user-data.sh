@@ -99,6 +99,10 @@ tmp="$(mktemp /srv/harnesswalk/.compose.env.XXXXXX)"
   echo "HARNESSWALK_ORIGIN_HOST='$HW_ORIGIN_HOST'"
   echo "HARNESSWALK_LOG_GROUP='$HW_LOG_GROUP'"
   echo "AWS_REGION='$HW_REGION'"
+  # Optional String parameter: the shared hosted budget in USD per UTC day.
+  budget="$(aws ssm get-parameter --name "$HW_SSM_PREFIX/HARNESSWALK_PUBLIC_BUDGET_USD" \
+    --query Parameter.Value --output text 2>/dev/null || true)"
+  [ -z "$budget" ] || echo "HARNESSWALK_PUBLIC_BUDGET_USD='$budget'"
 } >"$tmp"
 mv "$tmp" compose.env
 umask 022
