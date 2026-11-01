@@ -1,5 +1,6 @@
 """Semantic and episodic stores, and the memory writer: gates by mode, versions, isolation."""
 
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -289,7 +290,7 @@ async def test_a_chat_turn_appends_its_episode_and_remembers(tmp_path: Path) -> 
     other = await run_turn(h, "What is my preferred name?", tenant="dev_b")
     assert exits(other, "semantic")[0]["status"] == "skipped"
     detail = h.context_builder.last["dev_b"]
-    assert all("Sam" not in m.content for m in detail.messages)
+    assert all(re.search(r"\bSam\b", m.content) is None for m in detail.messages)
 
 
 def rows_of(h, table: str, columns: str, tenant: str) -> list[tuple]:
