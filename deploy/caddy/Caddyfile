@@ -46,6 +46,9 @@
 			reverse_proxy api:8000 {
 				# One hop the API can trust (HARNESSWALK_TRUST_PROXY=1): the viewer address.
 				header_up X-Forwarded-For {client_ip}
+				# The API prefers CloudFront-Viewer-Address over X-Forwarded-For, and a viewer can
+				# send one of its own: drop it, so the hop above is the only address the API sees.
+				header_up -CloudFront-Viewer-Address
 				header_up -X-Origin-Verify
 				# SSE: write every event as it arrives.
 				flush_interval -1
