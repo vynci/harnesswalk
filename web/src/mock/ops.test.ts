@@ -59,12 +59,22 @@ describe('mock ops: artifacts, evals and releases', () => {
     const replayed = await loadTurnEvents(server.transport(), shipped.turn_id!, undefined, shipped.events_url!)
     expect(replayed[replayed.length - 1]!.type).toBe('turn_end')
 
-    const r2 = await api.createRelease('find_order experiment')
-    expect(r2).toMatchObject({ release_id: 'r2', active: true, note: 'find_order experiment' })
+    // P5: the eval gate runs the pack's golden set first and refuses the regressed working set.
+    const refused = await api.createRelease('find_order experiment')
+    expect(refused.release).toBeUndefined()
+    expect(refused.gateFailed?.gate).toMatchObject({ status: 'failed', reason: 'below_min_pass_rate', pass_rate: 0.6667, failed_cases: ['status_shipped', 'status_arrival', 'status_unknown'] })
+    expect(refused.gateFailed?.cases.map((c) => c.case_id)).toEqual(['status_shipped', 'status_arrival', 'status_unknown'])
+    expect(refused.gateFailed?.cases[0]?.events_url).toMatch(/\/cases\/status_shipped\/events$/)
+    const gateRun = (await api.evalRuns({ limit: 1 }))[0]!
+    expect(gateRun.purpose).toBe('release_gate')
+    // Release anyway: dev only, skips the gate, audited as release_forced.
+    const r2 = (await api.createRelease('find_order experiment', { force: true })).release!
+    expect(r2).toMatchObject({ release_id: 'r2', active: true, note: 'find_order experiment', gate: { status: 'skipped', reason: 'forced', forced: true } })
+    expect((await api.audit()).records[0]?.entry).toMatchObject({ action: 'release_forced', extra: { pack: '_starter', release_id: 'r2' } })
     const detail = await api.release('r2')
     expect(detail.diff_from_previous).toEqual([expect.objectContaining({ kind: 'skill', name: 'order_status', from_version: 1, to_version: 2 })])
     const list = await api.releaseList()
-    expect(list.verify.ok).toBe(true)
+    expect(list.verify).toMatchObject({ ok: true, releases: 2, activations: 2 })
     expect(r2.prev_hash).toBe(list.releases[1]!.hash)
     expect(list.releases.map((r) => [r.release_id, r.active])).toEqual([
       ['r2', true],
@@ -119,12 +129,18 @@ describe('mock ops: the tenant ops stream', () => {
     await finished(api, run_id)
     stream.close()
     const types = seen.map((e) => e.type)
-    expect(types.slice(0, 4)).toEqual(['artifact_changed', 'artifact_released', 'artifact_released', 'feedback_recorded'])
-    expect(types[4]).toBe('eval_run_started')
+    // The release ran its gate first (P5): a golden run with purpose release_gate, then release_gated.
+    const gate = types.indexOf('release_gated')
+    expect(types.slice(0, 2)).toEqual(['artifact_changed', 'eval_run_started'])
+    expect(seen[1]!.summary).toMatchObject({ purpose: 'release_gate', pack: '_starter' })
+    expect(seen[gate]!.summary).toMatchObject({ status: 'done', gate: { status: 'passed' } })
+    const rest = seen.slice(gate + 1)
+    expect(rest.slice(0, 3).map((e) => e.type)).toEqual(['artifact_released', 'artifact_released', 'feedback_recorded'])
+    expect(rest[0]!.summary).toMatchObject({ release_id: 'r2', previous_active: 'r1', gate: { status: 'passed' } })
+    expect(rest[1]!.summary).toMatchObject({ release_id: 'r1', rollback_of: 'r2' })
+    expect(rest[2]).toMatchObject({ turn_id: 'turn_tool_call', stream: 'ops' })
+    expect(rest[3]!.type).toBe('eval_run_started')
     expect(types[types.length - 1]).toBe('eval_run_finished')
-    expect(seen[1]!.summary).toMatchObject({ release_id: 'r2', previous_active: 'r1' })
-    expect(seen[2]!.summary).toMatchObject({ release_id: 'r1', rollback_of: 'r2' })
-    expect(seen[3]).toMatchObject({ turn_id: 'turn_tool_call', stream: 'ops' })
     const cursors = seen.map((e) => e.cursor!)
     expect(cursors).toEqual(cursors.map((_, i) => cursors[0]! + i))
   })

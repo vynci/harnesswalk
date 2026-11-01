@@ -58,3 +58,13 @@ describe('symbolLine', () => {
     expect(symbolLine(src, 'B.g')).toBe(7)
   })
 })
+
+describe('lesson demonstrations (P5 integration)', () => {
+  it('spells out the try pack and lists the same demonstration on a domain pack', async () => {
+    const lessons = new MockServer({ stepMs: 0 }).lessons
+    expect(lessons.get('01-gateway')?.try?.pack).toBe('_starter')
+    const writer = lessons.get('12-memory_writer')!
+    expect(writer.also).toEqual([expect.objectContaining({ pack: 'finance', disable: ['memory_writer'], fixture: 'mem_reporting_currency_set' })])
+    expect(writer.also![0]!.note).toMatch(/Nothing is written/)
+  })
+})

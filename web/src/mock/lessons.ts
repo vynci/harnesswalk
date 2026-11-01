@@ -3,7 +3,7 @@
 // with its markdown, try and code links (lines found by a regex over the real source), and the
 // source of a file the chapter links to.
 import { parse } from 'yaml'
-import type { Diagram, Lesson, LessonListItem, LessonSource, LessonTry } from '@/api/types'
+import type { Diagram, Lesson, LessonAlso, LessonListItem, LessonSource, LessonTry } from '@/api/types'
 import { sourceFor } from './repo'
 
 const files = import.meta.glob('../../../lessons/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
@@ -107,7 +107,9 @@ export class MockLessons {
           words: words(body),
           url: `/v1/lessons/${slug}`,
           markdown: body.replace(/^\n+/, ''),
-          try: meta.try && typeof meta.try === 'object' ? (meta.try as LessonTry) : null,
+          // P5 integration: the pack is spelled out (`_starter` when the chapter names none).
+          try: meta.try && typeof meta.try === 'object' ? ({ pack: '_starter', ...(meta.try as LessonTry) } as LessonTry) : null,
+          also: Array.isArray(meta.also) ? (meta.also.filter((a) => a && typeof a === 'object') as LessonAlso[]) : [],
           code_links,
         }
       })

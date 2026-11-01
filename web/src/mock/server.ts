@@ -17,7 +17,8 @@ import type {
 import { EXAMPLE_MESSAGES, EXAMPLE_NAMES, EXAMPLES, servedDiagram, type ExampleName } from './examples'
 import { MockLessons } from './lessons'
 import { MockEvalEventSource, MockOps, MockOpsEventSource } from './ops'
-import { repoFile, repoFilesUnder, sourceFor } from './repo'
+import { allFixtures, DEFAULT_PACK, PACK_IDS, packDetail, packFiles, packSummary } from './packs'
+import { repoFile, sourceFor } from './repo'
 
 export interface MockOptions {
   /** Milliseconds between streamed events. 0 plays as fast as timers allow. */
@@ -51,6 +52,8 @@ interface MockTurn {
   deltasSent: boolean
   /** Step-over: the next breakpoints on expert children are skipped. */
   stepOver?: boolean
+  /** P5: the pack of the turn's session. */
+  pack: string
 }
 
 const TENANT = 'dev'
@@ -155,6 +158,9 @@ export class MockServer {
   private counter = 0
   readonly ops: MockOps
   readonly lessons: MockLessons
+  /** P5: every session's pack (fixed at its first turn or by POST /v1/sessions). */
+  private sessions = new Map<string, { pack: string; createdAt: string }>()
+  private loadedPacks = new Set<string>([DEFAULT_PACK])
 
   constructor(opts: MockOptions = {}) {
     this.opts = { stepMs: opts.stepMs ?? 140, seed: opts.seed ?? true, messageDelta: opts.messageDelta ?? true }
@@ -166,7 +172,8 @@ export class MockServer {
       diagram: this.diagram,
       turns: () => [...this.turns.values()],
       anyRunning: () => [...this.turns.values()].some((t) => t.status !== 'done'),
-      addFinishedTurn: (example, message, sessionId, reply) => this.addFinishedTurn(example, message, sessionId, reply),
+      addFinishedTurn: (example, message, sessionId, reply, pack) => this.addFinishedTurn(example, message, sessionId, reply, pack),
+      packOf: (turnId) => this.turns.get(turnId)?.pack ?? DEFAULT_PACK,
     })
     if (this.opts.seed) {
       this.seedHistory()
@@ -175,7 +182,7 @@ export class MockServer {
   }
 
   /** A finished turn played instantly from a recorded stream (an eval case), with fresh ids. */
-  private addFinishedTurn(example: ExampleName, message: string, sessionId: string, reply?: string): string {
+  private addFinishedTurn(example: ExampleName, message: string, sessionId: string, reply?: string, pack = DEFAULT_PACK): string {
     const turnNo = ++this.counter
     const id = `turn_${String(turnNo).padStart(3, '0')}_${hex(6)}`
     const traceId = hex(32)
@@ -183,6 +190,7 @@ export class MockServer {
     const events = EXAMPLES[example].map((e, seq) => {
       const t = toTemplate(e)
       if (t.type === 'turn_end' && reply !== undefined) t.summary = { ...t.summary, reply }
+      if (t.type === 'turn_start') t.summary = { ...t.summary, pack }
       return {
         ...t,
         event_id: `evt_${id}_${String(seq).padStart(3, '0')}`,
@@ -214,6 +222,7 @@ export class MockServer {
       sources: new Set(),
       disabled: new Set(),
       deltasSent: true,
+      pack,
     })
     return id
   }
@@ -249,7 +258,9 @@ export class MockServer {
         sources: new Set(),
         disabled: new Set(),
         deltasSent: true,
+        pack: DEFAULT_PACK,
       })
+      this.sessions.set(first.session_id, { pack: DEFAULT_PACK, createdAt: first.ts })
     }
   }
 
@@ -302,23 +313,61 @@ export class MockServer {
       const sid = decodeURIComponent(m[1]!)
       const limit = Number(url.searchParams.get('limit') ?? 50)
       const list = [...this.turns.values()].filter((t) => t.sessionId === sid)
-      if (list.length === 0) return apiError(404, 'session_not_found', 'No such session for this tenant.')
+      if (list.length === 0 && !this.sessions.has(sid)) return apiError(404, 'session_not_found', 'No such session for this tenant.')
       list.sort((a, b) => a.createdAt - b.createdAt)
       const indexed = list.map((t, i) => ({ ...summarize(t, i), ...this.ops.turnExtras(t.id) }))
       return json(200, indexed.reverse().slice(0, limit))
     }
+    // P5: the packs, sessions on a pack, and a pack's files.
+    if (method === 'GET' && p === '/v1/packs') return json(200, { default: DEFAULT_PACK, packs: PACK_IDS.map((id) => packSummary(id, this.loadedPacks)) })
+    if ((m = p.match(/^\/v1\/packs\/([^/]+)\/files\/(.+)$/)) && method === 'GET') {
+      const id = decodeURIComponent(m[1]!)
+      const path = m[2]!.split('/').map(decodeURIComponent).join('/')
+      if (!PACK_IDS.includes(id)) return apiError(404, 'pack_not_found', `No dataset pack ${id}.`)
+      const file = packFiles(id).find((f) => f.path === path)
+      return file ? json(200, { pack: id, path: file.path, bytes: file.bytes, role: file.role, kind: file.kind, text: file.text }) : apiError(404, 'file_not_found', `No file ${path} in pack ${id}.`)
+    }
+    if ((m = p.match(/^\/v1\/packs\/([^/]+)$/)) && method === 'GET') {
+      const detail = packDetail(decodeURIComponent(m[1]!), this.loadedPacks)
+      return detail ? json(200, detail) : apiError(404, 'pack_not_found', `No dataset pack ${m[1]}.`)
+    }
+    if (method === 'POST' && p === '/v1/sessions') {
+      const pack = typeof body.pack === 'string' ? body.pack : DEFAULT_PACK
+      if (!PACK_IDS.includes(pack)) return apiError(422, 'invalid_request', `no dataset pack '${pack}'`)
+      const sid = `sess_${hex(20)}`
+      const createdAt = new Date().toISOString()
+      this.sessions.set(sid, { pack, createdAt })
+      this.loadedPacks.add(pack)
+      this.ops.ensure(pack)
+      return json(201, { session_id: sid, pack, tenant_id: TENANT, created_at: createdAt })
+    }
+    if ((m = p.match(/^\/v1\/sessions\/([^/]+)$/)) && method === 'GET') {
+      const sid = decodeURIComponent(m[1]!)
+      const info = this.sessions.get(sid)
+      if (!info) return apiError(404, 'session_not_found', `No session ${sid} for this tenant.`)
+      return json(200, { session_id: sid, pack: info.pack, tenant_id: TENANT, created_at: info.createdAt, turns: [...this.turns.values()].filter((t) => t.sessionId === sid).length })
+    }
     if ((m = p.match(/^\/v1\/nodes\/([^/]+)\/source$/)) && method === 'GET') return this.nodeSource(decodeURIComponent(m[1]!))
-    if ((m = p.match(/^\/v1\/nodes\/([^/]+)$/)) && method === 'GET') return this.node(decodeURIComponent(m[1]!))
+    if ((m = p.match(/^\/v1\/nodes\/([^/]+)$/)) && method === 'GET') return this.node(decodeURIComponent(m[1]!), this.packParam(url))
     // P3 context and control plane routes, over the starter pack's documents. The mock never
     // writes memory, so there is nothing to review, and it keeps no audit chain.
-    if (method === 'GET' && p === '/v1/knowledge/docs') return json(200, { pack: '_starter', docs: mockDocs().map(({ text: _t, chunks, ...d }) => ({ ...d, chunks: chunks.length })) })
+    if (method === 'GET' && p === '/v1/knowledge/docs') {
+      const pack = this.packParam(url)
+      return json(200, { pack, docs: mockDocs(pack).map(({ text: _t, chunks, ...d }) => ({ ...d, chunks: chunks.length })) })
+    }
     if ((m = p.match(/^\/v1\/knowledge\/docs\/([^/]+)$/)) && method === 'GET') {
-      const doc = mockDocs().find((d) => d.doc_id === decodeURIComponent(m![1]!))
+      const doc = mockDocs(this.packParam(url)).find((d) => d.doc_id === decodeURIComponent(m![1]!))
       return doc ? json(200, doc) : apiError(404, 'doc_not_found', 'No such document.')
     }
-    if (method === 'GET' && p === '/v1/memory/proposals') return json(200, { proposals: [] })
+    if (method === 'GET' && p === '/v1/memory/proposals') {
+      const pack = url.searchParams.get('pack')
+      return json(200, { proposals: [], ...(pack ? { pack } : {}) })
+    }
     if ((m = p.match(/^\/v1\/memory\/proposals\/([^/]+)$/)) && method === 'POST') return apiError(404, 'proposal_not_found', 'The mock has no proposals.')
-    if (method === 'GET' && p === '/v1/audit') return json(200, { tenant_id: 'dev', verify: { ok: true, records: 0 }, records: [], next_since: null })
+    if (method === 'GET' && p === '/v1/audit') {
+      const records = this.ops.audit
+      return json(200, { tenant_id: 'dev', verify: { ok: true, records: records.length }, records, next_since: null })
+    }
     // P5: the lesson chapters, from the real files in lessons/.
     if (method === 'GET' && p === '/v1/lessons') return json(200, this.lessons.list())
     if ((m = p.match(/^\/v1\/lessons\/([^/]+)\/source$/)) && method === 'GET') {
@@ -333,7 +382,7 @@ export class MockServer {
     }
     // P4: evals, artifacts, releases, feedback and the trace query.
     const ops = this.ops.handle(method, url, body)
-    if (ops) return ops
+    if (ops) return await ops
     return apiError(404, 'not_found', `No route ${method} ${p} in the mock.`)
   }
 
@@ -346,7 +395,8 @@ export class MockServer {
         { name: 'fake', configured: true, default: true, models: ['fake-small'] },
         { name: 'ollama', configured: false, default: false, models: ['llama3.1:8b'] },
       ],
-      fixtures: [...EXAMPLE_NAMES],
+      // P5: the shared fixture and every pack's own (GET /v1/packs says which are whose).
+      fixtures: allFixtures(),
       features: {
         step_mode: true,
         approvals: true,
@@ -362,7 +412,11 @@ export class MockServer {
         artifact_edit: true,
         feedback: true,
         step_over: true,
+        packs: true,
+        diagnose: true,
       },
+      packs: { default: DEFAULT_PACK, ids: [...PACK_IDS] },
+      repo_url: 'https://github.com/vynci/harnesswalk',
       limits: { max_message_chars: 4000, max_steps: 8, session_ttl_seconds: null },
       release: this.ops.releaseState(),
     }
@@ -377,6 +431,15 @@ export class MockServer {
     const sessionId = req.session_id ?? `sess_${hex(10)}`
     const busy = [...this.turns.values()].find((t) => t.sessionId === sessionId && t.status !== 'done')
     if (busy) return apiError(409, 'turn_in_progress', `Turn ${busy.id} is still running in this session.`)
+    // P5: a session's pack is fixed; a new session starts on the pack its options name.
+    const asked = req.options?.pack
+    const known = this.sessions.get(sessionId)
+    if (asked !== undefined && !PACK_IDS.includes(asked)) return apiError(422, 'invalid_request', `no dataset pack '${asked}'`)
+    if (known && asked && asked !== known.pack) return apiError(422, 'invalid_request', 'the dataset is fixed after the first turn')
+    const pack = known?.pack ?? asked ?? DEFAULT_PACK
+    if (!known) this.sessions.set(sessionId, { pack, createdAt: new Date().toISOString() })
+    this.loadedPacks.add(pack)
+    this.ops.ensure(pack)
     const name = pickExample(req)
     const disabled = new Set((req.disable ?? []).filter((id) => this.diagram.nodes.some((n) => n.id === id && n.can_disable)))
     const turnNo = ++this.counter
@@ -385,7 +448,7 @@ export class MockServer {
       t.summary && typeof t.summary.approval_id === 'string' ? { ...t, summary: { ...t.summary, approval_id: approvalId } } : t,
     )
     const first = templates.shift()!
-    first.summary = { ...first.summary, step_mode: req.step === true, message_chars: req.message.length }
+    first.summary = { ...first.summary, step_mode: req.step === true, message_chars: req.message.length, pack }
     const pauseAt = templates.findIndex((t) => t.type === 'node_paused' && t.summary?.reason === 'approval')
     const turn: MockTurn = {
       id: `turn_${String(turnNo).padStart(3, '0')}_${hex(6)}`,
@@ -406,6 +469,7 @@ export class MockServer {
       sources: new Set(),
       disabled,
       deltasSent: false,
+      pack,
     }
     this.turns.set(turn.id, turn)
     this.emit(turn, first)
@@ -530,7 +594,7 @@ export class MockServer {
     turn.stepOver = mode === 'step_over'
     turn.waiting = null
     turn.status = 'running'
-    this.emit(turn, { schema_version: '0.1.0', type: 'node_resumed', node_id: nodeId, status: 'active', summary: { reason: 'breakpoint' } })
+    this.emit(turn, { schema_version: '0.1.0', type: 'node_resumed', node_id: nodeId, status: 'active', summary: { reason: 'breakpoint', mode } })
     this.schedule(turn)
     return json(200, { turn_id: turnId, resumed_node_id: nodeId, mode })
   }
@@ -594,7 +658,13 @@ export class MockServer {
 
   // ---------- nodes ----------
 
-  private node(nodeId: string): Response {
+  /** `?pack=` on a pack-scoped route, default the configured pack. */
+  private packParam(url: URL): string {
+    const pack = url.searchParams.get('pack')
+    return pack && PACK_IDS.includes(pack) ? pack : DEFAULT_PACK
+  }
+
+  private node(nodeId: string, pack = DEFAULT_PACK): Response {
     const node = this.diagram.nodes.find((n) => n.id === nodeId)
     if (!node) return apiError(404, 'node_not_found', `No node ${nodeId}.`)
     const recent = [...this.turns.values()]
@@ -611,32 +681,32 @@ export class MockServer {
       lesson: node.lesson,
       implemented: node.implemented ?? false,
       can_disable: node.can_disable ?? false,
-      inspector: this.inspector(nodeId, recent),
+      inspector: this.inspector(nodeId, recent, pack),
       source: { path: node.source_hint, language: 'python', content: src ?? '' },
       recent,
     }
     return json(200, info)
   }
 
-  private inspector(nodeId: string, recent: NodeInfo['recent']): NodeInfo['inspector'] {
+  private inspector(nodeId: string, recent: NodeInfo['recent'], pack = DEFAULT_PACK): NodeInfo['inspector'] {
     const node = this.diagram.nodes.find((n) => n.id === nodeId)!
     switch (node.kind) {
       case 'config': {
         // The served working set (P4): what the harness loads in dev.
         const kind = { policy: 'policy', router: 'models', registry: 'tools' }[nodeId as string]
-        const art = kind ? this.ops.current(kind, kind) : undefined
-        const path = { policy: 'config/policy.yaml', router: 'config/models.yaml', registry: 'datasets/_starter/tools.yaml' }[nodeId as string] ?? null
+        const art = kind ? this.ops.current(kind, kind, pack) : undefined
+        const path = { policy: 'config/policy.yaml', router: 'config/models.yaml', registry: `datasets/${pack}/tools.yaml` }[nodeId as string] ?? null
         const content = art?.body ?? (path ? repoFile(path) : undefined)
-        return { type: 'config', path, version: art ? `${art.name}@${art.version}` : null, format: 'yaml', content: content ?? null, editable: true, artifact: kind ? this.ops.inspectorArtifact(kind, kind) : null }
+        return { type: 'config', path, version: art ? `${art.name}@${art.version}` : null, format: 'yaml', content: content ?? null, editable: true, artifact: kind ? this.ops.inspectorArtifact(kind, kind, pack) : null }
       }
       case 'prompt': {
-        const prompt = this.ops.current('prompt', 'system_prompt')
-        const items = [{ name: 'system_prompt', version: `system_prompt@${prompt?.hash.slice(0, 8) ?? 'none'}`, content: prompt?.body ?? '', artifact: this.ops.inspectorArtifact('prompt', 'system_prompt') }]
-        for (const skill of ['order_status', 'returns']) {
-          const art = this.ops.current('skill', skill)
-          if (art) items.push({ name: skill, version: `${skill}@${art.hash.slice(0, 8)}`, content: art.body, artifact: this.ops.inspectorArtifact('skill', skill) })
+        const prompt = this.ops.current('prompt', 'system_prompt', pack)
+        const items = [{ name: 'system_prompt', version: `system_prompt@${prompt?.hash.slice(0, 8) ?? 'none'}`, content: prompt?.body ?? '', artifact: this.ops.inspectorArtifact('prompt', 'system_prompt', pack) }]
+        for (const skill of this.ops.skills(pack)) {
+          const art = this.ops.current('skill', skill, pack)
+          if (art) items.push({ name: skill, version: `${skill}@${art.hash.slice(0, 8)}`, content: art.body, artifact: this.ops.inspectorArtifact('skill', skill, pack) })
         }
-        return { type: 'prompt', items, editable: true, release: this.ops.releaseState() }
+        return { type: 'prompt', items, editable: true, release: this.ops.releaseState(pack) }
       }
       case 'queue':
         return {
@@ -652,7 +722,7 @@ export class MockServer {
           router_rules: [{ name: 'default', model: 'fake-small' }],
           providers: ['fake'],
           last_routing: recent?.[0]?.summary ?? null,
-          ...(node.artifact_hint === 'config/models.yaml' ? { artifact: this.ops.inspectorArtifact('models', 'models') } : {}),
+          ...(node.artifact_hint === 'config/models.yaml' ? { artifact: this.ops.inspectorArtifact('models', 'models', pack) } : {}),
         }
       case 'store': {
         if (nodeId === 'trace') {
@@ -669,7 +739,7 @@ export class MockServer {
           path: node.source_hint,
           language: 'python',
           last_summary: recent?.[0] ?? null,
-          ...(node.artifact_hint === 'config/context.yaml' ? { artifact: this.ops.inspectorArtifact('context', 'context') } : {}),
+          ...(node.artifact_hint === 'config/context.yaml' ? { artifact: this.ops.inspectorArtifact('context', 'context', pack) } : {}),
         }
     }
   }
@@ -815,11 +885,14 @@ export class MockEventSource implements EventSourceLike {
   }
 }
 
-/** The starter pack's documents, cut into chunks at each heading like the harness does first. */
-function mockDocs() {
-  return repoFilesUnder('datasets/_starter/docs')
-    .filter(([path]) => path.endsWith('.md'))
-    .map(([path, text]) => {
+/**
+ * A pack's documents, cut into chunks at each heading like the harness does first. A PDF the
+ * pack ships is read from the markdown it was rendered from (`sources/`), as its text.
+ */
+function mockDocs(pack = DEFAULT_PACK) {
+  return packFiles(pack)
+    .filter((f) => f.path.startsWith('docs/') && /\.(md|pdf)$/.test(f.path))
+    .map(({ path, text }) => {
       const name = path.split('/').pop()!
       const title = /^#\s+(.+)$/m.exec(text)?.[1]?.trim() ?? name
       const sections = text.split(/^##\s+/m)
@@ -828,6 +901,6 @@ function mockDocs() {
         const body = (position === 0 ? sec.replace(/^#\s+.+$/m, '') : sec.split('\n').slice(1).join('\n')).trim()
         return { position, heading, text: body, tokens: Math.ceil(body.length / 4), citation: heading ? `${title}, ${heading}` : title }
       })
-      return { doc_id: name.replace(/\.md$/, ''), title, path: name, kind: 'markdown', version: 'mock', scope: 'pack', text, chunks }
+      return { doc_id: name.replace(/\.(md|pdf)$/, ''), title, path: name, kind: name.endsWith('.pdf') ? 'pdf' : 'markdown', version: 'mock', scope: 'pack', text, chunks }
     })
 }
