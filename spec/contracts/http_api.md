@@ -808,6 +808,9 @@ Additive. Every existing endpoint keeps its shape; new fields are listed where t
 | `POST /v1/sessions` | Start a session on a pack | P5 |
 | `GET /v1/sessions/{session_id}` | One session: its pack and turn count | P5 |
 | `POST /v1/diagnose` | Map a failed eval case or a bad turn to the layer at fault | P5 |
+| `GET /v1/lessons` | The lesson chapters in order, with their metadata | P5 |
+| `GET /v1/lessons/{slug}` | One chapter: metadata, markdown, code links, try | P5 |
+| `GET /v1/lessons/{slug}/source?path=` | A file the chapter's code walk links to | P5 |
 
 ### Packs
 
@@ -893,3 +896,24 @@ the caller's last diagnoses (`last_diagnoses`).
 
 `node_resumed.summary.mode` (`events.md` section 11) says which control released a pause:
 `step`, `continue`, `step_over` or `approval`.
+
+### Lessons
+
+The chapters in `lessons/` (`lessons/README.md` has the format), served by
+`harnesswalk/control/http_lessons.py`. Every mode serves them and no identity is needed: the
+lessons, like the code, are the same for every tenant.
+
+- `GET /v1/lessons`: `{ lessons: [{ slug, n, title, hook, node_id, covers, group, words, url }],
+  walk_order }`, in chapter order. `slug` is the file stem (`02-input_guardrails`), `node_id` the
+  node the chapter is about (the parent for an expert group chapter, `group: true`), `covers` the
+  nodes it teaches, `words` the length without link targets.
+- `GET /v1/lessons/{slug}`: the list item plus `markdown` (front matter removed), `try`
+  (`{ fixture?, prompt?, disable? }` or `null`), `code_links: [{ path, symbol, line, node_id }]`
+  (`line` resolved from the file's syntax tree, `null` when the symbol is gone; `node_id` is the
+  node whose code peek is that file, else `null`), `prev` and `next`. Unknown slug:
+  `404 lesson_not_found`.
+- `GET /v1/lessons/{slug}/source?path=harnesswalk/...`: the code peek's shape (`path`, `language`,
+  `line_count`, `source`, `truncated`, `symbols`) for a file the chapter links to, under the same
+  containment rule as `GET /v1/nodes/{id}/source`. Any other path: `404 source_not_found`.
+- Each node of `spec/diagram/diagram.json` names its chapter (`lesson_url`, a repo path with a
+  `#section` anchor for an expert node) and its one-line hook (`lesson_summary`).
