@@ -138,4 +138,4 @@ prod-smoke: ## smoke.sh against the local prod profile, through Caddy
 
 loadtest: ## k6 against the local prod profile: rate limit, 50 SSE viewers, sweeper, p95 and RSS (make prod-up first)
 	@command -v k6 >/dev/null || { echo "k6 is missing: brew install k6"; exit 1; }
-	@set -a; . $(PROD_LOCAL_ENV); set +a; deploy/loadtest/run.sh
+	@set -a; . $(PROD_LOCAL_ENV); set +a; PROD_LOCAL_ENV=$(PROD_LOCAL_ENV) deploy/loadtest/run.sh
