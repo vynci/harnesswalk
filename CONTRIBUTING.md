@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for looking. harnesswalk is a teaching harness, so a contribution is judged by two
+Thanks for looking. Harnesswalk is a teaching harness, so a contribution is judged by two
 questions: does it keep the harness correct against its spec, and does it keep it readable for
 someone learning how an agent runtime is built. Questions, corrections to the spec and the
 lessons, new conformance cases and small fixes are all welcome. For anything bigger, open an

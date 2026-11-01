@@ -383,7 +383,7 @@ def _serve(args: argparse.Namespace) -> int:
             print(f"harnesswalk serve: {exc}", file=sys.stderr)
             return 2
         print(
-            f"harnesswalk {__version__} (spec {SPEC_VERSION}), mode {harness.settings.mode}, "
+            f"Harnesswalk {__version__} (spec {SPEC_VERSION}), mode {harness.settings.mode}, "
             f"provider {harness.provider_name}"
         )
         options: dict[str, Any] = {}
@@ -602,7 +602,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="harnesswalk", description="Walk through an AI harness, one node at a time."
     )
     parser.add_argument(
-        "--version", action="version", version=f"harnesswalk {__version__} (spec {SPEC_VERSION})"
+        "--version", action="version", version=f"Harnesswalk {__version__} (spec {SPEC_VERSION})"
     )
     sub = parser.add_subparsers(dest="command")
 

@@ -13,7 +13,7 @@ try:
 ## What it does
 
 An agent's behaviour lives mostly outside its code: prompts, skills, policy, budgets, routing and
-tool definitions. harnesswalk treats each of those files as an artifact with a history. An edit (from the web app's editors or
+tool definitions. Harnesswalk treats each of those files as an artifact with a history. An edit (from the web app's editors or
 `PUT /v1/artifacts/{kind}/{name}`) never overwrites anything; it adds version n+1 with a diff
 against n. The latest version of every artifact is the working set. A release freezes the working
 set: it records which version of each artifact it contains, a hash over them, and the hash of the

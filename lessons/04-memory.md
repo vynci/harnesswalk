@@ -15,7 +15,7 @@ try:
 "Memory" in an agent is not one thing. How the agent should behave (the system prompt and its
 skills) is memory. What was said earlier in this conversation is memory. A durable fact about
 a customer, a dated event from last week and a page of the returns policy are memory too. They
-differ in what they hold, how they are ranked and who may write them, so harnesswalk keeps them
+differ in what they hold, how they are ranked and who may write them, so Harnesswalk keeps them
 in five stores: procedural, session, semantic, episodic and knowledge. The simple view draws
 them as one node; the expert view opens it into the five, and chapter 16 walks each one.
 
