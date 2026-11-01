@@ -45,8 +45,10 @@ The router picks `rule=default model=local-8b`, the providers span ends in `erro
 layer and the loop close with `error=provider_error`, and there is no fallback because no other
 provider is configured. What the learner sees is still a finished turn: the output guardrails
 run, the gateway replies "Something went wrong while answering. The trace has the details.",
-the trace is persisted and the exit is `error`. In the web app the Providers node turns red
-and its Events tab holds the error code.
+the trace is persisted and the exit is `error`. Each failing line of the walk carries the
+error's message beside its code, and an `error` block under the reply repeats the first one
+(`provider_error at providers: ...`), the cause the enclosing spans only repeat. In the web app
+the Providers node turns red and its Events tab holds the error code.
 
 Without the layer, that connection error would surface wherever the loop happened to be, with
 an HTTP library's exception and no record of which model was tried. With it, a second
