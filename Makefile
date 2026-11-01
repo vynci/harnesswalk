@@ -22,29 +22,32 @@ run: ## Start the API (and web/dist when built) on 127.0.0.1:8000. Without Ollam
 	else echo "no web app in $(HARNESSWALK_WEB_DIST) yet (make web-build); serving the API only"; fi
 	HARNESSWALK_WEB_DIST="$(HARNESSWALK_WEB_DIST)" uv run harnesswalk serve $(if $(PROVIDER),--provider $(PROVIDER)) $(if $(FIXTURE),--fixture $(FIXTURE))
 
-# pnpm installs web/ once per lock file change; every web target depends on it.
+# pnpm installs web/ once per lock file change; every web target depends on it. Every pnpm
+# command runs from inside web/: corepack picks the pnpm version from the package.json of the
+# working directory, so running it from the root would fetch the newest pnpm instead of the
+# pinned `packageManager` one, and that pnpm refuses to run (ERR_PNPM_BAD_PM_VERSION).
 WEB_DEPS := web/node_modules/.modules.yaml
 $(WEB_DEPS): web/package.json web/pnpm-lock.yaml
-	pnpm --dir web install --frozen-lockfile
+	cd web && pnpm install --frozen-lockfile
 	@touch $@
 
 web-build: $(WEB_DEPS) ## Build the web app into web/dist with pnpm (make run then serves it at /)
-	pnpm --dir web build
+	cd web && pnpm build
 
 web-dev: $(WEB_DEPS) ## Vite dev server on 127.0.0.1:5173, proxying /v1 to the API of make run (HARNESSWALK_API_URL)
 	@echo "Vite proxies /v1 and /healthz to $${HARNESSWALK_API_URL:-http://127.0.0.1:8000}; start the API with make run"
-	pnpm --dir web dev
+	cd web && pnpm dev
 
 web-mock: $(WEB_DEPS) ## The UI alone on 127.0.0.1:5173, playing recorded streams from an in-browser mock
-	pnpm --dir web dev:mock
+	cd web && pnpm dev:mock
 
 web-test: $(WEB_DEPS) ## Web lint (eslint, tsc) and unit tests (Vitest)
-	pnpm --dir web lint
-	pnpm --dir web test
+	cd web && pnpm lint
+	cd web && pnpm test
 
 web-e2e-mock: $(WEB_DEPS) ## Playwright smoke tests against a mock build (no API)
-	pnpm --dir web exec playwright install chromium
-	pnpm --dir web test:e2e
+	cd web && pnpm exec playwright install chromium
+	cd web && pnpm test:e2e
 
 # The real-API suite starts `harnesswalk serve --provider fake` itself on this port, with its
 # stores in a scratch directory, and stops it when the run ends.
@@ -57,11 +60,11 @@ E2E_PORT ?= 8765
 KEEP_AWAKE := $(shell command -v caffeinate >/dev/null 2>&1 && echo caffeinate -i)
 
 e2e: $(WEB_DEPS) ## Playwright in Chromium against a real API (fake provider) on a scratch port: make e2e E2E_PORT=8765
-	pnpm --dir web exec playwright install chromium
-	$(KEEP_AWAKE) env HARNESSWALK_E2E_PORT=$(E2E_PORT) pnpm --dir web test:e2e:live
+	cd web && pnpm exec playwright install chromium
+	cd web && $(KEEP_AWAKE) env HARNESSWALK_E2E_PORT=$(E2E_PORT) pnpm test:e2e:live
 
 screenshots: $(WEB_DEPS) ## Recapture docs/screenshots/*.png from the real API, light mode
-	$(KEEP_AWAKE) env HARNESSWALK_E2E_PORT=$(E2E_PORT) HARNESSWALK_SCREENSHOTS=1 pnpm --dir web test:e2e:live e2e-live/screenshots.spec.ts
+	cd web && $(KEEP_AWAKE) env HARNESSWALK_E2E_PORT=$(E2E_PORT) HARNESSWALK_SCREENSHOTS=1 pnpm test:e2e:live e2e-live/screenshots.spec.ts
 
 turn: ## One fake-provider turn printed as a walk: make turn FIXTURE=tool_call PROMPT="Where is A-1001?"
 	uv run harnesswalk turn "$(or $(PROMPT),What are your support hours?)" --provider fake --fixture $(or $(FIXTURE),plain_answer)
