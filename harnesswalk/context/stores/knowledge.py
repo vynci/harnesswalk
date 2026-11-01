@@ -114,7 +114,6 @@ FTS_COLUMNS = (
     "text, vid UNINDEXED, scope UNINDEXED, pack UNINDEXED, doc_id UNINDEXED,"
     " tokenize = 'porter unicode61'"
 )
-LEGACY_FTS = "kn_fts"  # the one table every pack shared before P5 integration
 
 
 def fts_table(pack: str) -> str:
@@ -168,33 +167,30 @@ class KnowledgeStore:
 
     def _ensure_fts(self) -> None:
         """Create the pack's FTS5 table. A data directory from before P5 integration has the
-        pack's rows in the shared `kn_fts`: copy them over from `kn_chunks` (the same indexed
-        text, no new embeddings) and drop them from the shared table."""
-        exists = self.db.one(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (self.fts,)
-        )
-        self.db.execute(f"CREATE VIRTUAL TABLE IF NOT EXISTS {self.fts} USING fts5({FTS_COLUMNS})")
-        if exists:
-            return
-        rows = self.db.query(
-            "SELECT c.vid, c.scope, c.doc_id, c.heading, c.text, d.title FROM kn_chunks c"
-            " JOIN kn_docs d ON d.scope = c.scope AND d.pack = c.pack AND d.doc_id = c.doc_id"
-            " WHERE c.pack = ? ORDER BY c.vid",
-            (self.pack,),
-        )
-        self.db.executemany(
-            f"INSERT INTO {self.fts} (text, vid, scope, pack, doc_id) VALUES (?, ?, ?, ?, ?)",
-            [
-                (_indexed(r["title"], r["heading"], r["text"]), r["vid"], r["scope"], self.pack,
-                 r["doc_id"])
-                for r in rows
-            ],
-        )  # fmt: skip
-        legacy = self.db.one(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (LEGACY_FTS,)
-        )
-        if legacy:
-            self.db.execute(f"DELETE FROM {LEGACY_FTS} WHERE pack = ?", (self.pack,))
+        pack's rows only in the shared `kn_fts`: fill the new table from `kn_chunks` (the same
+        indexed text, no new embeddings). The shared table is left as it is, so a process still
+        running the old code on the same directory keeps its keyword search; this code never
+        reads it. One transaction, so two processes starting together fill the table once."""
+        with self.db.transaction() as conn:
+            if conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (self.fts,)
+            ).fetchone():
+                return
+            conn.execute(f"CREATE VIRTUAL TABLE {self.fts} USING fts5({FTS_COLUMNS})")
+            rows = conn.execute(
+                "SELECT c.vid, c.scope, c.doc_id, c.heading, c.text, d.title FROM kn_chunks c"
+                " JOIN kn_docs d ON d.scope = c.scope AND d.pack = c.pack AND d.doc_id = c.doc_id"
+                " WHERE c.pack = ? ORDER BY c.vid",
+                (self.pack,),
+            ).fetchall()
+            conn.executemany(
+                f"INSERT INTO {self.fts} (text, vid, scope, pack, doc_id) VALUES (?, ?, ?, ?, ?)",
+                [
+                    (_indexed(r["title"], r["heading"], r["text"]), r["vid"], r["scope"],
+                     self.pack, r["doc_id"])
+                    for r in rows
+                ],
+            )  # fmt: skip
 
     # -- ingestion -----------------------------------------------------------------------------
 

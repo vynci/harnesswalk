@@ -241,8 +241,9 @@ def test_another_packs_documents_do_not_reorder_a_packs_hits(tmp_path: Path) -> 
 
 
 def test_a_data_dir_with_the_shared_fts_table_migrates(tmp_path: Path) -> None:
-    """A data directory from before the per-pack tables keeps its index: the pack's rows move
-    from the shared `kn_fts` to the pack's table without a re-ingest."""
+    """A data directory from before the per-pack tables keeps its index: the pack's table is
+    filled from its chunks without a re-ingest, and the shared `kn_fts` is left alone for a
+    process still running the old code on the same directory."""
     db = open_memory_db(str(tmp_path / "memory.db"))
     s = KnowledgeStore(db, SqliteVectors(db), FakeEmbedder(), "pack")
     s.ingest(write_docs(tmp_path / "docs", {"returns.md": DOC}))
@@ -257,4 +258,4 @@ def test_a_data_dir_with_the_shared_fts_table_migrates(tmp_path: Path) -> None:
     db.execute("INSERT INTO kn_fts VALUES ('x', 'v', '_pack', 'pack', 'd')")
     again = KnowledgeStore(db, SqliteVectors(db), FakeEmbedder(), "pack")
     assert [h.id for h in again.retrieve(ctx, query)] == want
-    assert db.one("SELECT count(*) AS n FROM kn_fts WHERE pack = 'pack'")["n"] == 0
+    assert db.one("SELECT count(*) AS n FROM kn_fts WHERE pack = 'pack'")["n"] == 1
