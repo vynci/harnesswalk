@@ -1,8 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
 
 // Phase 6 in mock mode: markdown replies, and the public site (`?mode=public`): the model picker
-// with a model out of today's budget, the bring-your-own-key field, the sandbox countdown, the
-// limits card, a 429, and the private-only controls disabled with their reason.
+// (Auto first, a model out of today's budget, the Fixture select on the fake model), the key
+// button disabled until accounts, the budget banner, the sandbox countdown, the limits card, a
+// 429, and the private-only controls disabled with their reason.
 const PUBLIC = '/?mockStepMs=10&mode=public'
 
 async function send(page: Page, text: string) {
@@ -11,6 +12,26 @@ async function send(page: Page, text: string) {
 }
 
 const node = (page: Page, id: string) => page.getByTestId(`node-${id}`)
+
+/** Close the model menu: the first Escape may only close a reason tooltip inside it. */
+async function closeMenu(page: Page) {
+  const menu = page.getByTestId('model-menu')
+  await expect(async () => {
+    await page.keyboard.press('Escape')
+    await expect(menu).toBeHidden({ timeout: 500 })
+  }).toPass()
+}
+
+type Sent = Record<string, unknown>
+const sentTurns = (page: Page) => page.evaluate(() => (globalThis as unknown as { __harnesswalkMock: { turnRequests: Sent[] } }).__harnesswalkMock.turnRequests)
+
+/** Send a message and return the POST /v1/turns body the UI sent to the in-browser mock. */
+async function sendAndCapture(page: Page, text: string): Promise<Sent> {
+  const before = (await sentTurns(page)).length
+  await send(page, text)
+  await expect.poll(async () => (await sentTurns(page)).length).toBe(before + 1)
+  return (await sentTurns(page)).at(-1)!
+}
 
 async function openPublic(page: Page, query = '') {
   await page.goto(PUBLIC + query)
@@ -36,56 +57,139 @@ test('an assistant reply renders as markdown: heading, list, table, code and a n
   await expect(link).toHaveAttribute('rel', /noopener/)
 })
 
-test('public mode: the picker lists the site models, the default preselected, one disabled with its reason', async ({ page }) => {
+test('dev mode shares the picker: Auto first, the fixture select beside it on the fake model', async ({ page }) => {
+  await page.goto('/?mockStepMs=10')
+  await expect(page.getByTestId('mode-badge')).toContainText('dev')
+  const picker = page.getByTestId('model-picker')
+  await expect(picker).toHaveText('Auto')
+  await picker.click()
+  const menu = page.getByTestId('model-menu')
+  await expect(menu.getByTestId('auto-hint')).toHaveText('Currently fake-small')
+  const ollama = menu.locator('[data-testid=model-option][data-model="llama3.1:8b"]')
+  await expect(ollama).toHaveAttribute('data-available', 'false')
+  await ollama.hover()
+  await expect(page.getByTestId('model-reason')).toHaveText("This model's provider is not configured on this server.")
+  await expect(menu.getByTestId('budget-line')).toHaveCount(0)
+  await closeMenu(page)
+  // The dev fixture control moved from the header into the composer, beside the picker.
+  await expect(page.getByRole('banner').getByTestId('fixture-select')).toHaveCount(0)
+  const select = page.getByTestId('fixture-select')
+  await expect(select).toContainText('by message')
+  await select.click()
+  await page.getByRole('option', { name: 'tool_call', exact: true }).click()
+  const body = await sendAndCapture(page, 'What are your support hours?')
+  expect(body.fixture).toBe('tool_call')
+  expect(body).not.toHaveProperty('model')
+  await expect(page.getByTestId('assistant-message').last()).toContainText('Order A-1001 shipped on 24 October')
+  // The key button is not offered in dev mode.
+  await expect(page.getByTestId('byo-key-button')).toHaveCount(0)
+})
+
+test('public mode: Auto is first and preselected, says what it runs on, and names no model', async ({ page }) => {
   await openPublic(page)
   const picker = page.getByTestId('model-picker')
-  await expect(picker).toHaveText('Claude Haiku 5.5')
+  await expect(picker).toHaveText('Auto')
+  await expect(picker).toHaveAttribute('data-selected', 'auto')
   await expect(picker).toHaveAttribute('data-model', 'hosted-haiku')
   await picker.click()
   const menu = page.getByTestId('model-menu')
-  await expect(menu.getByTestId('model-option')).toHaveCount(3)
+  const options = menu.getByTestId('model-option')
+  await expect(options).toHaveCount(4)
+  await expect(options.first()).toHaveAttribute('data-model', 'auto')
+  await expect(options.first()).toHaveAttribute('aria-checked', 'true')
+  await expect(menu.getByTestId('auto-hint')).toHaveText('Currently Claude Haiku 5.5')
   const sonnet = menu.locator('[data-testid=model-option][data-model="hosted-sonnet"]')
   await expect(sonnet).toHaveAttribute('data-available', 'false')
   await expect(sonnet.getByRole('menuitemradio')).toHaveAttribute('data-disabled', '')
+  await expect(sonnet).toContainText(/Back at 00:00 UTC/)
   await sonnet.hover()
-  await expect(page.getByTestId('model-reason')).toContainText("Today's shared budget for Claude models is spent. It resets at 00:00 UTC. Bring your own key or use the fake model.")
+  await expect(page.getByTestId('model-reason')).toContainText("Today's shared Claude budget is used up. Back at 00:00 UTC")
+  await expect(page.getByTestId('model-reason')).not.toContainText(/key/i)
   await expect(menu.getByTestId('budget-line')).toContainText('42% used')
-  await menu.locator('[data-testid=model-option][data-model="fake-small"]').click()
-  await expect(picker).toHaveText('Fake model (scripted)')
-  // A turn on the picked model plays through.
-  await send(page, 'What are your support hours?')
+  await closeMenu(page)
+  // Auto on Claude: no fixture select. A turn names no model.
+  await expect(page.getByTestId('fixture-select')).toHaveCount(0)
+  expect(await sendAndCapture(page, 'What are your support hours?')).not.toHaveProperty('model')
   await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
   await expect(page.getByTestId('assistant-message').last()).toContainText('9am to 5pm')
+  // An explicit pick is named.
+  await picker.click()
+  await menu.locator('[data-testid=model-option][data-model="fake-small"]').click()
+  await expect(picker).toHaveText('Fake model (scripted)')
+  expect((await sendAndCapture(page, 'And on weekends?')).model).toBe('fake-small')
 })
 
-test('public mode: a key of your own, held in the tab, unlocks the Claude models; Clear takes it back', async ({ page }) => {
+test('public mode: on the fake model a Fixture select picks the scripted answer', async ({ page }) => {
+  await openPublic(page)
+  await page.getByTestId('model-picker').click()
+  await page.locator('[data-testid=model-option][data-model="fake-small"]').click()
+  const select = page.getByTestId('fixture-select')
+  await expect(select).toBeVisible()
+  await expect(select).toHaveText('public_demo')
+  await select.click()
+  const listbox = page.getByRole('listbox')
+  await expect(listbox.getByTestId('fixture-group-pack').getByRole('option', { name: 'tool_call', exact: true })).toBeVisible()
+  await expect(listbox.getByTestId('fixture-group-shared').getByRole('option', { name: 'public_demo', exact: true })).toBeVisible()
+  // Another pack's fixtures are hidden; descriptions sit under the names.
+  await expect(listbox.getByRole('option', { name: 'cite_mgmt_fee_hcp01', exact: true })).toHaveCount(0)
+  await expect(listbox.getByRole('option', { name: 'tool_call', exact: true })).toContainText('One read-only tool call, allowed by policy, then an answer.')
+  await listbox.getByRole('option', { name: 'tool_call', exact: true }).click()
+  await expect(select).toContainText('tool_call')
+  expect(await sendAndCapture(page, 'What are your support hours?')).toMatchObject({ model: 'fake-small', fixture: 'tool_call' })
+  await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  await expect(page.getByTestId('assistant-message').last()).toContainText('Order A-1001 shipped on 24 October')
+  // Back on Auto (Claude Haiku): the select goes and the fixture stays home.
+  await page.getByTestId('model-picker').click()
+  await page.locator('[data-testid=model-option][data-model="auto"]').click()
+  await expect(select).toHaveCount(0)
+  expect(await sendAndCapture(page, 'And on weekends?')).not.toHaveProperty('fixture')
+})
+
+test('public mode: the key button is visible and disabled until accounts arrive', async ({ page }) => {
   await openPublic(page, '&budget=spent')
-  const picker = page.getByTestId('model-picker')
-  // With the shared budget spent only the fake model is left, and it is preselected.
-  await expect(picker).toHaveAttribute('data-model', 'fake-small')
-  await page.getByTestId('byo-key-button').click()
-  const pop = page.getByTestId('byo-key-popover')
-  await expect(pop.getByTestId('byo-key-note')).toHaveText('Held in this tab only, sent with each request, never stored.')
-  await pop.getByTestId('byo-key-input').fill('sk-ant-e2e-test-0000')
-  await pop.getByTestId('byo-key-save').click()
-  await expect(page.getByTestId('byo-key-button')).toHaveAttribute('data-set', 'true')
-  // Never written to the browser's storage.
-  const stored = await page.evaluate(() => {
-    const doc = (globalThis as unknown as { document: { cookie: string } }).document
-    return JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + doc.cookie
+  const key = page.getByTestId('byo-key-button')
+  await expect(key).toBeVisible()
+  await expect(key).toHaveAttribute('aria-disabled', 'true')
+  await key.hover()
+  await expect(page.getByRole('tooltip')).toHaveText('Bring your own key arrives with accounts. Coming soon.')
+  await key.dispatchEvent('click')
+  await expect(page.getByTestId('byo-key-popover')).toHaveCount(0)
+  await expect(page.getByTestId('byo-key-input')).toHaveCount(0)
+  // No "bring a key" wording anywhere in the picker either.
+  await page.getByTestId('model-picker').click()
+  await expect(page.getByTestId('model-menu')).not.toContainText(/key/i)
+})
+
+test.describe('public mode with the budget spent', () => {
+  test.use({ timezoneId: 'Asia/Manila' })
+
+  test('the Claude models say when they are back, Auto runs on the fake model, and a banner says so', async ({ page }) => {
+    await openPublic(page, '&budget=spent')
+    const picker = page.getByTestId('model-picker')
+    await expect(picker).toHaveText('Auto')
+    await expect(picker).toHaveAttribute('data-model', 'fake-small')
+    const banner = page.getByTestId('budget-banner')
+    await expect(banner).toHaveText("Today's shared Claude budget is used up. You're on the scripted fake model until 00:00 UTC (8:00 AM your time).")
+    await picker.click()
+    const menu = page.getByTestId('model-menu')
+    await expect(menu.getByTestId('auto-hint')).toHaveText('Currently Fake model (scripted)')
+    for (const alias of ['hosted-haiku', 'hosted-sonnet']) {
+      const item = menu.locator(`[data-testid=model-option][data-model="${alias}"]`)
+      await expect(item).toHaveAttribute('data-available', 'false')
+      await expect(item.getByTestId('model-reason-short')).toHaveText('Back at 00:00 UTC (8:00 AM your time)')
+    }
+    await expect(menu.getByTestId('budget-line')).toHaveText("Today's shared Claude budget is used up. Back at 00:00 UTC (8:00 AM your time).")
+    await closeMenu(page)
+    // Auto resolves to the fake model, so the fixture select is there with the site's default.
+    await expect(page.getByTestId('fixture-select')).toHaveText('public_demo')
+    // Closing the banner holds for this tab's session, a reload included.
+    await page.getByTestId('budget-banner-dismiss').click()
+    await expect(banner).toHaveCount(0)
+    await page.reload()
+    await expect(page.getByTestId('mode-badge')).toContainText('public')
+    await expect(page.getByTestId('model-picker')).toBeVisible()
+    await expect(banner).toHaveCount(0)
   })
-  expect(stored).not.toContain('sk-ant-e2e')
-  await picker.click()
-  await expect(page.locator('[data-testid=model-option][data-model="hosted-sonnet"]')).toHaveAttribute('data-available', 'true')
-  await page.locator('[data-testid=model-option][data-model="hosted-sonnet"]').click()
-  await expect(picker).toHaveText('Claude Sonnet 5.5')
-  await expect(page.getByTestId('model-menu')).toBeHidden()
-  await page.getByTestId('byo-key-button').click()
-  await expect(pop.getByTestId('byo-key-masked')).toHaveText('key ending 0000')
-  await pop.getByTestId('byo-key-clear').click()
-  await expect(page.getByTestId('byo-key-button')).toHaveAttribute('data-set', 'false')
-  await page.keyboard.press('Escape')
-  await expect(picker).toHaveAttribute('data-model', 'fake-small')
 })
 
 test('public mode: the header counts down the sandbox session and the limits card shows the caps', async ({ page }) => {
@@ -124,21 +228,45 @@ test('public mode: a 429 shows a toast with the retry time', async ({ page }) =>
   await expect(page.getByTestId('chat-turn')).toHaveCount(0)
 })
 
-test('public mode: a Claude turn that ran out of budget mid-turn says so under the reply', async ({ page }) => {
+test('public mode: a Claude turn that ran out of budget mid-turn says so under the reply, and the banner and picker follow', async ({ page }) => {
   await openPublic(page, '&budget=midturn')
+  await expect(page.getByTestId('budget-banner')).toHaveCount(0)
+  // The reader picked Claude Haiku explicitly.
+  const picker = page.getByTestId('model-picker')
+  await picker.click()
+  await page.locator('[data-testid=model-option][data-model="hosted-haiku"]').click()
+  await expect(picker).toHaveText('Claude Haiku 5.5')
   await send(page, 'What are your support hours?')
   await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
   const note = page.getByTestId('chat-turn').last().getByTestId('reply-notice')
   await expect(note).toHaveCount(1)
   await expect(note).toHaveAttribute('data-reason', 'budget_exhausted')
   await expect(note).toHaveText("Today's shared budget for Claude models is spent, so the rest of this turn ran on the fake model. It resets at 00:00 UTC.")
+  // The banner appears, and the Claude pick moves to the fake model with a toast.
+  await expect(page.getByTestId('budget-banner')).toContainText("Today's shared Claude budget is used up. You're on the scripted fake model until 00:00 UTC")
+  await expect(page.getByText(/^Today's shared Claude budget is used up\. You're on the scripted fake model until 00:00 UTC/).first()).toBeVisible()
+  await expect(picker).toHaveText('Fake model (scripted)')
   // A turn on the fake model has nothing to note.
-  await page.getByTestId('model-picker').click()
-  await page.locator('[data-testid=model-option][data-model="fake-small"]').click()
   await send(page, 'And on weekends?')
   await expect(page.getByTestId('chat-turn')).toHaveCount(2)
   await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
   await expect(page.getByTestId('chat-turn').last().getByTestId('reply-notice')).toHaveCount(0)
+})
+
+test('public mode: when the budget comes back the banner goes and the pick stays', async ({ page }) => {
+  await openPublic(page, '&budget=spent')
+  await expect(page.getByTestId('budget-banner')).toBeVisible()
+  await page.getByTestId('model-picker').click()
+  await page.locator('[data-testid=model-option][data-model="fake-small"]').click()
+  await page.evaluate(() => {
+    const mock = (globalThis as unknown as { __harnesswalkMock: { opts: { public: { budget: string } } } }).__harnesswalkMock
+    mock.opts.public.budget = 'ok'
+  })
+  // A turn ends, so the capabilities are read again.
+  await send(page, 'What are your support hours?')
+  await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  await expect(page.getByTestId('budget-banner')).toHaveCount(0)
+  await expect(page.getByTestId('model-picker')).toHaveText('Fake model (scripted)')
 })
 
 test('public mode: a provider marked down is disabled in the picker with its own reason', async ({ page }) => {
@@ -148,6 +276,7 @@ test('public mode: a provider marked down is disabled in the picker with its own
   await expect(sonnet).toHaveAttribute('data-available', 'false')
   await expect(sonnet).toHaveAttribute('data-reason', 'provider_unhealthy')
   await expect(sonnet).toContainText('Not answering')
+  await expect(sonnet).toHaveAttribute('data-reason', 'provider_unhealthy')
   await sonnet.hover()
   await expect(page.getByTestId('model-reason')).toHaveText("This model's provider is not answering right now. Try again in a minute or use another model.")
 })

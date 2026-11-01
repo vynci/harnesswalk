@@ -1,6 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import type { Capabilities, PublicInfo } from '@/api/types'
-import { effectiveModel, featureState, modelReasonShort, modelReasonText, pickerModels, PRIVATE_ONLY, resetTime } from './features'
+import {
+  autoModel,
+  byoKeyOffered,
+  effectiveModel,
+  featureState,
+  fixtureCatalog,
+  fixtureGroups,
+  fixtureVisible,
+  localResetTime,
+  modelReasonShort,
+  modelReasonText,
+  pickerModels,
+  PRIVATE_ONLY,
+  resetPhrase,
+  resetTime,
+  scriptedModel,
+  selectedModel,
+} from './features'
 
 const PUBLIC: PublicInfo = {
   session_expires_at: '2026-11-01T18:04:11Z',
@@ -48,59 +65,133 @@ describe('featureState', () => {
   })
 })
 
-describe('the public model picker', () => {
-  it('lists the public models with the disabled reason, default preselected', () => {
+describe('the model picker', () => {
+  const SPENT: PublicInfo = {
+    ...PUBLIC,
+    budget: { status: 'exhausted', resets_at: '2026-11-02T00:00:00Z', spent_fraction: 1 },
+    // The API's `default` moves to what Auto runs on now: the fake model.
+    models: PUBLIC.models.map((m) => (m.provider === 'anthropic' ? { ...m, default: false, available: false, reason: 'budget_exhausted' as const } : { ...m, default: true })),
+  }
+
+  it('Auto is the default pick: no model named, and it resolves to the alias the API flags default', () => {
     const models = pickerModels(caps('public', {}, PUBLIC), null)
     expect(models.map((m) => [m.alias, m.available])).toEqual([
       ['hosted-haiku', true],
       ['hosted-sonnet', false],
       ['fake-small', true],
     ])
-    expect(models[1]!.reasonText).toBe("Today's shared budget for Claude models is spent. It resets at 00:00 UTC. Bring your own key or use the fake model.")
+    expect(selectedModel(models, null)).toBeNull()
+    expect(autoModel(models)?.label).toBe('Claude Haiku 5.5')
     expect(effectiveModel(models, null)?.alias).toBe('hosted-haiku')
-    expect(effectiveModel(models, 'fake-small')?.alias).toBe('fake-small')
-    // A pick that became unavailable falls back to the default.
+    expect(selectedModel(models, 'fake-small')?.alias).toBe('fake-small')
+    // A pick that became unavailable is Auto again.
+    expect(selectedModel(models, 'hosted-sonnet')).toBeNull()
     expect(effectiveModel(models, 'hosted-sonnet')?.alias).toBe('hosted-haiku')
   })
 
-  it('a key of your own makes the Claude models available whatever the budget says', () => {
-    const spent: PublicInfo = {
-      ...PUBLIC,
-      budget: { status: 'exhausted', resets_at: '2026-11-02T00:00:00Z', spent_fraction: 1 },
-      models: PUBLIC.models.map((m) => (m.provider === 'anthropic' ? { ...m, available: false, reason: 'budget_exhausted' as const } : m)),
-    }
-    const without = pickerModels(caps('public', {}, spent), null)
-    expect(without.filter((m) => m.available).map((m) => m.alias)).toEqual(['fake-small'])
-    expect(effectiveModel(without, null)?.alias).toBe('fake-small')
-    const withKey = pickerModels(caps('public', {}, spent), 'sk-ant-test')
-    expect(withKey.every((m) => m.available && m.reasonText === null)).toBe(true)
-    expect(effectiveModel(withKey, null)?.alias).toBe('hosted-haiku')
-    const unconfigured: PublicInfo = { ...PUBLIC, models: [{ ...PUBLIC.models[0]!, available: false, reason: 'provider_unconfigured' }] }
-    expect(pickerModels(caps('public', {}, unconfigured), null)[0]!.reasonText).toBe('No key is configured for this model. Bring your own key.')
-    expect(pickerModels(caps('public', {}, unconfigured), 'k')[0]!.available).toBe(true)
+  it('with the budget spent the Claude models say when they are back, and Auto resolves to the fake model', () => {
+    const models = pickerModels(caps('public', {}, SPENT), null, { timeZone: 'America/New_York', locale: 'en-US' })
+    expect(models.filter((m) => m.available).map((m) => m.alias)).toEqual(['fake-small'])
+    expect(autoModel(models)?.label).toBe('Fake model (scripted)')
+    const haiku = models[0]!
+    expect(haiku.reasonShort).toBe('Back at 00:00 UTC (7:00 PM your time)')
+    expect(haiku.reasonText).toBe("Today's shared Claude budget is used up. Back at 00:00 UTC (7:00 PM your time). Auto and the fake model still work.")
+    expect(scriptedModel(models)?.alias).toBe('fake-small')
   })
 
-  it('a provider marked down stays unavailable with its own reason, key or not', () => {
+  it('public mode never offers a key: no unlock, no key wording; private mode does', () => {
+    const unconfigured: PublicInfo = { ...PUBLIC, models: [{ ...PUBLIC.models[0]!, available: false, reason: 'provider_unconfigured' }] }
+    const pub = pickerModels(caps('public', {}, unconfigured), 'sk-ant-test')
+    expect(pub[0]!.available).toBe(false)
+    expect(pub[0]!.reasonText).toBe('This model is not set up on this server.')
+    expect(pub[0]!.reasonShort).toBe('Not configured')
+    for (const m of [...pub, ...pickerModels(caps('public', {}, SPENT), 'sk-ant-test')]) expect(`${m.reasonText} ${m.reasonShort}`).not.toMatch(/key/i)
+    expect(byoKeyOffered(caps('public', { byo_key: true }))).toBe(false)
+    expect(featureState(caps('public', { byo_key: true }), 'byo_key_ui')).toEqual({ enabled: false, reason: 'Bring your own key arrives with accounts. Coming soon.' })
+    // Private mode: the key button works, and a key unlocks the hosted models.
+    expect(byoKeyOffered(caps('private'))).toBe(true)
+    const priv = pickerModels(caps('private', {}, unconfigured), null)
+    expect(priv[0]!.reasonText).toBe('No key is configured for this model. Bring your own key.')
+    expect(pickerModels(caps('private', {}, unconfigured), 'k')[0]!.available).toBe(true)
+    expect(pickerModels(caps('private', {}, SPENT), 'sk-ant-test').every((m) => m.available && m.reasonText === null)).toBe(true)
+    // Dev mode has no key button (features.byo_key is false there).
+    expect(featureState(caps('dev'), 'byo_key_ui').enabled).toBe(false)
+  })
+
+  it('a provider marked down stays unavailable with its own reason', () => {
     const down: PublicInfo = { ...PUBLIC, models: PUBLIC.models.map((m) => (m.alias === 'hosted-sonnet' ? { ...m, available: false, reason: 'provider_unhealthy' as const } : m)) }
     for (const key of [null, 'sk-ant-test']) {
-      const sonnet = pickerModels(caps('public', {}, down), key).find((m) => m.alias === 'hosted-sonnet')!
+      const sonnet = pickerModels(caps('private', {}, down), key).find((m) => m.alias === 'hosted-sonnet')!
       expect(sonnet.available).toBe(false)
       expect(sonnet.reason).toBe('provider_unhealthy')
       expect(sonnet.reasonText).toBe("This model's provider is not answering right now. Try again in a minute or use another model.")
     }
     expect(modelReasonShort('provider_unhealthy')).toBe('Not answering')
-    expect(effectiveModel(pickerModels(caps('public', {}, down), null), 'hosted-sonnet')?.alias).toBe('hosted-haiku')
   })
 
-  it('is empty for an API without capabilities.public (before P6), so turns name no model', () => {
+  it('dev mode lists the API models; an older dev API without public.models lists its providers', () => {
+    const dev = pickerModels(caps('dev', {}, { ...PUBLIC, models: [{ alias: 'local-8b', label: 'local-8b', provider: 'ollama', default: false, available: false, reason: 'provider_unconfigured' }] }), null)
+    expect(dev[0]!.reasonText).toBe("This model's provider is not configured on this server.")
+    const legacy = pickerModels({ ...caps('dev'), providers: [{ name: 'fake', configured: true, default: true, models: ['fake-small'] }, { name: 'ollama', configured: false, models: ['llama3.1:8b'] }] }, null)
+    expect(legacy.map((m) => [m.alias, m.available, m.default])).toEqual([
+      ['fake-small', true, true],
+      ['llama3.1:8b', false, false],
+    ])
+    expect(autoModel(legacy)?.alias).toBe('fake-small')
+    // Public mode on an API from before P6: no picker, so turns name no model.
     expect(pickerModels(caps('public'), null)).toEqual([])
     expect(effectiveModel([], null)).toBeNull()
   })
 
-  it('names the reset time in UTC', () => {
+  it('names the reset time in UTC, and on the viewer clock when it differs', () => {
     expect(resetTime('2026-11-02T00:00:00Z')).toBe('00:00 UTC')
     expect(resetTime('2026-11-02T06:30:00Z')).toBe('06:30 UTC')
     expect(resetTime(null)).toBe('00:00 UTC')
-    expect(modelReasonText('budget_exhausted', '2026-11-02T06:30:00Z')).toContain('It resets at 06:30 UTC.')
+    expect(resetPhrase('2026-11-02T00:00:00Z', { timeZone: 'UTC', locale: 'en-US' })).toBe('00:00 UTC')
+    expect(resetPhrase('2026-11-02T00:00:00Z', { timeZone: 'Asia/Manila', locale: 'en-US' })).toBe('00:00 UTC (8:00 AM your time)')
+    expect(localResetTime('2026-11-02T00:00:00Z', { timeZone: 'Europe/London', locale: 'en-US' })).toBeNull()
+    expect(modelReasonText('budget_exhausted', { resetsAt: '2026-11-02T06:30:00Z', timeZone: 'UTC' })).toContain('Back at 06:30 UTC.')
+  })
+})
+
+describe('the fixture select', () => {
+  const FIXTURES: PublicInfo = {
+    ...PUBLIC,
+    fixtures: [
+      { name: 'cite_mgmt_fee_hcp01', description: null, packs: ['finance'] },
+      { name: 'plain_answer', description: 'A plain question answered from the system prompt, no tool.', packs: [] },
+      { name: 'public_demo', description: 'The scripted model a public server offers.', packs: [] },
+      { name: 'tool_call', description: null, packs: ['_starter'] },
+    ],
+    default_fixture: 'public_demo',
+  }
+
+  it('shows while the next turn runs on the scripted model: picked, or what Auto resolves to', () => {
+    const c = caps('public', {}, FIXTURES)
+    const models = pickerModels(c, null)
+    expect(fixtureVisible(c, effectiveModel(models, null), null)).toBe(false) // Auto is Claude Haiku
+    expect(fixtureVisible(c, effectiveModel(models, 'fake-small'), null)).toBe(true)
+    const spent = caps('public', {}, { ...FIXTURES, models: FIXTURES.models.map((m) => ({ ...m, default: m.provider === 'fake', available: m.provider === 'fake', reason: m.provider === 'fake' ? null : ('budget_exhausted' as const) })) })
+    expect(fixtureVisible(spent, effectiveModel(pickerModels(spent, null), null), null)).toBe(true)
+    // An API that lists no fixtures for public mode (before the picker fixes): never.
+    expect(fixtureVisible(caps('public', {}, PUBLIC), effectiveModel(models, 'fake-small'), null)).toBe(false)
+    // Dev mode: a provider override decides; private mode takes no fixture.
+    const dev = caps('dev', {}, FIXTURES)
+    expect(fixtureVisible(dev, effectiveModel(models, 'fake-small'), 'ollama')).toBe(false)
+    expect(fixtureVisible(dev, effectiveModel(models, null), 'fake')).toBe(true)
+    expect(fixtureVisible(caps('private', {}, FIXTURES), effectiveModel(models, 'fake-small'), null)).toBe(false)
+  })
+
+  it('groups the session pack own fixtures, then the shared ones, with the server default named', () => {
+    const catalog = fixtureCatalog(caps('public', {}, FIXTURES))
+    expect(catalog.defaultName).toBe('public_demo')
+    expect(catalog.descriptions.plain_answer).toBe('A plain question answered from the system prompt, no tool.')
+    expect(fixtureGroups(catalog, null, 'finance')).toEqual({ own: ['cite_mgmt_fee_hcp01'], shared: ['plain_answer', 'public_demo'], all: ['cite_mgmt_fee_hcp01', 'plain_answer', 'public_demo'] })
+    expect(fixtureGroups(catalog, null, '_starter').own).toEqual(['tool_call'])
+    // The dev-mode list, with GET /v1/packs saying whose is whose.
+    const legacy = fixtureCatalog({ ...caps('dev'), fixtures: ['plain_answer', 'tool_call'] })
+    expect(legacy.packsOf).toBeNull()
+    expect(fixtureGroups(legacy, [{ id: '_starter', fixtures: ['tool_call'] } as never], '_starter')).toEqual({ own: ['tool_call'], shared: ['plain_answer'], all: ['tool_call', 'plain_answer'] })
+    expect(fixtureCatalog(caps('public')).names).toEqual([])
   })
 })
