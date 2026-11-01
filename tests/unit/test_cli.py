@@ -2,7 +2,7 @@
 
 import json
 
-from harnesswalk.__main__ import main
+from harnesswalk.__main__ import format_error, format_walk, main
 
 
 def test_turn_prints_the_walk_and_events_dumps_it(tmp_path, monkeypatch, capsys) -> None:
@@ -114,3 +114,53 @@ def test_turn_prints_the_sources_the_reply_cites(tmp_path, monkeypatch, capsys) 
     sources = capsys.readouterr().out.split("\nsources\n")[1].split("\n\n")[0]
     assert "[6] Returns policy, Return window  (returns_policy#1)" in sources
     assert "[5] Returns policy, Return labels  (returns_policy#2)" in sources
+
+
+def test_a_failed_turn_prints_each_error_message_and_the_first_one_under_the_reply(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    monkeypatch.setenv("HARNESSWALK_DATA_DIR", str(tmp_path))
+    base = ["--provider", "fake", "--fixture", "plain_answer"]
+    assert main(["turn", "What are your support hours?", *base]) == 0
+    session = capsys.readouterr().out.split("session ")[1].split()[0]
+    # plain_answer scripts one turn: the second one in the session exhausts the fixture.
+    assert main(["turn", "And on Sundays?", "--session", session, *base]) == 0
+    out = capsys.readouterr().out
+    cause = "fixture plain_answer has no response 0 for turn 1"
+    walk = {
+        line.split()[0]: line
+        for line in out.split("walk (")[1].split("\nreply\n")[0].splitlines()[1:]
+    }
+    assert f'error=fixture_exhausted "{cause}" provider=fake' in walk["providers"]
+    assert f'error=fixture_exhausted "{cause}" step=1' in walk["model_layer"]
+    assert walk["loop"].split("error=", 1)[1].startswith('provider_error "')
+    reply, rest = out.split("\nreply\n")[1].split("\nerror\n")
+    assert "Something went wrong" in reply
+    assert rest.splitlines()[0] == f"  fixture_exhausted at providers: {cause}"
+    assert "\nexit error, status done, 0 step(s)" in rest  # the summary line is unchanged
+
+
+def test_error_formatting_clips_long_messages_and_stays_quiet_on_success() -> None:
+    long = "boom " * 100
+    events = [
+        {"type": "turn_start", "status": "active"},
+        {"type": "node_enter", "status": "active", "node_id": "loop"},
+        {
+            "type": "error",
+            "status": "error",
+            "node_id": "loop",
+            "duration_ms": 1.0,
+            "error": {"code": "provider_error", "message": "line one\nline two " + long},
+        },
+        {"type": "turn_end", "status": "done", "summary": {"exit": "error"}},
+    ]
+    (line,) = format_walk(events)
+    said = line.split("error=provider_error ", 1)[1]
+    assert said.startswith('"line one line two boom') and said.endswith('..."')
+    assert len(said) == 74  # 72 characters and the quotes
+    block = format_error(events)
+    assert block[0] == "error" and block[1].startswith("  provider_error at loop: line one")
+    assert len(block[1]) <= len("  provider_error at loop: ") + 300
+    # A turn that recovered (a fallback answered) has no error block: the walk shows it.
+    events[-1] = {"type": "turn_end", "status": "done", "summary": {"exit": "answered"}}
+    assert format_error(events) == []

@@ -71,6 +71,30 @@ def _short(summary: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
+def _clip(text: str, limit: int) -> str:
+    """One line of at most `limit` characters, with an ellipsis when it was cut."""
+    text = " ".join(str(text).split())
+    return text if len(text) <= limit else text[: limit - 3].rstrip() + "..."
+
+
+def first_error(events: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The turn's first `error` event: the spans that fail after it only repeat it (a
+    provider's fixture_exhausted becomes the loop's provider_error), so it is the cause."""
+    return next((e for e in events if e["type"] == "error" and e.get("error")), None)
+
+
+def format_error(events: list[dict[str, Any]]) -> list[str]:
+    """The short block under the reply of a failed turn: the first error's code and message."""
+    end = events[-1] if events else {}
+    failed = end.get("status") == "error" or (end.get("summary") or {}).get("exit") == "error"
+    event = first_error(events) if failed else None
+    if event is None:
+        return []
+    where = f" at {event['node_id']}" if event.get("node_id") else ""
+    err = event["error"]
+    return ["error", f"  {err['code']}{where}: {_clip(err.get('message', ''), 300)}"]
+
+
 def format_walk(events: list[dict[str, Any]]) -> list[str]:
     """One line per node span, in enter order, indented by nesting, with status and ms."""
     lines: list[tuple[int, int]] = []  # (event index of enter, depth)
@@ -90,7 +114,10 @@ def format_walk(events: list[dict[str, Any]]) -> list[str]:
         timing = f"{ms:9.2f} ms" if ms is not None else " " * 12
         detail = _short({**(enter.get("summary") or {}), **(close.get("summary") or {})})
         if close.get("error"):
-            detail = f"error={close['error']['code']} {detail}"
+            err = close["error"]
+            message = _clip(err.get("message", ""), 72)
+            said = f" {json.dumps(message, ensure_ascii=False)}" if message else ""
+            detail = f"error={err['code']}{said} {detail}"
         out.append(f"  {label:<28} {close.get('status', 'open'):<8}{timing}  {detail}".rstrip())
     return out
 
@@ -175,6 +202,9 @@ async def _run_turn(args: argparse.Namespace) -> int:
         print("\nsources")
         for c in cited:
             print(f"  [{c['n']}] {c['citation']}  ({c['doc']}#{c['chunk']})")
+    failure = format_error(events)
+    if failure:  # the cause, so nobody needs the events dump to read it
+        print("\n" + "\n".join(failure))
     print(
         f"\nexit {end['summary'].get('exit')}, status {end['status']}, "
         f"{end['summary'].get('steps', 0)} step(s), "
