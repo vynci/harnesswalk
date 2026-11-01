@@ -255,8 +255,11 @@ def _ingest(args: argparse.Namespace) -> int:
         extra["dataset"] = args.pack
     settings = _settings(args, **extra)
     pack = settings.get("dataset", "_starter")
-    if not (settings.root / "datasets" / pack).is_dir():
-        print(f"no dataset pack {pack!r} under {settings.root / 'datasets'}", file=sys.stderr)
+    from harnesswalk.ops import pack_index
+
+    if pack_index.find(settings, pack) is None:  # any of packs.roots, not only datasets/
+        print(f"no dataset pack {pack!r} under {settings.get('packs.roots', ['datasets'])}",
+              file=sys.stderr)  # fmt: skip
         return 1
     harness = Harness(settings)
     try:
@@ -276,10 +279,12 @@ def _ingest(args: argparse.Namespace) -> int:
 def _packs(args: argparse.Namespace) -> int:
     """`packs list`, `packs validate [pack]` (exit 1 on any issue), `packs ingest [pack]`."""
     from harnesswalk import packs
+    from harnesswalk.ops import pack_index
 
+    roots = pack_index.roots(_settings(args))  # packs.roots, so a profile can add its own
     try:
-        chosen = [packs.get_pack(args.pack)] if args.pack else packs.discover()
-        everything = packs.discover()
+        everything = packs.discover(roots=roots)
+        chosen = [packs.get_pack(args.pack, roots=roots)] if args.pack else everything
     except packs.PackError as exc:
         print(f"harnesswalk packs: {exc}", file=sys.stderr)
         return 2
@@ -289,9 +294,10 @@ def _packs(args: argparse.Namespace) -> int:
             print(json.dumps(rows, indent=2, ensure_ascii=False))
             return 0
         for r in rows:
-            feature = r["feature"].get("name") or "-"
+            feature = r["feature"] or "-"
             print(
-                f"{r['id']:<12} {r['tier']:<8} {r['docs']:>2} docs  {len(r['tools'])} tools  "
+                f"{r['id']:<16} {r['tier']:<8} {r['counts']['docs']:>2} docs  "
+                f"{len(r['tools'])} tools  "
                 f"{r['size_bytes'] / 1024:7.1f} KiB  {r['title']}: {feature}"
             )
         return 0
