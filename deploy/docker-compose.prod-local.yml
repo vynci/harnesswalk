@@ -1,0 +1,35 @@
+# The prod profile on a laptop: `make prod-up` (and `make loadtest`) layer this file on top of
+# docker-compose.yml. Same services, limits, read-only root and Caddy rules as the box, with:
+#   - the api image built from this checkout (HARNESSWALK_IMAGE=harnesswalk-api:local),
+#   - the fake provider (no key, no cost),
+#   - the stores in a named volume (never the repo's data/),
+#   - Caddy's internal CA instead of Let's Encrypt, on 127.0.0.1:8443 and :8080, the api on :8100,
+#   - local json-file logs instead of CloudWatch.
+# HARNESSWALK_SECRET and ORIGIN_VERIFY come from the environment (the Makefile generates
+# throwaway values with openssl and never prints them).
+services:
+  api-prod:
+    build:
+      context: ..
+      dockerfile: deploy/api.Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-local}
+    environment:
+      HARNESSWALK_PROVIDER: ${HARNESSWALK_PROVIDER:-fake}
+    # 8100, not 8000: a `make run` on this machine usually holds 8000.
+    ports: !override
+      - "127.0.0.1:${PROD_LOCAL_API_PORT:-8100}:8000"
+    volumes: !override
+      - prod-local-data:/data
+    logging: !reset {}
+
+  caddy:
+    environment:
+      CADDY_TLS: tls_internal
+    ports: !override
+      - "127.0.0.1:8080:80"
+      - "127.0.0.1:8443:443"
+    logging: !reset {}
+
+volumes:
+  prod-local-data:
