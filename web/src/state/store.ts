@@ -18,6 +18,7 @@ import type {
   TurnSummary,
   View,
 } from '@/api/types'
+import { effectiveModel, modelReasonText, pickerModels } from './features'
 import { artifactLabel, releaseMark, savedMark, type OpsMark } from './ops'
 import { buildEdgeIndex, initialTurnState, reduceEvent, reduceEvents, type EdgeIndex, type TurnState } from './reducer'
 import { fixtureChoices, packTitle } from './packs'
@@ -133,6 +134,15 @@ export interface AppState {
   /** Dev mode composer options: a JSON Schema for the answer, and a model alias hint. */
   outputSchema: string
   modelHint: string | null
+  /** P6, public mode: the model the reader picked in the composer (null: the default). */
+  publicModel: string | null
+  /**
+   * P6: the reader's own provider key. Held in this tab's memory only (never localStorage or a
+   * cookie), sent as the provider key header on every turn, gone on reload.
+   */
+  byoKey: string | null
+  /** P6: the sandbox session's expiry this tab has already acted on (warned, reset). */
+  sandbox: { warnedFor: string | null; expiredFor: string | null }
   /** P4: saves and releases in the chat timeline (Checkpoint markers). */
   marks: OpsMark[]
   /** P4: the eval run in progress, started here. */
@@ -178,6 +188,12 @@ export interface AppState {
   decideProposal: (proposalId: string, decision: 'accept' | 'reject') => Promise<boolean>
   setOutputSchema: (text: string) => void
   setModelHint: (alias: string | null) => void
+  setPublicModel: (alias: string | null) => void
+  setByoKey: (key: string | null) => void
+  /** P6: the 5-minute warning before the sandbox session ends (once per expiry). */
+  warnSandbox: (expiresAt: string) => void
+  /** P6: the sandbox session ended: everything in it is gone, so the chat starts over. */
+  expireSandbox: (expiresAt: string) => void
   refreshCapabilities: () => Promise<void>
   refreshLatestEval: () => Promise<void>
   startEval: (req: StartEvalRequest) => Promise<string | null>
@@ -225,6 +241,26 @@ export function newSessionId(): string {
   const bytes = new Uint8Array(10)
   globalThis.crypto.getRandomValues(bytes)
   return 'sess_' + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** How long to wait, for a 429: "12 min", "40 s". */
+export function waitText(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds)) return 'a little while'
+  if (seconds >= 3600) return `${Math.round(seconds / 360) / 10} h`
+  if (seconds >= 90) return `${Math.ceil(seconds / 60)} min`
+  return `${Math.max(1, Math.round(seconds))} s`
+}
+
+/** The toast for a turn the API refused: the P6 public-mode refusals in words, the rest as is. */
+export function turnRefusal(err: unknown): string {
+  if (err instanceof ApiError && err.status === 429) {
+    return `Too many requests from this address this hour. Try again in ${waitText(err.retryAfter)}.`
+  }
+  if (err instanceof ApiError && err.code === 'budget_exhausted') {
+    const resets = (err.body as { error?: { resets_at?: string } } | undefined)?.error?.resets_at
+    return modelReasonText('budget_exhausted', resets)
+  }
+  return `Could not start the turn: ${describe(err)}`
 }
 
 function describe(err: unknown): string {
@@ -291,8 +327,9 @@ export const useApp = create<AppState>()((set, get) => {
           }
           if (why === 'turn_end') {
             void refreshSummary(turnId)
-            // A release made elsewhere (the CLI, another browser) shows up in the capabilities.
-            if (get().capabilities?.features.release) void get().refreshCapabilities()
+            // After every turn: a release made elsewhere (the CLI, another browser), and in public
+            // mode the requests left this hour and the shared budget, show up in the capabilities.
+            void get().refreshCapabilities()
           }
         },
       },
@@ -529,6 +566,9 @@ export const useApp = create<AppState>()((set, get) => {
     inspectorVersion: 0,
     outputSchema: '',
     modelHint: null,
+    publicModel: null,
+    byoKey: null,
+    sandbox: { warnedFor: null, expiredFor: null },
     marks: [],
     liveEval: null,
     latestEval: null,
@@ -557,7 +597,7 @@ export const useApp = create<AppState>()((set, get) => {
     },
 
     async send(text) {
-      const { api, sessionId, stepMode, provider, fixture, disabled, capabilities, liveTurnId, turns, outputSchema, modelHint, pack } = get()
+      const { api, sessionId, stepMode, provider, fixture, disabled, capabilities, liveTurnId, turns, outputSchema, modelHint, pack, byoKey, publicModel } = get()
       const message = text.trim()
       if (!api || !message) return
       const dev = capabilities?.mode === 'dev'
@@ -571,6 +611,9 @@ export const useApp = create<AppState>()((set, get) => {
         get().notify('info', 'A turn is still running. Stop it or wait for it to finish.')
         return
       }
+      // P6: in public mode the turn names the picked model (or the default), when the API lists them.
+      const publicPick = capabilities?.mode === 'public' ? effectiveModel(pickerModels(capabilities, byoKey), publicModel) : null
+      const apiKey = capabilities?.features.byo_key && byoKey ? byoKey : null
       get().exitReplay()
       set({ sending: true })
       try {
@@ -583,9 +626,10 @@ export const useApp = create<AppState>()((set, get) => {
           ...(capabilities?.mode !== 'public' && capabilities?.features.disable_nodes !== false && disabled.length ? { disable: disabled } : {}),
           ...(parsed.schema ? { output_schema: parsed.schema } : {}),
           ...(dev && modelHint ? { model: modelHint } : {}),
+          ...(publicPick ? { model: publicPick.alias } : {}),
           // A new session starts on the chosen pack (P5); a session's pack is fixed after that.
           ...(!sessionId && pack && capabilities?.features.packs ? { options: { pack } } : {}),
-        })
+        }, { apiKey })
         rememberMessage(res.turn_id, message)
         if (res.session_id !== sessionId) {
           set({ sessionId: res.session_id })
@@ -597,7 +641,9 @@ export const useApp = create<AppState>()((set, get) => {
         addTurn({ turnId: res.turn_id, userText: message, state: initialTurnState(), createdAt: Date.now() })
         follow(res.turn_id)
       } catch (err) {
-        get().notify('error', `Could not start the turn: ${describe(err)}`)
+        get().notify('error', turnRefusal(err))
+        // A refusal about models or limits changes what the picker and the limits card show.
+        if (err instanceof ApiError && (err.status === 409 || err.status === 429 || err.code === 'invalid_request')) void get().refreshCapabilities()
       } finally {
         set({ sending: false })
       }
@@ -793,6 +839,30 @@ export const useApp = create<AppState>()((set, get) => {
 
     setModelHint(modelHint) {
       set({ modelHint })
+    },
+
+    setPublicModel(publicModel) {
+      set({ publicModel })
+    },
+
+    setByoKey(key) {
+      const byoKey = key && key.trim() ? key.trim() : null
+      set({ byoKey })
+    },
+
+    warnSandbox(expiresAt) {
+      if (get().sandbox.warnedFor === expiresAt) return
+      set((s) => ({ sandbox: { ...s.sandbox, warnedFor: expiresAt } }))
+      get().notify('info', 'Sandbox session: 5 minutes left. Then everything here is deleted and the chat starts over.')
+    },
+
+    expireSandbox(expiresAt) {
+      if (get().sandbox.expiredFor === expiresAt) return
+      set((s) => ({ sandbox: { ...s.sandbox, expiredFor: expiresAt } }))
+      // The API deleted the tenant's sessions, turns and memory; the next turn starts a fresh one.
+      get().newSession()
+      get().notify('info', 'The sandbox session ended and everything in it was deleted. Your next message starts a fresh one.')
+      void get().refreshCapabilities()
     },
 
     async refreshCapabilities() {
