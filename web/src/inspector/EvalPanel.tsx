@@ -2,12 +2,11 @@
 // the AI Elements Test Results pattern (suites by case or by scorer, regressions marked, a case
 // opening to expected versus actual and to its turn in replay).
 import { useState } from 'react'
-import { Check, CircleDashed, FlaskConical, LoaderCircle, OctagonX, Play, X } from 'lucide-react'
-import type { EvalCase, EvalRunSummary, EvalSuite } from '@/api/types'
+import { Check, CircleDashed, FlaskConical, ListChecks, LoaderCircle, OctagonX, Play, X } from 'lucide-react'
+import type { EvalCase, EvalRunSummary, EvalSuite, GoldenCase } from '@/api/types'
 import { Hint } from '@/components/hint'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
@@ -22,7 +21,10 @@ import {
 } from '@/components/ui/trace'
 import { formatMs } from '@/diagram/stats'
 import { evalBlockReason } from '@/state/ops'
+import { packTitle } from '@/state/packs'
 import { useApp } from '@/state/store'
+import { DiagnoseAction, DiagnosisChip } from './Diagnosis'
+import { afterNote } from './p5View'
 import { byScorer, plural, regressionText, runHeadline, runName, showValue, sortCases } from './opsView'
 import { useArtifacts, useLoad } from './useOps'
 
@@ -49,14 +51,16 @@ function RunForm({ defaultPack, onStart }: { defaultPack: string; onStart: () =>
   const capabilities = useApp((s) => s.capabilities)
   const liveEval = useApp((s) => s.liveEval)
   const startEval = useApp((s) => s.startEval)
-  const [pack, setPack] = useState<string | null>(null)
+  const packs = useApp((s) => s.packs)
+  const sessionPack = useApp((s) => s.pack)
   const [suite, setSuite] = useState<EvalSuite>('golden')
   const [model, setModel] = useState(DEFAULT_MODEL)
   const blocked = evalBlockReason(capabilities)
   // The judge suite needs a judge model the API has configured (features.judge).
   const judge = capabilities?.features.judge === true
   const models = (capabilities?.providers ?? []).filter((p) => p.configured).flatMap((p) => p.models.map((m) => ({ provider: p.name, model: m })))
-  const packValue = pack ?? defaultPack
+  // The session's pack: the panel runs that pack's golden set (P5).
+  const packValue = sessionPack ?? defaultPack
   const busy = !!liveEval
   const run = () => {
     if (blocked || busy || !packValue.trim()) return
@@ -73,10 +77,12 @@ function RunForm({ defaultPack, onStart }: { defaultPack: string; onStart: () =>
         run()
       }}
     >
-      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        Pack
-        <Input value={packValue} onChange={(e) => setPack(e.target.value)} className="h-7 w-28 font-mono text-xs" aria-label="Pack" data-testid="eval-pack" />
-      </label>
+      <p className="flex min-w-0 flex-col gap-1 text-xs text-muted-foreground">
+        <span>Pack</span>
+        <span className="flex h-7 max-w-48 items-center truncate text-foreground" title={`datasets/${packValue}/golden.jsonl`} data-testid="eval-pack" data-pack={packValue}>
+          {packTitle(packs, packValue)}
+        </span>
+      </p>
       {judge ? (
         <div className="flex flex-col gap-1 text-xs text-muted-foreground">
           <span id="eval-suite-label">Suite</span>
@@ -125,7 +131,7 @@ function RunForm({ defaultPack, onStart }: { defaultPack: string; onStart: () =>
   )
 }
 
-function CaseDetail({ c }: { c: EvalCase }) {
+function CaseDetail({ c, runId }: { c: EvalCase; runId: string }) {
   const enterReplay = useApp((s) => s.enterReplay)
   const expected = c.expected ?? {}
   const actual = c.actual
@@ -134,6 +140,16 @@ function CaseDetail({ c }: { c: EvalCase }) {
   for (const k of keys) rows.push([k, expected[k], actual ? (actual as Record<string, unknown>)[k] : undefined])
   return (
     <div className="flex flex-col gap-3" data-testid="eval-case-detail">
+      {c.after && (
+        <p className="text-xs text-muted-foreground" data-testid="eval-case-after">
+          {afterNote(c.after)}
+        </p>
+      )}
+      {c.status === 'skipped' && c.detail && (
+        <p className="text-xs text-muted-foreground" data-testid="eval-case-skipped">
+          Skipped: {c.detail}.
+        </p>
+      )}
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
         {rows.map(([k, want, got]) => (
           <div key={k} className="contents">
@@ -179,6 +195,7 @@ function CaseDetail({ c }: { c: EvalCase }) {
         </ul>
       )}
       {c.error && <p className="text-xs break-words text-destructive">Error {c.error.code}: {c.error.message}</p>}
+      {(c.diagnosis || c.status === 'failed' || c.status === 'error') && <DiagnoseAction stored={c.diagnosis} target={{ run_id: runId, case_id: c.case_id }} />}
       {c.turn_id && c.events_url && (
         <Button
           size="xs"
@@ -206,16 +223,19 @@ function CaseLine({ c }: { c: EvalCase }) {
           regression
         </Badge>
       )}
+      {c.diagnosis?.layer && <DiagnosisChip layer={c.diagnosis.layer} />}
       <TraceDescription>
         {c.status === 'skipped'
-          ? 'skipped'
+          ? c.detail
+            ? `skipped, ${c.detail}`
+            : 'skipped'
           : [c.status === 'error' ? 'error, counted as failed' : '', c.previous_status && c.previous_status !== c.status ? `was ${c.previous_status}` : ''].filter(Boolean).join(', ')}
       </TraceDescription>
     </TraceLine>
   )
 }
 
-function ByCase({ cases }: { cases: EvalCase[] }) {
+function ByCase({ cases, runId }: { cases: EvalCase[]; runId: string }) {
   return (
     <Trace role="list" aria-label="Cases" data-testid="eval-cases">
       {sortCases(cases).map((c) => (
@@ -224,7 +244,7 @@ function ByCase({ cases }: { cases: EvalCase[] }) {
             <CaseLine c={c} />
           </TraceCollapsibleTrigger>
           <TraceCollapsibleContent>
-            <CaseDetail c={c} />
+            <CaseDetail c={c} runId={runId} />
           </TraceCollapsibleContent>
         </TraceCollapsible>
       ))}
@@ -305,7 +325,10 @@ function RunDetail({ runId }: { runId: string }) {
           </TraceCollapsibleTrigger>
           <TraceCollapsibleContent className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span>{runName(r)}</span>
+              <span>
+                {runName(r)}
+                {r.purpose === 'release_gate' ? ', the release gate' : ''}
+              </span>
               <span className="tabular-nums">
                 {r.totals.passed} passed, {r.totals.failed} failed{errors ? ` (${errors} with an error)` : ''}, {r.totals.skipped} skipped
               </span>
@@ -325,7 +348,7 @@ function RunDetail({ runId }: { runId: string }) {
               </p>
             )}
             {r.error && <p className="text-xs text-destructive">The run stopped: {r.error.message}</p>}
-            {r.cases.length === 0 ? <p className="text-xs">No case has finished yet.</p> : group === 'case' ? <ByCase cases={r.cases} /> : <ByScorer cases={r.cases} />}
+            {r.cases.length === 0 ? <p className="text-xs">No case has finished yet.</p> : group === 'case' ? <ByCase cases={r.cases} runId={r.run_id} /> : <ByScorer cases={r.cases} />}
           </TraceCollapsibleContent>
         </TraceCollapsible>
       </Trace>
@@ -333,13 +356,93 @@ function RunDetail({ runId }: { runId: string }) {
   )
 }
 
+/** What a golden case asks for besides its prompt: checks, modes, the case it runs after. */
+function goldenNotes(g: GoldenCase): string[] {
+  const out: string[] = []
+  if (g.checks?.router_rules?.length) out.push(`router rules ${g.checks.router_rules.join(', ')}`)
+  if (g.checks?.retrieved) out.push(`retrieves ${Object.entries(g.checks.retrieved).map(([store, text]) => `"${text}" from ${store}`).join(', ')}`)
+  if (g.modes?.length) out.push(`${g.modes.join(' and ')} mode only`)
+  return out
+}
+
+/** The session pack's golden set (GET /v1/evals/golden?pack=), each case runnable alone. */
+function GoldenSetView({ blocked, onStart }: { blocked: string | null; onStart: () => void }) {
+  const api = useApp((s) => s.api)
+  const pack = useApp((s) => s.pack)
+  const packs = useApp((s) => s.packs)
+  const liveEval = useApp((s) => s.liveEval)
+  const startEval = useApp((s) => s.startEval)
+  const golden = useLoad(api ? `golden:${pack ?? ''}` : null, () => api!.golden())
+  if (golden.status === 'error') return <p className="text-xs text-destructive">Could not read the golden set: {golden.error}</p>
+  if (!golden.data) return null
+  const set = golden.data
+  return (
+    <Trace data-testid="golden-set" data-pack={set.pack}>
+      <TraceCollapsible>
+        <TraceCollapsibleTrigger>
+          <TraceLine>
+            <TraceIcon>
+              <ListChecks />
+            </TraceIcon>
+            <TraceTitle>
+              Golden set of {packTitle(packs, set.pack)}: {plural(set.cases.length, 'case')}
+            </TraceTitle>
+            <TraceDescription className="font-mono">{set.path}</TraceDescription>
+          </TraceLine>
+        </TraceCollapsibleTrigger>
+        <TraceCollapsibleContent>
+          <ul className="flex flex-col gap-2" aria-label="Golden cases">
+            {set.cases.map((g) => {
+              const notes = goldenNotes(g)
+              return (
+                <li key={g.id} className="flex flex-col gap-0.5 text-xs" data-testid="golden-case" data-case={g.id} data-after={g.after ?? ''}>
+                  <div className="flex items-start gap-2">
+                    <span className="min-w-0 flex-1">
+                      <span className="text-foreground">{g.title || g.id}</span> <code className="font-mono text-muted-foreground">{g.id}</code>
+                    </span>
+                    <Hint label={blocked ?? (g.after ? afterNote(g.after) : `Run ${g.id} alone`)} side="top">
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        className="shrink-0 text-muted-foreground"
+                        aria-label={`Run ${g.id} alone`}
+                        aria-disabled={blocked || liveEval ? true : undefined}
+                        onClick={() => {
+                          if (blocked || liveEval) return
+                          onStart()
+                          void startEval({ pack: set.pack, suite: 'golden', cases: [g.id] })
+                        }}
+                        data-testid="golden-run-case"
+                      >
+                        <Play aria-hidden />
+                      </Button>
+                    </Hint>
+                  </div>
+                  {notes.length > 0 && <span className="text-muted-foreground">{notes.join(' · ')}</span>}
+                  {g.after && (
+                    <span className="text-muted-foreground" data-testid="golden-after">
+                      {afterNote(g.after)}
+                    </span>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </TraceCollapsibleContent>
+      </TraceCollapsible>
+    </Trace>
+  )
+}
+
 /** The Eval node: Run, the runs list, and the selected run as Test Results. */
 export function EvalPanel() {
   const api = useApp((s) => s.api)
-  const on = useApp((s) => s.capabilities?.features.evals === true)
+  const capabilities = useApp((s) => s.capabilities)
+  const on = capabilities?.features.evals === true
   const version = useApp((s) => s.inspectorVersion)
   const liveEval = useApp((s) => s.liveEval)
   const opsRun = useApp((s) => s.opsRun)
+  const packs = useApp((s) => s.packs)
   const { pack: artifactsPack } = useArtifacts()
   const runs = useLoad(api && on ? `runs:${version}` : null, () => api!.evalRuns({ limit: 10 }))
   const [chosen, setChosen] = useState<string | null>(null)
@@ -352,6 +455,7 @@ export function EvalPanel() {
   return (
     <div className="flex flex-col gap-4" data-testid="eval-panel">
       <RunForm defaultPack={list[0]?.pack ?? artifactsPack ?? ''} onStart={() => setChosen(null)} />
+      <GoldenSetView blocked={evalBlockReason(capabilities)} onStart={() => setChosen(null)} />
       {progress && (
         <Trace role="status" aria-live="polite">
           <TraceLine status="running" data-testid="eval-progress">
@@ -359,8 +463,9 @@ export function EvalPanel() {
               <LoaderCircle className="animate-spin motion-reduce:animate-none" />
             </TraceIcon>
             <TraceTitle>
-              Running the {progress.suite} suite on {progress.pack}
-              {!liveEval ? ' (started elsewhere)' : ''}
+              {!liveEval && opsRun?.purpose === 'release_gate'
+                ? `Running the release gate: the ${progress.suite} suite on ${packTitle(packs, progress.pack)}`
+                : `Running the ${progress.suite} suite on ${packTitle(packs, progress.pack)}${!liveEval ? ' (started elsewhere)' : ''}`}
             </TraceTitle>
             <TraceDescription>
               {progress.done}
@@ -390,6 +495,11 @@ export function EvalPanel() {
                   <TraceTitle>
                     {runName(r)}: {r.totals.passed} passed, {r.totals.failed} failed
                   </TraceTitle>
+                  {r.purpose === 'release_gate' && (
+                    <Badge variant="outline" className="h-5 shrink-0 font-normal" data-testid="eval-run-gate">
+                      release gate
+                    </Badge>
+                  )}
                   {r.regressions > 0 && (
                     <Badge variant="destructive" className="h-5 shrink-0 font-normal">
                       {plural(r.regressions, 'regression')}
