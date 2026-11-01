@@ -260,8 +260,11 @@ class ModelLayer:
                         model=response.model,
                         request=sent,
                         reply={
-                            **payloads.text(response.text),
-                            "tool_calls": [payloads.tool_call(c) for c in response.tool_calls],
+                            **payloads.text(payloads.outside(ctx, response.text)),
+                            "tool_calls": [
+                                payloads.tool_call(payloads.outside(ctx, c.__dict__))
+                                for c in response.tool_calls
+                            ],
                             "finish_reason": response.finish_reason,
                         },
                     )

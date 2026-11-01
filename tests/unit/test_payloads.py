@@ -275,3 +275,24 @@ async def test_the_detail_endpoint_answers_only_the_turns_tenant(tmp_path: Path)
         r = await c.get(url)
         assert r.status_code == 404 and r.json()["error"]["code"] == "turn_not_found"
     assert h.tracer.get_detail("t2", exit_["detail_ref"]) is None
+
+
+def test_public_mode_scrubs_the_texts_that_did_not_come_from_the_user() -> None:
+    from harnesswalk.types import Message, ToolCall
+    from tests.unit.support import make_ctx
+
+    ctx, _ = make_ctx()
+    leak = "The customer is bo@example.com."
+    assert payloads.outside(ctx, leak) == leak  # dev: as the model and the tools said it
+    ctx.mode = "public"
+    assert payloads.outside(ctx, leak) == "The customer is [EMAIL]."
+    assert payloads.outside(ctx, {"to": "bo@example.com"}) == {"to": "[EMAIL]"}
+    messages = [
+        Message("user", "Who ordered A-1001?"),
+        Message("assistant", "", tool_calls=[ToolCall("c1", "notify", {"to": "bo@example.com"})]),
+        Message("tool", leak, name="lookup_order", tool_call_id="c1"),
+    ]
+    sections = payloads.request_sections(ctx, messages)
+    assert sections[1]["tool_calls"][0]["arguments"] == {"to": "[EMAIL]"}
+    assert sections[2]["body"] == "The customer is [EMAIL]."
+    assert "bo@example.com" not in json.dumps(payloads.capped(sections))

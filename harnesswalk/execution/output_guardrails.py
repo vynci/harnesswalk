@@ -364,7 +364,9 @@ class OutputGuardrails:
         about = None
         if capture:
             about = {
-                "payload": payloads.record("output_guardrails", "enter", before=payloads.text(text))
+                "payload": payloads.record(
+                    "output_guardrails", "enter", before=payloads.text(payloads.outside(ctx, text))
+                )
             }
         async with node(ctx, "output_guardrails", enter_detail=about) as span:
             if (not self.enabled or ctx.is_disabled("output_guardrails")) and ctx.mode != "public":
@@ -411,7 +413,7 @@ class OutputGuardrails:
         out = payloads.record(
             "output_guardrails",
             "exit",
-            before=payloads.text(before),
+            before=payloads.text(payloads.outside(ctx, before)),
             after=payloads.text(result.text),
             action=result.action,
             repairs=list(result.reasons) if result.action == "repair" else [],

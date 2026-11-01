@@ -169,5 +169,9 @@ a reader of the turn has not already sent or been shown, so it adds no exposure.
 typed, before redaction (`received`, `input`), is kept only when the guardrails would not
 change it, or in the modes of the PII restore rule (`input_guardrails.pii.restore_modes`,
 default `dev`, never `public`); elsewhere it is `null` with `withheld: true`, and the redacted
-text stands in for it. The placeholder map is never stored, only its count, kinds and tokens.
+text stands in for it. The placeholder map is never stored, only its count, kinds and tokens. The texts that did not
+come from the user (tool results and the model's tool-call arguments in a request, the model's
+reply, the answer before the output checks) are stored in public mode with their personal data
+replaced by typed placeholders (`[EMAIL]`), as the output guardrails' PII check would, so a
+payload never shows a reader what those guardrails keep from them.
 Details follow the mode's retention (the public TTL sweeper hard deletes them with the tenant).

@@ -83,6 +83,26 @@ def kept_original(
     return None, True
 
 
+# -- texts that did not come from the user ----------------------------------------------------
+
+_detector: Any = None
+
+
+def outside(ctx: TurnContext, value: Any) -> Any:
+    """A text (or JSON value) that did not come from the user: a tool result, the model's own
+    words before the output guardrails checked them. In public mode its personal data is
+    replaced with typed placeholders (`[EMAIL]`), as the output guardrails' PII check would, so
+    a payload never shows a reader what the guardrails keep from them."""
+    global _detector
+    if ctx.mode != "public" or not value:
+        return value
+    if _detector is None:
+        from harnesswalk.control.pii import PiiDetector
+
+        _detector = PiiDetector()
+    return _detector.scrub(value)
+
+
 # -- sections ---------------------------------------------------------------------------------
 
 
@@ -144,18 +164,20 @@ def calls_of(message: Message) -> list[dict[str, Any]]:
     ]
 
 
-def derived_section(index: int, message: Message, estimator: str) -> dict[str, Any]:
+def derived_section(
+    ctx: TurnContext, index: int, message: Message, estimator: str
+) -> dict[str, Any]:
     """A section for a message the context builder did not assemble (a later loop step)."""
     if message.role == "tool":
         sources = [{"label": message.tool_call_id or "", "call_id": message.tool_call_id}]
         label = f"{message.name or 'tool'} result"
-        return section(index, "tool", "tool", label, message.content, estimator, sources)
+        body = outside(ctx, message.content)
+        return section(index, "tool", "tool", label, body, estimator, sources)
     if message.role == "assistant":
-        calls = calls_of(message)
+        calls = outside(ctx, calls_of(message))
         label = "Model step with tool calls" if calls else "Model step"
-        return section(
-            index, "assistant", "assistant", label, message.content, estimator, tool_calls=calls
-        )
+        body = outside(ctx, message.content)
+        return section(index, "assistant", "assistant", label, body, estimator, tool_calls=calls)
     if message.role == "system":
         return section(index, "system", "system", "System", message.content, estimator)
     return section(index, message.role, "user", "User message", message.content, estimator)
@@ -175,7 +197,7 @@ def request_sections(ctx: TurnContext, messages: list[Message]) -> list[dict[str
         if i < len(known) and known[i] == m.content and i in by_message:
             out.extend(by_message[i])
         else:
-            out.append(derived_section(i, m, estimator))
+            out.append(derived_section(ctx, i, m, estimator))
     return out
 
 
