@@ -70,6 +70,8 @@ class BundleHook(BuildHookInterface):
         web = root / "web" / "dist"
         if (web / "index.html").is_file():
             for path in _files(web):
+                if path.suffix == ".map":  # source maps stay out of the wheel
+                    continue
                 forced[str(path)] = f"{BUNDLE}/web/dist/{path.relative_to(web).as_posix()}"
         elif os.environ.get("HARNESSWALK_BUNDLE_WEB") == "1":
             raise RuntimeError("HARNESSWALK_BUNDLE_WEB=1 but web/dist has no index.html")
