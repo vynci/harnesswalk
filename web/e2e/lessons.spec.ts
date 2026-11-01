@@ -37,7 +37,7 @@ test('the drawer lists every chapter in order and opens one on the Lessons tab',
   await expect(row(page, CHAPTER)).toContainText('Input guardrails')
   await expect(row(page, CHAPTER)).toContainText('Size limits, PII redaction')
   await expect(row(page, CHAPTER)).toContainText('Not started')
-  await expect(rows.nth(2)).toContainText('Not written yet')
+  await expect(rows.nth(2)).toContainText('Not started')
   // Esc closes the drawer and focus goes back to its trigger.
   await page.keyboard.press('Escape')
   await expect(drawer).toBeHidden()
@@ -56,13 +56,13 @@ test('the drawer lists every chapter in order and opens one on the Lessons tab',
   await expect(owasp).toContainText('(opens in a new tab)')
   await expect(inspector.getByRole('link', { name: /spec\/contracts\/guardrail\.md/ })).toHaveAttribute('href', /github\.com\/.*\/blob\/main\/spec\/contracts\/guardrail\.md$/)
 
-  // Read now; Next chapter in the drawer goes to chapter 03, which is not written yet.
+  // Read now; Next chapter in the drawer goes to chapter 03.
   await page.getByTestId('lessons-button').click()
   await expect(row(page, CHAPTER)).toContainText('Read')
   await expect(row(page, CHAPTER)).toHaveAttribute('aria-current', 'true')
   await page.getByTestId('drawer-next').click()
   await expect(inspector.getByTestId('inspector-title')).toHaveText('Context builder')
-  await expect(inspector.getByTestId('lesson-missing')).toHaveText('This chapter is not written yet.')
+  await expect(inspector.getByTestId('lesson-title')).toHaveText('Context builder')
   await inspector.getByTestId('lesson-prev').click()
   await expect(inspector.getByTestId('lesson-title')).toHaveText('Input guardrails')
 })
@@ -75,17 +75,18 @@ test('a group chapter switches to the expert view and selects its first node', a
   const inspector = page.getByTestId('inspector')
   await expect(inspector.getByRole('tab', { name: 'Lessons' })).toHaveAttribute('aria-selected', 'true')
   await expect(inspector).toContainText(/inside Memory/)
-  // Chapter 16 may not be written yet on this branch; either way the tab answers.
   expect(slug).toMatch(/^16-/)
-  await expect(inspector.getByTestId('lesson-tab')).toHaveAttribute('data-status', /^(ok|missing)$/)
+  await expect(inspector.getByTestId('lesson-tab')).toHaveAttribute('data-status', 'ok')
+  await expect(inspector.getByTestId('lesson-title')).toContainText('Inside memory')
 })
 
 test('an expert node opens its group chapter at its own section', async ({ page }) => {
-  // Until chapter 16 is written, give the mock a stand-in with one long section per store.
+  // Swap chapter 16 for a stand-in with one long section per store, so scrolling is certain.
   await page.evaluate(async () => {
     type Mock = { handle: (p: string) => Promise<Response>; diagram: { nodes: { id: string; label: string; parent?: string }[] }; lessons: { chapters: unknown[] } }
     const mock = (globalThis as unknown as { __harnesswalkMock: Mock }).__harnesswalkMock
-    if ((await mock.handle('/v1/lessons/16-memory-inside')).ok) return
+    const at = (mock.lessons.chapters as { slug: string }[]).findIndex((c) => c.slug === '16-memory-inside')
+    if (at >= 0) mock.lessons.chapters.splice(at, 1)
     const kids = mock.diagram.nodes.filter((n) => n.parent === 'memory')
     const filler = Array.from({ length: 12 }, (_, i) => `Paragraph ${i + 1} of this section, long enough to need scrolling.`).join('\n\n')
     const markdown = `# Inside memory\n\n> The five stores.\n\n## The stores\n\n${kids.map((k) => `### ${k.label}\n\n${filler}`).join('\n\n')}\n`
@@ -108,7 +109,13 @@ test('the Lessons tab opens from the inspector, for a written and an unwritten c
   await expect(inspector.getByRole('tab', { name: 'Lessons' })).toHaveAttribute('aria-selected', 'true')
   await expect(inspector.getByTestId('lesson-tab')).toHaveAttribute('data-slug', CHAPTER)
   await expect(inspector.getByRole('heading', { name: 'Check yourself' })).toBeVisible()
-  // The tab stays picked while the reader moves between nodes.
+  // The tab stays picked while the reader moves between nodes; a chapter the mock does not
+  // have (here chapter 03, removed for the test) says it is not written yet.
+  await page.evaluate(() => {
+    const mock = (globalThis as unknown as { __harnesswalkMock: { lessons: { chapters: { slug: string }[] } } }).__harnesswalkMock
+    const at = mock.lessons.chapters.findIndex((c) => c.slug === '03-context_builder')
+    if (at >= 0) mock.lessons.chapters.splice(at, 1)
+  })
   await node(page, 'context_builder').click()
   await expect(inspector.getByTestId('inspector-title')).toHaveText('Context builder')
   await expect(inspector.getByTestId('lesson-missing')).toBeVisible()

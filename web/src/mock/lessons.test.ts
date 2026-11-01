@@ -31,8 +31,8 @@ describe('mock lesson routes', () => {
     for (const link of body.code_links) expect(link.line, `${link.path}#${link.symbol}`).not.toBeNull()
   })
 
-  it('answers 404 lesson_not_found for a chapter not written yet', async () => {
-    const { status, body } = await get<{ error: { code: string } }>(server, '/v1/lessons/03-context_builder')
+  it('answers 404 lesson_not_found for a chapter that does not exist', async () => {
+    const { status, body } = await get<{ error: { code: string } }>(server, '/v1/lessons/99-not_written')
     expect(status).toBe(404)
     expect(body.error.code).toBe('lesson_not_found')
   })
