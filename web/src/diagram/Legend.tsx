@@ -102,7 +102,7 @@ export function Legend() {
               const Icon = KIND_ICON[k]
               return (
                 <Entry key={k} title={KIND_HINT[k]}>
-                  <Badge variant="kind" className="size-4 rounded-[4px] p-0 [&>svg]:size-2.5!" data-kind={k}>
+                  <Badge variant="kind" className="size-4 p-0 [&>svg]:size-2.5!" data-kind={k}>
                     <Icon strokeWidth={2.25} aria-hidden />
                   </Badge>
                   {k}

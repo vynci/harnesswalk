@@ -6,7 +6,8 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --radius: 0.625rem;
+  /* Third-party code that reads --radius (the sonner toasts) gets the card step. */
+  --radius: 12px;
   /* Brand (P6, the owner's palette): #0ea47a primary, #12d39d accent and active states, #0a7557
      primary hover, text-safe green on light and the dark-mode primary, #e6e6e6 borders and muted
      surfaces, #111111 ink, #ffffff paper. The plane hues and the node surface stay as they were. */
@@ -149,11 +150,37 @@
   --edge-reply-amount: 62%;
 }
 
+/* ---------- Radius: one scale for the shadcn components and the diagram ----------
+   xs   4px  chips and badges: kind chips, store badges, kbd, inline code, edge labels
+   sm   6px  inputs, small buttons (xs, sm, icon-xs, icon-sm), tab triggers, focus rings on text
+   md   8px  buttons, menu and select rows, tooltips, toggles, small inner records
+   lg  12px  cards, diagram nodes, planes and open groups, popovers, menus, code blocks, items,
+             chat bubbles, the floating canvas bars (status, controls, replay)
+   xl  16px  panels and dialogs: the composer, dialogs, sheets
+   full      only what is round by nature: switches, slider, progress, scroll thumbs, avatars
+   Nesting, the concentric rule: inner = outer - gap, to the nearest step, wherever the gap is
+   smaller than the outer radius (a tight wrapper): composer xl 16 with an 8px inset -> its
+   buttons md 8; menu lg 12 with p-1 -> rows md 8; canvas controls lg 12 with a 6px inset ->
+   buttons sm 6; node lg 12 with 8px padding -> kind chip xs 4; tabs list md 8 with 3px ->
+   triggers sm 6. A loose container whose gap is larger than its radius (a plane 22px round its
+   nodes, an open group 22px round its children, a dialog with 24px padding) takes the step of
+   what it holds: plane = group = node = lg 12. Concentric there would be 34px, and its children
+   do not sit in its corners anyway. No pills for chrome: the status bar, session chip and canvas
+   controls are lg cards like the rest.
+   The rhea names 2xl, 3xl and 4xl stay as aliases on the scale so a stray class cannot leave it
+   (2xl -> lg, 3xl and 4xl -> xl); new code uses xs to xl. */
+@theme {
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 12px;
+  --radius-3xl: 16px;
+  --radius-4xl: 16px;
+}
+
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -232,7 +259,7 @@
 
 .react-flow {
   --xy-background-color: transparent;
-  --xy-node-border-radius: 10px;
+  --xy-node-border-radius: var(--radius-lg);
   --xy-edge-stroke: color-mix(in oklab, var(--foreground) 28%, transparent);
   --xy-edge-stroke-selected: var(--foreground);
   --xy-attribution-background-color: color-mix(in oklab, var(--background) 70%, transparent);
@@ -244,9 +271,14 @@
 .react-flow__attribution a {
   color: var(--muted-foreground);
 }
+/* The zoom buttons, bottom left: one md group on the scale, not square. */
+.react-flow__controls {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
 
 .hw-group {
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   border: 1.5px dashed var(--plane-stroke);
   background: var(--plane-group);
 }

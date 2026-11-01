@@ -27,7 +27,7 @@ export function DiagnosisView({ diagnosis }: { diagnosis: Pick<Diagnosis, 'layer
   const evidence = (diagnosis.evidence ?? []).filter((e) => e && typeof e.fact === 'string')
   const base = diagnosis.baseline
   return (
-    <section className="flex flex-col gap-1.5 rounded-2xl bg-muted/50 p-3 text-xs" aria-label="Diagnosis" data-testid="diagnosis" data-layer={diagnosis.layer}>
+    <section className="flex flex-col gap-1.5 rounded-lg bg-muted/50 p-3 text-xs" aria-label="Diagnosis" data-testid="diagnosis" data-layer={diagnosis.layer}>
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="font-medium text-foreground">Diagnosis</span>
         <DiagnosisChip layer={diagnosis.layer} />

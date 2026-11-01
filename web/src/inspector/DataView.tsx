@@ -17,7 +17,7 @@ export function RecordTable({ rows, caption }: { rows: Record<string, unknown>[]
   const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))].slice(0, 8)
   if (rows.length === 0) return <p className="text-xs text-muted-foreground">No records.</p>
   return (
-    <div className="rounded-md border">
+    <div className="rounded-lg border">
       <Table className="text-xs">
         {caption && <TableCaption className="sr-only">{caption}</TableCaption>}
         <TableHeader className="bg-muted/60">

@@ -206,7 +206,7 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
               <span className="font-medium">The model saw: </span>
               {splitPlaceholders(seen!).map((part, i) =>
                 part.placeholder ? (
-                  <mark key={i} className="rounded-md bg-state-waiting/15 px-1 font-mono text-foreground" data-testid="placeholder">
+                  <mark key={i} className="rounded-xs bg-state-waiting/15 px-1 font-mono text-foreground" data-testid="placeholder">
                     {part.text}
                   </mark>
                 ) : (

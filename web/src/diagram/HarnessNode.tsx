@@ -66,7 +66,7 @@ export function StateIcon({ state, spin = true }: { state: NodeState; spin?: boo
 function KindChip({ kind, small }: { kind: DiagramNode['kind']; small: boolean }) {
   const Icon = KIND_ICON[kind]
   return (
-    <Badge variant="kind" className={cn('rounded-[4px] p-0', small ? 'size-4 [&>svg]:size-2.5!' : 'size-[18px] [&>svg]:size-3!')} data-kind={kind} title={KIND_HINT[kind]} data-testid="kind-chip">
+    <Badge variant="kind" className={cn('p-0', small ? 'size-4 [&>svg]:size-2.5!' : 'size-[18px] [&>svg]:size-3!')} data-kind={kind} title={KIND_HINT[kind]} data-testid="kind-chip">
       <Icon aria-hidden strokeWidth={2.25} />
       <span className="sr-only">{kind}</span>
     </Badge>
@@ -79,7 +79,7 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
   return (
     <Card
       className={cn(
-        'hw-node relative h-full w-full gap-0 rounded-[10px] bg-node-surface py-2 pr-2 pl-2.5 text-left text-node-surface-foreground',
+        'hw-node relative h-full w-full gap-0 rounded-lg bg-node-surface py-2 pr-2 pl-2.5 text-left text-node-surface-foreground',
         isChild && 'py-1.5 pr-1.5 pl-2',
       )}
       style={planeStyle(node.group)}

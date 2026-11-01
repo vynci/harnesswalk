@@ -47,7 +47,7 @@ export function ReplayBar() {
   return (
     <Card
       size="sm"
-      className="absolute inset-x-3 bottom-3 z-20 mx-auto max-w-3xl flex-row flex-wrap items-center gap-3 rounded-2xl px-3 py-2"
+      className="absolute inset-x-3 bottom-3 z-20 mx-auto max-w-3xl flex-row flex-wrap items-center gap-3 px-3 py-2"
       role="group"
       aria-label="Replay controls"
       data-testid="replay-bar"

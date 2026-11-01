@@ -142,7 +142,7 @@ function FixtureItem({ name, description }: { name: string; description: string 
       value={name}
       textValue={name}
       data-slot="select-item"
-      className="relative flex min-h-7 w-full cursor-default flex-col items-start gap-0.5 rounded-xl py-1.5 pr-8 pl-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50"
+      className="relative flex min-h-7 w-full cursor-default flex-col items-start gap-0.5 rounded-md py-1.5 pr-8 pl-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50"
     >
       <span className="pointer-events-none absolute top-2 right-2 flex size-4 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
@@ -226,7 +226,7 @@ export function BudgetBanner() {
   if (resetsAt === null) return null
   const text = `Today's shared Claude budget is used up. You're on the scripted fake model until ${resetPhrase(resetsAt || null)}.`
   return (
-    <div role="status" className="flex items-center gap-2 rounded-xl border bg-muted/60 py-1 pr-1 pl-3 text-xs text-muted-foreground" data-testid="budget-banner">
+    <div role="status" className="flex items-center gap-2 rounded-lg border bg-muted/60 py-1 pr-1 pl-3 text-xs text-muted-foreground" data-testid="budget-banner">
       <Clock className="size-3.5 shrink-0" aria-hidden />
       <span className="min-w-0 flex-1">{text}</span>
       <Button type="button" size="icon-xs" variant="ghost" aria-label="Dismiss the budget notice" onClick={dismiss} data-testid="budget-banner-dismiss">

@@ -203,6 +203,13 @@ edge's glow: `#0a7557` in light mode, where `#12d39d` falls under 3:1, `#12d39d`
 `::selection`. `--brand` colours the header mark (`src/components/logo.tsx`, the same path as
 `public/favicon.svg`). The plane hues and the bone node surface are unchanged.
 
+Radii are one scale in `index.css` (`@theme`): `xs` 4px chips and badges, `sm` 6px inputs and
+small buttons, `md` 8px buttons and menu rows, `lg` 12px cards, nodes, planes, popovers and
+menus, `xl` 16px panels and dialogs, `full` only for switches, sliders, progress and avatars.
+Nested surfaces follow the concentric rule (inner = outer minus the gap) where the gap is
+tighter than the outer radius; the comment in `index.css` lists each nesting, and
+`src/test/radius.test.ts` fails on any `rounded-*` class off the scale.
+
 ### Public mode and private-only controls (P6)
 
 `useFeature(name)` (`src/state/hooks.ts` over `src/state/features.ts`) returns `{enabled,
@@ -244,8 +251,10 @@ legend and diagram chrome read as one system:
 - **Borders.** Trace lines have none; open content gets one hairline on the left. Bubbles are
   fills. Items are a 1 px outline. Raised surfaces (cards, menus, hover cards) use
   `ring-1 ring-foreground/5` and a shadow.
-- **Radii (rhea).** Buttons, inputs, the input group, items, code blocks, menus and badges
-  `rounded-2xl`; bubbles `rounded-3xl`; the composer's round buttons `rounded-full`.
+- **Radii.** One scale for the components and the diagram (see Tokens): badges and chips
+  `rounded-xs`, inputs and small buttons `rounded-sm`, buttons and menu rows `rounded-md`,
+  cards, nodes, planes, menus, popovers, items, code blocks and bubbles `rounded-lg`, the
+  composer and dialogs `rounded-xl`; inner radius = outer minus the gap where they nest.
 - **Type.** `text-sm` for body and lines, `text-xs` as the floor: no 10 or 11 px text anywhere.
   `font-medium` for titles only, no `font-semibold`, no uppercase eyebrows; `tabular-nums` for
   numbers; mono only for code, ids, paths and commands.

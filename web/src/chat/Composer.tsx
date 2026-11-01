@@ -23,7 +23,7 @@ function SchemaOption() {
   const setOutputSchema = useApp((s) => s.setOutputSchema)
   const schemaError = parseOutputSchema(outputSchema).error
   return (
-    <div id="turn-options" className="flex flex-col gap-1.5 rounded-2xl bg-muted/50 p-3 text-xs text-muted-foreground" data-testid="turn-options">
+    <div id="turn-options" className="flex flex-col gap-1.5 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground" data-testid="turn-options">
       <label htmlFor="output-schema" className="flex items-center gap-2">
         Output schema (JSON Schema the answer must satisfy)
         <Button type="button" variant="link" size="xs" className="h-auto p-0" onClick={() => setOutputSchema(EXAMPLE_SCHEMA)}>
@@ -158,7 +158,7 @@ export function Composer({
             <InputGroupButton
               size="icon-sm"
               variant="outline"
-              className="rounded-full aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+              className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
               aria-disabled="true"
               aria-label={`Attach files (${uploads.reason ?? 'coming later'})`}
               onClick={(e) => e.preventDefault()}
@@ -195,7 +195,6 @@ export function Composer({
                   type="button"
                   size="icon-sm"
                   variant="default"
-                  className="rounded-full"
                   onClick={() => void onStop()}
                   disabled={stopping}
                   aria-label={stopping ? 'Stopping the turn' : 'Stop the running turn'}
@@ -205,7 +204,7 @@ export function Composer({
                 </InputGroupButton>
               </Hint>
             ) : (
-              <InputGroupButton type="submit" size="icon-sm" variant="default" className="rounded-full" disabled={!canSend} aria-label="Send message" data-testid="send-button">
+              <InputGroupButton type="submit" size="icon-sm" variant="default" disabled={!canSend} aria-label="Send message" data-testid="send-button">
                 <ArrowUp />
               </InputGroupButton>
             )}

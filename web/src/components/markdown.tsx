@@ -65,7 +65,7 @@ const BASE: Components = {
     return <FencedCode code={textOf(code)} language={languageOf(code)} />
   },
   table: ({ children }) => (
-    <div className="overflow-x-auto rounded-xl ring-1 ring-foreground/10" data-testid="markdown-table">
+    <div className="overflow-x-auto rounded-lg ring-1 ring-foreground/10" data-testid="markdown-table">
       <table className="w-full border-collapse text-left text-sm">{children}</table>
     </div>
   ),
