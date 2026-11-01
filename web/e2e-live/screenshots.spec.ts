@@ -173,6 +173,10 @@ async function onPack(page: Page, id: string) {
   await page.getByTestId('pack-picker').click()
   await page.locator(`[data-testid=pack-option][data-pack="${id}"]`).click()
   await expect(page.getByTestId('pack-picker')).toHaveAttribute('data-pack', id, { timeout: 30_000 })
+  // Focus goes back to the picker and its tooltip opens under it, over the canvas controls at
+  // the top right: Esc closes it.
+  await page.keyboard.press('Escape')
+  await page.mouse.move(0, 0)
 }
 
 async function done(page: Page) {
@@ -247,12 +251,12 @@ test('finance: a cited answer from the fund documents', async ({ page }) => {
   await page.screenshot({ path: out('pack-finance') })
 })
 
-test('a chapter with its Try buttons', async ({ page }) => {
-  await page.getByTestId('lessons-button').click()
-  await page.locator('[data-testid=lesson-row][data-slug="02-input_guardrails"]').click()
-  const inspector = page.getByTestId('inspector')
-  await expect(inspector.getByTestId('lesson-also')).toBeVisible()
-  await inspector.getByTestId('lesson-try').scrollIntoViewIfNeeded()
+test('a chapter with its Try buttons, in the Guide beside the inspector', async ({ page }) => {
+  await page.getByTestId('node-input_guardrails').click()
+  await page.getByTestId('inspector').getByTestId('open-in-guide').click()
+  const chapter = page.getByTestId('guide-drawer').getByTestId('guide-chapter')
+  await expect(chapter.getByTestId('lesson-also')).toBeVisible()
+  await chapter.getByTestId('lesson-try').scrollIntoViewIfNeeded()
   await settle(page)
   await page.screenshot({ path: out('lessons-tab') })
 })

@@ -192,15 +192,57 @@ test.describe('public mode with the budget spent', () => {
   })
 })
 
-test('public mode: the header counts down the sandbox session and the limits card shows the caps', async ({ page }) => {
+test('public mode: the session chip counts down and its popover holds the session, the limits and the turn', async ({ page }) => {
   await openPublic(page)
-  const countdown = page.getByTestId('session-countdown')
-  await expect(countdown).toContainText(/Sandbox session: (1 h 59 m|2 h 0 m) left, then everything here is deleted/)
-  await page.getByTestId('budget-trigger').hover()
-  const card = page.getByTestId('limits-card')
+  const chip = page.getByTestId('session-menu')
+  await expect(chip.getByTestId('mode-badge')).toHaveText('public · mock')
+  const countdown = chip.getByTestId('session-countdown')
+  await expect(countdown).toHaveText(/^(1 h 59 m|2 h 0 m)$/)
+  await expect(countdown).toHaveAttribute('data-warn', 'false')
+  await chip.click()
+  const pop = page.getByTestId('session-popover')
+  await expect(pop.getByTestId('session-ends')).toHaveText(/^This sandbox session ends in (1 h 59 m|2 h 0 m), at .+\. Everything in it is deleted then\.$/)
+  await expect(pop.getByRole('button', { name: 'New session' })).toBeVisible()
+  await expect(pop.getByTestId('session-copy')).toBeDisabled()
+  const card = pop.getByTestId('limits-card')
   await expect(card.getByTestId('limit-remaining')).toHaveText('27 / 30')
   await expect(card.getByTestId('limit-steps')).toHaveText('8')
   await expect(card.getByTestId('limit-tokens')).toHaveText('16.0k')
+  await expect(pop.getByTestId('budget-card')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(pop).toBeHidden()
+
+  // After a turn the same popover shows its budgets; the status bar's readout opens it.
+  await send(page, 'What are your support hours?')
+  await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  const readout = page.getByTestId('budget-trigger')
+  await expect(readout).toHaveText(/^\d+% budget$/)
+  await readout.click()
+  await expect(pop).toBeVisible()
+  await expect(pop.getByTestId('budget-card')).toContainText('This turn')
+  await expect(pop.getByTestId('budget-card')).toContainText('Tokens')
+  await expect(pop.getByTestId('session-copy')).toBeEnabled()
+  await expect(pop.getByTestId('limits-card')).toBeVisible()
+})
+
+test('dev mode: the chip shows the mode only, and its popover the session without a countdown', async ({ page }) => {
+  await page.goto('/?mockStepMs=10')
+  const chip = page.getByTestId('session-menu')
+  await expect(chip.getByTestId('mode-badge')).toHaveText('dev · mock')
+  await expect(chip.getByTestId('session-countdown')).toHaveCount(0)
+  await chip.click()
+  const pop = page.getByTestId('session-popover')
+  await expect(pop.getByTestId('session-mode')).toContainText('Dev mode')
+  await expect(pop.getByTestId('session-ends')).toHaveCount(0)
+  await expect(pop.getByTestId('limits-card')).toHaveCount(0)
+  await expect(pop.getByRole('button', { name: 'New session' })).toBeVisible()
+})
+
+test('public mode: under ten minutes the chip turns to the warning colour', async ({ page }) => {
+  await openPublic(page, '&mockTtl=540')
+  const countdown = page.getByTestId('session-countdown')
+  await expect(countdown).toHaveText(/^[89] m$/)
+  await expect(countdown).toHaveAttribute('data-warn', 'true')
 })
 
 test('public mode: five minutes before the end a toast warns', async ({ page }) => {

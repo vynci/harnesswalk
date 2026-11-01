@@ -44,6 +44,7 @@ gateway:
   stream_reply_chars: 24        # > 0 emits message_delta chunks of this size in the reply span (0 turns it off)
   turn_state_max: 500           # finished turns kept in memory for control calls; older ones are
   turn_state_ttl_seconds: 3600  # evicted (summaries and replay read the trace store, not memory)
+  shutdown_grace_s: 2           # Ctrl+C ends open event streams at once; any left are cut after this
 
 input_guardrails:
   enabled: true

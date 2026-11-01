@@ -98,12 +98,12 @@ the fake provider (`uv run harnesswalk packs validate`, `uv run harnesswalk eval
 in all, indexed in [lessons/README.md](lessons/README.md)). Each chapter says what the node
 does, what breaks without it (the exact pack, fixture and prompt, verified on the fake
 provider), walks its code with links into `harnesswalk/`, and ends with three things to try and
-three questions. In the web app every node's inspector has a Lessons tab with "Disable X and
+three questions. In the web app every node's inspector opens its Guide chapter with "Disable X and
 try it" (or "Try it"), which sets up the demonstration for the next turn; the five chapters
 whose node can be switched off also show the failure on the domain pack whose feature it is.
-The Lessons drawer in the header lists every chapter with your progress.
+The Guide drawer in the header lists every chapter with your progress.
 
-![A chapter in the Lessons tab, with its Try buttons](docs/screenshots/lessons-tab.png)
+![A chapter in the Guide, with its Try buttons](docs/screenshots/lessons-tab.png)
 
 ## Walk through it one node at a time
 
@@ -224,7 +224,9 @@ make setup && make web-build && make run PROVIDER=fake
 Then open http://127.0.0.1:8000. `make run` serves the API and the built app from one process on
 `127.0.0.1:8000`. With `PROVIDER=fake` no model is needed: the fake provider replays scripted
 replies. With [Ollama](https://ollama.com) running (`ollama pull llama3.1:8b`), plain `make run`
-answers with a real local model instead.
+answers with a real local model instead. One Ctrl+C stops the server, even with browser tabs
+open: their event streams end first, then the stores close (an open tab reconnects when the
+server is back).
 
 - **Send a message** and watch it walk the diagram: each node lights while it works and shows a
   one-line stat when it is done. The reply streams into the chat, and the bar above the diagram

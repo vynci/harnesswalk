@@ -43,6 +43,10 @@ test('the pack picker starts a session on finance: its prompts, its fixtures and
   await options.nth(1).click()
 
   await expect(picker).toHaveAttribute('data-pack', 'finance')
+  // The trigger fits the whole name: nothing is cut.
+  const title = picker.getByTestId('pack-picker-title')
+  await expect(title).toHaveText('Hollowmere Capital Partners')
+  expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
   await expect(page.getByText('New session on Hollowmere Capital Partners.')).toBeVisible()
   await expect(page.getByTestId('chat-turn')).toHaveCount(0)
   await expect(page.getByTestId('empty-pack')).toHaveText('On Hollowmere Capital Partners: citations and the memory writer.')
@@ -64,9 +68,9 @@ test('the pack picker starts a session on finance: its prompts, its fixtures and
   expect(pack).toBe('finance')
 
   // New session keeps the pack.
-  await page.getByRole('button', { name: 'Session actions' }).click()
+  await page.getByTestId('session-menu').click()
   await expect(page.getByTestId('session-pack')).toHaveText('on Hollowmere Capital Partners')
-  await page.getByRole('menuitem', { name: 'New session' }).click()
+  await page.getByTestId('session-popover').getByRole('button', { name: 'New session' }).click()
   await expect(picker).toHaveAttribute('data-pack', 'finance')
   await expect(page.getByTestId('try-prompt').first()).toHaveText(FEE)
 })
@@ -185,10 +189,10 @@ test('a turn rated bad can be diagnosed from the chat', async ({ page }) => {
 })
 
 test('a lesson’s demonstration on a domain pack starts a session on that pack and says so', async ({ page }) => {
-  await page.getByTestId('lessons-button').click()
+  await page.getByTestId('guide-button').click()
   await page.locator('[data-testid=lesson-row][data-slug="12-memory_writer"]').click()
-  const inspector = page.getByTestId('inspector')
-  const also = inspector.getByTestId('lesson-also')
+  const chapter = page.getByTestId('guide-drawer').getByTestId('guide-chapter')
+  const also = chapter.getByTestId('lesson-also')
   await expect(also).toHaveAttribute('data-pack', 'finance')
   await expect(also).toContainText('Nothing is written')
   await expect(also).toContainText('This starts a new session on Hollowmere Capital Partners, turns Memory writer off for the next turn')
@@ -204,7 +208,7 @@ test('a lesson’s demonstration on a domain pack starts a session on that pack 
   const asked = await page.evaluate((id) => [...(globalThis as unknown as { __harnesswalkMock: { getTurn: (id: string) => { disabled: Set<string>; pack: string } } }).__harnesswalkMock.getTurn(id!).disabled], turnId)
   expect(asked).toEqual(['memory_writer'])
   // The chapter's own Try it is on the starter pack: it switches back.
-  await expect(inspector.getByTestId('lesson-try-button')).toHaveText('Disable Memory writer and try it on Example Store')
+  await expect(chapter.getByTestId('lesson-try-button')).toHaveText('Disable Memory writer and try it on Example Store')
 })
 
 test('replay names the control that released each pause', async ({ page }) => {

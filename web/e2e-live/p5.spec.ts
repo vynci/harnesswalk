@@ -4,7 +4,7 @@ import { lastTurnEvents, newSession, node, pickFixture, send, settleTurns, statu
 // Phase 5 against the real harness (fake provider): the pack picker and what it switches, every
 // pack's golden suite run from the Eval inspector in one server, the release gate refusing a
 // regressed domain pack (with the failing case's diagnosis) and Release anyway, and every
-// lesson's "what breaks" demonstration run from the Lessons tab, on its pack.
+// lesson's "what breaks" demonstration run from its chapter in the Guide, on its pack.
 
 const FEE = 'What is the management fee for Hollowmere Growth Partners III?'
 
@@ -219,7 +219,7 @@ interface Demo {
 
 const PII = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+|BH-\d{4}-\d{4}-[A-Z]/
 
-test('every lesson’s demonstration runs from the Lessons tab: the turn ends and each disabled node is skipped', async ({ page, request }) => {
+test('every lesson’s demonstration runs from its chapter in the Guide: the turn ends and each disabled node is skipped', async ({ page, request }) => {
   test.setTimeout(900_000)
   const { lessons } = (await (await request.get('/v1/lessons')).json()) as { lessons: { slug: string }[] }
   let ran = 0
@@ -233,10 +233,11 @@ test('every lesson’s demonstration runs from the Lessons tab: the turn ends an
         await page.goto('/')
         await expect(node(page, 'gateway')).toBeVisible()
         await newSession(page)
-        await page.getByTestId('lessons-button').click()
+        await page.getByTestId('guide-button').click()
         await page.locator(`[data-testid=lesson-row][data-slug="${slug}"]`).click()
-        const inspector = page.getByTestId('inspector')
-        const button = index < 0 ? inspector.getByTestId('lesson-try-button') : inspector.getByTestId('lesson-also').nth(index).getByTestId('lesson-also-button')
+        const chapter = page.getByTestId('guide-drawer').getByTestId('guide-chapter')
+        await expect(chapter).toHaveAttribute('data-slug', slug)
+        const button = index < 0 ? chapter.getByTestId('lesson-try-button') : chapter.getByTestId('lesson-also').nth(index).getByTestId('lesson-also-button')
         await button.click()
         await expect(page.getByTestId('pack-picker')).toHaveAttribute('data-pack', demo.pack, { timeout: 30_000 })
         await expect(page.getByTestId('composer-input')).toHaveValue(demo.prompt)

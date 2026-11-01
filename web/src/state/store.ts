@@ -98,8 +98,6 @@ export interface AppState {
 
   view: View
   collapsed: string[]
-  /** Simple view: draw the LLM Ops and telemetry edges instead of one telemetry bus. */
-  showTelemetry: boolean
   stepMode: boolean
   theme: Theme
   provider: string | null
@@ -191,7 +189,6 @@ export interface AppState {
   focusComposer: () => void
   setView: (view: View) => void
   toggleCollapsed: (id: string) => void
-  setShowTelemetry: (on: boolean) => void
   setStepMode: (on: boolean) => void
   setTheme: (t: Theme) => void
   setProvider: (p: string | null) => void
@@ -619,7 +616,6 @@ export const useApp = create<AppState>()((set, get) => {
 
     view: load<View>('view', 'simple'),
     collapsed: load<string[]>('collapsed', []),
-    showTelemetry: load<boolean>('telemetry', false) === true,
     stepMode: false,
     theme: load<Theme>('theme', 'system'),
     provider: null,
@@ -867,10 +863,6 @@ export const useApp = create<AppState>()((set, get) => {
       set({ view })
     },
 
-    setShowTelemetry(on) {
-      save('telemetry', on)
-      set({ showTelemetry: on })
-    },
 
     toggleCollapsed(id) {
       const collapsed = get().collapsed.includes(id) ? get().collapsed.filter((c) => c !== id) : [...get().collapsed, id]

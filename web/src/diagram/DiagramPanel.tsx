@@ -32,7 +32,6 @@ function Flow() {
   const theme = useApp((s) => s.theme)
   const selectNode = useApp((s) => s.selectNode)
   const toggleCollapsed = useApp((s) => s.toggleCollapsed)
-  const showTelemetry = useApp((s) => s.showTelemetry)
   const [hovered, setHovered] = useState<string | null>(null)
   const latestEval = useApp((s) => s.latestEval)
   // The node that gates releases carries the regressions of the latest eval run.
@@ -70,8 +69,8 @@ function Flow() {
   )
   const disabled = useMemo(() => new Set(disabledList), [disabledList])
   const { nodes, edges } = useMemo(
-    () => toFlow(diagram, layout, turn, { disabled, onToggle: toggleCollapsed, showOps: showTelemetry, hovered, alerts, opsChips, pulse }),
-    [diagram, layout, turn, disabled, toggleCollapsed, showTelemetry, hovered, alerts, opsChips, pulse],
+    () => toFlow(diagram, layout, turn, { disabled, onToggle: toggleCollapsed, showOps: true, hovered, alerts, opsChips, pulse }),
+    [diagram, layout, turn, disabled, toggleCollapsed, hovered, alerts, opsChips, pulse],
   )
 
   useEffect(() => {

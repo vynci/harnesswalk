@@ -63,6 +63,7 @@ from harnesswalk.control.public import (
     rate_key,
     request_is_https,
 )
+from harnesswalk.control.sse import until_stopped
 from harnesswalk.events import iso, parse_iso
 from harnesswalk.inspectors import inspect_node, node_source
 from harnesswalk.nodes import generated_diagram
@@ -386,19 +387,23 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
             ) from exc
 
     def bounded(token: int, source: AsyncIterator[str]) -> AsyncIterator[str]:
-        """An SSE body that gives its stream slot back however it ends, and in public mode ends
-        after `public.max_stream_s` (checked on every event and keepalive)."""
+        """An SSE body that gives its stream slot back however it ends, ends as soon as the
+        server stops (control/sse.py), and in public mode ends after `public.max_stream_s`
+        (checked on every event and keepalive)."""
 
         async def body() -> AsyncIterator[str]:
             streams.started(token)
             deadline = time.monotonic() + max_stream_s if max_stream_s > 0 else None
+            chunks = until_stopped(source, harness.stopping)
             try:
-                async for chunk in source:
+                async for chunk in chunks:
                     yield chunk
                     if deadline is not None and time.monotonic() >= deadline:
                         break
             finally:
                 streams.release(token)
+                with contextlib.suppress(Exception):
+                    await chunks.aclose()  # closes the source too
                 if hasattr(source, "aclose"):
                     with contextlib.suppress(Exception):
                         await source.aclose()  # type: ignore[attr-defined]

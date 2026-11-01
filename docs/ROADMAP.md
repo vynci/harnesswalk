@@ -111,7 +111,7 @@ up. Datasets: five CC0 packs with provenance cards, each demonstrating one featu
 (healthcare: PII redaction and refusal; ecommerce: a destructive action behind approval;
 logistics: multi-step tool use; sports: the cheap `lookup` route; finance: citations and the
 memory writer), 22 to 25 golden cases each, a validator and `harnesswalk packs`. Lessons: 21
-chapters in walk order with a "what breaks" demonstration each, the Lessons tab and drawer,
+chapters in walk order with a "what breaks" demonstration each, the Guide and drawer,
 and Check yourself questions. Ops: the eval gate on release (409 `gate_failed`, `force`
 audited in dev), `diagnose` mapping a failed case or a bad turn to the layer at fault,
 `node_resumed.mode`, sessions on a pack and tenant data per pack.

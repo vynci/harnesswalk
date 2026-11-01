@@ -162,7 +162,7 @@ test('a focused node opens its inspector with Enter', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Close inspector' })).toBeFocused()
 })
 
-test('the canvas controls: the legend dialog explains the colours and the telemetry switch swaps the bus for the ops edges', async ({ page }) => {
+test('the canvas controls: the legend dialog explains the colours and telemetry edges are always drawn', async ({ page }) => {
   const controls = page.getByRole('group', { name: 'Diagram controls' })
   await expect(controls.getByRole('switch', { name: 'Expert view' })).toBeVisible()
   await expect(page.getByRole('banner').getByRole('switch')).toHaveCount(0)
@@ -191,26 +191,16 @@ test('the canvas controls: the legend dialog explains the colours and the teleme
   await expect(page.getByTestId('node-gateway')).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(0)
 
-  // Default: one bus from the execution plane to Trace, no ops edges.
-  await expect(page.getByTestId('edge-bus__execution__trace')).toBeAttached()
-  await expect(page.getByTestId('edge-eval_to_release')).toHaveCount(0)
-  // Hovering Trace shows its own edges.
-  await node(page, 'trace').hover()
-  await expect(page.getByTestId('edge-loop_to_trace')).toBeAttached()
-  await page.mouse.move(0, 0)
-  await expect(page.getByTestId('edge-loop_to_trace')).toHaveCount(0)
-
-  const telemetry = page.getByRole('switch', { name: 'Telemetry' })
-  await telemetry.click()
-  await expect(telemetry).toHaveAttribute('aria-checked', 'true')
+  // Telemetry edges are always drawn: every ops edge, no collapsed bus, and no switch for it.
   await expect(page.getByTestId('edge-eval_to_release')).toBeAttached()
   await expect(page.getByTestId('edge-loop_to_trace')).toBeAttached()
   await expect(page.getByTestId('edge-bus__execution__trace')).toHaveCount(0)
-  await telemetry.click()
-  // The expert view draws every edge, so Telemetry shows on and cannot be switched off there.
-  await page.getByRole('switch', { name: 'Expert view' }).click()
-  await expect(telemetry).toHaveAttribute('aria-checked', 'true')
-  await expect(telemetry).toBeDisabled()
+  await expect(page.getByRole('switch', { name: 'Telemetry' })).toHaveCount(0)
+  // The controls sit at the top right of the canvas, clear of the status bar at the top left.
+  const box = (await controls.boundingBox())!
+  const canvas = (await page.locator('.react-flow').first().boundingBox())!
+  expect(box.y - canvas.y).toBeLessThan(40)
+  expect(canvas.x + canvas.width - (box.x + box.width)).toBeLessThan(40)
 })
 
 test('a tool call shows inline in the chat and opens to its details', async ({ page }) => {
@@ -283,8 +273,8 @@ test('the theme button and the Expert view switch, and the session menu starts a
   await expect(node(page, 'procedural')).toHaveCount(0)
 
   await expect(page.getByTestId('chat-turn').first()).toBeVisible()
-  await page.getByRole('button', { name: 'Session actions' }).click()
-  await page.getByRole('menuitem', { name: 'New session' }).click()
+  await page.getByTestId('session-menu').click()
+  await page.getByTestId('session-popover').getByRole('button', { name: 'New session' }).click()
   await expect(page.getByTestId('chat-turn')).toHaveCount(0)
   await expect(page.getByTestId('try-prompt').first()).toBeVisible()
 })
@@ -321,8 +311,8 @@ test('the composer: a plus button for attachments later, and the arrow-up send t
 })
 
 test('an empty chat suggests prompts, and a suggestion sends', async ({ page }) => {
-  await page.getByRole('button', { name: 'Session actions' }).click()
-  await page.getByRole('menuitem', { name: 'New session' }).click()
+  await page.getByTestId('session-menu').click()
+  await page.getByTestId('session-popover').getByRole('button', { name: 'New session' }).click()
   await expect(page.getByText('Walk the harness')).toBeVisible()
   await page.getByRole('group', { name: 'Try these' }).getByRole('button', { name: 'Where is order A-1001?' }).click()
   await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')

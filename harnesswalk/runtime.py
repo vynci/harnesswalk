@@ -370,6 +370,10 @@ class Harness(PackParts):
         self.evals = Evals(self)
         self.otel = build_exporter(s, self.bus, self.ops)
         self._background: list[asyncio.Task] = []
+        # Set when the server is shutting down (request_stop): every open event stream ends on
+        # it, so Ctrl+C never waits on a browser tab. Created on the serving loop by start().
+        self.stopping: asyncio.Event | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
         self.gateway = Gateway(self)
         self.sweeper = Sweeper(self)  # P6: deletes expired public tenants (ops/sweep.py)
         self._turn_providers: dict[str, ModelProvider] = {}  # built on demand for a turn
@@ -436,6 +440,8 @@ class Harness(PackParts):
 
     async def start(self) -> dict[str, list[str]]:
         """Server start-up: recover unfinished turns, then the sweeper and health probes."""
+        self._loop = asyncio.get_running_loop()
+        self.stopping = asyncio.Event()
         recovered = self.gateway.recover()
         self.evals.offline.recover()  # runs a stopped process left `running` become `error`
         self.approvals.sweep_expired()
@@ -692,6 +698,18 @@ class Harness(PackParts):
         if fake is not None:
             out["fixture"] = fake.fixture_name  # type: ignore[attr-defined]
         return out
+
+    def request_stop(self) -> None:
+        """Ask every open event stream to end: the server is shutting down.
+
+        Safe from a signal handler or another thread (the event is set on the serving loop). A
+        harness that was never started has no streams to end.
+        """
+        loop, stopping = self._loop, self.stopping
+        if loop is None or stopping is None:
+            return
+        with contextlib.suppress(RuntimeError):  # the loop is already closed: nothing to end
+            loop.call_soon_threadsafe(stopping.set)
 
     async def aclose(self) -> None:
         for task in self._background:

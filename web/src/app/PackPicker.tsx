@@ -1,6 +1,8 @@
 // The pack picker in the header (P5): the dataset packs of GET /v1/packs as a Model Selector
 // style menu (a DropdownMenu with one radio group), each with its title and the feature it shows
-// off, the session's pack checked. Picking another one starts a new session on it.
+// off, the session's pack checked. Picking another one starts a new session on it. The trigger
+// fits the pack's name (up to 24 rem, cut with an ellipsis only past that, the tooltip naming it
+// in full); on a phone it shows the first word of the name.
 import { ChevronDown, Database } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Button } from '@/components/ui/button'
@@ -26,14 +28,15 @@ export function PackPicker() {
   if (!packs || packs.length === 0) return null
   const current = packs.find((p) => p.id === pack)
   const title = packTitle(packs, pack)
+  const short = title.split(/\s+/)[0] || title
   return (
     <DropdownMenu>
-      <Hint label={running ? 'A turn is running: pick a pack when it ends' : `Dataset pack: ${title}${current?.feature ? `, ${current.feature.toLowerCase()}` : ''}. Picking another starts a new session.`}>
+      <Hint label={running ? `${title}. A turn is running: pick a pack when it ends` : `Dataset pack: ${title}${current?.feature ? `, ${current.feature.toLowerCase()}` : ''}. Picking another starts a new session.`}>
         <DropdownMenuTrigger asChild>
           <Button
             size="sm"
             variant="outline"
-            className="max-w-56 gap-1.5"
+            className="w-auto max-w-[min(24rem,40vw)] min-w-0 shrink gap-1.5 max-sm:max-w-40"
             aria-label={`Dataset pack: ${title}`}
             aria-disabled={running || switching ? true : undefined}
             onClick={(e) => {
@@ -43,7 +46,10 @@ export function PackPicker() {
             data-pack={pack ?? ''}
           >
             {switching ? <Spinner role={undefined} aria-hidden className="motion-reduce:animate-none" /> : <Database aria-hidden />}
-            <span className="min-w-0 truncate">{title}</span>
+            <span className="min-w-0 truncate max-sm:hidden" data-testid="pack-picker-title">
+              {title}
+            </span>
+            <span className="min-w-0 truncate sm:hidden">{short}</span>
             <ChevronDown className="text-muted-foreground" aria-hidden />
           </Button>
         </DropdownMenuTrigger>
