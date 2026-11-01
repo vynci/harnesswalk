@@ -1,6 +1,5 @@
 # harnesswalk developer targets. Every target goes through uv.
-.PHONY: setup test conformance eval run turn lint format up down web-build web-dev web-mock web-test web-e2e-mock e2e screenshots \
-	deploy-test deploy-synth deploy-diff deploy-web deploy-api deploy-rollback prod-up prod-down prod-smoke loadtest
+.PHONY: setup test conformance eval run turn lint format up down web-build web-dev web-mock web-test web-e2e-mock e2e screenshots
 
 setup: ## Create .venv and install the package with dev tools
 	uv sync
@@ -84,16 +83,18 @@ down: ## Stop the compose stack
 # --- Deploy: harnesswalk.vynci.dev on AWS (deploy/README.md) ---------------------------------
 # The CDK app lives in deploy/aws (pnpm, pinned aws-cdk-lib). synth and diff read certArn from
 # deploy/aws/cdk.context.json (scripts/request-cert.sh writes it); CERT_ARN=... overrides it.
+# pnpm runs from inside deploy/aws, so corepack uses its pinned packageManager (as for web/).
+.PHONY: deploy-test deploy-synth deploy-diff deploy-web deploy-api deploy-rollback prod-up prod-down prod-smoke loadtest
 DEPLOY_DEPS := deploy/aws/node_modules/.modules.yaml
 $(DEPLOY_DEPS): deploy/aws/package.json deploy/aws/pnpm-lock.yaml
-	pnpm --dir deploy/aws install --frozen-lockfile
+	cd deploy/aws && pnpm install --frozen-lockfile
 	@touch $@
 CDK := cd deploy/aws && pnpm exec cdk
 CDK_CERT := $(if $(CERT_ARN),--context certArn=$(CERT_ARN))
 
 deploy-test: $(DEPLOY_DEPS) ## CDK typecheck and unit tests (SG rules, OAC, behaviours, IAM scoping)
-	pnpm --dir deploy/aws typecheck
-	pnpm --dir deploy/aws test
+	cd deploy/aws && pnpm typecheck
+	cd deploy/aws && pnpm test
 
 deploy-synth: $(DEPLOY_DEPS) ## cdk synth the three stacks (CERT_ARN=... before the certificate exists)
 	$(CDK) synth --quiet $(CDK_CERT)
