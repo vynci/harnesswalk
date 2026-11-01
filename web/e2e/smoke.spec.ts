@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { closeSessionChip, openSessionChip } from './helpers'
 
 // Mock mode: the build serves the spec/examples streams from an in-browser mock, quickly.
 const URL = '/?mockStepMs=10'
@@ -201,6 +202,29 @@ test('the canvas controls: the legend dialog explains the colours and telemetry 
   const canvas = (await page.locator('.react-flow').first().boundingBox())!
   expect(box.y - canvas.y).toBeLessThan(40)
   expect(canvas.x + canvas.width - (box.x + box.width)).toBeLessThan(40)
+})
+
+test('a finished turn: the status bar stays slim and the session chip holds the turn facts', async ({ page }) => {
+  await send(page, 'Where is order A-1001?')
+  const bar = page.getByTestId('turn-status')
+  await expect(bar).toHaveAttribute('data-phase', 'done')
+  // The bar: the phase, the duration and the budget readout. An answered turn shows no exit.
+  await expect(bar).toContainText('Done')
+  await expect(bar).not.toContainText('exit:')
+  await expect(bar).not.toContainText('tok')
+  await expect(bar).not.toContainText('events')
+  await expect(bar).not.toContainText('tool call')
+  await expect(bar.getByTestId('release-dirty')).toHaveCount(0)
+  // The chip's This turn card: the facts, the release, the budgets as bars.
+  const pop = await openSessionChip(page)
+  const card = pop.getByTestId('budget-card')
+  await expect(card.getByTestId('turn-exit')).toHaveText('answered')
+  await expect(card.getByTestId('turn-tool-calls')).toHaveText('1')
+  await expect(card.getByTestId('turn-events')).toHaveText(/^\d+$/)
+  await expect(card.getByTestId('turn-duration')).toHaveText(/\d( ms| s)$/)
+  await expect(card.getByTestId('release-status')).toHaveText('Release r1')
+  await expect(pop.getByTestId('release-status')).toHaveCount(1)
+  await closeSessionChip(page)
 })
 
 test('a tool call shows inline in the chat and opens to its details', async ({ page }) => {

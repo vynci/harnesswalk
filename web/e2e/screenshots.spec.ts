@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { closeSessionChip, openSessionChip } from './helpers'
 
 // Screenshots of the P4 panels from the mock build, for review: the eval run and the release
 // diff. Skipped unless HARNESSWALK_MOCK_SHOTS names a directory, so the e2e run writes nothing.
@@ -65,7 +66,8 @@ for (const theme of ['light', 'dark'] as const) {
     await settle(page)
     await shot(page, `release-rollback-confirm-${theme}`)
     await inspector.getByTestId('rollback-confirm').getByRole('button', { name: 'Roll back' }).click()
-    await expect(page.getByTestId('release-status')).toHaveText('release r1')
+    await expect((await openSessionChip(page)).getByTestId('release-status')).toHaveText('Release r1')
+    await closeSessionChip(page)
 
     await page.getByTestId('node-trace').click()
     await inspector.getByTestId('trace-turn').first().click()

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
-import { Harness, lastTurnEvents, node, pickFixture, send, settleTurns, status, turnDone } from './helpers'
+import { closeSessionChip, Harness, lastTurnEvents, node, openSessionChip, pickFixture, send, settleTurns, status, turnDone } from './helpers'
 
 // Phase 4 against the real harness (fake provider): the gate (edit a skill, run golden, see the
 // regression; the P5 eval gate refuses the release, Release anyway forces it and the audit log
@@ -93,7 +93,7 @@ test('the P4 gate: a skill edit regresses a golden case; release, edit again, ro
   // 1. Edit the returns skill: the return window changes, so the returns_window case breaks.
   await editSkill(page, 'returns', 'within 30 days of delivery', 'within 14 days of delivery')
   await expect(page.getByTestId('ops-marker-text').last()).toHaveText(/^Skill returns v\d+ saved$/)
-  await expect(page.getByTestId('release-status')).toHaveText('working set (unreleased changes)')
+  await expect(status(page).getByTestId('release-dirty')).toBeVisible()
 
   // 2. Golden again: the case regresses, on the Eval node and in the run detail.
   await setView(page, 'Simple')
@@ -149,7 +149,9 @@ test('the P4 gate: a skill edit regresses a golden case; release, edit again, ro
   await inspector.getByTestId('release-rollback').click()
   await inspector.getByTestId('rollback-confirm').getByRole('button', { name: 'Roll back' }).click()
   await expect(page.getByTestId('ops-marker-text').last()).toHaveText(`Rolled back: release ${base} active`)
-  await expect(page.getByTestId('release-status')).toHaveText(`release ${base}`)
+  await expect((await openSessionChip(page)).getByTestId('release-status')).toHaveText(`Release ${base}`)
+  await closeSessionChip(page)
+  await expect(status(page).getByTestId('release-dirty')).toHaveCount(0)
   expect(await activeRelease(request)).toBe(base)
 
   // 5. The Procedural inspector shows the old content again, with the old content stamp.
@@ -169,9 +171,11 @@ test('the P4 gate: a skill edit regresses a golden case; release, edit again, ro
   expect(events[events.length - 1]!.status).toBe('done')
 })
 
-test('a release made with the CLI shows up live: a chat marker and the status bar, no reload', async ({ page, request }) => {
+test('a release made with the CLI shows up live: a chat marker and the session chip, no reload', async ({ page, request }) => {
   const before = await activeRelease(request)
-  await expect(page.getByTestId('release-status')).toBeVisible()
+  // The session chip stays open while the CLI releases: its release line follows live.
+  const pop = await openSessionChip(page)
+  await expect(pop.getByTestId('release-status')).toBeVisible()
   const env = {
     ...process.env,
     HARNESSWALK_ROOT: repo,
@@ -186,7 +190,8 @@ test('a release made with the CLI shows up live: a chat marker and the status ba
   expect(made).not.toBe(before)
   // The tenant's ops stream (GET /v1/events) polls the store, so another process's release arrives.
   await expect(page.getByTestId('ops-marker-text').last()).toHaveText(`Release ${made} active`, { timeout: 15_000 })
-  await expect(page.getByTestId('release-status')).toHaveText(`release ${made}`)
+  await expect(pop.getByTestId('release-status')).toHaveText(`Release ${made}`)
+  await closeSessionChip(page)
   await expect(page.getByTestId('ops-marker').last().getByTestId('ops-marker-restore')).toBeVisible()
 })
 
