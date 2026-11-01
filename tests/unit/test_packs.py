@@ -22,7 +22,7 @@ from harnesswalk.ops.eval.offline import scratch_tenant
 from harnesswalk.runtime import Harness
 from tests.spec.support import ROOT
 
-ALL = packs.discover(ROOT)
+ALL = list(packs.discover(ROOT).values())
 DOMAIN = [p.id for p in ALL if p.tier == "domain"]
 
 
@@ -30,23 +30,23 @@ def test_discovery_finds_the_starter_and_five_domain_packs() -> None:
     assert ALL[0].id == "_starter"
     assert sorted(DOMAIN) == ["ecommerce", "finance", "healthcare", "logistics", "sports"]
     for p in ALL:
-        summary = p.summary()
+        summary = p.card()
         assert summary["licence"] == "CC0-1.0" and summary["tools"], p.id
 
 
-def test_cards_read_the_same_fields_as_the_ops_index() -> None:
-    """GET /v1/packs (harnesswalk/ops/pack_index.py) and packs.py read one card: the index's
-    fields come out the same from both, so the integration pass can swap one for the other."""
-    from harnesswalk.ops import pack_index
-
+def test_one_module_backs_get_packs_the_cli_and_the_validator() -> None:
+    """`harnesswalk/packs.py` is the only pack discovery (P5 integration): GET /v1/packs, the
+    CLI's `packs list --json` and the validator read one card the same way."""
     settings = load_settings(ROOT, provider="fake", fixture="plain_answer", env={})
-    index = pack_index.discover(settings)
+    index = packs.discover(settings)
+    assert list(index) == [p.id for p in ALL]
     for p in ALL:
-        mine = p.summary()
-        theirs = index[p.id].summary(default="_starter")
+        api = index[p.id].summary(default="_starter")
+        cli = p.card()
         for key in ("id", "title", "domain", "feature", "prompts", "counts"):
-            assert mine[key] == theirs[key], (p.id, key)
-        assert mine["feature"] and len(mine["prompts"]) >= 4
+            assert api[key] == cli[key], (p.id, key)
+        assert api["feature"] and len(api["prompts"]) >= 4
+    assert not (ROOT / "harnesswalk" / "ops" / "pack_index.py").exists()
 
 
 def test_packs_under_profile_roots_validate(capsys) -> None:

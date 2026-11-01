@@ -32,9 +32,9 @@ PDF and a markdown file with the same stem would collide, so a PDF's markdown so
 
 A pack is a subdirectory of one of the pack roots (`packs.roots` in `config/harness.yaml`,
 default `[datasets]`; the conformance profile adds `spec/conformance/packs`). Its id is the
-directory name; when two roots hold the same id, the first root wins. The ops index
-(`harnesswalk/ops/pack_index.py`, behind `GET /v1/packs`) and `harnesswalk/packs.py` read the
-same roots and the same card.
+directory name; when two roots hold the same id, the first root wins. One module,
+`harnesswalk/packs.py`, discovers packs for `GET /v1/packs`, sessions, eval runs, releases, the
+CLI and the validator (P5 integration; it replaced `harnesswalk/ops/pack_index.py`).
 
 ## `pack.yaml`
 

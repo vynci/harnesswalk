@@ -255,9 +255,9 @@ def _ingest(args: argparse.Namespace) -> int:
         extra["dataset"] = args.pack
     settings = _settings(args, **extra)
     pack = settings.get("dataset", "_starter")
-    from harnesswalk.ops import pack_index
+    from harnesswalk import packs
 
-    if pack_index.find(settings, pack) is None:  # any of packs.roots, not only datasets/
+    if packs.find(settings, pack) is None:  # any of packs.roots, not only datasets/
         print(f"no dataset pack {pack!r} under {settings.get('packs.roots', ['datasets'])}",
               file=sys.stderr)  # fmt: skip
         return 1
@@ -279,17 +279,16 @@ def _ingest(args: argparse.Namespace) -> int:
 def _packs(args: argparse.Namespace) -> int:
     """`packs list`, `packs validate [pack]` (exit 1 on any issue), `packs ingest [pack]`."""
     from harnesswalk import packs
-    from harnesswalk.ops import pack_index
 
-    roots = pack_index.roots(_settings(args))  # packs.roots, so a profile can add its own
+    roots = packs.pack_roots(_settings(args))  # packs.roots, so a profile can add its own
     try:
-        everything = packs.discover(roots=roots)
+        everything = list(packs.discover(roots=roots).values())
         chosen = [packs.get_pack(args.pack, roots=roots)] if args.pack else everything
     except packs.PackError as exc:
         print(f"harnesswalk packs: {exc}", file=sys.stderr)
         return 2
     if args.action == "list":
-        rows = [p.summary() for p in chosen]
+        rows = [p.card() for p in chosen]
         if args.json:
             print(json.dumps(rows, indent=2, ensure_ascii=False))
             return 0

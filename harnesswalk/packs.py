@@ -40,6 +40,11 @@ import yaml
 from harnesswalk.paths import repo_root
 
 MAX_BYTES = 2 * 1024 * 1024
+PACK_ID = re.compile(r"^[a-z_][a-z0-9_-]{0,63}$")  # a directory name a pack may have
+DEFAULT_ROOTS = ("datasets",)
+MAX_PROMPTS = 10
+LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+(.+?)\s*$")
+DOC_EXTS = (".md", ".markdown", ".pdf")
 BUILTIN_TOOLS = ("calculator", "read_skill", "remember", "read_doc")
 TIERS = {
     # tier: (docs, pdf docs, skills, pack tools, facts, episodes, golden cases, try-these prompts)
@@ -58,7 +63,7 @@ TIERS = {
     "profile": {},  # a pack whose content a profile gives inline (spec/conformance/packs/)
 }
 # The pack.yaml keys each tier must have. `id` is optional everywhere (the directory name is
-# the id), as in the ops index (harnesswalk/ops/pack_index.py), which reads the same card.
+# the id).
 TIER_REQUIRED = {
     "domain": ("title", "domain", "summary", "tier", "feature", "demonstrates", "licence",
                "provenance", "synthetic", "prompts"),
@@ -142,13 +147,25 @@ class Issue:
 
 @dataclass
 class Pack:
+    """One pack directory and its card. `meta` is `pack.yaml` ({} for a P1 layout pack that
+    only has a `system_prompt.md`, or a card that does not parse: the validator reports it)."""
+
     id: str
     path: Path
     meta: dict[str, Any] = field(default_factory=dict)
+    card_error: str | None = None
+
+    @property
+    def dir(self) -> Path:  # the ops plane's name for it
+        return self.path
 
     @property
     def title(self) -> str:
-        return str(self.meta.get("title") or self.id)
+        return self._text("title") or self.id
+
+    def _text(self, key: str) -> str | None:
+        value = self.meta.get(key)
+        return str(value) if isinstance(value, (str, int, float)) else None
 
     @property
     def tier(self) -> str:
@@ -160,8 +177,7 @@ class Pack:
 
     @property
     def feature(self) -> str | None:
-        value = self.meta.get("feature")
-        return str(value) if isinstance(value, (str, int, float)) else None
+        return self._text("feature")
 
     @property
     def demonstrates(self) -> dict[str, Any]:
@@ -170,12 +186,25 @@ class Pack:
 
     @property
     def prompts(self) -> list[str]:
-        return [str(p) for p in self.meta.get("prompts") or [] if isinstance(p, str)]
+        """The suggestion row: the card's `prompts` (strings, or `{text|prompt}` objects), else
+        the numbered or bulleted items of `prompts.md`; at most MAX_PROMPTS."""
+        out: list[str] = []
+        listed = self.meta.get("prompts")
+        if isinstance(listed, list):
+            for item in listed:
+                text = (item.get("text") or item.get("prompt")) if isinstance(item, dict) else item
+                if isinstance(text, str) and text.strip():
+                    out.append(text.strip())
+        elif (self.path / "prompts.md").is_file():
+            for line in (self.path / "prompts.md").read_text(encoding="utf-8").splitlines():
+                m = LIST_ITEM.match(line)
+                if m:
+                    out.append(m.group(1).strip().strip("`\"'"))
+        return [x for x in out if x][:MAX_PROMPTS]
 
     def docs(self) -> list[Path]:
         d = self.path / "docs"
-        exts = (".md", ".markdown", ".pdf")
-        return sorted(p for p in d.glob("*") if p.is_file() and p.suffix.lower() in exts)
+        return sorted(p for p in d.glob("*") if p.is_file() and p.suffix.lower() in DOC_EXTS)
 
     def doc_ids(self) -> set[str]:
         return {re.sub(r"[^a-z0-9_]+", "_", p.stem.lower()).strip("_") for p in self.docs()}
@@ -185,13 +214,14 @@ class Pack:
             entries = yaml.safe_load((self.path / "tools.yaml").read_text(encoding="utf-8"))
         except (OSError, yaml.YAMLError):
             return []
-        return [e["name"] for e in entries or [] if isinstance(e, dict) and "name" in e]
+        if not isinstance(entries, list):
+            return []
+        return [e["name"] for e in entries if isinstance(e, dict) and "name" in e]
 
     def size_bytes(self) -> int:
         return sum(p.stat().st_size for p in self.path.rglob("*") if p.is_file())
 
     def counts(self) -> dict[str, int]:
-        """The same counts as the ops index (pack_index.PackInfo.counts)."""
         return {
             "docs": len(self.docs()),
             "facts": _count_lines(self.path / "facts.jsonl"),
@@ -201,16 +231,39 @@ class Pack:
             "golden": _count_lines(self.path / "golden.jsonl"),
         }
 
-    def summary(self) -> dict[str, Any]:
-        """`packs list --json`: the ops index's fields for GET /v1/packs (id, title, domain,
-        feature, prompts, counts), then what only this module knows."""
+    def files(self) -> list[dict[str, Any]]:
+        """The pack's files for the UI's file tree (`GET /v1/packs/{id}`): every file under
+        the pack but caches and hidden ones, by path, with its size and the part it plays."""
+        out = []
+        for path in sorted(self.path.rglob("*")):
+            rel = path.relative_to(self.path)
+            if not path.is_file() or any(
+                part.startswith(".") or part == "__pycache__" for part in rel.parts
+            ):
+                continue
+            out.append({"path": rel.as_posix(), "bytes": path.stat().st_size, "role": _role(rel)})
+        return out
+
+    def summary(self, default: str | None = None, loaded: bool = False) -> dict[str, Any]:
+        """One item of `GET /v1/packs`."""
         return {
             "id": self.id,
             "title": self.title,
-            "domain": self.meta.get("domain"),
+            "domain": self._text("domain"),
             "feature": self.feature,
             "prompts": self.prompts,
             "counts": self.counts(),
+            "default": self.id == default,
+            "loaded": loaded,
+        }
+
+    def card(self) -> dict[str, Any]:
+        """`packs list --json`: the `GET /v1/packs` fields, then what only the CLI shows."""
+        out = self.summary()
+        for key in ("default", "loaded"):
+            out.pop(key)
+        return {
+            **out,
             "summary": self.meta.get("summary"),
             "tier": self.tier,
             "demonstrates": self.demonstrates,
@@ -221,18 +274,41 @@ class Pack:
         }
 
 
-def datasets_dir(root: Path | None = None) -> Path:
-    return (root or repo_root()) / "datasets"
+def _role(rel: Path) -> str:
+    """What a file is to the harness, for the file tree (the inspectors filter on it)."""
+    top = rel.parts[0]
+    if len(rel.parts) == 1:
+        return {
+            "system_prompt.md": "procedural",
+            "tools.yaml": "tools",
+            "guardrails.yaml": "guardrails",
+            "facts.jsonl": "semantic",
+            "episodes.jsonl": "episodic",
+            "golden.jsonl": "golden",
+        }.get(rel.name, "card")
+    return {
+        "skills": "procedural",
+        "docs": "knowledge",
+        "sources": "knowledge_source",
+        "fixtures": "fixture",
+    }.get(top, "other")
 
 
-def configured_roots(root: Path | None = None) -> list[Path]:
-    """`packs.roots` from config/harness.yaml (default `[datasets]`), resolved under root."""
-    root = root or repo_root()
+# -- discovery ---------------------------------------------------------------------------------
+
+
+def pack_roots(where: Any = None) -> list[Path]:
+    """The pack roots: `packs.roots` (default `[datasets]`), resolved. `where` is a Settings
+    (a profile may add roots), or a repository root whose config/harness.yaml is read."""
+    if where is not None and hasattr(where, "resolve") and hasattr(where, "get"):
+        raw = where.get("packs.roots", None) or list(DEFAULT_ROOTS)
+        return [where.resolve(str(r)) for r in ([raw] if isinstance(raw, str) else raw)]
+    root = Path(where) if where is not None else repo_root()
     try:
         cfg = yaml.safe_load((root / "config" / "harness.yaml").read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError):
         cfg = {}
-    raw = ((cfg or {}).get("packs") or {}).get("roots") or ["datasets"]
+    raw = ((cfg or {}).get("packs") or {}).get("roots") or list(DEFAULT_ROOTS)
     return [
         Path(r) if Path(r).is_absolute() else root / r
         for r in ([raw] if isinstance(raw, str) else raw)
@@ -240,37 +316,66 @@ def configured_roots(root: Path | None = None) -> list[Path]:
 
 
 def load_pack(path: Path) -> Pack:
+    """The pack in `path`. A card that is not a YAML mapping still gives a pack (with
+    `card_error` set), so discovery never fails on one bad card; `strict` loaders raise."""
     meta_path = path / "pack.yaml"
     if not meta_path.is_file():
+        if (path / "system_prompt.md").is_file():
+            return Pack(path.name, path, {})
         raise PackError(f"{path} has no pack.yaml")
     try:
         meta = yaml.safe_load(meta_path.read_text(encoding="utf-8")) or {}
     except yaml.YAMLError as exc:
-        raise PackError(f"{meta_path}: not valid YAML: {exc}") from exc
+        return Pack(path.name, path, {}, f"pack.yaml is not valid YAML: {exc}")
     if not isinstance(meta, dict):
-        raise PackError(f"{meta_path} must hold a mapping")
+        return Pack(path.name, path, {}, "pack.yaml must hold a mapping")
     return Pack(path.name, path, meta)
 
 
-def discover(root: Path | None = None, roots: list[Path] | None = None) -> list[Pack]:
-    """Every directory with a pack.yaml under the pack roots, by id (`_starter` first). The
-    first root that has an id wins, as in the ops index. `roots` default: `packs.roots`."""
+def discover(where: Any = None, *, roots: list[Path] | None = None) -> dict[str, Pack]:
+    """Every pack under the roots, by id in id order (`_starter` first). A pack is a directory
+    whose name is a pack id and that holds a `pack.yaml`, or a `system_prompt.md` (the P1
+    layout). The first root that has an id wins. This one function is behind
+    `GET /v1/packs`, sessions, eval runs, releases, the CLI and the validator."""
     found: dict[str, Pack] = {}
-    for base in roots if roots is not None else configured_roots(root):
+    bases = roots if roots is not None else pack_roots(where)
+    for base in bases:
         if not base.is_dir():
             continue
-        for p in sorted(base.iterdir()):
-            if p.name not in found and (p / "pack.yaml").is_file():
-                found[p.name] = load_pack(p)
-    return [found[k] for k in sorted(found)]
+        for d in sorted(p for p in base.iterdir() if p.is_dir()):
+            if d.name in found or not PACK_ID.match(d.name):
+                continue
+            if (d / "pack.yaml").is_file() or (d / "system_prompt.md").is_file():
+                found[d.name] = load_pack(d)
+    return dict(sorted(found.items()))
 
 
-def get_pack(pack_id: str, root: Path | None = None, roots: list[Path] | None = None) -> Pack:
-    for pack in discover(root, roots) if re.fullmatch(r"_?[a-z][a-z0-9_-]{0,63}", pack_id) else []:
-        if pack.id == pack_id:
-            return pack
-    where = ", ".join(str(r) for r in (roots if roots is not None else configured_roots(root)))
-    raise PackError(f"no dataset pack {pack_id!r} under {where}")
+def find(where: Any, pack: str) -> Pack | None:
+    if not isinstance(pack, str) or not PACK_ID.match(pack):
+        return None
+    return discover(where).get(pack)
+
+
+def get_pack(pack_id: str, where: Any = None, roots: list[Path] | None = None) -> Pack:
+    """The pack, or PackError naming the roots searched."""
+    found = discover(where, roots=roots).get(pack_id) if PACK_ID.match(pack_id) else None
+    if found is None:
+        searched = roots if roots is not None else pack_roots(where)
+        where_text = ", ".join(str(r) for r in searched)
+        raise PackError(f"no dataset pack {pack_id!r} under {where_text}")
+    return found
+
+
+def pack_dir(settings: Any, pack: str) -> Path:
+    """The pack's directory: the discovered one, else `datasets/<pack>` (which may not exist,
+    for a pack whose content the profile gives inline)."""
+    info = find(settings, pack)
+    return info.path if info is not None else settings.root / "datasets" / pack
+
+
+def known(settings: Any, pack: str) -> bool:
+    """A pack a session or a run may name: discovered, or the configured one."""
+    return pack == settings.get("dataset", "_starter") or find(settings, pack) is not None
 
 
 # -- validation ---------------------------------------------------------------------------------
@@ -360,9 +465,11 @@ def _diagram_ids(config_root: Path) -> set[str]:
 
 
 def _count_lines(path: Path) -> int:
+    """Lines that hold a record: not blank, not a `//` comment (golden sets allow those)."""
     if not path.is_file():
         return 0
-    return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return sum(1 for line in lines if line.strip() and not line.lstrip().startswith("//"))
 
 
 def _within(n: int, bounds: tuple[int, int]) -> bool:
@@ -376,11 +483,14 @@ def validate(
     guardrail patterns the PII scan uses; `config_root` holds config/ and spec/."""
     config_root = config_root or repo_root()
     if packs is None:
-        packs = discover(config_root)
+        packs = list(discover(config_root).values())
     issues: list[Issue] = []
 
     def add(check: str, message: str, path: str | None = None) -> None:
         issues.append(Issue(pack.id, check, message, path))
+
+    if pack.card_error or not (pack.path / "pack.yaml").is_file():
+        add("schema", pack.card_error or "pack.yaml is missing", "pack.yaml")
 
     # schema
     tier = pack.tier

@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 import yaml
 
+from harnesswalk import packs
 from harnesswalk.config.loader import load_settings
 from harnesswalk.control.gateway import GatewayError, TurnRequest
-from harnesswalk.ops import pack_index
 from harnesswalk.runtime import Harness, PackRuntime
 from harnesswalk.types import Identity
 from tests.spec.support import ROOT
@@ -89,7 +89,7 @@ def test_discovery_reads_pack_yaml_prompts_and_counts(tmp_path: Path) -> None:
     (root / "Bad Name" / "pack.yaml").write_text("title: x")
     (root / "empty").mkdir()
     s = load_settings(ROOT, overrides={"packs.roots": [str(root)]}, env={})
-    found = pack_index.discover(s)
+    found = packs.discover(s)
     assert list(found) == ["legacy", "shop"]
     shop_info = found["shop"].summary("legacy")
     assert shop_info["title"] == "A shop" and shop_info["feature"] == "approvals"
@@ -99,8 +99,8 @@ def test_discovery_reads_pack_yaml_prompts_and_counts(tmp_path: Path) -> None:
     }  # fmt: skip
     assert found["legacy"].summary("legacy")["default"] is True
     assert found["legacy"].summary("legacy")["title"] == "legacy"
-    assert pack_index.pack_dir(s, "shop") == shop
-    assert pack_index.pack_dir(s, "nowhere") == ROOT / "datasets" / "nowhere"
+    assert packs.pack_dir(s, "shop") == shop
+    assert packs.pack_dir(s, "nowhere") == ROOT / "datasets" / "nowhere"
 
 
 def test_the_first_root_wins(tmp_path: Path) -> None:
@@ -110,8 +110,8 @@ def test_the_first_root_wins(tmp_path: Path) -> None:
     s = load_settings(
         ROOT, overrides={"packs.roots": [str(tmp_path / "one"), str(tmp_path / "two")]}, env={}
     )
-    assert pack_index.find(s, "p").meta["title"] == "first"
-    assert pack_index.find(s, "p").prompts() == ["Hi"]
+    assert packs.find(s, "p").meta["title"] == "first"
+    assert packs.find(s, "p").prompts == ["Hi"]
 
 
 @pytest.mark.anyio

@@ -180,7 +180,7 @@ def sources(settings: Settings) -> list[Source]:
 
     P5: the pack's files come from its directory wherever it lives (`packs.roots`); they are
     still named `datasets/<pack>/...` in the served set, which is how everything reads them."""
-    from harnesswalk.ops.pack_index import pack_dir
+    from harnesswalk.packs import pack_dir
 
     root = settings.root
     pack = settings.get("dataset", "_starter")

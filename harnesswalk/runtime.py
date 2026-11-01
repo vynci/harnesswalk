@@ -29,6 +29,7 @@ from typing import Any
 import yaml
 
 from harnesswalk import SPEC_VERSION, __version__
+from harnesswalk import packs as packs_mod
 from harnesswalk.adapters.storage.vectors import build_vectors
 from harnesswalk.config.loader import Settings, deep_merge, load_settings
 from harnesswalk.context.builder import ContextBuilder
@@ -72,7 +73,6 @@ from harnesswalk.execution.router import Router, RouteRequest
 from harnesswalk.execution.sandbox import Sandbox
 from harnesswalk.execution.tools import Tools
 from harnesswalk.nodes import load_components
-from harnesswalk.ops import pack_index
 from harnesswalk.ops.eval import Evals
 from harnesswalk.ops.ops_events import OpsEvents
 from harnesswalk.ops.otel import build_exporter
@@ -207,7 +207,7 @@ class PackParts:
     def _input_guardrails_config(self) -> dict[str, Any]:
         """config/harness.yaml `input_guardrails`, with the pack's `guardrails.yaml` over it."""
         cfg = self.settings.get("input_guardrails", {})
-        pack = pack_index.pack_dir(self.settings, self.settings.get("dataset", "_starter"))
+        pack = packs_mod.pack_dir(self.settings, self.settings.get("dataset", "_starter"))
         path = pack / "guardrails.yaml"
         if path.exists():
             extra = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -244,7 +244,7 @@ class PackParts:
         rel = self.settings.get("stores.knowledge.docs_dir", None)
         if rel:
             return self.settings.resolve(rel)
-        return pack_index.pack_dir(self.settings, self.pack) / "docs"
+        return packs_mod.pack_dir(self.settings, self.pack) / "docs"
 
     def ingest(self, *, force: bool = False) -> dict[str, Any]:
         """Index the pack's documents and load its seed facts and episodes (idempotent).
@@ -256,7 +256,7 @@ class PackParts:
         s = self.settings
         out = self.knowledge.ingest(self.knowledge_dir(), force=force)
         seeds_rel = s.get("stores.seeds_dir", None)
-        seeds_dir = s.resolve(seeds_rel) if seeds_rel else pack_index.pack_dir(s, self.pack)
+        seeds_dir = s.resolve(seeds_rel) if seeds_rel else packs_mod.pack_dir(s, self.pack)
         out["seeded"] = self.memory_writer.seed(seeds_dir)
         if out["changed"] or force:  # a new embedder needs the facts and events embedded again
             out["reindexed"] = self.semantic.reindex() + self.episodic.reindex()
@@ -280,7 +280,7 @@ class PackParts:
         pack = s.get("dataset", "_starter")
         pack_tools = f"datasets/{pack}/tools.yaml"  # the artifact's name in the served set
         served = s.served.read(pack_tools) if s.served is not None else None
-        on_disk = pack_index.pack_dir(s, pack) / "tools.yaml"
+        on_disk = packs_mod.pack_dir(s, pack) / "tools.yaml"
         if files is None:
             files = [pack_tools] if served is not None or on_disk.exists() else []
         for rel in files:
@@ -363,7 +363,7 @@ class Harness(PackParts):
     # -- packs (P5) ------------------------------------------------------------------------------
 
     def pack_known(self, pack: Any) -> bool:
-        return isinstance(pack, str) and pack_index.known(self.settings, pack)
+        return isinstance(pack, str) and packs_mod.known(self.settings, pack)
 
     def view(self, pack: str | None = None) -> Any:
         """The harness as one pack runs it: itself for the configured pack, else that pack's
@@ -396,7 +396,7 @@ class Harness(PackParts):
     def pack_list(self) -> dict[str, Any]:
         """GET /v1/packs."""
         loaded = {self.pack, *self.packs}
-        found = pack_index.discover(self.settings)
+        found = packs_mod.discover(self.settings)
         items = [info.summary(self.pack, info.id in loaded) for info in found.values()]
         if self.pack not in found:  # a configured pack given inline by a profile
             items.insert(0, {
@@ -465,8 +465,8 @@ class Harness(PackParts):
     def fixtures(self) -> list[str]:
         """Fixture names a turn may ask for, from every pack's fixtures (P5) and the profile's."""
         dirs = self._fixture_dirs(self.settings, self.pack)
-        for pack in pack_index.discover(self.settings):
-            extra = pack_index.pack_dir(self.settings, pack) / "fixtures" / "fake"
+        for info in packs_mod.discover(self.settings).values():
+            extra = info.path / "fixtures" / "fake"
             if extra not in dirs:
                 dirs.append(extra)
         return list_fixtures(dirs)
@@ -475,7 +475,7 @@ class Harness(PackParts):
     def _fixture_dirs(settings: Settings, pack: str) -> list[Path]:
         """The fake provider's fixture directories, with the pack's own wherever it lives."""
         dirs = fixture_dirs(settings)
-        own = pack_index.pack_dir(settings, pack) / "fixtures" / "fake"
+        own = packs_mod.pack_dir(settings, pack) / "fixtures" / "fake"
         return dirs if own in dirs else [*dirs, own]
 
     def turn_providers(
@@ -556,7 +556,7 @@ class Harness(PackParts):
             "release": self.release.status(),
             "packs": {
                 "default": self.pack,
-                "ids": sorted({self.pack, *pack_index.discover(s)}),
+                "ids": sorted({self.pack, *packs_mod.discover(s)}),
             },
             "limits": {
                 "max_message_chars": int(s.get("gateway.max_message_chars", 32000)),

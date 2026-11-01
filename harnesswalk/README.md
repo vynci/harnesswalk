@@ -75,8 +75,8 @@ Modules that are not nodes:
 | `control` | `http_ops.py` | P4 LLM Ops routes: eval runs, feedback, artifacts and releases, the trace query, and `GET /v1/events` (the tenant's ops events, live) |
 | `ops` | `ops_events.py` | P4 ops event streams: events outside turns (eval progress, feedback, releases), and the tenant tail behind `GET /v1/events` |
 | `ops` | `otel.py` | P4 OpenTelemetry mapping and OTLP export (optional extra `otel`) |
+| (top) | `packs.py` | P5 dataset packs, the one discovery module behind `GET /v1/packs`, sessions, eval runs, releases, the CLI and the validator; the `pack.yaml` schema and the pack validator |
 | `ops` | `lease.py` | P4 `data/owner.lock`: one `serve` per data directory, `--takeover` |
-| `ops` | `pack_index.py` | P5 pack discovery for `GET /v1/packs`, sessions and runs (`packs.roots`, `pack.yaml` or `system_prompt.md`) |
 | `ops` | `eval/golden.py`, `eval/scorers.py`, `eval/judge.py`, `eval/store.py` | P4 golden sets, deterministic scorers, the judge, `data/evals.db` |
 | `adapters` | `storage/sqlite.py` | The SQLite helper behind the trace, session, audit and approval stores |
 | `adapters` | `storage/vectors.py` | Vector indexes: `sqlite` (brute-force cosine) and `pgvector`, chosen by `storage.vectors` |
