@@ -1,0 +1,1 @@
+{"responses": [{"text": "I can't share another person's appointments, because they are private. Your neighbour can check their own appointment in the patient portal.", "usage": {"input_tokens": 539, "output_tokens": 32}, "expect": {"last_message_role": "user"}}]}

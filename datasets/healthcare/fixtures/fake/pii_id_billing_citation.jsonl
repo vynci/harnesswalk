@@ -1,0 +1,1 @@
+{"responses": [{"text": "Thanks, I have [ID_1] from your message. An uninsured standard visit costs 85 dollars, and an extended visit costs 130 dollars [2].", "usage": {"input_tokens": 702, "output_tokens": 46}, "expect": {"last_message_role": "user", "last_message_contains": "[ID_1]"}}]}

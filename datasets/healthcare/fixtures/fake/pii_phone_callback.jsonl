@@ -1,0 +1,1 @@
+{"responses": [{"text": "I can't schedule a callback from chat. Please ask the front desk or send a message through the patient portal, and share [PHONE_1] there so the team can reach you.", "usage": {"input_tokens": 551, "output_tokens": 42}, "expect": {"last_message_role": "user", "last_message_contains": "[PHONE_1]"}}]}

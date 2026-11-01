@@ -1,0 +1,67 @@
+# Bundled data for the Brindlemoor Family Clinic pack. These tables are fictional and
+# are what the tools return, so the model's replies can be checked against them.
+- name: find_appointment
+  description: Look up an appointment by its appointment ref (for example AP-1042). Returns site, service, date, time, clinician, status and a preparation note.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [appointment_ref]
+    properties:
+      appointment_ref:
+        type: string
+        pattern: "^AP-[0-9]{4}$"
+        description: "Appointment ref such as AP-1042."
+  table:
+    AP-1042: { appointment_ref: AP-1042, site: north, service: "Annual check-up", date: "2026-10-14", time: "09:30", clinician: "Dr. Maren Ostrowski", status: confirmed, prep: "Bring your medication list. No fasting needed." }
+    AP-1057: { appointment_ref: AP-1057, site: riverside, service: "Fasting blood test", date: "2026-10-02", time: "07:45", clinician: "Nurse Lucan Adeyemi", status: confirmed, prep: "Fast for 10 hours. Water is fine." }
+    AP-1063: { appointment_ref: AP-1063, site: eastgate, service: "Flu vaccination", date: "2026-10-21", time: "14:15", clinician: "Nurse Halvard Pereira", status: confirmed, prep: "Wear a short-sleeved top." }
+    AP-1078: { appointment_ref: AP-1078, site: north, service: "Physiotherapy assessment", date: "2026-11-03", time: "11:00", clinician: "Tilda Brennick, physiotherapist", status: waitlisted, prep: "Wear loose clothing. The clinic will call if a slot opens." }
+    AP-1085: { appointment_ref: AP-1085, site: riverside, service: "Counselling intake", date: "2026-11-10", time: "16:00", clinician: "Dr. Sunniva Achterberg", status: confirmed, prep: "Allow 50 minutes. A short intake form is in the patient portal." }
+    AP-1091: { appointment_ref: AP-1091, site: eastgate, service: "Follow-up visit", date: "2026-09-28", time: "10:15", clinician: "Dr. Kofi Lindqvist", status: cancelled, prep: "Cancelled by the patient. Rebook through the patient portal." }
+  missing: { error: not_found }
+- name: clinic_hours
+  description: Opening hours, walk-in window and parking for one clinic site (north, riverside or eastgate).
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [site]
+    properties:
+      site:
+        type: string
+        pattern: "^(north|riverside|eastgate)$"
+        description: "Site code: north, riverside or eastgate."
+  table:
+    north: { site: north, address_area: "Harbour District", weekdays: "08:00-18:00", saturday: "09:00-13:00", walk_in: "08:00-10:00", parking: "Free car park behind the building, 40 spaces" }
+    riverside: { site: riverside, address_area: "Willowbank", weekdays: "08:00-18:00", saturday: closed, walk_in: none, parking: "Two hours free on Willowbank Row" }
+    eastgate: { site: eastgate, address_area: "Eastgate Quarter", weekdays: "08:00-18:00", saturday: closed, walk_in: "16:00-17:30", parking: "Paid garage next door, 3 dollars an hour" }
+  missing: { error: not_found }
+- name: list_services
+  description: List the services in a category (primary_care, vaccinations, lab_tests, physiotherapy, mental_health), how to book, whether a referral is needed and which sites offer them.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [category]
+    properties:
+      category:
+        type: string
+        pattern: "^[a-z_]{3,32}$"
+        description: "Service category such as primary_care or lab_tests."
+  table:
+    primary_care: { category: primary_care, services: "Annual check-ups, chronic condition reviews, minor illness visits, womens and mens health visits", booking: "Patient portal or front desk", referral_needed: "no", sites: "north, riverside, eastgate" }
+    vaccinations: { category: vaccinations, services: "Seasonal flu, travel vaccines, childhood schedule catch-up, tetanus boosters", booking: "Patient portal or front desk", referral_needed: "no", sites: "north, eastgate" }
+    lab_tests: { category: lab_tests, services: "Fasting blood tests, urine tests, cholesterol and glucose panels", booking: "Patient portal, a clinician request is required for most panels", referral_needed: "yes", sites: "riverside" }
+    physiotherapy: { category: physiotherapy, services: "Assessment, 8-week rehabilitation programme, back and joint care", booking: "Patient portal or front desk", referral_needed: "no", sites: "north" }
+    mental_health: { category: mental_health, services: "Counselling intake, short-term counselling, stress and sleep workshops", booking: "Patient portal only", referral_needed: "no", sites: "riverside, eastgate" }
+  missing: { error: not_found }

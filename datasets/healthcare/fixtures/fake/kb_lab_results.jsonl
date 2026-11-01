@@ -1,0 +1,1 @@
+{"responses": [{"text": "Lab results appear in the patient portal 3 to 5 business days after your test [2]. Your clinician can explain what they mean.", "usage": {"input_tokens": 694, "output_tokens": 36}, "expect": {"last_message_role": "user"}}]}

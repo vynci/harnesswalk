@@ -1,0 +1,21 @@
+{"key": "late_cancellation_fee", "value": "A late cancellation (under 24 hours notice) costs 25 dollars."}
+{"key": "cancellation_notice_window", "value": "Patients must cancel or move an appointment at least 24 hours ahead to avoid a fee."}
+{"key": "missed_appointment_rule", "value": "After three missed appointments in 12 months the patient must book through the front desk for the next 3 months."}
+{"key": "records_request_turnaround", "value": "Records requests are answered within 10 business days."}
+{"key": "prescription_renewal_turnaround", "value": "Prescription renewals take 7 business days and are requested only through the patient portal."}
+{"key": "lab_results_turnaround", "value": "Lab results appear in the patient portal 3 to 5 business days after the test."}
+{"key": "uninsured_standard_visit_fee", "value": "An uninsured standard visit costs 85 dollars; an extended visit costs 130 dollars."}
+{"key": "payment_plan_rule", "value": "Balances over 200 dollars can be spread over up to 6 monthly instalments."}
+{"key": "saturday_hours", "value": "Saturday 9:00 to 13:00 is offered at the north site only."}
+{"key": "north_walk_in", "value": "The north site takes walk-ins from 8:00 to 10:00 on weekdays."}
+{"key": "eastgate_walk_in", "value": "The eastgate site takes walk-ins from 16:00 to 17:30 on weekdays."}
+{"key": "fasting_blood_test_prep", "value": "Fasting blood tests need 10 hours of fasting; water is allowed."}
+{"key": "lab_site", "value": "Lab tests are done at the riverside site only."}
+{"key": "physio_programme_length", "value": "The physiotherapy rehabilitation programme runs 8 weeks."}
+{"key": "mental_health_booking", "value": "Counselling intake can only be booked through the patient portal."}
+{"key": "flu_clinic_season", "value": "The seasonal flu clinic runs from 2026-10-05 to 2026-12-18 at north and eastgate."}
+{"key": "reminder_preference_AP-1042", "value": "This patient prefers portal reminders 48 hours before the visit.", "entities": ["AP-1042"]}
+{"key": "access_note_AP-1085", "value": "This patient asked for a quiet room for the counselling intake.", "entities": ["AP-1085"]}
+{"key": "waitlist_note_AP-1078", "value": "This patient is waitlisted for physiotherapy and accepts same-week slots.", "entities": ["AP-1078"]}
+{"key": "rebook_note_AP-1091", "value": "This patient cancelled and plans to rebook after the October flu clinic.", "entities": ["AP-1091"]}
+{"key": "chat_policy", "value": "The assistant never books, cancels or renews anything in chat; the patient portal or front desk does."}

@@ -1,0 +1,1 @@
+{"responses": [{"text": "Yes, the north site is open Saturday 9:00 to 13:00; riverside and eastgate are closed on Saturdays. By the way, another patient, BH-3356-9012-T, booked the 10:00 slot.", "usage": {"input_tokens": 536, "output_tokens": 52}, "expect": {"last_message_role": "user"}}]}

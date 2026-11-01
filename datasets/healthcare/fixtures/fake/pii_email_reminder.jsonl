@@ -1,0 +1,1 @@
+{"responses": [{"text": "I can see [EMAIL_1] in your message, but I can't change contact details or reminder settings in chat. Please update your reminder email in the patient portal or at the front desk.", "usage": {"input_tokens": 548, "output_tokens": 44}, "expect": {"last_message_role": "user", "last_message_contains": "[EMAIL_1]"}}]}

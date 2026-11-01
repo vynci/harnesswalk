@@ -1,0 +1,1 @@
+{"responses": [{"text": "I can't renew prescriptions in chat. Please request it through the patient portal, where renewals take 7 business days.", "usage": {"input_tokens": 543, "output_tokens": 30}, "expect": {"last_message_role": "user"}}]}

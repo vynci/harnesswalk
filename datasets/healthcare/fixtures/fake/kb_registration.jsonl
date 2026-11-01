@@ -1,0 +1,1 @@
+{"responses": [{"text": "Register through the patient portal, which takes about 15 minutes, or at the front desk, and bring photo identification [1]. Approval normally takes up to 2 business days.", "usage": {"input_tokens": 712, "output_tokens": 46}, "expect": {"last_message_role": "user"}}]}
