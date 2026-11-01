@@ -1,0 +1,8 @@
+fixture: pack_switch_recall
+description: P5. Back in the first session the fact is retrieved from semantic memory.
+model: fake-small
+turns:
+  - responses:
+      - text: Your locker code is 4417.
+        usage: { input_tokens: 230, output_tokens: 7 }
+        expect: { last_message_role: user, system_contains: "4417" }

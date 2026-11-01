@@ -22,10 +22,10 @@ turns:
       statuses: done
       events:
         - { type: node_paused, node_id: memory, summary: { reason: breakpoint } }
-        - { type: node_resumed, node_id: memory }
+        - { type: node_resumed, node_id: memory, summary: { mode: step_over } }
         - { type: node_exit, node_id: memory }
         - { type: node_paused, node_id: loop, summary: { reason: breakpoint } }
-        - { type: node_resumed, node_id: loop }
+        - { type: node_resumed, node_id: loop, summary: { mode: continue } }
         - { type: turn_end, status: done, summary: { exit: answered } }
       absent:
         - { type: node_paused, node_id: procedural }

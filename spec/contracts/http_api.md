@@ -797,3 +797,99 @@ breakpoint is still closed with `restarted` (step mode is interactive and cheap 
 refuses to start while the lock is held by a live process with a fresh heartbeat, unless it is
 started with `--takeover`, which asks the holder to stop and waits for it before recovering
 turns. A lock whose pid is gone or whose heartbeat is older than three periods is stale.
+
+## P5 additions: packs, the release gate, diagnose
+
+Additive. Every existing endpoint keeps its shape; new fields are listed where they appear.
+
+| Method and path | Purpose | Since |
+|---|---|---|
+| `GET /v1/packs` | The dataset packs this harness can load | P5 |
+| `POST /v1/sessions` | Start a session on a pack | P5 |
+| `GET /v1/sessions/{session_id}` | One session: its pack and turn count | P5 |
+| `POST /v1/diagnose` | Map a failed eval case or a bad turn to the layer at fault | P5 |
+
+### Packs
+
+`GET /v1/packs` (every mode, tenant-free like the diagram) returns `{ "default": "_starter",
+"packs": [...] }`, one item per pack directory under the configured roots (`packs.roots`,
+default `[datasets]`): a directory with a `pack.yaml`, or else one with a `system_prompt.md`.
+
+| Field | Meaning |
+|---|---|
+| `id` | The directory name (`^[a-z_][a-z0-9_-]{0,63}$`) |
+| `title`, `domain`, `feature` | From `pack.yaml` (`title` defaults to the id; the others are `null` without it) |
+| `prompts` | Suggested prompts: `pack.yaml` `prompts`, else the list items of `prompts.md`, at most 10 |
+| `counts` | `{docs, facts, episodes, skills, tools, golden}` counted from the pack's files |
+| `default` | True for the configured `dataset` |
+| `loaded` | True when this process has built the pack (a session ran on it) |
+
+`POST /v1/sessions` (every mode; the content-type rule applies) body `{ "pack": "ecommerce" }`
+(`pack` optional, default the configured `dataset`). `201` `{ session_id, pack, tenant_id,
+created_at }` and the session cookie, as `POST /v1/turns` sets it. An unknown pack is `422
+invalid_request`. The pack is fixed for the session: a later turn naming another pack in
+`options.pack` (or the P1 spelling `options.dataset`) is `422 invalid_request`, as in P1.
+`POST /v1/turns` without a session still creates one on the pack its options name, or on the
+default.
+
+`GET /v1/sessions/{session_id}`: `{ session_id, pack, tenant_id, created_at, turns }`, `404
+session_not_found` for an unknown session or another tenant's.
+
+The session's pack drives the turn: its system prompt and skills, knowledge documents, seed
+facts and episodes, tools, guardrail patterns and golden set. Tenant data is kept per tenant
+and pack: a fact remembered in a session on one pack is not retrieved by a session of the same
+tenant on another pack (conformance case `pack_switch`). A memory proposal is decided against
+the pack of the session that proposed it.
+
+Turn summaries (`GET /v1/turns/{id}`, the session turn list) gain `pack`
+(`turn_start.summary.pack`). `GET /v1/capabilities` gains `features.packs` (true),
+`features.diagnose` (dev and private) and `packs: { default, ids }`.
+
+`?pack=` selects the pack on `GET /v1/artifacts`, `GET` and `PUT /v1/artifacts/{kind}/{name}`,
+`GET /v1/releases`, `GET /v1/evals/golden`, `GET /v1/knowledge/docs` and
+`GET /v1/knowledge/docs/{doc_id}`, and `GET /v1/nodes/{node_id}` (the inspectors show that
+pack's prompt, skills, tools and stores). Default: the configured `dataset`. A pack the harness
+cannot find is `422 invalid_request`. `POST /v1/evals/runs` takes any pack of `GET /v1/packs`.
+A release id is unique across packs, so `GET /v1/releases/{id}` and its rollback need no pack.
+
+### Releases and the eval gate
+
+`POST /v1/releases` body `{ note?, pack?, force? }` (`release.md`, P5 additions). The gate runs
+first; the request returns when it is done.
+
+- `201`: the release as before plus `gate: { status, reason, suite, min_pass_rate, pass_rate,
+  run_ids, failed_cases, forced }` (`status` `passed` or `skipped`). Every release in `GET
+  /v1/releases` and `GET /v1/releases/{id}` carries its `gate` (`null` before P5).
+- `409 gate_failed`: no release was made. The body is the error plus the gate result and the
+  failing cases, so a UI can show them next to a "release anyway" control:
+
+```json
+{ "error": { "code": "gate_failed", "message": "The golden gate failed: 1 of 13 cases failed." },
+  "gate": { "status": "failed", "pass_rate": 0.9231, "min_pass_rate": 1.0, "run_ids": ["run_0004"],
+            "failed_cases": ["returns_window"], "suite": "golden", "forced": false, "reason": "below_min_pass_rate" },
+  "cases": [ { "case_id": "returns_window", "title": "...", "status": "failed", "run_id": "run_0004",
+               "events_url": "...", "scores": { "answer_match": { "pass": false, "detail": "..." } },
+               "diagnosis": { "layer": "prompt_or_skill", "suggestion": "..." } } ] }
+```
+
+- `force: true` (dev only, else `403 forbidden_in_mode`) skips the gate and is audited.
+- `409 turn_running` as before when the pack does not serve the working set and a turn runs.
+
+### Diagnose
+
+`POST /v1/diagnose` (dev and private; `403 forbidden_in_mode` in public) body `{ "run_id"?,
+"case_id" }` or `{ "turn_id" }`. Without `run_id`, `case_id` names the case in the caller's
+newest run where it failed. `200` with the `Diagnosis` (`evaluator.md`, P5 additions). Errors:
+`400 invalid_request` (neither or both targets), `404 run_not_found`, `case_not_found`,
+`turn_not_found`, `422 nothing_to_diagnose` (the case passed, or the turn answered with no bad
+feedback). Emits `diagnose_finished`.
+
+`GET /v1/evals/runs/{id}` cases gain `diagnosis` (the latest for that case, or `null`), the run
+summary gains `diagnoses: {case_id: layer}`, `purpose` (`release_gate` or `null`) and
+`case_tenant`. `GET /v1/turns/{id}` gains `diagnosis`. The `diagnose` node's inspector lists
+the caller's last diagnoses (`last_diagnoses`).
+
+### Resume mode in the stream
+
+`node_resumed.summary.mode` (`events.md` section 11) says which control released a pause:
+`step`, `continue`, `step_over` or `approval`.

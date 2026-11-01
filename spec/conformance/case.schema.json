@@ -112,7 +112,12 @@
           "required": ["message"],
           "properties": {
             "message": { "type": "string", "minLength": 1 },
-            "options": { "type": "object" }
+            "options": { "type": "object" },
+            "session_id": {
+              "description": "P5: send this turn in this session (usually a ${name} saved from POST /v1/sessions) instead of the case's running session; the running session becomes this one.",
+              "type": "string",
+              "minLength": 1
+            }
           }
         },
         "actions": { "type": "array", "items": { "$ref": "#/$defs/action" } },

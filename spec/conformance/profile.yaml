@@ -59,6 +59,15 @@ tools: spec/conformance/tools.yaml
 # P4: the golden set eval runs read (spec/contracts/evaluator.md), the same for any pack.
 evals: { golden_path: spec/conformance/golden.jsonl }
 
+# P5: a second pack for the pack cases (spec/conformance/packs/conformance_alt). The profile's
+# inline prompt, tools, documents and golden set apply to every pack, so the packs differ only
+# in their id, which is all pack_switch needs: tenant data is kept per tenant and pack.
+packs: { roots: [datasets, spec/conformance/packs] }
+
+# P5: the eval gate on release is off for the suite (cases that release an edit would otherwise
+# need a passing golden set); release_gate turns it on.
+release: { gate: { enabled: false } }
+
 overridable:
   - context.stores
   - loop.max_steps
@@ -68,3 +77,4 @@ overridable:
   - input_guardrails.size.max_chars
   - input_guardrails.injection.block_threshold
   - policy.budgets.default.tool_calls_per_turn
+  - release.gate.enabled

@@ -310,3 +310,30 @@ artifact, a release. They use the same envelope and schema, with these differenc
 | `feedback_recorded` | `ops` | `eval` | `done` |
 | `artifact_changed` | `ops` | `release` | `done` |
 | `artifact_released` | `ops` | `release` | `done` |
+
+## 11. P5 additions
+
+Additive. Every event above keeps its shape.
+
+- **`node_resumed.summary.mode`**: which control released the node. `step`, `continue` or
+  `step_over` (the `mode` of `POST /v1/turns/{id}/resume`) for a breakpoint, `approval` when an
+  approval decision released an `approval` pause. A breakpoint released because the turn is
+  past its reply phase (a cancel that came too late, `http_api.md`) reports `continue`.
+  `reason` stays as before (`breakpoint` or `approval`).
+- **`turn_start.summary.pack`**: the dataset pack the turn's session runs on (the same value as
+  the P1 key `dataset`, which stays).
+- **`eval_run_started.summary.purpose`**: `release_gate` when the run is a release's eval gate
+  (`release.md`, P5 additions); absent for a run someone started.
+- Two ops events (section 10) on the tenant's `ops` stream:
+
+| Type | Stream | `node_id` | `status` | Summary |
+|---|---|---|---|---|
+| `release_gated` | `ops` | `release` | `done` when the gate passed or was skipped, `error` when it failed | `pack` (required), `gate` (required: `passed`, `failed` or `skipped`), `run_ids`, `pass_rate`, `min_pass_rate`, `suite`, `failed_cases` (at most 20 ids), `forced`, `reason`, `release_id` (when a release was created) |
+| `diagnose_finished` | `ops` | `diagnose` | `done` | `layer` (required: `retrieval`, `prompt_or_skill`, `tool`, `model`, `guardrail`, `budget`, `unknown`), `diagnosis_id`, `case_id`, `run_id`, `target` (`case` or `turn`), `evidence_count`, `suggestion` (at most 200 characters), `automatic` (true when a regression triggered it) |
+
+`diagnose_finished` carries `turn_id` and `session_id` of the diagnosed turn when the target is a
+turn of the caller's own tenant (like `feedback_recorded`); for an eval case they are `null` (the
+case turn lives in the run's scratch tenant, and `summary.run_id` with `summary.case_id` names
+it). The P0 row for `diagnose` in section 6 (`layer` with `context`, `prompt`, `memory`) is the
+span summary of a diagnose node inside a turn, which this version does not emit: diagnosis runs
+outside turns and reports through `diagnose_finished`.

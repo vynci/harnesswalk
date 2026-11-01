@@ -25,6 +25,7 @@ the same API.
 | `cases/*.yaml` | One case per file: what to send and what the stream must look like |
 | `case.schema.json` | Shape of a case |
 | `golden.jsonl` | P4: the golden set eval runs read under the profile (`evals.golden_path`) |
+| `packs/conformance_alt/pack.yaml` | P5: a second dataset pack (`packs.roots` in the profile) for the pack cases |
 
 ## Protocol
 
@@ -42,7 +43,9 @@ never imports the implementation.
 2. **Isolate.** Use the tenant `conformance-<case id>` (header `X-Harnesswalk-Tenant`) and a new
    session per case. All turns of a case share that session. In `public` mode the header is
    not honoured: the client keeps the anonymous tenant cookie the first response sets.
-3. **Send.** For each turn, `POST /v1/turns` with `send.message` and `send.options`. Then read
+3. **Send.** For each turn, `POST /v1/turns` with `send.message` and `send.options`. P5: a turn
+   with `send.session_id` is sent in that session (a value saved from `POST /v1/sessions`), and
+   later turns without one continue it. Then read
    `GET /v1/turns/{turn_id}/events` until `turn_end`, with a 30 second limit per turn.
 4. **Act.** While reading, when an event matches an `actions[].when` matcher, perform its `do`:
    `approval: approve | deny` posts to `/v1/approvals/{summary.approval_id}`;
@@ -116,8 +119,11 @@ model would say. The fake provider fixes what the model says.
 | `memory_denied_public` | `memory_denied_public` | In `public` mode the same call is proposed with gate `session` and rejected: no `memory_written` |
 | `eval_golden_regression` | `eval_golden_regression` | P4: a golden run over `spec/conformance/golden.jsonl` passes; after a skill edit (`PUT /v1/artifacts/skill/returns`) the next run fails the case that pinned the skill and lists it in `regression_cases` |
 | `release_rollback` | `release_rollback` | P4: an edited prompt reaches the model after a release; after `POST /v1/releases/{id}/rollback` to the first release, the next turn's model sees the old prompt (the fixture's `system_contains`) and the working set is clean |
-| `step_over` | `step_over` | P4: step mode with `resume: step_over` at `memory`: the expert children `procedural` and `session` do not pause, the next pause is `loop` |
+| `step_over` | `step_over` | P4: step mode with `resume: step_over` at `memory`: the expert children `procedural` and `session` do not pause, the next pause is `loop`. P5: each `node_resumed` names the resume `mode` (`step_over` at `memory`, `continue` at `loop`) |
 | `restart_keeps_schema` | `restart_keeps_schema` | P4, two-process: a turn with an `output_schema` and a `remember` call pauses on an approval, the harness is killed and restarted, the approval is decided, and the reply is still schema-checked (`schema: valid`), the pre-pause proposal is written and `checkpoint.restored` is true |
+| `pack_switch` | `pack_switch` | P5: one tenant, two sessions made with `POST /v1/sessions` on two packs: a fact remembered on `_starter` is not retrieved on `conformance_alt` (`semantic` hits 0) and is retrieved back on `_starter`; `turn_start.summary.pack` and the turn and session summaries name the pack. Per-turn fixtures `pack_switch_other` and `pack_switch_recall` |
+| `diagnose_skill_change` | `diagnose_skill_change` | P5: a skill edit regresses the golden case; the run diagnoses it on its own (`diagnoses: {skill_index: prompt_or_skill}`), `POST /v1/diagnose` names the same layer against the passing run as baseline, a passed case has nothing to diagnose, and a chat turn with bad feedback is diagnosed and carries its `diagnosis` |
+| `release_gate` | `release_gate` | P5, with `release.gate.enabled: true`: a release on a passing golden set records `gate: passed`; after an edit that breaks the case `POST /v1/releases` is `409 gate_failed` with the failing case and the active release stays; `force: true` releases with `gate: skipped, forced: true` |
 
 The knowledge and memory cases need the expert children `knowledge` and `semantic`: an
 implementation that implements those stores emits their spans, so these cases assert them.
