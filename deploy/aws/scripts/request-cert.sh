@@ -23,7 +23,7 @@ if [ -z "$arn" ]; then
   arn="$(acm list-certificates --certificate-statuses PENDING_VALIDATION ISSUED \
     --query "CertificateSummaryList[?DomainName=='$HW_DOMAIN'].CertificateArn | [0]" \
     --output text 2>/dev/null || true)"
-  [ "$arn" = "None" ] && arn=""
+  if [ "$arn" = "None" ]; then arn=""; fi
 fi
 if [ -z "$arn" ]; then
   if [ "$DRY_RUN" = "1" ]; then

@@ -12,7 +12,7 @@ source "$(dirname "$0")/lib.sh"
 need aws docker git
 
 FORCE=0
-for arg in "$@"; do [ "$arg" = "--force" ] && FORCE=1; done
+for arg in "$@"; do if [ "$arg" = "--force" ]; then FORCE=1; fi; done
 PLATFORMS="${PLATFORMS:-linux/arm64}"
 
 sha="$(git_sha)"
@@ -52,5 +52,5 @@ else
     --push \
     "$HW_REPO_ROOT"
 fi
-log "pushed $repo_uri:$tag"
+if [ "$DRY_RUN" = "1" ]; then log "(dry run) would push $repo_uri:$tag"; else log "pushed $repo_uri:$tag"; fi
 printf '%s\n' "$tag"

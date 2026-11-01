@@ -27,7 +27,7 @@ deploy_edge() {
     verify="<from SSM>"
   fi
   if [ "$DRY_RUN" = "1" ]; then
-    log "+ (dry run) cdk deploy HarnesswalkEdge --parameters HarnesswalkEdge:OriginVerify=<redacted> --require-approval never"
+    log "+ (dry run) cdk deploy HarnesswalkEdge --exclusively --require-approval never --parameters HarnesswalkEdge:OriginVerify=<redacted> --outputs-file cdk.out/edge-outputs.json"
   else
     pnpm exec cdk deploy HarnesswalkEdge --exclusively --require-approval never \
       --parameters "HarnesswalkEdge:OriginVerify=$verify" --outputs-file cdk.out/edge-outputs.json

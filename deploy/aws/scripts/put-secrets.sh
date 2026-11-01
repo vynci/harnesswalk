@@ -15,7 +15,7 @@ source "$(dirname "$0")/lib.sh"
 need aws openssl
 
 ROTATE=0
-for arg in "$@"; do [ "$arg" = "--rotate-origin-verify" ] && ROTATE=1; done
+for arg in "$@"; do if [ "$arg" = "--rotate-origin-verify" ]; then ROTATE=1; fi; done
 
 [ -n "${HARNESSWALK_SECRET:-}" ] || die "set HARNESSWALK_SECRET (openssl rand -hex 32) in the environment"
 [ "${#HARNESSWALK_SECRET}" -ge 32 ] || die "HARNESSWALK_SECRET must be at least 32 characters"
@@ -57,7 +57,9 @@ put "$HW_SSM_PREFIX/ANTHROPIC_API_KEY" "$ANTHROPIC_API_KEY"
 origin_verify="$(current "$HW_SSM_PREFIX/ORIGIN_VERIFY")"
 if [ -z "$origin_verify" ] || [ "$ROTATE" = "1" ]; then
   put "$HW_SSM_PREFIX/ORIGIN_VERIFY" "$(openssl rand -hex 32)"
-  [ "$ROTATE" = "1" ] && log "ORIGIN_VERIFY rotated: deploy HarnesswalkEdge (deploy-stacks.sh edge) and the origin (deploy-origin.sh) next"
+  if [ "$ROTATE" = "1" ]; then
+    log "ORIGIN_VERIFY rotated: run deploy-stacks.sh edge, then deploy-origin.sh (runbook: rotation)"
+  fi
 else
   log "unchanged  $HW_SSM_PREFIX/ORIGIN_VERIFY (exists; --rotate-origin-verify to replace)"
 fi

@@ -13,7 +13,7 @@ source "$(dirname "$0")/lib.sh"
 need aws pnpm
 
 SKIP_BUILD=0
-for arg in "$@"; do [ "$arg" = "--skip-build" ] && SKIP_BUILD=1; done
+for arg in "$@"; do if [ "$arg" = "--skip-build" ]; then SKIP_BUILD=1; fi; done
 
 bucket="$(output HARNESSWALK_WEB_BUCKET HarnesswalkEdge WebBucketName)"
 distribution="$(output HARNESSWALK_DISTRIBUTION_ID HarnesswalkEdge DistributionId)"

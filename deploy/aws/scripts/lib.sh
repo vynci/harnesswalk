@@ -1,4 +1,5 @@
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # the HW_* names are used by the scripts that source this file
 # Shared helpers for the deploy scripts. Sourced, never run.
 #
 # Every script works the same way on a laptop (AWS_PROFILE=default) and in GitHub Actions (the
@@ -54,7 +55,7 @@ output() {
     value="$(aws cloudformation describe-stacks --stack-name "$stack" \
       --query "Stacks[0].Outputs[?OutputKey=='$key'].OutputValue | [0]" \
       --output text 2>/dev/null || true)"
-    [ "$value" = "None" ] && value=""
+    if [ "$value" = "None" ]; then value=""; fi
   fi
   if [ -z "$value" ]; then
     if [ "$DRY_RUN" = "1" ]; then
@@ -66,11 +67,8 @@ output() {
   printf '%s' "$value"
 }
 
-# git_sha: the commit being deployed (GITHUB_SHA in Actions).
+# git_sha: the commit being deployed, from the checkout. (Not GITHUB_SHA: on a workflow_run
+# trigger that is the branch tip, not the commit CI tested; the workflow checks that one out.)
 git_sha() {
-  if [ -n "${GITHUB_SHA:-}" ]; then
-    printf '%s' "${GITHUB_SHA:0:12}"
-  else
-    git -C "$HW_REPO_ROOT" rev-parse --short=12 HEAD
-  fi
+  git -C "$HW_REPO_ROOT" rev-parse --short=12 HEAD
 }
