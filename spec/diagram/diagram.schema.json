@@ -100,7 +100,7 @@
           "type": "boolean"
         },
         "layout": {
-          "description": "Optional fixed position (top-left, diagram units) in the simple view. Absent means auto-layout (P2). A renderer may ignore it; node and edge existence never depends on it.",
+          "description": "Optional fixed position (top-left, diagram units) in the simple view. On an expert child it is the child's place inside its open parent, relative to the parent's top-left. Absent means auto-layout (P2). A renderer may ignore it; node and edge existence never depends on it.",
           "type": "object",
           "additionalProperties": false,
           "required": ["x", "y"],
@@ -137,7 +137,7 @@
           "type": "string"
         },
         "layout": {
-          "description": "Optional routing hints for the simple view, in the same units as node layout. The renderer draws the edge orthogonally from the source port through the waypoints to the target port. A port sits on the named side where the nearest waypoint projects onto it (the side centre when it does not). Hints are hints: an edge without them is routed automatically.",
+          "description": "Optional routing hints for the simple view, in the same units as node layout. The renderer draws the edge orthogonally from the source port through the waypoints to the target port. A port sits on the named side where the nearest waypoint projects onto it (the side centre when it does not). On an expert edge the hints are for the expert view, where a renderer may use only `handles`. Hints are hints: an edge without them is routed automatically.",
           "type": "object",
           "additionalProperties": false,
           "properties": {
