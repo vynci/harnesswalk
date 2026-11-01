@@ -27,6 +27,7 @@ Ops routes (http_ops.py) and `step_over` on resume.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -55,9 +56,11 @@ from harnesswalk.control.http_lessons import add_lesson_routes
 from harnesswalk.control.http_memory import add_memory_routes
 from harnesswalk.control.http_ops import add_ops_routes, turn_extras
 from harnesswalk.control.public import (
+    StreamRefused,
     StreamSlots,
     TenantCookies,
     client_ip,
+    rate_key,
     request_is_https,
 )
 from harnesswalk.events import iso, parse_iso
@@ -109,6 +112,7 @@ class Identities:
 
     def __init__(self, harness: Harness) -> None:
         settings = harness.settings
+        self.harness = harness
         self.mode = settings.mode
         self.cfg = settings.get("gateway", {})
         self.trust_proxy = bool(self.cfg.get("trust_proxy", False))
@@ -124,6 +128,15 @@ class Identities:
     def client_ip(self, request: Request) -> str:
         peer = request.client.host if request.client else ""
         return client_ip(request.headers, peer, self.trust_proxy)
+
+    def count_creation(self, request: Request) -> None:
+        """Public mode: one new tenant or session for this client's hourly creation bucket
+        (`public.creations_per_ip_per_hour`); a 429 with Retry-After when it is full."""
+        if self.mode != "public":
+            return
+        per_hour = int(self.harness.settings.get("public.creations_per_ip_per_hour", 60))
+        key = f"create:{rate_key(self.client_ip(request))}"
+        self.harness.gateway._check_rate(key, per_hour)
 
     def secure(self, request: Request) -> bool:
         """Whether cookies get `Secure`: always, never, or when the request came over HTTPS."""
@@ -163,6 +176,7 @@ class Identities:
             if checked is not None:
                 tenant, expires = checked
                 return Identity(tenant, None, ["user"], anonymous=True, expires_at=expires), None
+            self.count_creation(request)  # P6 review: minting tenants is rate limited per client
             tenant, expires, value = self.cookies.mint()
             return Identity(tenant, None, ["user"], anonymous=True, expires_at=expires), value
         raise GatewayError(
@@ -328,7 +342,17 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
     app.state.identities = identities
     gateway = harness.gateway
     max_body = int(harness.settings.get("gateway.max_body_bytes", 65536))
-    streams = StreamSlots(int(harness.settings.get("gateway.max_open_streams", 50)))
+    public_mode = harness.settings.mode == "public"
+    pub = harness.settings.get("public", {}) or {}
+    streams = StreamSlots(
+        int(harness.settings.get("gateway.max_open_streams", 50)),
+        # P6 review: in public mode one client, one tenant or the ops streams cannot take them all.
+        per_ip=int(pub.get("max_streams_per_ip", 4)) if public_mode else 0,
+        per_tenant=int(pub.get("max_streams_per_tenant", 4)) if public_mode else 0,
+        ops_cap=int(pub.get("max_ops_streams", 20)) if public_mode else 0,
+    )
+    # A stream older than this closes (the browser's EventSource reconnects from its cursor).
+    max_stream_s = float(pub.get("max_stream_s", 600) or 0) if public_mode else 0.0
     app.state.streams = streams
     json_logs = harness.settings.get("logging.format", "text") == "json"
     if json_logs:
@@ -343,28 +367,41 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
 
     app.add_middleware(EdgeMiddleware, identities=identities, json_logs=json_logs)
 
-    def acquire_stream() -> int:
-        token = streams.acquire()
-        if token is None:
+    def acquire_stream(request: Request, tenant: str = "", pool: str = "turn") -> int:
+        """A stream slot for this client and tenant, or 429 naming the cap that was full."""
+        try:
+            return streams.acquire(rate_key(identities.client_ip(request)), tenant, pool)
+        except StreamRefused as exc:
+            who = {
+                "client": "from this address",
+                "tenant": "for this session",
+                "ops": "for live updates",
+            }.get(exc.scope, "on the server")
             raise GatewayError(
                 429,
                 "rate_limited",
-                "Too many event streams are open. Close one and try again.",
-                extra={"retry_after": 5},
+                f"Too many event streams are open {who}. Close one and try again.",
+                extra={"retry_after": 5, "limit": "streams"},
                 headers={"Retry-After": "5"},
-            )
-        return token
+            ) from exc
 
     def bounded(token: int, source: AsyncIterator[str]) -> AsyncIterator[str]:
-        """An SSE body that gives its stream slot back however it ends."""
+        """An SSE body that gives its stream slot back however it ends, and in public mode ends
+        after `public.max_stream_s` (checked on every event and keepalive)."""
 
         async def body() -> AsyncIterator[str]:
             streams.started(token)
+            deadline = time.monotonic() + max_stream_s if max_stream_s > 0 else None
             try:
                 async for chunk in source:
                     yield chunk
+                    if deadline is not None and time.monotonic() >= deadline:
+                        break
             finally:
                 streams.release(token)
+                if hasattr(source, "aclose"):
+                    with contextlib.suppress(Exception):
+                        await source.aclose()  # type: ignore[attr-defined]
 
         return body()
 
@@ -557,7 +594,7 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
         # The largest cursor wins: a browser reconnecting to the same `?after=` URL sends
         # Last-Event-ID too, and must not get the events between the two again.
         start = max([-1, *cursors])
-        token = acquire_stream()
+        token = acquire_stream(request, tenant)
 
         async def stored():
             # No live task (a finished turn, one cut off by a restart, or follow=false).

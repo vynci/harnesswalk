@@ -21,7 +21,14 @@ import uvicorn
 
 from harnesswalk.context.builder import DATA_RULE
 from harnesswalk.control.http_api import TENANT_COOKIE, create_app
-from harnesswalk.control.public import RateLimiter, TenantCookies, client_ip
+from harnesswalk.control.public import (
+    RateLimiter,
+    StreamRefused,
+    StreamSlots,
+    TenantCookies,
+    client_ip,
+    rate_key,
+)
 from harnesswalk.ops import logs
 from tests.public.support import (
     SECRET,
@@ -226,10 +233,21 @@ def test_rate_table_is_bounded_and_counts_the_right_address() -> None:
         "cloudfront-viewer-address": "198.51.100.9:44321",
     }
     assert client_ip(headers, "10.0.0.2", trust_proxy=False) == "10.0.0.2"
-    assert client_ip(headers, "10.0.0.2", trust_proxy=True) == "198.51.100.9"
-    assert client_ip({"x-forwarded-for": "203.0.113.7, 10.0.0.1"}, "p", True) == "203.0.113.7"
-    v6 = {"cloudfront-viewer-address": "2001:db8::7:5000"}
-    assert client_ip(v6, "p", True) == "2001:db8::7"
+    # P6 review: the hop the trusted proxy wrote (the last one); never CloudFront-Viewer-Address
+    # or an earlier hop, which the viewer can send.
+    assert client_ip(headers, "10.0.0.2", trust_proxy=True) == "10.0.0.1"
+    assert client_ip({"x-forwarded-for": "203.0.113.7"}, "p", True) == "203.0.113.7"
+    assert client_ip({"cloudfront-viewer-address": "198.51.100.9:1"}, "p", True) == "p"
+    assert client_ip({"x-forwarded-for": "2001:db8::7"}, "p", True) == "2001:db8::7"
+
+
+def test_rate_key_buckets_ipv6_by_its_64() -> None:
+    assert rate_key("203.0.113.7") == "203.0.113.7"
+    prefix = "2001:db8:1:2::/64"
+    assert rate_key("2001:db8:1:2:aaaa::1") == rate_key("2001:db8:1:2:ffff:1:2:3") == prefix
+    assert rate_key("2001:db8:1:3::1") != rate_key("2001:db8:1:2::1")
+    assert rate_key("::ffff:198.51.100.4") == "198.51.100.4"
+    assert rate_key("not-an-ip") == "not-an-ip"
 
 
 @pytest.mark.anyio
@@ -408,30 +426,107 @@ def live_server(app: Any):
         sock.close()
 
 
-def test_sse_flood_is_bounded(tmp_path: Path) -> None:
-    h = public_harness(tmp_path)
+def test_sse_flood_is_bounded_per_client(tmp_path: Path) -> None:
+    """P6 review H1: one client opening 60 streams on its own paused turn gets its 4 and then
+    429s; the server's other slots stay free for everyone else, and every slot comes back."""
+    h = public_harness(tmp_path, overrides={"gateway.trust_proxy": True})
     app = create_app(h)
+    me, other_ip = {"X-Forwarded-For": "203.0.113.7"}, {"X-Forwarded-For": "198.51.100.8"}
 
-    async def flood(base: str) -> tuple[list[int], int, int]:
-        async with httpx.AsyncClient(base_url=base, timeout=10) as c:
+    async def flood(base: str) -> tuple[list[int], str, int, int, int]:
+        async with httpx.AsyncClient(base_url=base, timeout=10, headers=me) as c:
             # A paused step-mode turn keeps its event stream open (follow) until it ends.
             r = await c.post("/v1/turns", json={"message": "hi", "step": True})
             url = r.json()["events_url"]
             async with contextlib.AsyncExitStack() as stack:
-                statuses = []
+                statuses, refusal = [], ""
                 for _ in range(60):
                     resp = await stack.enter_async_context(c.stream("GET", url))
                     statuses.append(resp.status_code)
+                    if resp.status_code == 429 and not refusal:
+                        refusal = (await resp.aread()).decode()
                 held = len(app.state.streams)
+                # Another visitor (its own cookie) still gets a stream of its own turn.
+                async with httpx.AsyncClient(base_url=base, timeout=10, headers=other_ip) as other:
+                    t = await other.post("/v1/turns", json={"message": "hi", "step": True})
+                    async with other.stream("GET", t.json()["events_url"]) as mine:
+                        other_status = mine.status_code
+                    await other.post(f"/v1/turns/{t.json()['turn_id']}/cancel", json={})
             await asyncio.sleep(0.2)
             after = len(app.state.streams)
             await c.post(f"/v1/turns/{r.json()['turn_id']}/cancel", json={})
-            return statuses, held, after
+            return statuses, refusal, held, other_status, after
 
     with live_server(app) as base:
-        statuses, held, after = asyncio.run(flood(base))
-    assert statuses[:50] == [200] * 50 and statuses[50:] == [429] * 10
-    assert held == 50 and after == 0  # every slot came back when the streams closed
+        statuses, refusal, held, other_status, after = asyncio.run(flood(base))
+    assert statuses[:4] == [200] * 4 and statuses[4:] == [429] * 56
+    assert "from this address" in refusal and '"limit":"streams"' in refusal.replace(" ", "")
+    assert held == 4 and other_status == 200
+    assert after == 0  # every slot came back when the streams closed
+
+
+def test_stream_slots_check_the_client_and_tenant_before_the_server() -> None:
+    slots = StreamSlots(cap=7, per_ip=2, per_tenant=3, ops_cap=2)
+    slots.acquire("a", "t1")
+    slots.acquire("a", "t2")
+    with pytest.raises(StreamRefused) as client_full:
+        slots.acquire("a", "t3")
+    assert client_full.value.scope == "client"
+    slots.acquire("b", "t1")
+    with pytest.raises(StreamRefused) as tenant_full:
+        slots.acquire("c", "t1")  # t1's third slot, from a third address
+        slots.acquire("d", "t1")  # a fourth is one too many
+    assert tenant_full.value.scope == "tenant"
+    slots.acquire("e", "t4", "ops")
+    with pytest.raises(StreamRefused) as ops_full:
+        slots.acquire("f", "t5", "ops")
+        slots.acquire("g", "t6", "ops")
+    assert ops_full.value.scope == "ops"
+    slots.acquire("h", "t7")
+    with pytest.raises(StreamRefused) as server_full:
+        slots.acquire("i", "t8")
+    assert server_full.value.scope == "server" and len(slots) == 7
+    off = StreamSlots(cap=3)  # dev and private mode: the server-wide cap only
+    for _ in range(3):
+        off.acquire("a", "t")
+    with pytest.raises(StreamRefused):
+        off.acquire("a", "t")
+
+
+@pytest.mark.anyio
+async def test_ops_streams_cannot_starve_turn_streams(tmp_path: Path) -> None:
+    """GET /v1/events from many addresses fills its own pool, never the turn streams' slots."""
+    h = public_harness(
+        tmp_path, overrides={"gateway.trust_proxy": True, "public.max_ops_streams": 3}
+    )
+    app = create_app(h)
+    streams = app.state.streams
+    for i in range(3):
+        streams.acquire(f"198.51.100.{i}", f"anon-{i:016x}", "ops")
+    async with client(h, app=app) as c:
+        r = await c.get("/v1/events", headers={"X-Forwarded-For": "198.51.100.9"})
+        assert r.status_code == 429 and r.json()["error"]["limit"] == "streams"
+        assert "live updates" in r.json()["error"]["message"]
+        assert r.headers["Retry-After"] == "5"
+    token = streams.acquire("203.0.113.1", "anon-" + "f" * 16)  # a turn stream still fits
+    streams.release(token)
+
+
+@pytest.mark.anyio
+async def test_streams_end_after_their_lifetime(tmp_path: Path) -> None:
+    h = public_harness(tmp_path, overrides={"public.max_stream_s": 0.2})
+    app = create_app(h)
+    token = app.state.streams.acquire("a", "t")
+
+    async def forever():
+        n = 0
+        while True:
+            n += 1
+            yield f": keepalive {n}\n\n"
+            await asyncio.sleep(0.05)
+
+    chunks = [chunk async for chunk in app.state.bounded(token, forever())]
+    assert 2 <= len(chunks) <= 8 and len(app.state.streams) == 0
 
 
 @pytest.mark.anyio
@@ -555,3 +650,77 @@ async def test_json_logs_one_line_per_request_without_content_or_keys(tmp_path: 
     text = stream.getvalue()
     for leak in (secret_message, "4111", key, "private-query", "anon-"):
         assert leak not in text, leak
+
+
+# -- P6 review: creation floods, the sweeper on the loop, paused turns ------------------------
+
+
+@pytest.mark.anyio
+async def test_tenant_and_session_creation_is_rate_limited_per_client(tmp_path: Path) -> None:
+    overrides = {"gateway.trust_proxy": True, "public.creations_per_ip_per_hour": 5}
+    h = public_harness(tmp_path, overrides=overrides)
+    app = create_app(h)
+    me = {"X-Forwarded-For": "203.0.113.1"}
+    async with client(h, app=app) as c:
+        codes = []
+        for _ in range(8):  # no cookie: every request mints a tenant and makes a session
+            c.cookies.clear()
+            codes.append((await c.post("/v1/sessions", json={}, headers=me)).status_code)
+        assert codes == [201] * 5 + [429] * 3
+        r = await c.get("/v1/capabilities", headers=me)
+        assert r.status_code == 429 and int(r.headers["Retry-After"]) > 0
+        # Another client is not affected; a kept cookie makes sessions in the same bucket.
+        other = {"X-Forwarded-For": "198.51.100.2"}
+        c.cookies.clear()
+        assert (await c.get("/v1/capabilities", headers=other)).status_code == 200
+        made = [
+            (await c.post("/v1/sessions", json={}, headers=other)).status_code for _ in range(5)
+        ]
+        assert made == [201] * 4 + [429]
+    rows = h.session.db.one("SELECT COUNT(*) AS n FROM sessions")["n"]
+    assert rows == 9
+
+
+@pytest.mark.anyio
+async def test_the_server_sweep_gives_the_loop_back_between_tenants(tmp_path: Path) -> None:
+    import asyncio
+
+    h = public_harness(tmp_path)
+    for i in range(30):
+        tenant = f"anon-{i:016x}"
+        h.tenants.register(tenant, time.time() - 10)
+        h.session.ensure_session(tenant, f"sess_{i:020x}", h.pack)
+    ticks = 0
+    stop = asyncio.Event()
+
+    async def ticker() -> None:
+        nonlocal ticks
+        while not stop.is_set():
+            ticks += 1
+            await asyncio.sleep(0)
+
+    task = asyncio.create_task(ticker())
+    done = await h.sweeper.sweep_async()
+    stop.set()
+    await task
+    assert len(done["tenants"]) == 30 and ticks >= 30
+    assert h.session.db.one("SELECT COUNT(*) AS n FROM sessions")["n"] == 0
+
+
+@pytest.mark.anyio
+async def test_a_paused_public_turn_ends_at_the_wall_clock_bound(tmp_path: Path) -> None:
+    h = public_harness(tmp_path, overrides={"public.max_turn_wall_s": 0.3})
+    app = create_app(h)
+    async with client(h, app=app) as c:
+        r = await c.post("/v1/turns", json={"message": "hi", "step": True})
+        assert r.status_code == 202
+        turn = r.json()["turn_id"]
+        state = await h.gateway.wait(turn, 10)  # paused at the first breakpoint until then
+        assert state.exit == "cancelled"
+        assert r.json()["session_id"] not in h.gateway._open_sessions
+        # The session takes a new turn at once.
+        again = await c.post(
+            "/v1/turns", json={"message": "hi", "session_id": r.json()["session_id"]}
+        )
+        assert again.status_code == 202
+        await h.gateway.wait(again.json()["turn_id"], 10)

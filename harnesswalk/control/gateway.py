@@ -46,6 +46,7 @@ from harnesswalk.control.public import (
     PROVIDER_UNCONFIGURED,
     RateLimited,
     RateLimiter,
+    rate_key,
 )
 from harnesswalk.events import Breakpoints, TurnEmitter, new_trace_id, uuid7
 from harnesswalk.execution.loop import Limits
@@ -120,6 +121,8 @@ class TurnState:
     ctx: TurnContext
     request: TurnRequest
     task: asyncio.Task | None = None
+    # P6 review: the public wall-clock bound (paused time included), cancelled when it ends.
+    wall_clock: asyncio.TimerHandle | None = field(default=None, repr=False)
     done: asyncio.Event = field(default_factory=asyncio.Event)
     reply: str = ""
     exit: str = ""
@@ -179,6 +182,9 @@ class Gateway:
         self.turn_state_ttl_s = max(0.0, float(self.cfg.get("turn_state_ttl_seconds", 3600)))
         self._finished: OrderedDict[str, float] = OrderedDict()  # turn_id -> finished_at
         self._clock = time.monotonic
+        # P6 review: public turns on a priced alias the site pays for, running now: turn_id ->
+        # the client's rate key. Bounded globally and per client (`public.max_running_hosted_*`).
+        self._hosted_running: dict[str, str] = {}
 
     # -- starting a turn ----------------------------------------------------------------------
 
@@ -194,10 +200,35 @@ class Gateway:
                 headers={"Retry-After": str(exc.retry_after)},
             ) from exc
 
+    def _check_hosted_running(self, req: TurnRequest, ip_key: str) -> bool:
+        """Public mode: refuse a site-paid turn on a priced alias when too many run already.
+        Returns whether the turn counts (so its slot is freed when it ends)."""
+        public = self.h.public_models
+        if req.api_key:
+            return False
+        alias = req.model if isinstance(req.model, str) else public.effective_default()
+        if alias is None or not public.metered(alias):
+            return False
+        cfg = self.h.settings.get("public", {}) or {}
+        per_ip = int(cfg.get("max_running_hosted_turns_per_ip", 2))
+        total = int(cfg.get("max_running_hosted_turns", 10))
+        mine = sum(1 for k in self._hosted_running.values() if k == ip_key)
+        if mine >= per_ip or len(self._hosted_running) >= total:
+            why = "from this address" if mine >= per_ip else "on the site"
+            raise GatewayError(
+                429,
+                "rate_limited",
+                f"Too many Claude turns are running {why} right now. Try again in a few seconds,"
+                " or use the fake model.",
+                extra={"retry_after": 10, "limit": "running_turns"},
+                headers={"Retry-After": "10"},
+            )
+        return True
+
     def rate_remaining(self, client_ip: str) -> int:
         """Turns this IP may still start this hour (GET /v1/capabilities, public mode)."""
         return self.rate.remaining(
-            f"ip:{client_ip}", int(self.cfg["rate_limit"]["per_ip_per_hour"])
+            f"ip:{rate_key(client_ip)}", int(self.cfg["rate_limit"]["per_ip_per_hour"])
         )
 
     def _validate(self, req: TurnRequest) -> None:
@@ -286,9 +317,11 @@ class Gateway:
         self._validate(req)
         tenant = req.identity.tenant_id
         remaining = None
+        hosted = False
         if self.h.settings.mode == "public" and not req.internal:
+            hosted = self._check_hosted_running(req, rate_key(client_ip))
             remaining = self._check_rate(
-                f"ip:{client_ip}", int(self.cfg["rate_limit"]["per_ip_per_hour"])
+                f"ip:{rate_key(client_ip)}", int(self.cfg["rate_limit"]["per_ip_per_hour"])
             )
         if self.h.settings.mode != "dev" and not req.internal:
             self._check_rate(f"tenant:{tenant}", int(self.cfg["rate_limit"]["per_tenant_per_hour"]))
@@ -358,6 +391,10 @@ class Gateway:
         self.evict_finished()
         self.turns[turn_id] = state
         self._open_sessions[session_id] = turn_id
+        if hosted:
+            self._hosted_running[turn_id] = rate_key(client_ip)
+        if req.api_key:  # the turn's internal calls are paid by the same key (model layer)
+            self.h.turn_keys[turn_id] = req.api_key
         start: dict[str, Any] = {
             "kind": "chat",
             "channel": req.channel,
@@ -383,7 +420,21 @@ class Gateway:
             start["output_schema"] = True
         emitter.turn_start(start)
         state.task = asyncio.create_task(self.run_turn(state, remaining))
+        wall_s = float((self.h.settings.get("public", {}) or {}).get("max_turn_wall_s", 600) or 0)
+        if self.h.settings.mode == "public" and not req.internal and wall_s > 0:
+            # loop.timeout_s counts active time only, so a paused step-mode turn would hold its
+            # session, task and stream forever: past the bound it is cancelled like a Stop.
+            state.wall_clock = asyncio.get_running_loop().call_later(
+                wall_s, self._wall_clock_ended, tenant, turn_id
+            )
         return state
+
+    def _wall_clock_ended(self, tenant_id: str, turn_id: str) -> None:
+        state = self.turns.get(turn_id)
+        if state is None or state.done.is_set():
+            return
+        with contextlib.suppress(GatewayError):
+            self.cancel(tenant_id, turn_id)
 
     # -- running a turn -----------------------------------------------------------------------
 
@@ -540,6 +591,10 @@ class Gateway:
         """Bookkeeping when a turn's task ends, however it ended."""
         ctx, req = state.ctx, state.request
         req.api_key = None  # a BYO key lives for this turn only
+        if state.wall_clock is not None:
+            state.wall_clock.cancel()
+        self.h.turn_keys.pop(ctx.turn_id, None)
+        self._hosted_running.pop(ctx.turn_id, None)
         ctx.pii_vault = None  # the placeholders' values live for this turn only
         if not ctx.detached:
             with contextlib.suppress(Exception):

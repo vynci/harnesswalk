@@ -21,6 +21,7 @@ injectable for tests.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import re
 import shutil
@@ -127,6 +128,17 @@ class Sweeper:
         for tenant in tenants:
             for key, n in self.purge(tenant).items():
                 rows[key] = rows.get(key, 0) + n
+        return {"tenants": tenants, "rows": rows}
+
+    async def sweep_async(self, now: float | None = None) -> dict[str, Any]:
+        """The server's pass (P6 review): the same deletes, one tenant at a time with the event
+        loop given back in between, so a long pass never stalls the turns and streams."""
+        tenants = self.candidates(now)
+        rows: dict[str, int] = {}
+        for tenant in tenants:
+            for key, n in self.purge(tenant).items():
+                rows[key] = rows.get(key, 0) + n
+            await asyncio.sleep(0)
         return {"tenants": tenants, "rows": rows}
 
 

@@ -146,6 +146,7 @@ class PackParts:
             public=self.public_models,
             ledger=self.hosted_budget,
             budget_notice=str(s.get("loop.notices.budget_exhausted", "")),
+            turn_keys=self.turn_keys,
         )
         estimator = s.get("context.token_estimator", "chars_div_4")
         enabled = set(s.get("context.stores", ["procedural", "session"]))
@@ -326,6 +327,8 @@ class Harness(PackParts):
             self.budgets.db, lambda: float(self.settings.get("public.hosted_budget_usd_per_day", 0))
         )
         self.public_models = PublicModels(self)
+        # turn_id -> the BYO key of a running turn (the gateway binds it), for the model layer.
+        self.turn_keys: dict[str, str] = {}
         self.approvals = ApprovalQueue(
             str(s.resolve(s.get("approval.sqlite_path", "data/approvals.db"))),
             timeout_s=float(s.get("approval.timeout_s", 900)),
@@ -453,7 +456,7 @@ class Harness(PackParts):
                 while True:
                     await asyncio.sleep(ttl_sweep_s)
                     try:
-                        done = self.sweeper.sweep()
+                        done = await self.sweeper.sweep_async()
                     except Exception as exc:  # a failed pass is retried on the next one
                         log.warning("TTL sweep failed: %s", type(exc).__name__)
                         continue
@@ -617,6 +620,7 @@ class Harness(PackParts):
     async def _summarize(self, ctx: TurnContext, previous: str, turns: list[Turn]) -> str | None:
         """Compaction by a model, when the router has a non-fake summarize model."""
         try:
+            # Routed as the call will be paid: by the turn's own key, else by the site budget.
             route = self.model_layer.router_for(ctx).route(
                 RouteRequest(step=0, step_kind="summarize", tools_enabled=False, mode=ctx.mode)
             )

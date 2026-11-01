@@ -7,8 +7,11 @@ Not a node: the gateway, the HTTP surface and the model layer call into it
   HTTP-only cookie signed with `HARNESSWALK_SECRET`. A tampered, foreign or expired cookie
   gets a fresh tenant, never an error.
 - `client_ip`: the raw peer address, or with `gateway.trust_proxy` (env
-  `HARNESSWALK_TRUST_PROXY=1`) the address the proxy saw: `CloudFront-Viewer-Address` when the
-  proxy sets it, else the first `X-Forwarded-For` hop.
+  `HARNESSWALK_TRUST_PROXY=1`) the last `X-Forwarded-For` hop: the one the trusted proxy wrote
+  (Caddy writes exactly one, the viewer address from the distribution's viewer-ip function).
+  Never `CloudFront-Viewer-Address`, which a viewer can send through the distribution.
+- `rate_key`: the bucket an address counts in: IPv4 as is, IPv6 by its /64 (one subscriber's
+  prefix), so rotating addresses inside one prefix does not buy more turns or streams.
 - `RateLimiter`: the per-IP and per-tenant hourly windows, in a table bounded by
   `public.rate_limit_max_keys` (the least recently used key is evicted).
 - `TenantRegistry`: when each anonymous tenant expires, so the sweeper (`ops/sweep.py`) knows
@@ -22,6 +25,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import os
 import re
 import secrets
@@ -84,18 +88,30 @@ class TenantCookies:
 def client_ip(headers: Mapping[str, str], peer: str, trust_proxy: bool) -> str:
     """The address rate limits count. Proxy headers only count when the proxy is trusted.
 
-    Behind CloudFront the viewer's own address is `CloudFront-Viewer-Address` (`ip:port`),
-    which a viewer cannot set; `X-Forwarded-For` is the fallback, first hop.
+    Behind the trusted proxy the address is the last `X-Forwarded-For` hop: the proxy next to
+    the API wrote it (Caddy replaces the header with the one viewer address it took from
+    `X-Harnesswalk-Viewer-Ip`, which the CloudFront function overwrites). Earlier hops and
+    `CloudFront-Viewer-Address` are the viewer's to write, so they never count (P6 review).
     """
     if trust_proxy:
-        viewer = (headers.get("cloudfront-viewer-address") or "").strip()
-        if viewer:  # `ip:port`, IPv6 too (the port is after the last colon)
-            host = viewer.rsplit(":", 1)[0] if ":" in viewer else viewer
-            return host.strip("[]")[:64] or peer
-        forwarded = (headers.get("x-forwarded-for") or "").split(",")[0].strip()
-        if forwarded:
-            return forwarded[:64]
+        hops = [h.strip() for h in (headers.get("x-forwarded-for") or "").split(",")]
+        hops = [h for h in hops if h]
+        if hops:
+            return hops[-1][:64]
     return peer
+
+
+def rate_key(ip: str) -> str:
+    """The rate-limit bucket of an address: IPv4 itself, IPv6 its /64 prefix."""
+    try:
+        addr = ipaddress.ip_address(ip.strip().strip("[]").split("%")[0])
+    except ValueError:
+        return ip
+    if isinstance(addr, ipaddress.IPv6Address):
+        if addr.ipv4_mapped is not None:
+            return str(addr.ipv4_mapped)
+        return str(ipaddress.IPv6Network((addr, 64), strict=False))
+    return str(addr)
 
 
 def request_is_https(headers: Mapping[str, str], scheme: str, trust_proxy: bool) -> bool:
@@ -246,14 +262,18 @@ class PublicModels:
                 return BUDGET_EXHAUSTED
         return None
 
-    def alias_ok(self, *, byo: bool, budget: bool = True) -> Callable[[str], bool]:
-        """The router's alias filter for one public turn. `budget=False` ignores the budget
-        (to tell whether the budget is what moved a route)."""
+    def alias_ok(
+        self, *, byo: bool, budget: bool = True, spent: bool = False
+    ) -> Callable[[str], bool]:
+        """The router's alias filter for one public call. `budget=False` ignores the budget
+        (to tell whether the budget is what moved a route); `spent=True` treats it as spent
+        (the ledger refused to hold the call's worst case)."""
+        budget_ok = False if spent else (None if budget else True)
 
         def ok(alias: str) -> bool:
             if not self.allowed(alias):
                 return False
-            return self.reason(alias, byo=byo, budget_ok=None if budget else True) is None
+            return self.reason(alias, byo=byo, budget_ok=budget_ok) is None
 
         return ok
 
@@ -276,34 +296,72 @@ def resets_at_iso(ts: float) -> str:
     return iso(ts).split(".")[0].rstrip("Z") + "Z"
 
 
+class StreamRefused(Exception):
+    """No stream slot: `scope` says which cap was full (client, tenant, ops or server)."""
+
+    def __init__(self, scope: str) -> None:
+        super().__init__(scope)
+        self.scope = scope
+
+
 class StreamSlots:
     """A bound on SSE streams open at once (`gateway.max_open_streams`, every mode).
 
     A slot is taken when the route answers and given back when the stream ends. A slot whose
     stream never started (the client went away first) lapses after `grace_s`, so the count can
     never leak.
+
+    P6 review, public mode: one client cannot hold the server's slots. A slot also counts against
+    the client's address bucket (`public.max_streams_per_ip`, IPv6 by /64) and its tenant
+    (`public.max_streams_per_tenant`), both checked before the server-wide cap, and the tenant
+    ops stream (GET /v1/events) draws on a smaller pool (`public.max_ops_streams`) so it can
+    never starve the turn streams. A cap of 0 is off (dev and private mode).
     """
 
-    def __init__(self, cap: int = 50, grace_s: float = 30.0) -> None:
+    def __init__(
+        self,
+        cap: int = 50,
+        grace_s: float = 30.0,
+        *,
+        per_ip: int = 0,
+        per_tenant: int = 0,
+        ops_cap: int = 0,
+    ) -> None:
         self.cap = max(1, int(cap))
         self.grace_s = grace_s
-        self._open: dict[int, float] = {}  # token -> time taken (inf once its stream started)
+        self.per_ip = max(0, int(per_ip))
+        self.per_tenant = max(0, int(per_tenant))
+        self.ops_cap = max(0, int(ops_cap))
+        # token -> [time taken (inf once its stream started), ip bucket, tenant, pool]
+        self._open: dict[int, list[Any]] = {}
         self._next = 0
 
-    def acquire(self) -> int | None:
+    def acquire(self, ip: str = "", tenant: str = "", pool: str = "turn") -> int:
+        """A slot, or StreamRefused naming the cap that was full."""
         now = time.monotonic()
-        for token, taken in list(self._open.items()):
+        for token, (taken, *_rest) in list(self._open.items()):
             if now - taken > self.grace_s:
                 del self._open[token]
-        if len(self._open) >= self.cap:
-            return None
+        slots = list(self._open.values())
+
+        def held(i: int, value: str) -> int:
+            return sum(1 for slot in slots if slot[i] == value)
+
+        if self.per_ip and ip and held(1, ip) >= self.per_ip:
+            raise StreamRefused("client")
+        if self.per_tenant and tenant and held(2, tenant) >= self.per_tenant:
+            raise StreamRefused("tenant")
+        if pool == "ops" and self.ops_cap and held(3, "ops") >= self.ops_cap:
+            raise StreamRefused("ops")
+        if len(slots) >= self.cap:
+            raise StreamRefused("server")
         self._next += 1
-        self._open[self._next] = now
+        self._open[self._next] = [now, ip, tenant, pool]
         return self._next
 
     def started(self, token: int) -> None:
         if token in self._open:
-            self._open[token] = float("inf")
+            self._open[token][0] = float("inf")
 
     def release(self, token: int) -> None:
         self._open.pop(token, None)

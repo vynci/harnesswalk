@@ -319,3 +319,148 @@ async def test_byo_key_never_lands_in_any_store_log_or_error(
     for path, data in every_file_bytes(tmp_path / "data"):
         assert key.encode() not in data, path
     assert h.hosted_budget.today()["calls"] == 0  # BYO-paid calls never charge the ledger
+
+
+# -- P6 review: concurrency, reservations and the per-call BYO waiver -------------------------
+
+
+def _slow_paid(tmp_path: Path) -> Path:
+    fx = tmp_path / "fx"
+    reply = {"text": "ok", "latency_ms": 300, "usage": {"input_tokens": 1, "output_tokens": 0}}
+    write_fixture(fx, "slow_paid", [[reply]])
+    return fx
+
+
+async def _concurrent_turns(h: Harness, n: int) -> list[httpx.Response]:
+    import asyncio
+
+    app = create_app(h)
+
+    async def one(i: int) -> httpx.Response:
+        async with client(h, app=app) as c:
+            headers = {"X-Forwarded-For": f"2001:db8:{i:x}::1"}  # one /64 each
+            return await c.post("/v1/turns", json={"message": "hi"}, headers=headers)
+
+    responses = await asyncio.gather(*(one(i) for i in range(n)))
+    for r in responses:
+        if r.status_code == 202:
+            await h.gateway.wait(r.json()["turn_id"], 20)
+    return list(responses)
+
+
+@pytest.mark.anyio
+async def test_concurrent_turns_cannot_overshoot_the_daily_budget(tmp_path: Path) -> None:
+    """The review's PoC shape: 0.01 per call, 0.02 a day, 40 turns at once. Every priced call
+    reserves its worst case first, so the day ends within one call of the limit; the turns that
+    found the budget committed ran on the fake model and say so."""
+    overrides = {
+        "public.hosted_budget_usd_per_day": 0.02,
+        "gateway.trust_proxy": True,
+        "public.max_running_hosted_turns": 100,  # the reservation alone, not the turn cap
+    }
+    fx = _slow_paid(tmp_path)
+    h = public_harness(tmp_path, "slow_paid", fixtures=fx, priced=True, overrides=overrides)
+    responses = await _concurrent_turns(h, 40)
+    assert [r.status_code for r in responses] == [202] * 40
+    today = h.hosted_budget.today()
+    assert today["spent_usd"] <= today["limit_usd"] + 0.01, today
+    assert h.hosted_budget.held_usd() == 0  # every hold settled or released
+    notices = [h.gateway.turns.get(r.json()["turn_id"]) for r in responses]
+    fell = [s for s in notices if s is not None and s.ctx.notices]
+    assert len(fell) >= 38, len(fell)
+
+
+@pytest.mark.anyio
+async def test_running_hosted_turns_are_capped_per_client_and_on_the_site(
+    tmp_path: Path,
+) -> None:
+    overrides = {"gateway.trust_proxy": True, "public.max_running_hosted_turns": 3}
+    fx = _slow_paid(tmp_path)
+    h = public_harness(tmp_path, "slow_paid", fixtures=fx, priced=True, overrides=overrides)
+    responses = await _concurrent_turns(h, 6)
+    codes = sorted(r.status_code for r in responses)
+    assert codes == [202, 202, 202, 429, 429, 429]
+    refused = next(r for r in responses if r.status_code == 429)
+    assert refused.headers["Retry-After"] == "10"
+    assert refused.json()["error"]["limit"] == "running_turns"
+    assert "on the site" in refused.json()["error"]["message"]
+    # Per client: two at once from one /64 (two addresses in it), the third is refused; a turn
+    # on the fake model is never counted.
+    h2 = public_harness(
+        tmp_path / "two",
+        "slow_paid",
+        fixtures=fx,
+        priced=True,
+        overrides={"gateway.trust_proxy": True},
+    )
+    app = create_app(h2)
+    async with client(h2, app=app) as c:
+        import asyncio
+
+        def body(i: int, **extra: str) -> dict[str, str]:
+            return {"message": "hi", "session_id": f"sess_{i:020x}", **extra}
+
+        sent = [
+            c.post("/v1/turns", json=body(i), headers={"X-Forwarded-For": f"2001:db8:7::{i}"})
+            for i in (1, 2, 3)
+        ]
+        sent.append(
+            c.post(
+                "/v1/turns",
+                json=body(4, model="fake-small"),
+                headers={"X-Forwarded-For": "2001:db8:7::4"},
+            )
+        )
+        out = await asyncio.gather(*sent)
+        assert sorted(r.status_code for r in out[:3]) == [202, 202, 429]
+        assert out[3].status_code == 202  # the fake model is never counted
+        refused = next(r for r in out if r.status_code == 429)
+        assert "from this address" in refused.json()["error"]["message"]
+        for r in out:
+            if r.status_code == 202:
+                await h2.gateway.wait(r.json()["turn_id"], 20)
+    assert h2.gateway._hosted_running == {}  # freed when the turns ended
+
+
+@pytest.mark.anyio
+async def test_a_bogus_byo_key_waives_nothing(tmp_path: Path, monkeypatch) -> None:
+    """The review's PoC: the budget spent, a key header that is not a key. The turn's calls,
+    the internal ones (compaction) included, go out with that key or not at all: the site key
+    is never used past the budget."""
+    monkeypatch.setenv(SITE_KEY_ENV, "SITE-KEY")
+    h = public_harness(
+        tmp_path, hosted=True, overrides={"public.hosted_budget_usd_per_day": 0.0001}
+    )
+    keys: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        key = request.headers["x-api-key"]
+        keys.append(key)
+        if key != "SITE-KEY":
+            return httpx.Response(401, json={"error": {"message": "invalid x-api-key"}})
+        return httpx.Response(
+            200,
+            json={
+                "content": [{"type": "text", "text": "summary"}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 3000, "output_tokens": 200},
+            },
+        )
+
+    mock_anthropic(h, handler)
+    h.hosted_budget.charge(1.0)
+    assert not h.hosted_budget.ok()
+    byo = {"X-Harnesswalk-Provider-Key": "bogus"}
+    filler = "please remember this filler text. " * 200
+    async with client(h) as c:
+        sid = None
+        for i in range(4):
+            body = {"message": f"turn {i} " + filler, "model": "hosted-haiku"}
+            if sid:
+                body["session_id"] = sid
+            out = await run(c, h, body, headers=byo)
+            assert out["response"].status_code == 202, out["response"].text
+            sid = out["response"].json()["session_id"]
+    assert keys and set(keys) == {"bogus"}, keys
+    assert h.hosted_budget.today()["calls"] == 1  # only the test's own charge
+    assert h.turn_keys == {}  # every turn dropped its key when it ended

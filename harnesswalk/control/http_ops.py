@@ -179,6 +179,8 @@ def add_ops_routes(
     @app.post("/v1/sessions", status_code=201)
     async def create_session(request: Request) -> JSONResponse:
         identity, tenant_cookie = identities.resolve(request)
+        if not tenant_cookie:  # a freshly minted tenant was counted already
+            identities.count_creation(request)
         data = await read_json(request)
         pack = data.get("pack", h.pack)
         if not isinstance(pack, str):
@@ -270,7 +272,7 @@ def add_ops_routes(
         run_or_404(tenant_id, run_id)
         start = _cursor(request, after)
         live = run_id in h.evals.offline.tasks and not h.evals.offline.tasks[run_id].done()
-        token = app.state.acquire_stream()  # P6: SSE streams are bounded
+        token = app.state.acquire_stream(request, tenant_id)  # P6: SSE streams are bounded
 
         async def stream():
             source = h.ops.follow(
@@ -543,7 +545,8 @@ def add_ops_routes(
             raise GatewayError(404, "tenant_not_found", f"No tenant {tenant} for this caller.")
         given = after is not None or request.headers.get("last-event-id")
         start = _cursor(request, after) if given else None
-        token = app.state.acquire_stream()  # P6: SSE streams are bounded
+        # P6: SSE streams are bounded; the ops stream draws on its own smaller pool.
+        token = app.state.acquire_stream(request, tenant_id, "ops")
 
         async def stream():
             yield ": ops events\n\n"  # sent at once, so the browser sees the stream open
