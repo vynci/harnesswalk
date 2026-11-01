@@ -1,0 +1,36 @@
+name: Lesson
+description: A correction, a confusing passage, or a new demonstration in a lesson chapter.
+labels: ["lesson"]
+body:
+  - type: input
+    id: chapter
+    attributes:
+      label: Chapter
+      description: The file in lessons/, or the node whose Lessons tab shows it.
+      placeholder: lessons/08-policy.md
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - Something is wrong (the code, a fixture or the outcome does not match)
+        - Something is confusing
+        - A new "what breaks" demonstration or "try this" step
+        - A check-yourself question
+        - Further reading
+    validations:
+      required: true
+  - type: textarea
+    id: detail
+    attributes:
+      label: What and where
+      description: Quote the passage, and say what it should say. For a demonstration, give the pack, fixture and prompt, and what you saw on the fake provider.
+    validations:
+      required: true
+  - type: textarea
+    id: reader
+    attributes:
+      label: Who were you reading as
+      description: Optional. Your background helps us pitch the fix (the chapters are written for a developer who knows web services and has never built an agent runtime).
