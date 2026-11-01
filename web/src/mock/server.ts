@@ -15,6 +15,7 @@ import type {
   TurnSummary,
 } from '@/api/types'
 import { EXAMPLE_MESSAGES, EXAMPLE_NAMES, EXAMPLES, servedDiagram, type ExampleName } from './examples'
+import { MockLessons } from './lessons'
 import { MockEvalEventSource, MockOps, MockOpsEventSource } from './ops'
 import { repoFile, repoFilesUnder, sourceFor } from './repo'
 
@@ -153,11 +154,13 @@ export class MockServer {
   private turns = new Map<string, MockTurn>()
   private counter = 0
   readonly ops: MockOps
+  readonly lessons: MockLessons
 
   constructor(opts: MockOptions = {}) {
     this.opts = { stepMs: opts.stepMs ?? 140, seed: opts.seed ?? true, messageDelta: opts.messageDelta ?? true }
     // P4: the LLM Ops nodes are served by the ops half of the mock.
     for (const n of this.diagram.nodes) if (n.group === 'ops') n.implemented = true
+    this.lessons = new MockLessons(this.diagram)
     this.ops = new MockOps({
       stepMs: this.opts.stepMs,
       diagram: this.diagram,
@@ -316,6 +319,18 @@ export class MockServer {
     if (method === 'GET' && p === '/v1/memory/proposals') return json(200, { proposals: [] })
     if ((m = p.match(/^\/v1\/memory\/proposals\/([^/]+)$/)) && method === 'POST') return apiError(404, 'proposal_not_found', 'The mock has no proposals.')
     if (method === 'GET' && p === '/v1/audit') return json(200, { tenant_id: 'dev', verify: { ok: true, records: 0 }, records: [], next_since: null })
+    // P5: the lesson chapters, from the real files in lessons/.
+    if (method === 'GET' && p === '/v1/lessons') return json(200, this.lessons.list())
+    if ((m = p.match(/^\/v1\/lessons\/([^/]+)\/source$/)) && method === 'GET') {
+      const found = this.lessons.source(decodeURIComponent(m[1]!), url.searchParams.get('path') ?? '')
+      if (found === 'lesson') return apiError(404, 'lesson_not_found', `No lesson ${m[1]}.`)
+      if (found === 'source') return apiError(404, 'source_not_found', `Lesson ${m[1]} does not link to that file.`)
+      return json(200, found)
+    }
+    if ((m = p.match(/^\/v1\/lessons\/([^/]+)$/)) && method === 'GET') {
+      const lesson = this.lessons.get(decodeURIComponent(m[1]!))
+      return lesson ? json(200, lesson) : apiError(404, 'lesson_not_found', `No lesson ${m[1]}.`)
+    }
     // P4: evals, artifacts, releases, feedback and the trace query.
     const ops = this.ops.handle(method, url, body)
     if (ops) return ops

@@ -92,6 +92,10 @@ export interface DiagramNode {
   view: View
   parent?: string
   lesson: string
+  /** P5: the chapter about this node, a repo path (`lessons/NN-<id>.md`, with `#section` for an expert node). */
+  lesson_url?: string
+  /** P5: one short sentence on what the chapter teaches. */
+  lesson_summary?: string
   source_hint: string
   artifact_hint?: string
   can_disable?: boolean
@@ -164,6 +168,8 @@ export interface Capabilities {
     judge?: boolean
     /** P4: resume with mode step_over. */
     step_over?: boolean
+    /** P5: GET /v1/packs lists the packs, with their suggested prompts. */
+    packs?: boolean
   }
   /** P4: which release serves turns, and whether the working set has unreleased edits. */
   release?: ReleaseState
@@ -274,6 +280,76 @@ export interface NodeSource {
   line_count: number
   source: string
   symbols?: { name: string; line: number }[]
+}
+
+// ---------- Lessons (P5, harnesswalk/control/http_lessons.py) ----------
+
+/** A chapter's `try` front matter: what the "try it" button sets up for the next turn. */
+export interface LessonTry {
+  fixture?: string
+  prompt?: string
+  /** Node ids to disable on the next turn. */
+  disable?: string[]
+}
+
+/** One chapter in GET /v1/lessons. */
+export interface LessonListItem {
+  /** `NN-<name>`, the file name without `.md`. */
+  slug: string
+  n: number
+  title: string
+  hook: string
+  /** The node the chapter is about; for an expert group chapter, the parent. */
+  node_id: string | null
+  /** The nodes the chapter covers: `[node_id]`, or the expert children of a group chapter. */
+  covers: string[]
+  /** An expert group chapter (`NN-<parent>-inside`). */
+  group: boolean
+  words: number
+  url: string
+}
+
+export interface LessonList {
+  lessons: LessonListItem[]
+  walk_order: string[]
+}
+
+/** A code walk link, `[text](../harnesswalk/<path>#<Symbol>)`, with the symbol's line. */
+export interface LessonCodeLink {
+  path: string
+  symbol: string | null
+  line: number | null
+  /** The node whose code peek is this file, else null. */
+  node_id: string | null
+}
+
+/** GET /v1/lessons/{slug}: the list item plus the markdown (front matter stripped). */
+export interface Lesson extends LessonListItem {
+  markdown: string
+  try: LessonTry | null
+  code_links: LessonCodeLink[]
+  prev: string | null
+  next: string | null
+}
+
+/** GET /v1/lessons/{slug}/source?path=: a file the chapter links to, shaped like the code peek. */
+export interface LessonSource {
+  path: string
+  language: string
+  line_count: number
+  source: string
+  truncated?: boolean
+  symbols?: { name: string; line: number }[]
+}
+
+/**
+ * One pack in GET /v1/packs (P5, another builder's route). Only what the UI reads is typed:
+ * `prompts` may be strings or `{prompt}` objects.
+ */
+export interface PackSummary {
+  id: string
+  title?: string
+  prompts?: unknown
 }
 
 // ---------- Context plane (P3) ----------
