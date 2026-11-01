@@ -56,5 +56,6 @@
         ]
       }
     ]
-  }
+  },
+  "certArn": "arn:aws:acm:us-east-1:111910761410:certificate/249f73d2-2fc5-446f-b761-8beb149d4a64"
 }
