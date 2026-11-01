@@ -1,0 +1,19 @@
+# make loadtest layers this on the local prod profile (docker-compose.yml +
+# docker-compose.prod-local.yml): the api answers every turn from fixtures/loadtest_answer.yaml
+# (the fake provider with a 2 s model latency). Nothing else changes: same limits, same Caddy,
+# same rate limit, same sweeper.
+services:
+  api-prod:
+    environment:
+      HARNESSWALK_FIXTURE: loadtest_answer
+    volumes:
+      - ./loadtest/fixtures:/loadtest/fixtures:ro
+    command:
+      - harnesswalk
+      - serve
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --set
+      - models.providers.fake.fixture_dir=/loadtest/fixtures

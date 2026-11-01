@@ -1,0 +1,14 @@
+fixture: loadtest_answer
+description: >-
+  The load test's turn. One plain answer after 2 s, the latency of a small hosted model, so the
+  50 SSE viewers of `make loadtest` are all attached while their turns run rather than
+  replaying finished ones. Long enough to stream about a dozen message_delta events.
+model: fake-small
+turns:
+  - responses:
+      - text: >-
+          Our support team is available 9am to 5pm Eastern, Monday to Friday. Outside those
+          hours you can leave a message in the help centre and someone will answer it the
+          next working morning, usually before ten.
+        latency_ms: 2000
+        usage: { input_tokens: 622, output_tokens: 48 }

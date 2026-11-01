@@ -1,6 +1,8 @@
 # harnesswalk API image: the reference harness served by uvicorn, with the built web app.
 #
 #   docker build -f deploy/api.Dockerfile -t harnesswalk-api .
+#   docker buildx build --platform linux/arm64,linux/amd64 -f deploy/api.Dockerfile \
+#       --build-arg GIT_SHA=$(git rev-parse --short=12 HEAD) .   # multi-arch (build-push.sh)
 #
 # Two stages. The first builds web/ with pnpm when it has a package.json, and fails when that
 # build leaves no dist/index.html; only while web/ is a placeholder (no package.json) does it
@@ -9,8 +11,14 @@
 # .dockerignore keeps every .env file out of the context, so no local VITE_* value is baked in.
 # The second stage is built with uv from the lock file, runs as a non-root user, keeps state
 # under /data, and serves /app/web/dist at / when it holds an index.html.
+#
+# Multi-arch: linux/arm64 (the t4g origin, Apple silicon) and linux/amd64 (Intel Macs, CI). The
+# web stage runs on the build machine's own platform (its output is the same on every arch), so
+# a cross build only emulates the Python stage. The image also carries deploy/docker-compose.yml
+# and deploy/caddy/Caddyfile: the origin takes them out of the image it deploys, so a rollback
+# rolls them back with the code.
 
-FROM node:24-bookworm-slim AS web
+FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS web
 ARG PNPM_VERSION=10.33.0
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 WORKDIR /web
@@ -28,6 +36,13 @@ RUN if [ -f package.json ]; then \
     fi
 
 FROM python:3.12-slim-bookworm
+
+ARG GIT_SHA=unknown
+LABEL org.opencontainers.image.title="harnesswalk-api" \
+      org.opencontainers.image.description="The harnesswalk reference harness (uvicorn) with the built web app" \
+      org.opencontainers.image.source="https://github.com/vynci/harnesswalk" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.revision="${GIT_SHA}"
 
 COPY --from=astral/uv:0.12.24 /uv /uvx /bin/
 
@@ -50,6 +65,8 @@ COPY datasets ./datasets
 COPY lessons ./lessons
 RUN uv sync --locked --no-dev --extra pgvector
 COPY --from=web /web/dist ./web/dist
+COPY deploy/docker-compose.yml ./deploy/docker-compose.yml
+COPY deploy/caddy/Caddyfile ./deploy/caddy/Caddyfile
 
 RUN useradd --create-home --uid 10001 harnesswalk \
     && mkdir -p /data \
@@ -60,7 +77,8 @@ USER harnesswalk
 ENV PATH="/app/.venv/bin:${PATH}" \
     HARNESSWALK_ROOT=/app \
     HARNESSWALK_DATA_DIR=/data \
-    HARNESSWALK_WEB_DIST=/app/web/dist
+    HARNESSWALK_WEB_DIST=/app/web/dist \
+    HARNESSWALK_GIT_SHA=${GIT_SHA}
 
 EXPOSE 8000
 

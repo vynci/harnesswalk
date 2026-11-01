@@ -1,0 +1,32 @@
+{
+  "name": "@harnesswalk/deploy-aws",
+  "version": "0.0.0",
+  "private": true,
+  "description": "CDK app for harnesswalk.vynci.dev: S3 + CloudFront edge, one EC2 origin, CI role and ECR",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "cdk": "cdk",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "synth": "cdk synth --all",
+    "diff": "cdk diff --all"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "aws-cdk": "2.1145.0",
+    "aws-cdk-lib": "2.273.0",
+    "constructs": "10.8.1",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
