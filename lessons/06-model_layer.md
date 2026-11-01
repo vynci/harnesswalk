@@ -93,7 +93,8 @@ happens to be in your shell never turns into a paid fallback by accident.
 3. **Add an alias.** Add `fake-big: { provider: fake, context_tokens: 32000, price_in_per_mtok: 1,
    price_out_per_mtok: 2, tools: true }` under `models` in `config/models.yaml`, put it first in
    the `default` rule's `use` list, and run the `tool_call` prompt with `--provider fake`.
-   Expected: `model=fake-big` on both model layer spans and a nonzero cost. Undo the edit after.
+   Expected: `model=fake-big` on the first model layer span and a nonzero cost; step 2, after a
+   read-only tool, takes the `lookup` rule and stays on `fake-small`. Undo the edit after.
 
 ## Check yourself
 
