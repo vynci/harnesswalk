@@ -423,7 +423,7 @@ Response `200`:
 | `features.memory_review` | True outside `public` mode: proposals at the review gate can be decided (`POST /v1/memory/proposals/{id}`) |
 | `limits.max_message_chars` | `gateway.max_message_chars`, the transport cap; input guardrails may block shorter messages |
 | `limits.max_steps` | `loop.max_steps` |
-| `limits.session_ttl_seconds` | `gateway.session_ttl_s` in `public` mode, else `null` |
+| `limits.session_ttl_seconds` | `public.session_ttl_s` in `public` mode, else `null` (P6: the key moved from `gateway.session_ttl_s`) |
 
 ## `GET /healthz`
 
@@ -534,7 +534,8 @@ Accepted for P2 and scheduled, so a UI author does not mistake them for the cont
 ## Not yet
 
 Uploads, sign-in endpoints, WebSocket transport. (Eval, release, artifact, trace and feedback
-endpoints arrived in P4, in the section "P4 additions" below.)
+endpoints arrived in P4, in the section "P4 additions" below; public mode arrived in P6, see
+"P6 additions"; private mode stays deferred.)
 
 ## Context plane routes (P3)
 
@@ -944,3 +945,154 @@ lessons, like the code, are the same for every tenant.
   containment rule as `GET /v1/nodes/{id}/source`. Any other path: `404 source_not_found`.
 - Each node of `spec/diagram/diagram.json` names its chapter (`lesson_url`, a repo path with a
   `#section` anchor for an expert node) and its one-line hook (`lesson_summary`).
+
+## P6 additions: public mode (harnesswalk.vynci.dev)
+
+Public mode only; private mode (sign-in, uploads, persistence, export, delete) is deferred and
+its endpoints keep refusing in public mode as before. Configuration is the `public:` block of
+`config/harness.yaml`; the environment adds `HARNESSWALK_MODE=public`, `HARNESSWALK_SECRET`
+(required: the server refuses to start in public mode without it), `HARNESSWALK_PUBLIC_BUDGET_USD`
+(overrides `public.hosted_budget_usd_per_day`), `HARNESSWALK_TRUST_PROXY=1`
+(`gateway.trust_proxy`), `HARNESSWALK_LOG_FORMAT=json` (`logging.format`) and the site's own
+model key in the provider's key variable (`ANTHROPIC_API_KEY`), read from the environment,
+never logged.
+
+```yaml
+public:
+  models: [hosted-haiku, hosted-sonnet, fake-small]   # the only aliases a public turn may use
+  default_model: hosted-haiku     # what a public turn uses without a hint
+  hosted_budget_usd_per_day: 15   # shared by every priced alias, per UTC day
+  session_ttl_s: 7200             # anonymous tenant lifetime (was gateway.session_ttl_s)
+  sweep_interval_s: 300           # TTL sweeper cadence; 0 disables it
+  rate_limit_max_keys: 10000      # bound on the in-memory rate-limit table
+  cookie_secure: auto             # auto (Secure when the request came over HTTPS), always, never
+  fake_fixture: public_demo       # fake-small's fixture unless one is given (config/fixtures)
+```
+
+`public.models` implies the providers: a public server builds exactly the providers behind
+those aliases (a hosted one whatever its `enabled` flag says) and no other. Whether a hosted
+alias can answer is decided per turn: it needs the site's key or the turn's BYO key, a healthy
+provider, and, when the alias has a price, room in the shared daily budget (a BYO key bypasses
+the budget). A hosted provider built without the site's key serves BYO-key turns only and is
+not probed. `fake-small` runs the `public_demo` fixture, which never runs out (`cycle: true`,
+model_provider.md P6 additions).
+
+### Identity: the anonymous tenant cookie
+
+`harnesswalk_tenant` is `anon-<16 hex>.<expires, Unix seconds>.<HMAC-SHA256 with
+HARNESSWALK_SECRET, 32 hex>`, `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age` the time left,
+and `Secure` when the request came over HTTPS (directly, or `X-Forwarded-Proto: https` from a
+trusted proxy; `public.cookie_secure` can force it either way). Any route that resolves the
+identity mints a tenant when the cookie is missing, tampered, foreign or expired, and that
+response sets the cookie; a bad cookie is never an error. `GET /v1/capabilities` resolves it,
+so the session clock starts when the page loads. A turn registers the tenant with its expiry
+for the sweeper. A fresh tenant ignores the old `harnesswalk_session` cookie (it named the old
+tenant's session); a body or header `session_id` that belongs to another tenant is still a 404.
+
+### `GET /v1/capabilities`: `public` (every mode)
+
+```json
+{
+  "public": {
+    "session_expires_at": "2026-11-01T20:38:46Z",
+    "ttl_s": 7200,
+    "limits": { "per_ip_per_hour": 30, "remaining_this_hour": 27, "max_steps": 8,
+                "budget_tokens": 16000, "max_message_chars": 8000 },
+    "models": [
+      { "alias": "hosted-haiku", "label": "Claude Haiku 5.5", "provider": "anthropic",
+        "default": true, "available": true, "reason": null },
+      { "alias": "hosted-sonnet", "label": "Claude Sonnet 5.5", "provider": "anthropic",
+        "default": false, "available": true, "reason": null },
+      { "alias": "fake-small", "label": "Fake model (scripted)", "provider": "fake",
+        "default": false, "available": true, "reason": null }
+    ],
+    "budget": { "status": "ok", "resets_at": "2026-11-02T00:00:00Z", "spent_fraction": 0.42 },
+    "byo_key_bypasses_budget": true
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `session_expires_at` | When the caller's anonymous tenant and every row of it are deleted (RFC 3339, seconds, `Z`). `null` outside public mode |
+| `ttl_s` | `public.session_ttl_s` |
+| `limits.per_ip_per_hour` | `gateway.rate_limit.per_ip_per_hour` |
+| `limits.remaining_this_hour` | Turns the caller's IP may still start this hour; `null` outside public mode (no IP limit there) |
+| `limits.max_steps`, `limits.budget_tokens` | The loop's caps (`loop:`); never overridable per turn in public mode |
+| `limits.max_message_chars` | The smaller of `gateway.max_message_chars` and the input guardrails' size limit: longer messages are refused (400) or blocked |
+| `models` | Public: `public.models` in its order. Elsewhere: every non-embedding alias. `label` is `models.<alias>.label` (else the alias) |
+| `models[].default` | The alias a turn without a `model` would run on now: `public.default_model` when it can answer, else the first alias of `public.models` (default first) that can. Elsewhere the default route's model |
+| `models[].available`, `reason` | Whether a site-paid turn can use the alias now. `reason`: `budget_exhausted`, `provider_unconfigured` (provider not built, or hosted with no site key and no BYO key), `provider_unhealthy` (P6 addition to the contract's list: the health probe or a failure marked the provider down), or `null` |
+| `budget` | Public: `status` (`ok` or `exhausted`), `resets_at` (the next 00:00 UTC) and `spent_fraction` (0 to 1). No dollar amount leaves the server. Elsewhere `{status: "ok", resets_at: null, spent_fraction: 0}` |
+| `byo_key_bypasses_budget` | Always `true`: a BYO key makes the hosted aliases available whatever the budget |
+
+The top-level `providers[].configured` in public mode is true exactly for the providers the
+server built from `public.models`.
+
+### `POST /v1/turns` in public mode
+
+- `model` is accepted when it is one of `public.models`; any other value is
+  `400 invalid_request "model not available in public mode"`.
+- A priced alias while the shared budget is spent and the turn has no BYO key:
+  `409 {"error": {"code": "budget_exhausted", "message", "resets_at"}}`.
+- A hosted alias with no site key and no BYO key: `422 provider_not_configured`.
+- Without `model` the router's `public` rule picks (default model first); when the budget
+  moves a call off a priced alias the turn still runs, on the next alias, with a notice.
+- BYO key: `X-Harnesswalk-Provider-Key: <key>` (the P3 header), or `X-Harnesswalk-Api-Key`
+  (the P6 contract's spelling); the first present wins. It reaches only the routed model's
+  provider for that request, is never persisted, never in events, traces, audit rows, logs or
+  error messages, and BYO-paid calls never charge the shared ledger.
+- `max_steps`, `budget_tokens`, `budget_usd`, `timeout_s` and `stuck_repeats`, at the top level
+  or in `options`, are `400 invalid_request "<key> cannot be changed in public mode"`.
+- Rate limits (per IP from `gateway.rate_limit.per_ip_per_hour`, per tenant from
+  `per_tenant_per_hour`): `429 {"error": {"code": "rate_limited", "message", "retry_after"}}`
+  with `Retry-After` in seconds (until the oldest request of the window leaves it). The IP is
+  the peer address, or with `gateway.trust_proxy` the proxy's view: `CloudFront-Viewer-Address`
+  when present, else the first `X-Forwarded-For` hop. The table holds at most
+  `public.rate_limit_max_keys` keys; the least recently used goes first.
+- Mid-turn exhaustion: when the ledger crosses the line between two calls of a turn, the next
+  call falls through to `fake-small` (the next alias of the rule), its `model_layer` exit
+  summary carries `notice: budget_exhausted` and `downgraded_from: <alias>`, the `loop` exit
+  carries `notices: ["budget_exhausted"]`, and `turn_end.summary.notices` is
+  `[{reason: "budget_exhausted", message}]` with the text of `loop.notices.budget_exhausted`
+  (events.md, P6 additions).
+
+### Event streams are bounded (every mode)
+
+At most `gateway.max_open_streams` (default 50) SSE streams are open at once across
+`GET /v1/turns/{id}/events`, `GET /v1/evals/runs/{id}/events` and `GET /v1/events`; the next
+one is `429 rate_limited` with `retry_after: 5`. A slot comes back when its stream ends.
+
+### `GET /readyz`
+
+Unauthenticated, cheap: `200 {"status": "ready", "checks": {...}, "default_model"}` when every
+store file answers (`store.trace`, `store.session`, `store.audit`, `store.approvals`,
+`store.budgets`, `store.memory`, `store.evals`), the default model can answer
+(`default_model`: in public mode the alias a turn without a hint would use) and, in public
+mode, `secret` is present; else `503` with `status: not_ready` and the failing check
+`unavailable` or `missing`. `GET /healthz` stays the process-up probe. The web app's fallback
+never answers `/readyz`.
+
+### `GET /v1/ops/budget` (dev mode only)
+
+Today's row of the shared hosted ledger for the owner: `{date, spent_usd, calls, updated_at,
+limit_usd, exhausted, resets_at}`. `403 forbidden_in_mode` in other modes: public mode never
+exposes a dollar amount.
+
+### The TTL sweeper
+
+Every `public.sweep_interval_s` in public mode, and once with `harnesswalk sweep [--now
+<RFC 3339>] [--json]`, every expired anonymous tenant (its registered expiry passed, or an
+`anon-` tenant whose first session is older than the TTL) without a running turn is hard
+deleted: every row with its `tenant_id` (or `scope`) in every store file, its eval runs and
+their scratch tenants, its vectors, its whole audit chain (audit.md, P6 additions) and its
+sandbox work directories. Other tenants' audit chains still verify.
+
+### Structured logs
+
+With `logging.format: json` every request is one line on stdout:
+`{ts, level, logger: "harnesswalk.http", msg: "request", request_id, tenant, method, route,
+status, duration_ms}`. `tenant` is the first 12 hex of the tenant id's SHA-256, `route` the
+route template (never the path's ids or the query), `request_id` the caller's `X-Request-Id`
+when it is a plain token, else a new one, and echoed in the `X-Request-Id` response header (every
+mode). No line ever holds a message, a header or a key. uvicorn's access log is off then.

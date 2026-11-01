@@ -103,3 +103,24 @@ router:
   summarize, classify and judge steps) and `claude-sonnet-5-5` (alias `hosted-sonnet`, the
   loop in hosted demos). A model entry MAY carry `params` (provider request fields such as
   `thinking`) passed through by the adapter.
+
+## P6 additions: the public rule and the budget
+
+- **The `public` rule.** A rule whose `use` is the string `public.models` gets
+  `config/harness.yaml` `public.models` when the settings load, with `public.default_model`
+  first, so the allowlist has one source. `config/models.yaml` puts it first with
+  `when: { mode: public }`, so every step of a public turn (summarize, classify and judge too)
+  stays on the allowlist. A turn's `model` hint (public mode accepts one, but only from
+  `public.models`, http_api.md P6 additions) picks among the usable aliases as any hint does.
+- **Alias filter.** A router MAY carry an alias filter on top of provider health. In public
+  mode the model layer narrows every call to the aliases of `public.models` that can answer
+  now: the provider is built and healthy; a hosted provider has the site's key or the turn
+  brings a BYO key; and an alias with a price (`price_in_per_mtok` or `price_out_per_mtok`
+  above 0) fits the shared daily budget unless the turn brings a BYO key.
+- **Budget fall-through.** The model layer charges the shared ledger after every priced call
+  a BYO key did not pay for (every mode) and the filter reads it before every call. When the
+  spent budget is what moved a call off a priced alias (the route without the budget part of
+  the filter would have chosen it), the call runs on the next alias of the rule
+  (`fake-small`), and the `model_layer` exit summary carries `notice: budget_exhausted` and
+  `downgraded_from: <alias>`; the turn's notice reaches `turn_end.summary.notices`. A spent
+  budget never fails a turn while a free alias is in the rule.

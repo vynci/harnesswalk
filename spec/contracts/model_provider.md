@@ -144,3 +144,17 @@ models:
 | `model_layer.timeout_s` | Per call, default 60 |
 | `model_layer.max_output_tokens` | Default 1024 |
 | `model_layer.cache` | `none` or `prompt_prefix` (use provider prefix caching when available) |
+
+## P6 additions
+
+- **`cycle` fixtures.** A fixture MAY set `cycle: true` (spec/conformance/fixture.schema.json):
+  turn `n` reads `turns[n mod len(turns)]`, and a call past the turn's last response answers
+  with the last scripted text and no tool calls, so the fixture never fails with
+  `fixture_exhausted`. Public mode's `fake-small` runs `config/fixtures/public_demo.yaml`
+  (`public.fake_fixture`), which says it is scripted and costs nothing. `config/fixtures` is the
+  last fixture directory searched.
+- **Labels.** A model entry MAY carry `label`, the name a UI shows (`GET /v1/capabilities`
+  `public.models[].label`).
+- **Anthropic.** Two user messages in a row (the quoted retrieved data, then the new input,
+  context_builder.md P6) are sent as one user message with two text blocks. In public mode a
+  provider built without the site's key answers only BYO-key calls and is not probed.

@@ -341,3 +341,12 @@ case turn lives in the run's scratch tenant, and `summary.run_id` with `summary.
 it). The P0 row for `diagnose` in section 6 (`layer` with `context`, `prompt`, `memory`) is the
 span summary of a diagnose node inside a turn, which this version does not emit: diagnosis runs
 outside turns and reports through `diagnose_finished`.
+
+## 12. P6 additions
+
+- `turn_end.summary.notices` (optional): `[{reason, message}]`, what the walk raised for the
+  reply. P6 has one reason, `budget_exhausted`: the shared hosted budget ran out and at least
+  one call of the turn ran on the fake model instead. `message` is `loop.notices.budget_exhausted`.
+- `model_layer` `node_exit` summary: `notice: budget_exhausted` and `downgraded_from: <alias>`
+  on the call the budget moved off a priced alias.
+- `loop` `node_exit` summary: `notices`, the reasons of the turn's notices, when there are any.

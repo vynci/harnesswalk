@@ -100,3 +100,10 @@ record VerifyResult { ok: bool, records: int, first_bad_record?: string }
   caller's tenant's records in chain order with `verify` (see `http_api.md`).
 - The `audit` exit summary adds `prev_hash` and `hash` (first 12 hex characters each) and
   `executed` for `tool_executed` records.
+
+## P6 additions
+
+- **`purge_tenant(tenant_id)`.** The one deletion the append-only triggers let through, for the
+  public-mode TTL sweeper: in one write transaction it drops the delete trigger, deletes every
+  record of that tenant, and creates the trigger again. A chain links only its own tenant's
+  records, so every other tenant's chain still verifies. Nothing calls it outside the sweeper.

@@ -65,11 +65,11 @@ Deferred from P3, and where each stands after P4:
 | Read walls in the sandbox (Linux mount or landlock over the data directory and `/proc`) | P6 | open |
 | Turn ownership, so a second process on the same data directory is not mistaken for a crashed one | P4 | **closed**: `serve` holds `data/owner.lock` (pid and heartbeat), a second `serve` refuses or `--takeover`s |
 | Injection scoring of memory proposals | P4 | **closed**: proposals are scored like input; block at 0.8, review at 0.45 (`memory_writer.injection`) |
-| Retrieved memory carries system authority (retrieved blocks are system messages) | P6 | open, recorded below |
-| TTL cleanup of public proposals | P6 | open |
+| Retrieved memory carries system authority (retrieved blocks are system messages) | P6 | **closed in P6**: retrieved slices are quoted `<retrieved_data>` blocks in a user-role message (context_builder.md, P6 additions) |
+| TTL cleanup of public proposals | P6 | **closed in P6**: the TTL sweeper deletes every row of an expired public tenant (`harnesswalk sweep`) |
 | A resumed turn keeping its output schema, BYO key and pre-pause proposals | P4 | **closed**: loop checkpoints keep the schema, the proposals, the numbered knowledge and the BYO-key flag (the key itself is never stored; `byo_key_dropped`) |
 | Memory proposals made before a restart were lost | P4 | **closed**, with the checkpoints above (conformance `restart_keeps_schema`, and a live two-process test) |
-| Budget ledger charged per call rather than per turn | P6 | open |
+| Budget ledger charged per call rather than per turn | P6 | partly closed in P6: the shared hosted ledger is charged per call; the per-tenant hourly ledger is still per turn |
 
 **P4 is done** (integration pass, 2026-10-30). Ops and web merged on `main`, then wired: the
 trace query and receipts, OpenTelemetry export, golden and judge eval runs with a diff against
@@ -95,7 +95,7 @@ Deferred from P4 (owner phase):
 |---|---|
 | The eval gate on release: a release records `gate: skipped`; P5 runs golden before it ships | P5, **closed** |
 | `diagnose` (map a failed case to the layer that caused it) is a stub node | P5, **closed** |
-| Retrieved memory still reaches the model as system text; whether it should be a lower-authority message (and how the fake fixtures and lessons show it) is open. Proposals are now scored, which closes the write side | P6 |
+| Retrieved memory still reaches the model as system text; whether it should be a lower-authority message (and how the fake fixtures and lessons show it) is open. Proposals are now scored, which closes the write side | P6, **closed** (user-role quoted data block) |
 | Which release is active (`activations`) is logged but not hash-chained | **closed in P5** (hash-chained per pack, `verify.activations`) |
 | Per-tenant artifact overrides; config overlays (`--set`, profiles) still win over edited artifacts | P6 |
 | The tenant ops stream polls the store once a second for other processes' writes; a notify channel for hosted deployments | P6 |
@@ -146,3 +146,23 @@ Deferred from P5:
 | Ollama `llama3.1:8b` passes 4 to 10 of each pack's cases structurally (it writes tool calls as text); not a gate | P6 |
 | The owner's read of the 21 chapters and of the pack content reviews (done by the integration builder, an agent) | owner |
 | The judge suite and a hosted smoke run on the new packs (this pass made no hosted call) | owner |
+
+## P6: public mode (2026-11-01)
+
+Public mode for harnesswalk.vynci.dev: the `public:` block (allowlist `hosted-haiku`,
+`hosted-sonnet`, `fake-small`), a 15 USD per UTC day shared hosted budget with a BYO-key bypass
+and a fall-through to the fake model, the `public` object in `GET /v1/capabilities`, an
+expiring signed tenant cookie, the TTL sweeper, bounded rate and stream tables, `GET /readyz`,
+JSON logs, and the abuse checklist under `tests/public/`. Private mode is deferred.
+
+Deferred from P6 (API side):
+
+| Item | Phase |
+|---|---|
+| Private mode: sign-in, uploads, overrides, persistence, export, delete-my-data | later |
+| A per-IP cap on open event streams (the cap is global, 50) | later |
+| The first `X-Forwarded-For` hop is client-controlled behind CloudFront; `CloudFront-Viewer-Address` is preferred when the proxy forwards it | deploy |
+| A made-up `session_id` on `POST /v1/turns` starts a session while another tenant's is a 404, so a session id's existence is observable (ids are random, turns are rate-limited) | later |
+| The shared ledger checks before each call, so concurrent turns can overshoot the daily budget by the calls in flight | later |
+| The sweeper runs inline on the event loop (fine at public scale) and deletes per tenant; batch deletes and a vacuum schedule | later |
+| Homelab model backend for public mode | later |
