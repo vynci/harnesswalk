@@ -52,6 +52,8 @@ def summarize(events: list[Event], message: str | None = None) -> dict[str, Any]
         "tenant_id": start["tenant_id"],
         "trace_id": start["trace_id"],
         "turn_index": (start.get("summary") or {}).get("turn_index"),
+        "pack": (start.get("summary") or {}).get("pack")
+        or (start.get("summary") or {}).get("dataset"),
         "status": status,
         "exit": end_summary.get("exit") if end else None,
         "reply": end_summary.get("reply") if end else None,

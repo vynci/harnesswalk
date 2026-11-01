@@ -8,6 +8,13 @@ again from what it serves. The components that read artifacts (procedural memory
 registry and tools, policy, the router and model layer, memory, the memory writer, the context
 builder and the loop) are built by `_build_artifact_components`, which `reload()` runs again
 after an edit, a release or a rollback. Stores, providers and embeddings are built once.
+
+P5: a session picks its dataset pack. The configured pack (`dataset`) is the harness itself; any
+other pack is a `PackRuntime`, built the first time a session or an eval run names it, with its
+own release manager, served set, procedural memory, tools, guardrail patterns and memory stores
+(the same SQLite file and vector index, scoped by pack). What every pack shares (sessions,
+trace, audit, approvals, budgets, providers, the gateway and evals) a `PackRuntime` reads from
+the harness. `PackParts` holds the code both build their per-pack components with.
 """
 
 from __future__ import annotations
@@ -65,6 +72,7 @@ from harnesswalk.execution.router import Router, RouteRequest
 from harnesswalk.execution.sandbox import Sandbox
 from harnesswalk.execution.tools import Tools
 from harnesswalk.nodes import load_components
+from harnesswalk.ops import pack_index
 from harnesswalk.ops.eval import Evals
 from harnesswalk.ops.ops_events import OpsEvents
 from harnesswalk.ops.otel import build_exporter
@@ -75,68 +83,13 @@ from harnesswalk.types import ConfigError, Message, TurnContext
 log = logging.getLogger(__name__)
 
 
-class Harness:
-    def __init__(self, settings: Settings) -> None:
-        self.registrations = load_components()
-        self.release = ReleaseManager(settings)
-        self.settings = s = settings.reload(self.release.served)
-        mode = s.mode
+class PackParts:
+    """The per-pack components and how they are (re)built, for the configured pack (`Harness`)
+    and for every other pack a session picks (`PackRuntime`, P5)."""
 
-        self.bus = EventBus()
-        self.tracer = Tracer(str(s.resolve(s.get("trace.sqlite_path", "data/trace.db"))))
-        self.bus.subscribe(self.tracer.record)
-        self.ops = OpsEvents(self.tracer.db, validate=bool(s.get("trace.validate_events", True)))
-
-        self.session = SessionStore(
-            str(s.resolve(s.get("stores.session.sqlite_path", "data/session.db")))
-        )
-        self.audit = AuditLog(str(s.resolve(s.get("audit.sqlite_path", "data/audit.db"))))
-        self.budgets = Budgets(
-            s.get("policy.budgets", {}),
-            str(s.resolve(s.get("policy.budgets_sqlite_path", "data/budgets.db"))),
-        )
-        self.approvals = ApprovalQueue(
-            str(s.resolve(s.get("approval.sqlite_path", "data/approvals.db"))),
-            timeout_s=float(s.get("approval.timeout_s", 900)),
-            show_args=bool(s.get("approval.show_args", True)),
-        )
-        self._build_memory_stores()
-        self.sandbox = Sandbox(
-            s.get("sandbox.level", "inprocess"),
-            int(s.get("sandbox.max_timeout_ms", 10000)),
-            mode=mode,
-            subprocess_cfg=s.get("sandbox.subprocess", {}),
-            workdir=s.resolve(s.get("sandbox.subprocess.workdir", "data/sandbox")),
-        )
-        self.providers = build_providers(s)
-        if not self.providers:
-            raise ConfigError("no model provider is configured (set HARNESSWALK_PROVIDER)")
-        self.provider_health = ProviderHealth(
-            self.providers, float(s.get("models.router.health_check_s", 30))
-        )
-        # One PII detector (the pack's patterns included) for the input guardrails and the
-        # memory writer, so a proposal is redacted exactly as a message is.
-        guard_cfg = self._input_guardrails_config()
-        self.input_guardrails = InputGuardrails(guard_cfg, mode, classifier=self._classify)
-        self.output_guardrails = OutputGuardrails(
-            s.get("output_guardrails", {}), mode, pii_cfg=guard_cfg.get("pii", {})
-        )
-        for name, value in self._build_artifact_components(s).items():
-            setattr(self, name, value)
-        self.ingest_report: dict[str, Any] | None = None
-        if bool(s.get("stores.ingest_on_start", True)):
-            try:
-                self.ingest_report = self.ingest()
-            except Exception as exc:  # a broken document or embedder never stops the harness
-                log.warning("knowledge ingestion failed: %s: %s", type(exc).__name__, exc)
-                self.ingest_report = {"error": f"{type(exc).__name__}: {exc}"}
-        self.evals = Evals(self)
-        self.otel = build_exporter(s, self.bus, self.ops)
-        self._background: list[asyncio.Task] = []
-        self.gateway = Gateway(self)
-        self._turn_providers: dict[str, ModelProvider] = {}  # built on demand for a turn
-        self._turn_fakes: dict[str, FakeProvider] = {}  # fixture name -> provider
-        self._startup_fake: FakeProvider | None = None  # `provider: fake` on another server
+    pack: str
+    settings: Settings
+    release: ReleaseManager
 
     def _build_artifact_components(self, s: Settings) -> dict[str, Any]:
         """Everything that reads an artifact, built from settings `s`, without side effects on
@@ -210,12 +163,6 @@ class Harness:
         out["loop"] = Loop(model_layer, tools, self.session, s.get("loop.notices", {}))
         return out
 
-    # -- release (P4) ----------------------------------------------------------------------------
-
-    def busy(self) -> bool:
-        """A turn or an eval run is running in this process: artifacts must not change now."""
-        return bool(self.gateway.running_turns()) or self.evals.running()
-
     def dry_run(self, served: Any) -> None:
         """Build every artifact-backed component from a candidate served set, then drop them.
         Raises ConfigError (or another error) when the candidate would not load.
@@ -256,7 +203,7 @@ class Harness:
     def _input_guardrails_config(self) -> dict[str, Any]:
         """config/harness.yaml `input_guardrails`, with the pack's `guardrails.yaml` over it."""
         cfg = self.settings.get("input_guardrails", {})
-        pack = self.settings.root / "datasets" / self.settings.get("dataset", "_starter")
+        pack = pack_index.pack_dir(self.settings, self.settings.get("dataset", "_starter"))
         path = pack / "guardrails.yaml"
         if path.exists():
             extra = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -288,6 +235,166 @@ class Harness:
             return None
         match = re.search(r"\d+(?:\.\d+)?", response.text or "")
         return float(match.group(0)) if match else None
+
+    def knowledge_dir(self) -> Path:
+        rel = self.settings.get("stores.knowledge.docs_dir", None)
+        if rel:
+            return self.settings.resolve(rel)
+        return pack_index.pack_dir(self.settings, self.pack) / "docs"
+
+    def ingest(self, *, force: bool = False) -> dict[str, Any]:
+        """Index the pack's documents and load its seed facts and episodes (idempotent).
+
+        The documents directory is `stores.knowledge.docs_dir` (the conformance profile names
+        its own) or the pack's `docs/` (`datasets/<pack>/docs/`); seeds are `facts.jsonl` and
+        `episodes.jsonl` in the pack directory, or in `stores.seeds_dir` when set.
+        """
+        s = self.settings
+        out = self.knowledge.ingest(self.knowledge_dir(), force=force)
+        seeds_rel = s.get("stores.seeds_dir", None)
+        seeds_dir = s.resolve(seeds_rel) if seeds_rel else pack_index.pack_dir(s, self.pack)
+        out["seeded"] = self.memory_writer.seed(seeds_dir)
+        if out["changed"] or force:  # a new embedder needs the facts and events embedded again
+            out["reindexed"] = self.semantic.reindex() + self.episodic.reindex()
+        out["embedder"] = self.embedder.id
+        out["vectors"] = self.vectors.backend
+        return out
+
+    def _register_tools(
+        self, registry: ToolRegistry, procedural: ProceduralStore, s: Settings
+    ) -> None:
+        builtins = s.get("tools.builtins", ["calculator", "read_skill"])
+        if "calculator" in builtins:
+            registry.register(CALCULATOR)
+        if "read_skill" in builtins:
+            registry.register(read_skill_tool(procedural.skill_body, sorted(procedural.skills)))
+        if "remember" in builtins:
+            registry.register(remember_tool())
+        if "read_doc" in builtins:
+            registry.register(read_doc_tool(self.knowledge))
+        files = s.get("tools.files", None)
+        pack = s.get("dataset", "_starter")
+        pack_tools = f"datasets/{pack}/tools.yaml"  # the artifact's name in the served set
+        served = s.served.read(pack_tools) if s.served is not None else None
+        on_disk = pack_index.pack_dir(s, pack) / "tools.yaml"
+        if files is None:
+            files = [pack_tools] if served is not None or on_disk.exists() else []
+        for rel in files:
+            path = s.resolve(rel)
+            text = s.served.read(rel) if s.served is not None else None
+            if text is not None:  # the release store's version of the pack's tools.yaml
+                registry.load_text(text, path)
+            else:
+                registry.load_yaml(on_disk if rel == pack_tools else path)
+
+
+class Harness(PackParts):
+    def __init__(self, settings: Settings) -> None:
+        self.registrations = load_components()
+        self.release = ReleaseManager(settings)
+        self.settings = s = settings.reload(self.release.served)
+        mode = s.mode
+
+        self.bus = EventBus()
+        self.tracer = Tracer(str(s.resolve(s.get("trace.sqlite_path", "data/trace.db"))))
+        self.bus.subscribe(self.tracer.record)
+        self.ops = OpsEvents(self.tracer.db, validate=bool(s.get("trace.validate_events", True)))
+
+        self.session = SessionStore(
+            str(s.resolve(s.get("stores.session.sqlite_path", "data/session.db")))
+        )
+        self.audit = AuditLog(str(s.resolve(s.get("audit.sqlite_path", "data/audit.db"))))
+        self.budgets = Budgets(
+            s.get("policy.budgets", {}),
+            str(s.resolve(s.get("policy.budgets_sqlite_path", "data/budgets.db"))),
+        )
+        self.approvals = ApprovalQueue(
+            str(s.resolve(s.get("approval.sqlite_path", "data/approvals.db"))),
+            timeout_s=float(s.get("approval.timeout_s", 900)),
+            show_args=bool(s.get("approval.show_args", True)),
+        )
+        self._build_memory_stores()
+        self.sandbox = Sandbox(
+            s.get("sandbox.level", "inprocess"),
+            int(s.get("sandbox.max_timeout_ms", 10000)),
+            mode=mode,
+            subprocess_cfg=s.get("sandbox.subprocess", {}),
+            workdir=s.resolve(s.get("sandbox.subprocess.workdir", "data/sandbox")),
+        )
+        self.providers = build_providers(s)
+        if not self.providers:
+            raise ConfigError("no model provider is configured (set HARNESSWALK_PROVIDER)")
+        self.provider_health = ProviderHealth(
+            self.providers, float(s.get("models.router.health_check_s", 30))
+        )
+        # One PII detector (the pack's patterns included) for the input guardrails and the
+        # memory writer, so a proposal is redacted exactly as a message is.
+        guard_cfg = self._input_guardrails_config()
+        self.input_guardrails = InputGuardrails(guard_cfg, mode, classifier=self._classify)
+        self.output_guardrails = OutputGuardrails(
+            s.get("output_guardrails", {}), mode, pii_cfg=guard_cfg.get("pii", {})
+        )
+        for name, value in self._build_artifact_components(s).items():
+            setattr(self, name, value)
+        self.ingest_report: dict[str, Any] | None = None
+        if bool(s.get("stores.ingest_on_start", True)):
+            try:
+                self.ingest_report = self.ingest()
+            except Exception as exc:  # a broken document or embedder never stops the harness
+                log.warning("knowledge ingestion failed: %s: %s", type(exc).__name__, exc)
+                self.ingest_report = {"error": f"{type(exc).__name__}: {exc}"}
+        self.packs: dict[str, PackRuntime] = {}  # P5: other packs, built when first named
+        self.evals = Evals(self)
+        self.otel = build_exporter(s, self.bus, self.ops)
+        self._background: list[asyncio.Task] = []
+        self.gateway = Gateway(self)
+        self._turn_providers: dict[str, ModelProvider] = {}  # built on demand for a turn
+        self._turn_fakes: dict[str, FakeProvider] = {}  # fixture name -> provider
+        self._startup_fake: FakeProvider | None = None  # `provider: fake` on another server
+
+    def busy(self) -> bool:
+        """A turn or an eval run is running in this process: artifacts must not change now."""
+        return bool(self.gateway.running_turns()) or self.evals.running()
+
+    # -- packs (P5) ------------------------------------------------------------------------------
+
+    def pack_known(self, pack: Any) -> bool:
+        return isinstance(pack, str) and pack_index.known(self.settings, pack)
+
+    def view(self, pack: str | None = None) -> Any:
+        """The harness as one pack runs it: itself for the configured pack, else that pack's
+        `PackRuntime` (built and ingested the first time). KeyError for an unknown pack."""
+        pack = pack or self.pack
+        if pack == self.pack:
+            return self
+        runtime = self.packs.get(pack)
+        if runtime is None:
+            if not self.pack_known(pack):
+                raise KeyError(pack)
+            runtime = self.packs[pack] = PackRuntime(self, pack)
+        return runtime
+
+    def candidate(self, pack: str | None = None) -> Any:
+        """What a release of this pack would serve: the pack's working set. Where the pack
+        already serves its working set (dev) that is the pack itself; otherwise a throwaway
+        `PackRuntime` built from the working set, for the eval gate's turns (release.md, P5).
+        The caller closes a throwaway one (`close()`)."""
+        view = self.view(pack)
+        if view.release.use_working_set:
+            return view
+        return PackRuntime(self, view.pack, working_set=True)
+
+    def pack_list(self) -> dict[str, Any]:
+        """GET /v1/packs."""
+        loaded = {self.pack, *self.packs}
+        found = pack_index.discover(self.settings)
+        items = [info.summary(self.pack, info.id in loaded) for info in found.values()]
+        if self.pack not in found:  # a configured pack given inline by a profile
+            items.insert(0, {
+                "id": self.pack, "title": self.pack, "domain": None, "feature": None,
+                "prompts": [], "counts": {}, "default": True, "loaded": True,
+            })  # fmt: skip
+        return {"default": self.pack, "packs": items}
 
     async def start(self) -> dict[str, list[str]]:
         """Server start-up: recover unfinished turns, then the sweeper and health probes."""
@@ -324,55 +431,6 @@ class Harness:
         self.semantic = SemanticStore(*args, s.get("stores.semantic", {}), estimator)
         self.episodic = EpisodicStore(*args, s.get("stores.episodic", {}), estimator)
         self.knowledge = KnowledgeStore(*args, s.get("stores.knowledge", {}), estimator)
-
-    def knowledge_dir(self) -> Path:
-        rel = self.settings.get("stores.knowledge.docs_dir", None)
-        if rel:
-            return self.settings.resolve(rel)
-        return self.settings.root / "datasets" / self.pack / "docs"
-
-    def ingest(self, *, force: bool = False) -> dict[str, Any]:
-        """Index the pack's documents and load its seed facts and episodes (idempotent).
-
-        The documents directory is `stores.knowledge.docs_dir` (the conformance profile names
-        its own) or `datasets/<pack>/docs/`; seeds are `facts.jsonl` and `episodes.jsonl` in
-        the pack directory, or in `stores.seeds_dir` when set.
-        """
-        s = self.settings
-        out = self.knowledge.ingest(self.knowledge_dir(), force=force)
-        seeds_rel = s.get("stores.seeds_dir", None)
-        seeds_dir = s.resolve(seeds_rel) if seeds_rel else s.root / "datasets" / self.pack
-        out["seeded"] = self.memory_writer.seed(seeds_dir)
-        if out["changed"] or force:  # a new embedder needs the facts and events embedded again
-            out["reindexed"] = self.semantic.reindex() + self.episodic.reindex()
-        out["embedder"] = self.embedder.id
-        out["vectors"] = self.vectors.backend
-        return out
-
-    def _register_tools(
-        self, registry: ToolRegistry, procedural: ProceduralStore, s: Settings
-    ) -> None:
-        builtins = s.get("tools.builtins", ["calculator", "read_skill"])
-        if "calculator" in builtins:
-            registry.register(CALCULATOR)
-        if "read_skill" in builtins:
-            registry.register(read_skill_tool(procedural.skill_body, sorted(procedural.skills)))
-        if "remember" in builtins:
-            registry.register(remember_tool())
-        if "read_doc" in builtins:
-            registry.register(read_doc_tool(self.knowledge))
-        files = s.get("tools.files", None)
-        pack_tools = f"datasets/{s.get('dataset', '_starter')}/tools.yaml"
-        served = s.served.read(pack_tools) if s.served is not None else None
-        if files is None:
-            files = [pack_tools] if served is not None or (s.root / pack_tools).exists() else []
-        for rel in files:
-            path = s.resolve(rel)
-            text = s.served.read(rel) if s.served is not None else None
-            if text is not None:  # the release store's version of the pack's tools.yaml
-                registry.load_text(text, path)
-            else:
-                registry.load_yaml(path)
 
     @property
     def provider_name(self) -> str:
@@ -465,8 +523,14 @@ class Harness:
                 "artifact_edit": mode != "public",
                 "feedback": True,
                 "step_over": True,
+                "packs": True,
+                "diagnose": mode != "public",
             },
             "release": self.release.status(),
+            "packs": {
+                "default": self.pack,
+                "ids": [p["id"] for p in self.pack_list()["packs"]],
+            },
             "limits": {
                 "max_message_chars": int(s.get("gateway.max_message_chars", 32000)),
                 "max_steps": int(s.get("loop.max_steps", 8)),
@@ -531,6 +595,8 @@ class Harness:
         await self.gateway.shutdown()
         if self.otel is not None:
             self.otel.shutdown()
+        for runtime in self.packs.values():
+            runtime.close()
         self.release.close()
         for db in (
             self.tracer.db,
@@ -543,3 +609,65 @@ class Harness:
         ):
             db.close()
         self.vectors.close()
+
+
+def pack_settings(settings: Settings, pack: str, **overrides: Any) -> Settings:
+    """The same settings for another pack (`dataset`), built from the files again."""
+    args = dict(settings.load_args or {})
+    if not args:
+        raise ConfigError("settings that were not loaded from files cannot switch packs")
+    args["overrides"] = {**(args.get("overrides") or {}), "dataset": pack, **overrides}
+    return load_settings(**args)
+
+
+class PackRuntime(PackParts):
+    """One dataset pack other than the configured one, as a session or an eval run uses it (P5).
+
+    It owns what is per pack: its release manager (served set, releases, the active release),
+    its settings, the memory stores scoped to the pack (the harness's SQLite file and vector
+    index), guardrails with the pack's patterns, and every artifact-backed component. Anything
+    else (sessions, trace, audit, approvals, budgets, providers, the gateway, evals) is the
+    harness's, read through attribute fallback, so the gateway runs a turn on a `PackRuntime`
+    exactly as on the harness.
+
+    `working_set=True` builds a throwaway candidate that serves the pack's working set whatever
+    the mode, for the eval gate where the pack serves its active release.
+    """
+
+    def __init__(self, harness: Harness, pack: str, *, working_set: bool = False) -> None:
+        self.harness = harness
+        self.pack = pack
+        extra = {"release.use_working_set": True} if working_set else {}
+        base = pack_settings(harness.settings, pack, **extra)
+        self.release = ReleaseManager(base)
+        self.settings = s = base.reload(self.release.served)
+        estimator = s.get("context.token_estimator", "chars_div_4")
+        args = (harness.memory_db, harness.vectors, harness.embedder, pack)
+        self.semantic = SemanticStore(*args, s.get("stores.semantic", {}), estimator)
+        self.episodic = EpisodicStore(*args, s.get("stores.episodic", {}), estimator)
+        self.knowledge = KnowledgeStore(*args, s.get("stores.knowledge", {}), estimator)
+        guard_cfg = self._input_guardrails_config()
+        self.input_guardrails = InputGuardrails(guard_cfg, s.mode, classifier=self._classify)
+        self.output_guardrails = OutputGuardrails(
+            s.get("output_guardrails", {}), s.mode, pii_cfg=guard_cfg.get("pii", {})
+        )
+        for name, value in self._build_artifact_components(s).items():
+            setattr(self, name, value)
+        self.ingest_report: dict[str, Any] | None = None
+        if bool(s.get("stores.ingest_on_start", True)):
+            try:
+                self.ingest_report = self.ingest()
+            except Exception as exc:  # as at start-up: a broken document never stops the pack
+                log.warning(
+                    "knowledge ingestion of %s failed: %s: %s", pack, type(exc).__name__, exc
+                )
+                self.ingest_report = {"error": f"{type(exc).__name__}: {exc}"}
+
+    def __getattr__(self, name: str) -> Any:
+        # Only called when the runtime has no such attribute: the harness's shared parts.
+        if name.startswith("__") or name == "harness":
+            raise AttributeError(name)
+        return getattr(self.__dict__["harness"], name)
+
+    def close(self) -> None:
+        self.release.close()

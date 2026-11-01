@@ -7,6 +7,10 @@ the same identity rules as the rest of the API.
     POST /v1/memory/proposals/{proposal_id}    {"decision": "accept" | "reject", "reason"?}
     GET  /v1/knowledge/docs                    documents the caller can retrieve from
     GET  /v1/knowledge/docs/{doc_id}           one document, its chunks and their citations
+
+P5: `?pack=` on the knowledge routes picks the pack (default the configured one), and a
+proposal is decided by the memory writer of the pack its session runs on, so an accepted fact
+lands in that pack's memory.
 """
 
 from __future__ import annotations
@@ -30,6 +34,13 @@ def add_memory_routes(
     identities: Any,
     read_json: Callable[[Request], Awaitable[dict[str, Any]]],
 ) -> None:
+    def pack_view(pack: str | None) -> Any:
+        if pack is None:
+            return harness
+        if not harness.pack_known(pack):
+            raise GatewayError(422, "invalid_request", f"no dataset pack {pack!r}")
+        return harness.view(pack)
+
     @app.get("/v1/memory/proposals")
     async def list_proposals(request: Request, status: str = "pending", limit: int = 20):
         identity, _ = identities.resolve(request)
@@ -57,8 +68,17 @@ def add_memory_routes(
                 403, "forbidden", "Public mode never writes durable memory, so nothing to decide."
             )
         decider = f"user:{identity.user_id or identity.tenant_id}"
+        found = harness.memory_writer.get(identity.tenant_id, proposal_id)
+        session_pack = (
+            harness.session.dataset_of(identity.tenant_id, found["session_id"]) if found else None
+        )
+        writer = (
+            harness.view(session_pack).memory_writer
+            if session_pack and harness.pack_known(session_pack)
+            else harness.memory_writer
+        )
         try:
-            record = harness.memory_writer.decide(
+            record = writer.decide(
                 identity.tenant_id, proposal_id, decider, decision, harness.settings.mode, reason
             )
         except KeyError as exc:
@@ -70,16 +90,18 @@ def add_memory_routes(
         return JSONResponse(record)
 
     @app.get("/v1/knowledge/docs")
-    async def list_docs(request: Request) -> JSONResponse:
+    async def list_docs(request: Request, pack: str | None = None) -> JSONResponse:
         identity, _ = identities.resolve(request)
+        h = pack_view(pack)
         view = SimpleNamespace(tenant_id=identity.tenant_id, user_id=identity.user_id)
-        return JSONResponse({"pack": harness.pack, "docs": harness.knowledge.docs(view)})
+        return JSONResponse({"pack": h.pack, "docs": h.knowledge.docs(view)})
 
     @app.get("/v1/knowledge/docs/{doc_id}")
-    async def get_doc(request: Request, doc_id: str) -> JSONResponse:
+    async def get_doc(request: Request, doc_id: str, pack: str | None = None) -> JSONResponse:
         identity, _ = identities.resolve(request)
+        h = pack_view(pack)
         view = SimpleNamespace(tenant_id=identity.tenant_id, user_id=identity.user_id)
-        doc = harness.knowledge.doc(view, doc_id)
+        doc = h.knowledge.doc(view, doc_id)
         if doc is None:
             raise GatewayError(404, "doc_not_found", f"No document {doc_id} for this tenant.")
         return JSONResponse(doc)

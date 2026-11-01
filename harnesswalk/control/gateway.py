@@ -14,6 +14,11 @@ first, `phase: reply` last.
 `turn_end.summary.citations` lists the knowledge chunks the reply cites with `[n]`.
 
 When input guardrails block, the walk is gateway, input_guardrails, gateway, trace.
+
+P5: the session's dataset pack picks what the turn runs on. `start_turn` resolves the pack's
+view of the harness (`Harness.view`: the harness itself for the configured pack, a
+`PackRuntime` for another), keeps it on the turn's state, and every per-pack component the walk
+calls (guardrails, context builder, loop, tools, memory writer) comes from it.
 """
 
 from __future__ import annotations
@@ -84,6 +89,9 @@ class TurnRequest:
     # fixture in any mode and is not rate-limited. Never set from HTTP.
     internal: bool = False
     eval_run_id: str | None = None
+    # P5: the pack view to run on instead of the session's (the eval gate's candidate). Never
+    # set from HTTP.
+    runtime: Any = field(default=None, repr=False)
 
 
 @dataclass
@@ -102,6 +110,7 @@ class TurnState:
     byo_key: bool = False  # the turn came with a BYO key (kept as a flag only, P4)
     restored: bool = False  # re-attached after a restart (P4 checkpoints)
     byo_key_dropped: bool = False  # restored, and the BYO key it had is gone
+    view: Any = None  # P5: the pack view the turn runs on (Harness.view)
 
 
 CITATION_MARK = re.compile(r"\[(\d{1,2})\]")
@@ -174,11 +183,8 @@ class Gateway:
                 422, "invalid_request", "disabling nodes is not allowed in public mode"
             )
         self._validate_provider(req)
-        pack = self.h.settings.get("dataset", "_starter")
-        if req.dataset and req.dataset != pack:
-            raise GatewayError(
-                422, "invalid_request", f"dataset {req.dataset!r} is not loaded ({pack} is)"
-            )
+        if req.dataset is not None and not self.h.pack_known(req.dataset):
+            raise GatewayError(422, "invalid_request", f"no dataset pack {req.dataset!r}")
 
     def _validate_provider(self, req: TurnRequest) -> None:
         """Per-turn `provider`, `fixture` and `model`: dev mode only (http_api.md)."""
@@ -220,7 +226,6 @@ class Gateway:
 
     async def start_turn(self, req: TurnRequest, client_ip: str = "") -> TurnState:
         self._validate(req)
-        self.h.refresh_artifacts()  # another process (the CLI) may have changed a release
         turn_providers = self._turn_providers(req)
         tenant = req.identity.tenant_id
         remaining = None
@@ -232,15 +237,24 @@ class Gateway:
             self._check_rate(f"tenant:{tenant}", int(self.cfg["rate_limit"]["per_tenant_per_hour"]))
 
         session_id = req.session_id or "sess_" + uuid7().replace("-", "")[:20]
-        pack = self.h.settings.get("dataset", "_starter")
+        owner = self.h.session.owner(session_id)
+        if owner is not None and owner != tenant:
+            raise GatewayError(
+                404, "session_not_found", f"No session {session_id} for this tenant."
+            )
+        existing = self.h.session.dataset_of(tenant, session_id) if owner else None
+        if req.dataset and existing is not None and existing != req.dataset:
+            raise GatewayError(422, "invalid_request", "the dataset is fixed after the first turn")
+        # The session's pack decides what the turn runs on (P5); the eval gate brings its own.
+        view = req.runtime or self._view(existing or req.dataset or self.h.pack)
         try:
-            dataset = self.h.session.ensure_session(tenant, session_id, req.dataset or pack)
+            dataset = self.h.session.ensure_session(tenant, session_id, view.pack)
         except SessionForbidden as exc:
             raise GatewayError(
                 404, "session_not_found", f"No session {session_id} for this tenant."
             ) from exc
-        if req.dataset and dataset != req.dataset:
-            raise GatewayError(422, "invalid_request", "the dataset is fixed after the first turn")
+        if req.runtime is None:
+            view.refresh_artifacts()  # another process (the CLI) may have changed a release
         if session_id in self._open_sessions:
             raise GatewayError(
                 409, "turn_in_progress", f"Session {session_id} already has a running turn."
@@ -280,7 +294,7 @@ class Gateway:
             output_schema=req.output_schema,
             byo_key=bool(req.api_key),
         )
-        state = TurnState(ctx=ctx, request=req, byo_key=bool(req.api_key))
+        state = TurnState(ctx=ctx, request=req, byo_key=bool(req.api_key), view=view)
         self.evict_finished()
         self.turns[turn_id] = state
         self._open_sessions[session_id] = turn_id
@@ -291,6 +305,7 @@ class Gateway:
             "step_mode": req.step_mode,
             "message_chars": len(req.message),
             "dataset": dataset,
+            "pack": dataset,
             "turn_index": ctx.turn_index,
         }
         if turn_providers is not None:
@@ -301,7 +316,7 @@ class Gateway:
             start["disabled"] = list(req.disabled_nodes)
         if req.model is not None:
             start["model_hint"] = req.model
-        start["release"] = self.h.release.stamp()
+        start["release"] = view.release.stamp()
         if req.eval_run_id is not None:
             start["eval_run_id"] = req.eval_run_id
         if req.output_schema is not None:
@@ -312,8 +327,14 @@ class Gateway:
 
     # -- running a turn -----------------------------------------------------------------------
 
+    def _view(self, pack: str) -> Any:
+        try:
+            return self.h.view(pack)
+        except KeyError as exc:
+            raise GatewayError(422, "invalid_request", f"no dataset pack {pack!r}") from exc
+
     async def run_turn(self, state: TurnState, rate_remaining: int | None = None) -> None:
-        ctx, req, h = state.ctx, state.request, self.h
+        ctx, req, h = state.ctx, state.request, state.view or self.h
         emit = ctx.emit
         try:
             async with node(ctx, "gateway") as span:
@@ -376,7 +397,7 @@ class Gateway:
         chunks: list[dict[str, Any]],
     ) -> None:
         """Output guardrails on the answer, then the reply. The tail every turn shares."""
-        ctx, h = state.ctx, self.h
+        ctx, h = state.ctx, state.view or self.h
         notice = h.loop.notices.get("error", "Something went wrong.")
         try:
             ctx.emit.edge("loop_to_output_guardrails")
@@ -397,7 +418,7 @@ class Gateway:
         self, state: TurnState, reply: str, exit_: str, steps: int, user_text: str | None
     ) -> None:
         """The reply span (with message_delta), the session record, memory writer, trace."""
-        ctx, h, emit = state.ctx, self.h, state.ctx.emit
+        ctx, h, emit = state.ctx, state.view or self.h, state.ctx.emit
         req = state.request
         state.exit = exit_
         full_reply, reply = reply, cap_reply(reply)
@@ -551,6 +572,7 @@ class Gateway:
         if not checkpoint or not checkpoint.get("pending_call"):
             return False
         summary = events[0].get("summary") or {}
+        view = h.view(summary.get("pack") or summary.get("dataset") or h.pack)
         provider, fixture = summary.get("provider"), summary.get("fixture")
         if provider is not None or fixture is not None:
             ctx.providers = h.turn_providers(provider, fixture)
@@ -577,7 +599,7 @@ class Gateway:
         ctx.output_schema = request.output_schema
         ctx.citations = list(kept.get("citations") or [])
         ctx.byo_key = bool(kept.get("byo_key"))
-        state = TurnState(ctx=ctx, request=request, restored=True)
+        state = TurnState(ctx=ctx, request=request, restored=True, view=view)
         # The key itself was never stored: the turn goes on with the configured provider.
         state.byo_key_dropped = ctx.byo_key
         h.session.mark_restored(ctx.tenant_id, ctx.turn_id)
@@ -609,7 +631,7 @@ class Gateway:
         from harnesswalk.nodes import fail_span
         from harnesswalk.types import ToolCall
 
-        ctx, h = state.ctx, self.h
+        ctx, h = state.ctx, state.view or self.h
         notice = h.loop.notices.get("error", "Something went wrong.")
         try:
             loop_span, tools_span, approval_span = ctx.emit.stack
