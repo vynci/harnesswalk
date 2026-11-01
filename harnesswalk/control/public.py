@@ -274,3 +274,121 @@ class PublicModels:
 
 def resets_at_iso(ts: float) -> str:
     return iso(ts).split(".")[0].rstrip("Z") + "Z"
+
+
+class StreamSlots:
+    """A bound on SSE streams open at once (`gateway.max_open_streams`, every mode).
+
+    A slot is taken when the route answers and given back when the stream ends. A slot whose
+    stream never started (the client went away first) lapses after `grace_s`, so the count can
+    never leak.
+    """
+
+    def __init__(self, cap: int = 50, grace_s: float = 30.0) -> None:
+        self.cap = max(1, int(cap))
+        self.grace_s = grace_s
+        self._open: dict[int, float] = {}  # token -> time taken (inf once its stream started)
+        self._next = 0
+
+    def acquire(self) -> int | None:
+        now = time.monotonic()
+        for token, taken in list(self._open.items()):
+            if now - taken > self.grace_s:
+                del self._open[token]
+        if len(self._open) >= self.cap:
+            return None
+        self._next += 1
+        self._open[self._next] = now
+        return self._next
+
+    def started(self, token: int) -> None:
+        if token in self._open:
+            self._open[token] = float("inf")
+
+    def release(self, token: int) -> None:
+        self._open.pop(token, None)
+
+    def __len__(self) -> int:
+        return len(self._open)
+
+
+def _when(ts: float | None) -> str | None:
+    return None if ts is None else iso(ts).split(".")[0] + "Z"
+
+
+def capabilities_block(h: Any, identity: Any = None, ip: str | None = None) -> dict[str, Any]:
+    """`GET /v1/capabilities` `public` (http_api.md, P6 additions), in every mode.
+
+    Public mode: the allowlist with each alias's availability for a site-paid turn, the
+    tenant's expiry, the IP's remaining turns this hour and the budget without dollars. Other
+    modes: every non-embedding alias with `available` from its provider, an `ok` budget and no
+    expiry, so the UI has one code path.
+    """
+    s = h.settings
+    public = s.mode == "public"
+    models_cfg = s.get("models.models", {})
+    gateway = s.get("gateway", {})
+    per_ip = int((gateway.get("rate_limit") or {}).get("per_ip_per_hour", 30))
+    size = s.get("input_guardrails.size.max_chars", None)
+    max_chars = int(gateway.get("max_message_chars", 32000))
+    if (
+        s.get("input_guardrails.enabled", True)
+        and size
+        and "size" in s.get("input_guardrails.checks", ["size"])
+    ):
+        max_chars = min(max_chars, int(size))
+    limits = {
+        "per_ip_per_hour": per_ip,
+        "remaining_this_hour": h.gateway.rate_remaining(ip or "") if public else None,
+        "max_steps": int(s.get("loop.max_steps", 8)),
+        "budget_tokens": s.get("loop.budget_tokens", None),
+        "max_message_chars": max_chars,
+    }
+    pm: PublicModels = h.public_models
+    if public:
+        aliases = pm.aliases()
+        default = pm.effective_default()
+        budget = h.hosted_budget.public_view()
+        reasons = {a: pm.reason(a) for a in aliases}
+    else:
+        aliases = [a for a, cfg in models_cfg.items() if not cfg.get("embedding")]
+        try:
+            default = h.router.route(_default_request(s.mode)).model
+        except Exception:
+            default = None
+        budget = {"status": "ok", "resets_at": None, "spent_fraction": 0}
+        reasons = {}
+        for alias in aliases:
+            provider = models_cfg[alias].get("provider", "")
+            if provider not in h.providers:
+                reasons[alias] = PROVIDER_UNCONFIGURED
+            elif not h.provider_health.ok(provider):
+                reasons[alias] = PROVIDER_UNHEALTHY
+            else:
+                reasons[alias] = None
+    models = [
+        {
+            "alias": alias,
+            "label": str(models_cfg.get(alias, {}).get("label") or alias),
+            "provider": models_cfg.get(alias, {}).get("provider"),
+            "default": alias == default,
+            "available": reasons[alias] is None,
+            "reason": reasons[alias],
+        }
+        for alias in aliases
+    ]
+    expires = getattr(identity, "expires_at", None) if public else None
+    return {
+        "session_expires_at": _when(expires),
+        "ttl_s": int(s.get("public.session_ttl_s", 7200)),
+        "limits": limits,
+        "models": models,
+        "budget": budget,
+        "byo_key_bypasses_budget": True,
+    }
+
+
+def _default_request(mode: str) -> Any:
+    from harnesswalk.execution.router import RouteRequest
+
+    return RouteRequest(step=1, step_kind="first", mode=mode)

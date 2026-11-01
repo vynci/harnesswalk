@@ -170,7 +170,8 @@ async def test_modes(tmp_path: Path) -> None:
         )
         assert r.status_code == 422
         r = await c.post("/v1/turns", json={"message": "What are your support hours?"})
-        assert r.status_code == 202 and "harnesswalk_tenant" in r.cookies
+        # P6: the first request (the 422 above) already minted the tenant and set its cookie.
+        assert r.status_code == 202 and "harnesswalk_tenant" in c.cookies
         await pub.gateway.wait(r.json()["turn_id"], 5)
         # The signed cookie keeps the same anonymous tenant; the events are visible to it only.
         assert (await c.get(r.json()["events_url"])).status_code == 200

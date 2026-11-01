@@ -48,7 +48,7 @@ from harnesswalk.control.budgets import Budgets
 from harnesswalk.control.gateway import Gateway
 from harnesswalk.control.input_guardrails import InputGuardrails
 from harnesswalk.control.policy import Policy
-from harnesswalk.control.public import PublicModels, TenantRegistry
+from harnesswalk.control.public import PublicModels, TenantRegistry, capabilities_block
 from harnesswalk.events import EventBus
 from harnesswalk.execution.builtin_tools import CALCULATOR, read_skill_tool
 from harnesswalk.execution.loop import Loop
@@ -535,8 +535,9 @@ class Harness(PackParts):
             self._turn_providers[provider] = build_provider(provider, self.settings)
         return {provider: self._turn_providers[provider]}
 
-    def capabilities(self) -> dict[str, Any]:
-        """GET /v1/capabilities: what this build can do, so the UI adapts (http_api.md)."""
+    def capabilities(self, identity: Any = None, client_ip: str | None = None) -> dict[str, Any]:
+        """GET /v1/capabilities: what this build can do, so the UI adapts (http_api.md).
+        P6: `public` (every mode) from control/public.py, for the caller's tenant and IP."""
         s, mode = self.settings, self.settings.mode
         models = s.get("models.models", {})
         default = self.provider_name
@@ -588,9 +589,10 @@ class Harness(PackParts):
                 "max_message_chars": int(s.get("gateway.max_message_chars", 32000)),
                 "max_steps": int(s.get("loop.max_steps", 8)),
                 "session_ttl_seconds": (
-                    int(s.get("gateway.session_ttl_s", 7200)) if mode == "public" else None
+                    int(s.get("public.session_ttl_s", 7200)) if mode == "public" else None
                 ),
             },
+            "public": capabilities_block(self, identity, client_ip),
         }
 
     async def _summarize(self, ctx: TurnContext, previous: str, turns: list[Turn]) -> str | None:
@@ -624,6 +626,35 @@ class Harness(PackParts):
         except ProviderError:
             return None
         return response.text
+
+    def readiness(self) -> dict[str, Any]:
+        """GET /readyz (P6): every store answers, the default model's provider is healthy, and
+        a public server has its cookie secret. Cheap: pings and in-memory state only."""
+        dbs = {
+            "trace": self.tracer.db,
+            "session": self.session.db,
+            "audit": self.audit.db,
+            "approvals": self.approvals.db,
+            "budgets": self.budgets.db,
+            "memory": self.memory_db,
+            "evals": self.evals.store.db,
+        }
+        checks: dict[str, str] = {
+            f"store.{name}": "ok" if db.ping() else "unavailable" for name, db in dbs.items()
+        }
+        if self.settings.mode == "public":
+            default = self.public_models.effective_default()
+            checks["default_model"] = "ok" if default else "unavailable"
+            checks["secret"] = "ok" if self.settings.secret else "missing"
+        else:
+            name = self.provider_name
+            checks["default_model"] = "ok" if self.provider_health.ok(name) else "unavailable"
+            default = None
+        ok = all(v == "ok" for v in checks.values())
+        out: dict[str, Any] = {"status": "ready" if ok else "not_ready", "checks": checks}
+        if default:
+            out["default_model"] = default
+        return out
 
     def health(self) -> dict[str, Any]:
         ok = self.tracer.db.ping()

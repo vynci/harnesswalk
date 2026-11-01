@@ -96,7 +96,7 @@ class LiveHarness:
             profile=PROFILE,
             overrides=case.get("config", {}),
             data_dir=data_dir,
-            env={},
+            env={"HARNESSWALK_SECRET": "conformance-secret"},  # public mode's cookie secret
         )
         self.harness = Harness(settings)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -168,6 +168,7 @@ class LiveProcess:
             "HARNESSWALK_ROOT": str(ROOT),
             "HARNESSWALK_DATA_DIR": str(self.data_dir),
             "HARNESSWALK_WEB_DIST": str(self.data_dir / "no-web"),
+            "HARNESSWALK_SECRET": "conformance-secret",
         }
         log = open(self.data_dir / "server.log", "ab")  # noqa: SIM115 - lives with the process
         self.proc = subprocess.Popen(cmd, env=env, stdout=log, stderr=log, cwd=str(ROOT))

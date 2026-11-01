@@ -7,7 +7,14 @@ Identity, P1:
 
 - `dev`: tenant `dev`, or the `X-Harnesswalk-Tenant` header.
 - `public`: an anonymous tenant per browser, carried in a signed HTTP-only cookie.
-- `private`: sign-in arrives in P6, so every request is `401` for now.
+- `private`: sign-in is deferred (P6 shipped public mode only), so every request is `401`.
+
+P6 (public mode, control/public.py): the tenant cookie carries its expiry and is signed with
+`HARNESSWALK_SECRET` (the app refuses to start in public mode without it); a tampered or
+expired cookie mints a fresh tenant, set on whatever response minted it. `GET /v1/capabilities`
+gains the `public` object (every mode), `GET /readyz` reports readiness, `GET /v1/ops/budget`
+shows today's hosted spend (dev only), SSE streams are bounded (`gateway.max_open_streams`),
+and with `logging.format: json` every request is one JSON log line (ops/logs.py).
 
 The session comes from the body's `session_id`, else the `X-Harnesswalk-Session` header, else
 the `harnesswalk_session` cookie, else a new one.
@@ -20,15 +27,14 @@ Ops routes (http_ops.py) and `step_over` on resume.
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
 import logging
 import os
 import re
-import secrets
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from http.cookies import SimpleCookie
 from pathlib import Path
 from typing import Any
 
@@ -36,10 +42,11 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from starlette.datastructures import MutableHeaders
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.routing import Match
 from starlette.staticfiles import StaticFiles
-from starlette.types import Scope
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from harnesswalk import SPEC_VERSION, __version__, diagram
 from harnesswalk.control.approval import ApprovalAlreadyDecided, ApprovalNotFound
@@ -47,12 +54,19 @@ from harnesswalk.control.gateway import GatewayError, TurnRequest
 from harnesswalk.control.http_lessons import add_lesson_routes
 from harnesswalk.control.http_memory import add_memory_routes
 from harnesswalk.control.http_ops import add_ops_routes, turn_extras
+from harnesswalk.control.public import (
+    StreamSlots,
+    TenantCookies,
+    client_ip,
+    request_is_https,
+)
 from harnesswalk.events import iso, parse_iso
 from harnesswalk.inspectors import inspect_node, node_source
 from harnesswalk.nodes import generated_diagram
+from harnesswalk.ops import logs
 from harnesswalk.runtime import Harness
 from harnesswalk.turns import MAX_SESSION_TURNS, session_turns, turn_summary
-from harnesswalk.types import Identity
+from harnesswalk.types import ConfigError, Identity
 
 TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 CURSOR = re.compile(r"-?\d{1,18}")  # an event seq: ?after=, ?after_seq= and Last-Event-ID
@@ -65,35 +79,73 @@ CORS_HEADERS = [
     "X-Harnesswalk-Tenant",
     "X-Harnesswalk-Session",
     "X-Harnesswalk-Provider-Key",
+    "X-Harnesswalk-Api-Key",
 ]
+# The BYO key header (P3), and the spelling the P6 contract names; the first one present wins.
+BYO_KEY_HEADERS = ("x-harnesswalk-provider-key", "x-harnesswalk-api-key")
+# Loop limits a turn might try to set. Never per turn; public mode says so with a 400 (P6).
+LOOP_LIMIT_KEYS = ("max_steps", "budget_tokens", "budget_usd", "timeout_s", "stuck_repeats")
 # Paths the web app's fallback never answers: the API, health and the OpenAPI docs, and the
 # built assets (a missing asset is a 404, not index.html served as JavaScript).
 EVAL_TENANT_PREFIX = "evalrun-"  # ops/eval/offline.py scratch_tenant()
-API_PREFIXES = ("v1/", "healthz/", "docs/", "openapi.json/", "assets/")
-API_PATHS = frozenset({"v1", "healthz", "docs", "openapi.json"})
+API_PREFIXES = ("v1/", "healthz/", "readyz/", "docs/", "openapi.json/", "assets/")
+API_PATHS = frozenset({"v1", "healthz", "readyz", "docs", "openapi.json"})
 ANY_METHOD = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
 
 def error(
-    status: int, code: str, message: str, headers: dict[str, str] | None = None
+    status: int,
+    code: str,
+    message: str,
+    headers: dict[str, str] | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> JSONResponse:
-    return JSONResponse({"error": {"code": code, "message": message}}, status, headers=headers)
+    body = {"error": {"code": code, "message": message, **(extra or {})}}
+    return JSONResponse(body, status, headers=headers)
 
 
 class Identities:
     """Resolve who is asking. The only place that knows about cookies and headers."""
 
     def __init__(self, harness: Harness) -> None:
-        self.mode = harness.settings.mode
-        self.cfg = harness.settings.get("gateway", {})
-        secret = os.environ.get("HARNESSWALK_SECRET") or secrets.token_hex(32)
-        self._key = secret.encode()
+        settings = harness.settings
+        self.mode = settings.mode
+        self.cfg = settings.get("gateway", {})
+        self.trust_proxy = bool(self.cfg.get("trust_proxy", False))
+        self.cookie_secure = settings.get("public.cookie_secure", "auto")
+        if self.mode == "public" and not settings.secret:
+            raise ConfigError(
+                "public mode needs HARNESSWALK_SECRET: it signs the anonymous tenant cookie"
+            )
+        ttl = float(settings.get("public.session_ttl_s", 7200))
+        # Outside public mode no cookie is ever minted, so a throwaway secret is enough.
+        self.cookies = TenantCookies(settings.secret or os.urandom(32).hex(), ttl)
 
-    def _sign(self, value: str) -> str:
-        return hmac.new(self._key, value.encode(), hashlib.sha256).hexdigest()[:32]
+    def client_ip(self, request: Request) -> str:
+        peer = request.client.host if request.client else ""
+        return client_ip(request.headers, peer, self.trust_proxy)
+
+    def secure(self, request: Request) -> bool:
+        """Whether cookies get `Secure`: always, never, or when the request came over HTTPS."""
+        if self.cookie_secure in ("always", "never"):
+            return self.cookie_secure == "always"
+        return request_is_https(request.headers, request.url.scheme, self.trust_proxy)
 
     def resolve(self, request: Request) -> tuple[Identity, str | None]:
-        """The identity, and a tenant cookie value to set when a new anonymous tenant is minted."""
+        """The identity, and a tenant cookie value to set when a new anonymous tenant is minted.
+
+        Resolved once per request (a second call returns the same tenant), and a minted cookie
+        is set on the response by the middleware, whichever route minted it."""
+        cached = getattr(request.state, "identity", None)
+        if cached is not None:
+            return cached
+        resolved = self._resolve(request)
+        request.state.identity = resolved
+        if resolved[1]:
+            request.state.tenant_cookie = resolved[1]
+        return resolved
+
+    def _resolve(self, request: Request) -> tuple[Identity, str | None]:
         if self.mode == "dev":
             tenant = self.cfg.get("dev_tenant", "dev")
             header = request.headers.get("x-harnesswalk-tenant")
@@ -107,16 +159,14 @@ class Identities:
                 tenant = header
             return Identity(tenant, None, ["user"], anonymous=False), None
         if self.mode == "public":
-            raw = request.cookies.get(TENANT_COOKIE, "")
-            tenant, _, sig = raw.partition(".")
-            if tenant and hmac.compare_digest(sig, self._sign(tenant)):
-                return Identity(tenant, None, ["user"], anonymous=True), None
-            tenant = "anon-" + secrets.token_hex(8)
-            return Identity(
-                tenant, None, ["user"], anonymous=True
-            ), f"{tenant}.{self._sign(tenant)}"
+            checked = self.cookies.check(request.cookies.get(TENANT_COOKIE))
+            if checked is not None:
+                tenant, expires = checked
+                return Identity(tenant, None, ["user"], anonymous=True, expires_at=expires), None
+            tenant, expires, value = self.cookies.mint()
+            return Identity(tenant, None, ["user"], anonymous=True, expires_at=expires), value
         raise GatewayError(
-            401, "unauthenticated", "Sign-in arrives in P6; private mode has no identity yet."
+            401, "unauthenticated", "Sign-in is not offered yet; private mode has no identity."
         )
 
 
@@ -131,6 +181,62 @@ class WebApp(StaticFiles):
             if exc.status_code != 404 or api:
                 raise
             return await super().get_response("index.html", scope)
+
+
+class EdgeMiddleware:
+    """Plain ASGI middleware (P6): sets a freshly minted tenant cookie on whatever response
+    minted it, adds `X-Request-Id`, and with JSON logs writes one line per request."""
+
+    def __init__(self, app: ASGIApp, identities: Identities, json_logs: bool) -> None:
+        self.app = app
+        self.identities = identities
+        self.json_logs = json_logs
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        started = time.monotonic()
+        request = Request(scope)
+        request_id = logs.request_id(request.headers.get("x-request-id"))
+        status = {"code": 500}
+
+        async def wrapped(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                status["code"] = message["status"]
+                headers = MutableHeaders(scope=message)
+                headers["X-Request-Id"] = request_id
+                state = scope.get("state") or {}
+                minted = state.get("tenant_cookie")
+                if minted:
+                    expires = state["identity"][0].expires_at or time.time()
+                    cookie = SimpleCookie()
+                    cookie[TENANT_COOKIE] = minted
+                    morsel = cookie[TENANT_COOKIE]
+                    morsel["max-age"] = str(max(0, int(expires - time.time())))
+                    morsel["path"] = "/"
+                    morsel["httponly"] = True
+                    morsel["samesite"] = "lax"
+                    if self.identities.secure(request):
+                        morsel["secure"] = True
+                    headers.append("set-cookie", cookie.output(header="").strip())
+            await send(message)
+
+        try:
+            await self.app(scope, receive, wrapped)
+        finally:
+            if self.json_logs:
+                state = scope.get("state") or {}
+                identity = state.get("identity")
+                route = scope.get("route")
+                logs.request_line(
+                    request_id=request_id,
+                    method=scope.get("method", ""),
+                    route=getattr(route, "path", None) or "unmatched",
+                    status=status["code"],
+                    duration_ms=(time.monotonic() - started) * 1000,
+                    tenant=identity[0].tenant_id if identity else None,
+                )
 
 
 def web_dist_dir(harness: Harness) -> Path | None:
@@ -219,13 +325,51 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
             allow_headers=CORS_HEADERS,
         )
     identities = Identities(harness)
+    app.state.identities = identities
     gateway = harness.gateway
     max_body = int(harness.settings.get("gateway.max_body_bytes", 65536))
+    streams = StreamSlots(int(harness.settings.get("gateway.max_open_streams", 50)))
+    app.state.streams = streams
+    json_logs = harness.settings.get("logging.format", "text") == "json"
+    if json_logs:
+        logs.configure_json()
 
     @app.exception_handler(GatewayError)
     async def _gateway_error(_: Request, exc: GatewayError) -> JSONResponse:
-        headers = {"Retry-After": "3600"} if exc.status == 429 else None
-        return error(exc.status, exc.code, exc.message, headers)
+        headers = dict(exc.headers)
+        if exc.status == 429 and "Retry-After" not in headers:
+            headers["Retry-After"] = str(exc.extra.get("retry_after", 3600))
+        return error(exc.status, exc.code, exc.message, headers or None, exc.extra)
+
+    app.add_middleware(EdgeMiddleware, identities=identities, json_logs=json_logs)
+
+    def acquire_stream() -> int:
+        token = streams.acquire()
+        if token is None:
+            raise GatewayError(
+                429,
+                "rate_limited",
+                "Too many event streams are open. Close one and try again.",
+                extra={"retry_after": 5},
+                headers={"Retry-After": "5"},
+            )
+        return token
+
+    def bounded(token: int, source: AsyncIterator[str]) -> AsyncIterator[str]:
+        """An SSE body that gives its stream slot back however it ends."""
+
+        async def body() -> AsyncIterator[str]:
+            streams.started(token)
+            try:
+                async for chunk in source:
+                    yield chunk
+            finally:
+                streams.release(token)
+
+        return body()
+
+    app.state.acquire_stream = acquire_stream
+    app.state.bounded = bounded
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:
@@ -266,6 +410,13 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
         body.update({k: v for k, v in health.items() if k != "status"})
         return JSONResponse(body, 200 if health["status"] == "ok" else 503)
 
+    @app.get("/readyz")
+    async def readyz() -> JSONResponse:
+        # P6: ready to take turns: every store opens, the default model's provider is healthy,
+        # and in public mode the cookie secret is there. Unauthenticated and cheap.
+        ready = harness.readiness()
+        return JSONResponse(ready, 200 if ready["status"] == "ready" else 503)
+
     @app.post("/v1/turns", status_code=202)
     async def post_turn(request: Request) -> JSONResponse:
         identity, tenant_cookie = identities.resolve(request)
@@ -283,6 +434,15 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
         ):
             raise GatewayError(400, "invalid_request", "session_id is not a valid id")
         chosen = turn_options(data, options)
+        if harness.settings.mode == "public":
+            fixed = [k for k in LOOP_LIMIT_KEYS if k in data or k in options]
+            if fixed:
+                raise GatewayError(
+                    400, "invalid_request", f"{fixed[0]} cannot be changed in public mode"
+                )
+            if tenant_cookie and "session_id" not in data:
+                # A fresh tenant (the old one expired): its old session cookie is not its own.
+                session_id = request.headers.get("x-harnesswalk-session")
         state = await gateway.start_turn(
             TurnRequest(
                 message=data.get("message"),  # type: ignore[arg-type]
@@ -291,13 +451,15 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
                 step_mode=chosen["step_mode"],
                 dataset=options.get("pack", options.get("dataset")),  # P5 spelling first
                 disabled_nodes=chosen["disabled_nodes"],
-                api_key=request.headers.get("x-harnesswalk-provider-key"),
+                api_key=next(
+                    (request.headers[h] for h in BYO_KEY_HEADERS if request.headers.get(h)), None
+                ),
                 provider=chosen["provider"],
                 fixture=chosen["fixture"],
                 model=chosen["model"],
                 output_schema=chosen["output_schema"],
             ),
-            client_ip=request.client.host if request.client else "",
+            client_ip=identities.client_ip(request),
         )
         ctx = state.ctx
         response = JSONResponse(
@@ -309,10 +471,14 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
             },
             202,
         )
-        response.set_cookie(SESSION_COOKIE, ctx.session_id, httponly=True, samesite="lax")
-        if tenant_cookie:
-            response.set_cookie(TENANT_COOKIE, tenant_cookie, httponly=True, samesite="lax")
-        return response
+        response.set_cookie(
+            SESSION_COOKIE,
+            ctx.session_id,
+            httponly=True,
+            samesite="lax",
+            secure=identities.secure(request),
+        )
+        return response  # a minted tenant cookie is set by the middleware
 
     def not_found(turn_id: str) -> GatewayError:
         return GatewayError(404, "turn_not_found", f"No turn {turn_id} for this tenant.")
@@ -391,6 +557,7 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
         # The largest cursor wins: a browser reconnecting to the same `?after=` URL sends
         # Last-Event-ID too, and must not get the events between the two again.
         start = max([-1, *cursors])
+        token = acquire_stream()
 
         async def stored():
             # No live task (a finished turn, one cut off by a restart, or follow=false).
@@ -408,7 +575,7 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
                 yield f"id: {event['seq']}\nevent: {event['type']}\ndata: {data}\n\n"
 
         return StreamingResponse(
-            stream(),
+            bounded(token, stream()),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
@@ -522,9 +689,20 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
         return JSONResponse(source)
 
     @app.get("/v1/capabilities")
-    async def capabilities() -> JSONResponse:
-        # No identity needed: a signed-out UI reads this to learn the mode and how to sign in.
-        return JSONResponse(harness.capabilities())
+    async def capabilities(request: Request) -> JSONResponse:
+        # No sign-in needed: a signed-out UI reads this to learn the mode. In public mode it
+        # resolves (or mints) the anonymous tenant, so the session clock starts here (P6).
+        identity = None
+        if harness.settings.mode in ("dev", "public"):
+            identity = identities.resolve(request)[0]
+        return JSONResponse(harness.capabilities(identity, identities.client_ip(request)))
+
+    @app.get("/v1/ops/budget")
+    async def ops_budget() -> JSONResponse:
+        # P6: today's row of the shared hosted budget, dollars included: dev mode only.
+        if harness.settings.mode != "dev":
+            raise GatewayError(403, "forbidden_in_mode", "The budget is shown in dev mode only.")
+        return JSONResponse(harness.hosted_budget.today())
 
     add_memory_routes(app, harness, identities, read_json)
     add_ops_routes(app, harness, identities, read_json)
