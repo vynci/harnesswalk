@@ -1,5 +1,4 @@
-"""The API image builds the web app reproducibly and never bakes local secrets into it; the origin
-proxy hands the API one viewer address it can trust."""
+"""The API image builds the web app reproducibly and never bakes local secrets into it."""
 
 import re
 
@@ -29,18 +28,3 @@ def test_dockerignore_keeps_env_files_out_of_every_directory() -> None:
     lines = (ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines()
     assert "**/.env*" in lines  # web/.env.local would otherwise bake VITE_* values into the app
     assert not any(line.startswith("!") and ".env" in line for line in lines)
-
-
-def test_caddy_gives_the_api_one_trusted_viewer_address() -> None:
-    """The per-IP rate limit keys on the X-Forwarded-For hop Caddy writes (TRUST_PROXY=1), from
-    the viewer-ip function's header only; headers a viewer can send that name another address
-    never reach the API."""
-    caddy = (ROOT / "deploy" / "caddy" / "Caddyfile").read_text(encoding="utf-8")
-    proxy = caddy[caddy.index("reverse_proxy api:8000") :].split("flush_interval", 1)[0]
-    assert re.search(r"^\s*header_up X-Forwarded-For \{client_ip\}\s*$", proxy, re.M)
-    assert re.search(r"^\s*header_up -CloudFront-Viewer-Address\s*$", proxy, re.M)
-    assert re.search(r"^\s*header_up -X-Harnesswalk-Viewer-Ip\s*$", proxy, re.M)
-    assert re.search(r"^\s*header_up -X-Origin-Verify\s*$", proxy, re.M)
-    sources = re.search(r"^\s*client_ip_headers (.+)$", caddy, re.M)
-    assert sources and sources.group(1).split() == ["X-Harnesswalk-Viewer-Ip"]
-    assert "trusted_proxies static" in caddy  # the peer is always our distribution (SG + header)

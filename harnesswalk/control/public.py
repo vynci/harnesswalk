@@ -7,9 +7,10 @@ Not a node: the gateway, the HTTP surface and the model layer call into it
   HTTP-only cookie signed with `HARNESSWALK_SECRET`. A tampered, foreign or expired cookie
   gets a fresh tenant, never an error.
 - `client_ip`: the raw peer address, or with `gateway.trust_proxy` (env
-  `HARNESSWALK_TRUST_PROXY=1`) the last `X-Forwarded-For` hop: the one the trusted proxy wrote
-  (Caddy writes exactly one, the viewer address from the distribution's viewer-ip function).
-  Never `CloudFront-Viewer-Address`, which a viewer can send through the distribution.
+  `HARNESSWALK_TRUST_PROXY=1`) `X-Harnesswalk-Viewer-Ip` (the distribution's viewer-ip function
+  overwrites whatever the viewer sent), else the first `X-Forwarded-For` hop (Caddy writes a
+  single one). Never `CloudFront-Viewer-Address`, which a viewer can send through the
+  distribution.
 - `rate_key`: the bucket an address counts in: IPv4 as is, IPv6 by its /64 (one subscriber's
   prefix), so rotating addresses inside one prefix does not buy more turns or streams.
 - `RateLimiter`: the per-IP and per-tenant hourly windows, in a table bounded by
@@ -88,16 +89,19 @@ class TenantCookies:
 def client_ip(headers: Mapping[str, str], peer: str, trust_proxy: bool) -> str:
     """The address rate limits count. Proxy headers only count when the proxy is trusted.
 
-    Behind the trusted proxy the address is the last `X-Forwarded-For` hop: the proxy next to
-    the API wrote it (Caddy replaces the header with the one viewer address it took from
-    `X-Harnesswalk-Viewer-Ip`, which the CloudFront function overwrites). Earlier hops and
-    `CloudFront-Viewer-Address` are the viewer's to write, so they never count (P6 review).
+    Behind the trusted proxy the address is `X-Harnesswalk-Viewer-Ip`, which the CloudFront
+    viewer-ip function sets from the connection (overwriting any value the viewer sent), else
+    the first `X-Forwarded-For` hop, the single one Caddy writes from that header.
+    `CloudFront-Viewer-Address` never counts: the origin request policy forwards a viewer's own
+    (P6 review).
     """
     if trust_proxy:
-        hops = [h.strip() for h in (headers.get("x-forwarded-for") or "").split(",")]
-        hops = [h for h in hops if h]
-        if hops:
-            return hops[-1][:64]
+        viewer = (headers.get("x-harnesswalk-viewer-ip") or "").strip()
+        if viewer:
+            return viewer[:64]
+        forwarded = (headers.get("x-forwarded-for") or "").split(",")[0].strip()
+        if forwarded:
+            return forwarded[:64]
     return peer
 
 

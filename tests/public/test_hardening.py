@@ -233,10 +233,12 @@ def test_rate_table_is_bounded_and_counts_the_right_address() -> None:
         "cloudfront-viewer-address": "198.51.100.9:44321",
     }
     assert client_ip(headers, "10.0.0.2", trust_proxy=False) == "10.0.0.2"
-    # P6 review: the hop the trusted proxy wrote (the last one); never CloudFront-Viewer-Address
-    # or an earlier hop, which the viewer can send.
-    assert client_ip(headers, "10.0.0.2", trust_proxy=True) == "10.0.0.1"
-    assert client_ip({"x-forwarded-for": "203.0.113.7"}, "p", True) == "203.0.113.7"
+    # P6 review: the viewer-ip function's header, else the first X-Forwarded-For hop; never
+    # CloudFront-Viewer-Address, which a viewer can send through the distribution.
+    assert client_ip(headers, "10.0.0.2", trust_proxy=True) == "203.0.113.7"
+    viewer = {**headers, "x-harnesswalk-viewer-ip": "192.0.2.44"}
+    assert client_ip(viewer, "10.0.0.2", trust_proxy=True) == "192.0.2.44"
+    assert client_ip(viewer, "10.0.0.2", trust_proxy=False) == "10.0.0.2"
     assert client_ip({"cloudfront-viewer-address": "198.51.100.9:1"}, "p", True) == "p"
     assert client_ip({"x-forwarded-for": "2001:db8::7"}, "p", True) == "2001:db8::7"
 
@@ -724,3 +726,27 @@ async def test_a_paused_public_turn_ends_at_the_wall_clock_bound(tmp_path: Path)
         )
         assert again.status_code == 202
         await h.gateway.wait(again.json()["turn_id"], 10)
+
+
+@pytest.mark.anyio
+async def test_a_forged_cloudfront_viewer_address_does_not_move_the_rate_key(
+    tmp_path: Path,
+) -> None:
+    """The review's rate_bypass shape: rotating CloudFront-Viewer-Address (and the v6 address
+    inside one /64) never buys more turns than the per-IP limit."""
+    overrides = {"gateway.trust_proxy": True, "gateway.rate_limit.per_ip_per_hour": 3}
+    h = public_harness(tmp_path, overrides=overrides)
+    app = create_app(h)
+    codes = []
+    async with client(h, app=app) as c:
+        for i in range(5):
+            c.cookies.clear()
+            headers = {
+                "X-Harnesswalk-Viewer-Ip": f"2001:db8:5:6::{i + 1:x}",
+                "CloudFront-Viewer-Address": f"198.18.0.{i}:1234",
+            }
+            r = await c.post("/v1/turns", json={"message": "hi"}, headers=headers)
+            codes.append(r.status_code)
+            if r.status_code == 202:
+                await h.gateway.wait(r.json()["turn_id"], 10)
+    assert codes == [202, 202, 202, 429, 429]
