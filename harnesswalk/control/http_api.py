@@ -288,7 +288,7 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
                 identity=identity,
                 session_id=session_id,
                 step_mode=chosen["step_mode"],
-                dataset=options.get("dataset"),
+                dataset=options.get("pack", options.get("dataset")),  # P5 spelling first
                 disabled_nodes=chosen["disabled_nodes"],
                 api_key=request.headers.get("x-harnesswalk-provider-key"),
                 provider=chosen["provider"],
@@ -494,12 +494,20 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
         return JSONResponse(generated_diagram(view))
 
     @app.get("/v1/nodes/{node_id}")
-    async def get_node(request: Request, node_id: str, recent: int = 5) -> JSONResponse:
+    async def get_node(
+        request: Request, node_id: str, recent: int = 5, pack: str | None = None
+    ) -> JSONResponse:
         identity, _ = identities.resolve(request)
         if node_id not in diagram.nodes_by_id():
             raise GatewayError(404, "node_not_found", f"No node {node_id}.")
+        if pack is not None and not harness.pack_known(pack):
+            raise GatewayError(422, "invalid_request", f"no dataset pack {pack!r}")
+        try:
+            view = harness.view(pack)  # P5: the inspectors of the pack the UI has picked
+        except KeyError as exc:  # PackUnavailable: the pack is there but does not load
+            raise GatewayError(422, "invalid_request", str(exc.args[0])) from exc
         return JSONResponse(
-            inspect_node(harness, identity.tenant_id, node_id, max(0, min(recent, 50)))
+            inspect_node(view, identity.tenant_id, node_id, max(0, min(recent, 50)))
         )
 
     @app.get("/v1/nodes/{node_id}/source")

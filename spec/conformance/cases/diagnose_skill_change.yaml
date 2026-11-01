@@ -1,0 +1,68 @@
+id: diagnose_skill_change
+title: A skill edit regresses a golden case; diagnose names the skill as the layer at fault, on its own and when asked, for the case and for a turn with bad feedback
+spec_version: 0.1.0
+fixture: diagnose_skill_change
+turns:
+  - before:
+      - method: PUT
+        path: /v1/artifacts/skill/returns
+        body: { body: "---\nname: returns\ndescription: How to handle a return or refund request.\n---\nReturns are accepted within 30 days of delivery.\n" }
+        match: { kind: skill, name: returns, version: 1 }
+      - method: POST
+        path: /v1/evals/runs
+        body: { pack: _starter, suite: golden }
+        status: 202
+        save: { run1: run_id }
+      - method: GET
+        path: /v1/evals/runs/${run1}
+        wait: { timeout_s: 20 }
+        match: { status: done, totals: { cases: 1, passed: 1, failed: 0 }, regressions: 0 }
+      - method: PUT
+        path: /v1/artifacts/skill/returns
+        body: { body: "---\nname: returns\ndescription: Refunds and returns.\n---\nReturns are accepted within 30 days of delivery.\n", note: a shorter description }
+        match: { version: 2, previous_version: 1 }
+      - method: POST
+        path: /v1/evals/runs
+        body: { pack: _starter, suite: golden }
+        status: 202
+        save: { run2: run_id }
+      - method: GET
+        path: /v1/evals/runs/${run2}
+        wait: { timeout_s: 20 }
+        match:
+          status: done
+          regressions: 1
+          regression_cases: [skill_index]
+          diagnoses: { skill_index: prompt_or_skill }
+    send:
+      message: What are your support hours?
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: turn_end, status: done, summary: { exit: answered } }
+    after:
+      - method: POST
+        path: /v1/diagnose
+        body: { run_id: "${run2}", case_id: skill_index }
+        match:
+          target: case
+          run_id: ${run2}
+          case_id: skill_index
+          layer: prompt_or_skill
+          baseline: { run_id: "${run1}" }
+      - method: POST
+        path: /v1/diagnose
+        body: { run_id: "${run1}", case_id: skill_index }
+        status: 422
+        match: { error: { code: nothing_to_diagnose } }
+      - method: POST
+        path: /v1/turns/${turn_id}/feedback
+        body: { rating: bad, note: the answer ignored the returns skill }
+      - method: POST
+        path: /v1/diagnose
+        body: { turn_id: "${turn_id}" }
+        match: { target: turn, turn_id: "${turn_id}", layer: prompt_or_skill, baseline: { run_id: "${run1}" } }
+      - method: GET
+        path: /v1/turns/${turn_id}
+        match: { diagnosis: { layer: prompt_or_skill, target: turn } }

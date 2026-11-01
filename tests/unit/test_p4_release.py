@@ -50,7 +50,7 @@ def test_first_start_seeds_the_working_set_and_releases_it(tmp_path: Path) -> No
         "working_set_dirty": False,
         "use_working_set": True,
     }
-    assert h.release.store.verify("_starter") == {"ok": True, "releases": 1}
+    assert h.release.store.verify("_starter") == {"ok": True, "releases": 1, "activations": 1}
     assert h.procedural.system_prompt == PROMPT_V1
 
 
@@ -89,7 +89,7 @@ async def test_edit_release_rollback_round_trip(tmp_path: Path) -> None:
         listed = (await c.get("/v1/releases")).json()
         assert [r["release_id"] for r in listed["releases"]] == ["r2", "r1"]
         assert listed["releases"][0]["active"] and not listed["working_set_dirty"]
-        assert listed["verify"] == {"ok": True, "releases": 2}
+        assert listed["verify"] == {"ok": True, "releases": 2, "activations": 2}
         assert listed["releases"][0]["prev_hash"] == listed["releases"][1]["hash"]
 
         r = await c.post("/v1/releases/r1/rollback", json={})
@@ -270,7 +270,7 @@ def test_the_release_chain_detects_tampering(tmp_path: Path) -> None:
     store.create_release("p", by="t", note="a")
     store.put("p", "prompt", "p", "two", by="t")
     store.create_release("p", by="t", note="b")
-    assert store.verify("p") == {"ok": True, "releases": 2}
+    assert store.verify("p") == {"ok": True, "releases": 2, "activations": 2}
     store.db.execute("UPDATE releases SET note = 'edited' WHERE release_id = 'r1'")
     assert store.verify("p") == {"ok": False, "releases": 2, "broken_at": "r1"}
     store.close()

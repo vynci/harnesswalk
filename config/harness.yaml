@@ -83,3 +83,18 @@ audit:
   sqlite_path: data/audit.db
   record_read_allows: false
   export_max: 5000              # GET /v1/audit page ceiling
+
+# P5: dataset packs (spec/contracts/http_api.md, "P5 additions"). A session picks one with
+# POST /v1/sessions {pack}; `dataset` above is the default.
+packs:
+  roots: [datasets]             # directories whose subdirectories are packs (pack.yaml or system_prompt.md)
+
+# P5: the eval gate on release (spec/contracts/release.md, "P5 additions"). POST /v1/releases
+# runs the pack's golden set on the working set first and refuses the release (409
+# gate_failed) below min_pass_rate; {force: true} skips it in dev mode, audited.
+release:
+  gate:
+    enabled: true
+    suite: golden
+    min_pass_rate: 1.0
+    packs: all                  # all, or a list of pack ids whose releases are gated

@@ -120,7 +120,8 @@ class Breakpoints:
     """Step mode: pause after every node_enter until someone calls `resume` or `cancel`.
 
     `step_over` (P4) releases the breakpoint and skips the breakpoints of expert nodes until the
-    next simple-view node is entered, where it pauses again.
+    next simple-view node is entered, where it pauses again. `node_resumed.summary.mode` (P5)
+    says which control released the pause: `step`, `continue` or `step_over`.
     """
 
     def __init__(self, enabled: bool) -> None:
@@ -128,6 +129,7 @@ class Breakpoints:
         self.paused_node: str | None = None
         self.cancelled = False
         self.over = False  # stepping over: expert nodes do not pause
+        self.mode = "step"  # how the current pause was released (node_resumed.summary.mode)
         self._release = asyncio.Event()
 
     async def hit(self, emitter: TurnEmitter, node_id: str) -> None:
@@ -150,7 +152,9 @@ class Breakpoints:
             self.paused_node = None
         if self.cancelled:  # no node_resumed: the paused span closes with error instead
             raise TurnCancelled()
-        emitter.point("node_resumed", node_id, "active", {"reason": "breakpoint"})
+        emitter.point(
+            "node_resumed", node_id, "active", {"reason": "breakpoint", "mode": self.mode}
+        )
 
     def cancel(self) -> bool:
         """Stop at the current breakpoint, or at the next one. True when it was paused."""
@@ -163,6 +167,7 @@ class Breakpoints:
     def finish(self) -> None:
         """Clear every breakpoint and release the current one: the turn runs to its end."""
         self.enabled = False
+        self.mode = "continue"
         self.paused_node = None
         self._release.set()
 
@@ -174,6 +179,7 @@ class Breakpoints:
         if mode == "continue":
             self.enabled = False
         self.over = mode == "step_over"
+        self.mode = mode
         self.paused_node = None  # a second resume before the turn wakes is a 409
         self._release.set()
         return node_id

@@ -144,7 +144,7 @@ async def test_diagram_and_inspectors(tmp_path: Path) -> None:
         by_id = {n["id"]: n for n in doc["nodes"]}
         assert by_id["loop"]["implemented"] and by_id["knowledge"]["implemented"]
         assert by_id["eval"]["implemented"] and by_id["release"]["implemented"]
-        assert not by_id["diagnose"]["implemented"] and not by_id["eval"]["stub"]
+        assert by_id["diagnose"]["implemented"] and not by_id["eval"]["stub"]
         simple = (await c.get("/v1/diagram", params={"view": "simple"})).json()
         assert len(simple["nodes"]) == 15
         policy = (await c.get("/v1/nodes/policy")).json()

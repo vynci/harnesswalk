@@ -16,6 +16,16 @@ identity rules, error shape and content-type rule as every other route.
     POST /v1/releases, /v1/releases/{id}/rollback     create, roll back (dev and private)
     GET  /v1/trace/turns, /v1/trace/turns/{id}/receipt, /v1/trace/ops-events
     GET  /v1/events                                   every ops event of the tenant, live (SSE)
+
+P5 (http_api.md, "P5 additions"):
+
+    GET  /v1/packs                                    the dataset packs this harness can load
+    POST /v1/sessions, GET /v1/sessions/{id}          a session on a pack, and its summary
+    POST /v1/diagnose                                 a failed case or a bad turn, diagnosed
+    POST /v1/releases                                 runs the eval gate first (409 gate_failed)
+
+`?pack=` (or `pack` in a body) picks the pack an artifact, release, golden set or inspector
+call is about; the routes call the pack's view of the harness (`Harness.view`).
 """
 
 from __future__ import annotations
@@ -32,6 +42,7 @@ from harnesswalk.control.gateway import GatewayError
 from harnesswalk.events import iso, parse_iso
 from harnesswalk.ops import release as rel
 from harnesswalk.ops.eval import EvalRequestError
+from harnesswalk.ops.eval.diagnose import DiagnoseError
 from harnesswalk.ops.eval.golden import GoldenError, golden_path
 from harnesswalk.ops.eval.offline import scratch_tenant, stream_of
 from harnesswalk.ops.eval.online import MAX_NOTE_CHARS
@@ -43,6 +54,8 @@ if TYPE_CHECKING:
 
 CURSOR = re.compile(r"-?\d{1,18}")
 SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+SESSION_COOKIE = "harnesswalk_session"  # http_api.py sets the same cookie on POST /v1/turns
+TENANT_COOKIE = "harnesswalk_tenant"
 
 
 def sse(event: dict[str, Any]) -> str:
@@ -79,6 +92,7 @@ def turn_extras(h: Harness, tenant_id: str, summary: dict[str, Any]) -> dict[str
     summary["feedback"] = h.evals.store.feedback(tenant_id, turn_id)
     summary["scores"] = h.evals.online.scores_for(tenant_id, turn_id)
     summary["checkpoint"] = h.session.checkpoint_info(tenant_id, turn_id)
+    summary["diagnosis"] = h.evals.store.diagnosis_for_turn(tenant_id, turn_id)  # P5
     first = h.tracer.get_turn(tenant_id, turn_id, -1)[:1]
     summary["release"] = ((first[0].get("summary") or {}).get("release")) if first else None
     return summary
@@ -97,6 +111,71 @@ def add_ops_routes(
     def tenant(request: Request) -> str:
         identity, _ = identities.resolve(request)
         return identity.tenant_id
+
+    def pack_view(pack: str | None) -> Any:
+        """The harness as this pack runs it (P5); 422 for a pack it cannot find."""
+        if pack is None:
+            return h
+        if not h.pack_known(pack):
+            raise GatewayError(422, "invalid_request", f"no dataset pack {pack!r}")
+        try:
+            return h.view(pack)
+        except KeyError as exc:  # PackUnavailable: the pack is there but does not load
+            raise GatewayError(422, "invalid_request", str(exc.args[0])) from exc
+
+    def release_view(release_id: str) -> Any:
+        """The view of the pack a release belongs to (release ids are unique across packs)."""
+        found = h.release.store.release(release_id)
+        if found is None or not h.pack_known(found.pack):
+            raise GatewayError(404, "release_not_found", f"No release {release_id}.")
+        return h.view(found.pack)
+
+    # -- packs and sessions (P5) ----------------------------------------------------------------
+
+    @app.get("/v1/packs")
+    async def list_packs() -> JSONResponse:
+        return JSONResponse(h.pack_list())
+
+    @app.post("/v1/sessions", status_code=201)
+    async def create_session(request: Request) -> JSONResponse:
+        identity, tenant_cookie = identities.resolve(request)
+        data = await read_json(request)
+        pack = data.get("pack", h.pack)
+        if not isinstance(pack, str):
+            raise GatewayError(400, "invalid_request", "pack must be a string")
+        view = pack_view(pack)  # builds and ingests the pack the first time
+        from harnesswalk.events import uuid7
+
+        session_id = "sess_" + uuid7().replace("-", "")[:20]
+        h.session.ensure_session(identity.tenant_id, session_id, view.pack)
+        info = h.session.info(identity.tenant_id, session_id) or {}
+        info.pop("turns", None)
+        response = JSONResponse(info, 201)
+        response.set_cookie(SESSION_COOKIE, session_id, httponly=True, samesite="lax")
+        if tenant_cookie:
+            response.set_cookie(TENANT_COOKIE, tenant_cookie, httponly=True, samesite="lax")
+        return response
+
+    @app.get("/v1/sessions/{session_id}")
+    async def get_session(request: Request, session_id: str) -> JSONResponse:
+        info = h.session.info(tenant(request), session_id)
+        if info is None:
+            raise GatewayError(
+                404, "session_not_found", f"No session {session_id} for this tenant."
+            )
+        return JSONResponse(info)
+
+    # -- diagnose (P5) ----------------------------------------------------------------------------
+
+    @app.post("/v1/diagnose")
+    async def diagnose(request: Request) -> JSONResponse:
+        tenant_id = tenant(request)
+        data = await read_json(request)
+        forbid_public("Diagnose")
+        try:
+            return JSONResponse(h.evals.diagnose.request(tenant_id, data))
+        except DiagnoseError as exc:
+            raise GatewayError(exc.status, exc.code, exc.message) from exc
 
     # -- evals ----------------------------------------------------------------------------------
 
@@ -165,11 +244,13 @@ def add_ops_routes(
     @app.get("/v1/evals/runs/{run_id}/cases/{case_id}/events")
     async def case_events(request: Request, run_id: str, case_id: str) -> Response:
         tenant_id = tenant(request)
-        run_or_404(tenant_id, run_id)
+        run = run_or_404(tenant_id, run_id)
         case = next((c for c in h.evals.store.cases(run_id) if c["case_id"] == case_id), None)
         if case is None or not case.get("turn_id"):
             raise GatewayError(404, "case_not_found", f"No case {case_id} in run {run_id}.")
-        events = h.tracer.get_turn(scratch_tenant(run_id), case["turn_id"])
+        events = h.tracer.get_turn(
+            run.get("case_tenant") or scratch_tenant(run_id), case["turn_id"]
+        )
 
         async def stream():
             for event in events:
@@ -180,14 +261,13 @@ def add_ops_routes(
     @app.get("/v1/evals/golden")
     async def get_golden(request: Request, pack: str | None = None) -> JSONResponse:
         tenant(request)
-        pack = pack or h.settings.get("dataset", "_starter")
-        if pack != h.settings.get("dataset", "_starter"):
-            raise GatewayError(422, "invalid_request", f"pack {pack!r} is not loaded")
+        view = pack_view(pack)
+        pack = view.pack
         try:
             cases = h.evals.offline.golden(pack)
         except GoldenError as exc:
             raise GatewayError(404, "golden_not_found", str(exc)) from exc
-        path = golden_path(h.settings, pack)
+        path = golden_path(view.settings, pack)
         shown = path.relative_to(h.settings.root) if path.is_relative_to(h.settings.root) else path
         return JSONResponse(
             {"pack": pack, "path": str(shown), "cases": [c.to_dict() for c in cases]}
@@ -213,44 +293,48 @@ def add_ops_routes(
 
     # -- artifacts and releases -----------------------------------------------------------------
 
-    def check_pack(pack: str | None) -> None:
-        if pack is not None and pack != h.release.pack:
-            raise GatewayError(422, "invalid_request", f"pack {pack!r} is not loaded")
-
     @app.get("/v1/artifacts")
     async def list_artifacts(request: Request, pack: str | None = None) -> JSONResponse:
         tenant(request)
-        check_pack(pack)
+        view = pack_view(pack)
         return JSONResponse(
             {
-                "pack": h.release.pack,
-                "artifacts": h.release.listing(),
-                "release": h.release.status(),
+                "pack": view.release.pack,
+                "artifacts": view.release.listing(),
+                "release": view.release.status(),
             }
         )
 
     @app.get("/v1/artifacts/{kind}/{name}")
     async def get_artifact(
-        request: Request, kind: str, name: str, version: int | None = None
+        request: Request,
+        kind: str,
+        name: str,
+        version: int | None = None,
+        pack: str | None = None,
     ) -> JSONResponse:
         tenant(request)
+        view = pack_view(pack)
         try:
-            return JSONResponse(h.release.artifact(kind, name, version))
+            return JSONResponse(view.release.artifact(kind, name, version))
         except rel.ArtifactNotFound as exc:
             raise GatewayError(404, "artifact_not_found", str(exc).strip("'\"")) from exc
 
     @app.put("/v1/artifacts/{kind}/{name}")
-    async def put_artifact(request: Request, kind: str, name: str) -> JSONResponse:
+    async def put_artifact(
+        request: Request, kind: str, name: str, pack: str | None = None
+    ) -> JSONResponse:
         tenant_id = tenant(request)
         data = await read_json(request)
         forbid_public("Editing artifacts")
+        view = pack_view(pack)
         body, note = data.get("body"), data.get("note")
         if not isinstance(body, str):
             raise GatewayError(400, "invalid_request", "body must be a string")
         if note is not None and not isinstance(note, str):
             raise GatewayError(400, "invalid_request", "note must be a string")
         try:
-            out = rel.apply_edit(h, tenant_id, kind, name, body, note=note)
+            out = rel.apply_edit(view, tenant_id, kind, name, body, note=note)
         except rel.ArtifactNotFound as exc:
             raise GatewayError(404, "artifact_not_found", str(exc).strip("'\"")) from exc
         except rel.Busy as exc:
@@ -262,13 +346,12 @@ def add_ops_routes(
     @app.get("/v1/releases")
     async def list_releases(request: Request, pack: str | None = None) -> JSONResponse:
         tenant(request)
-        check_pack(pack)
-        return JSONResponse(h.release.releases())
+        return JSONResponse(pack_view(pack).release.releases())
 
     @app.get("/v1/releases/{release_id}")
     async def get_release(request: Request, release_id: str) -> JSONResponse:
         tenant(request)
-        detail = h.release.release_detail(release_id)
+        detail = release_view(release_id).release.release_detail(release_id)
         if detail is None:
             raise GatewayError(404, "release_not_found", f"No release {release_id}.")
         return JSONResponse(detail)
@@ -278,21 +361,35 @@ def add_ops_routes(
         tenant_id = tenant(request)
         data = await read_json(request)
         forbid_public("Releases")
-        note = data.get("note")
+        note, pack, force = data.get("note"), data.get("pack"), data.get("force", False)
         if note is not None and not isinstance(note, str):
             raise GatewayError(400, "invalid_request", "note must be a string")
+        if pack is not None and not isinstance(pack, str):
+            raise GatewayError(400, "invalid_request", "pack must be a string")
+        if not isinstance(force, bool):
+            raise GatewayError(400, "invalid_request", "force must be a boolean")
+        if force and h.settings.mode != "dev":
+            raise GatewayError(
+                403, "forbidden_in_mode", "A release can skip the eval gate in dev mode only."
+            )
+        view = pack_view(pack)
         try:
-            return JSONResponse(rel.apply_create(h, tenant_id, note=note), 201)
+            out = await rel.apply_create_gated(view, tenant_id, note=note, force=force)
         except rel.Busy as exc:
             raise GatewayError(409, "turn_running", str(exc)) from exc
+        except rel.GateFailed as exc:
+            body = {"error": {"code": "gate_failed", "message": str(exc)}, **exc.detail}
+            return JSONResponse(body, 409)
+        return JSONResponse(out, 201)
 
     @app.post("/v1/releases/{release_id}/rollback")
     async def rollback(request: Request, release_id: str) -> JSONResponse:
         tenant_id = tenant(request)
         await read_json(request)
         forbid_public("Rollback")
+        view = release_view(release_id)
         try:
-            return JSONResponse(rel.apply_rollback(h, tenant_id, release_id))
+            return JSONResponse(rel.apply_rollback(view, tenant_id, release_id))
         except KeyError as exc:
             raise GatewayError(404, "release_not_found", f"No release {release_id}.") from exc
         except rel.Busy as exc:
@@ -330,6 +427,7 @@ def add_ops_routes(
         tenants: str | list[str] = tenant_id
         if kind == "eval":
             tenants = [scratch_tenant(r) for r in h.evals.store.run_ids(tenant_id)]
+            tenants.append(tenant_id)  # case turns of runs with evals.scratch_tenant: false
         try:
             turns, next_after = h.tracer.query_turns(
                 tenants,
@@ -346,8 +444,8 @@ def add_ops_routes(
             raise GatewayError(400, "invalid_request", "after names no turn of yours") from exc
         if kind == "eval":
             for t in turns:
-                run_id = t["tenant_id"].removeprefix(scratch_tenant(""))
-                case_id = h.evals.store.case_of_turn(run_id, t["turn_id"])
+                found = h.evals.store.case_by_turn(tenant_id, t["turn_id"])
+                run_id, case_id = found if found else (None, None)
                 t["run_id"] = run_id
                 t["case_id"] = case_id
                 t["events_url"] = (

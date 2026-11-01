@@ -1,0 +1,8 @@
+# A second pack for the conformance suite (profile.yaml `packs.roots`). The profile's inline
+# prompt, tools, documents and golden set apply to every pack, so this file only names it.
+title: Conformance alternate pack
+domain: conformance
+feature: tenant data kept per pack
+licence: CC0-1.0
+prompts:
+  - What is my locker code?

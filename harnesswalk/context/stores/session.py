@@ -102,6 +102,31 @@ class SessionStore:
             raise SessionForbidden(session_id)
         return row["dataset"]
 
+    def dataset_of(self, tenant_id: str, session_id: str) -> str | None:
+        """The pack a session of this tenant runs on (P5), or None when there is none."""
+        row = self.db.one(
+            "SELECT dataset FROM sessions WHERE session_id = ? AND tenant_id = ?",
+            (session_id, tenant_id),
+        )
+        return row["dataset"] if row else None
+
+    def info(self, tenant_id: str, session_id: str) -> dict[str, Any] | None:
+        """One session of this tenant: its pack, when it began, how many turns it has (P5)."""
+        row = self.db.one(
+            "SELECT session_id, tenant_id, dataset, created_at FROM sessions"
+            " WHERE session_id = ? AND tenant_id = ?",
+            (session_id, tenant_id),
+        )
+        if row is None:
+            return None
+        return {
+            "session_id": row["session_id"],
+            "pack": row["dataset"],
+            "tenant_id": row["tenant_id"],
+            "created_at": row["created_at"],
+            "turns": self.next_turn_index(tenant_id, session_id),
+        }
+
     def owner(self, session_id: str) -> str | None:
         """The tenant a session belongs to, or None when there is no such session."""
         row = self.db.one("SELECT tenant_id FROM sessions WHERE session_id = ?", (session_id,))

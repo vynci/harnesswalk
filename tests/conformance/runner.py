@@ -13,6 +13,9 @@ P4: a turn's `before` and `after` requests (GET, POST, PUT) run around it, with 
 values from a response and `${name}` to use them anywhere later in the case (`${turn_id}` and
 `${session_id}` name the current turn), and `wait` to poll until a request matches.
 
+P5: `send.session_id` sends a turn in that session (one made with `POST /v1/sessions`), and
+later turns without one continue it.
+
 No network beyond 127.0.0.1, no Docker, no model. Run the whole suite and print one line per
 case with:
 
@@ -373,6 +376,7 @@ async def _drive(live: Any, case: dict[str, Any], result: CaseResult) -> None:
             body: dict[str, Any] = {"message": turn["send"]["message"]}
             if turn["send"].get("options"):
                 body["options"] = turn["send"]["options"]
+            session_id = turn["send"].get("session_id") or session_id
             if session_id:
                 body["session_id"] = session_id
             r = await driver.client.post("/v1/turns", json=body)

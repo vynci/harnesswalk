@@ -99,8 +99,13 @@ def normalize(raw: dict[str, Any], where: str) -> GoldenCase:
 
 
 def golden_path(settings: Any, pack: str) -> Path:
-    rel = str(settings.get("evals.golden_path", "datasets/{pack}/golden.jsonl"))
-    return settings.resolve(rel.replace("{pack}", pack))
+    """`evals.golden_path` with `{pack}` replaced; by default the pack's own `golden.jsonl`."""
+    rel = settings.get("evals.golden_path", None)
+    if rel is None:
+        from harnesswalk.ops.pack_index import pack_dir
+
+        return pack_dir(settings, pack) / "golden.jsonl"
+    return settings.resolve(str(rel).replace("{pack}", pack))
 
 
 def load_golden(path: Path) -> list[GoldenCase]:

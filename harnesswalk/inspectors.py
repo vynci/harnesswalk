@@ -217,6 +217,8 @@ def _inspector(h: Harness, tenant_id: str, node: dict[str, Any], recent: list[di
             "used_tokens": last.used_tokens,
             "citations": last.citations,
         }
+    if node_id == "diagnose":  # P5: the caller's last diagnoses, newest first
+        out["last_diagnoses"] = h.evals.diagnose.recent(tenant_id, 10)
     if node_id == "memory_writer":
         w = h.memory_writer
         out["last_writes"] = w.recent(tenant_id, 10)

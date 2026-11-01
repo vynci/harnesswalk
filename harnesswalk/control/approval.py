@@ -196,7 +196,7 @@ class ApprovalQueue:
                 "node_paused",
                 "approval",
                 "waiting",
-                {"reason": "approval", "approval_id": approval_id},
+                {"reason": "approval", "approval_id": approval_id, "mode": "approval"},
             )
             decided = await self.wait(ctx, span, approval_id, self.timeout_s)
         return decided
@@ -238,7 +238,7 @@ class ApprovalQueue:
             "node_resumed",
             "approval",
             "active",
-            {"reason": "approval", "approval_id": approval_id},
+            {"reason": "approval", "approval_id": approval_id, "mode": "approval"},
         )
         span.set(approval_id=approval_id, decision=decided.decision, waited_ms=round(waited * 1000))
         return decided
