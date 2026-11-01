@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Build web/ for production and publish it to the edge bucket.
 #
-#   deploy/aws/scripts/deploy-web.sh [--dry-run] [--skip-build]
+#   deploy/aws/scripts/deploy-web.sh [--dry-run] [--skip-build | --build-only]
+#
+# --build-only builds and stops before any AWS call; --skip-build publishes an existing
+# web/dist. The deploy workflow uses the two, so `pnpm install` and the build never run with
+# the deploy role's credentials in the environment.
 #
 # The production build sets no VITE_* variable: the API is the same origin (CloudFront routes
 # /v1/*), and the mock is off. A web/.env*.local file would bake a laptop's values into the
@@ -10,13 +14,19 @@
 # invalidation of /index.html and / (client-side routes are rewritten to /index.html at the
 # edge, so they share its cache entry). Re-running it uploads nothing that did not change.
 source "$(dirname "$0")/lib.sh"
-need aws pnpm
 
 SKIP_BUILD=0
-for arg in "$@"; do if [ "$arg" = "--skip-build" ]; then SKIP_BUILD=1; fi; done
+BUILD_ONLY=0
+for arg in "$@"; do
+  case "$arg" in
+    --skip-build) SKIP_BUILD=1 ;;
+    --build-only) BUILD_ONLY=1 ;;
+  esac
+done
+[ "$SKIP_BUILD$BUILD_ONLY" != "11" ] || die "--skip-build and --build-only together do nothing"
+if [ "$SKIP_BUILD" = "0" ]; then need pnpm; fi
+if [ "$BUILD_ONLY" = "0" ]; then need aws; fi
 
-bucket="$(output HARNESSWALK_WEB_BUCKET HarnesswalkEdge WebBucketName)"
-distribution="$(output HARNESSWALK_DISTRIBUTION_ID HarnesswalkEdge DistributionId)"
 web="$HW_REPO_ROOT/web"
 dist="$web/dist"
 
@@ -34,6 +44,10 @@ if [ "$SKIP_BUILD" = "0" ]; then
   )
 fi
 [ -f "$dist/index.html" ] || die "no $dist/index.html (build first)"
+if [ "$BUILD_ONLY" = "1" ]; then log "web built in $dist"; exit 0; fi
+
+bucket="$(output HARNESSWALK_WEB_BUCKET HarnesswalkEdge WebBucketName)"
+distribution="$(output HARNESSWALK_DISTRIBUTION_ID HarnesswalkEdge DistributionId)"
 
 run aws s3 sync "$dist/assets" "s3://$bucket/assets" --delete \
   --cache-control "public, max-age=31536000, immutable"

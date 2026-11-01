@@ -9,9 +9,11 @@ name: deploy
 #   HARNESSWALK_DEPLOY_ROLE_ARN   HarnesswalkCi output DeployRoleArn
 #   HARNESSWALK_WEB_BUCKET        HarnesswalkEdge output WebBucketName
 #   HARNESSWALK_DISTRIBUTION_ID   HarnesswalkEdge output DistributionId
-#   HARNESSWALK_INSTANCE_ID       HarnesswalkOrigin output InstanceId
 #   HARNESSWALK_ECR_REPOSITORY    HarnesswalkCi output RepositoryUri
-# The role trusts only refs/heads/main of this repository.
+# The origin instance is found by its tag (harnesswalk:role=origin), so it needs no variable.
+# The role trusts only refs/heads/main of this repository. Only the jobs that assume it get
+# id-token: write, and the web job builds before it has any AWS credentials. Every action is
+# pinned to a full commit SHA (the comment names the release).
 
 on:
   workflow_run:
@@ -27,7 +29,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: deploy-prod
@@ -37,15 +38,16 @@ env:
   AWS_REGION: us-east-1
   HARNESSWALK_WEB_BUCKET: ${{ vars.HARNESSWALK_WEB_BUCKET }}
   HARNESSWALK_DISTRIBUTION_ID: ${{ vars.HARNESSWALK_DISTRIBUTION_ID }}
-  HARNESSWALK_INSTANCE_ID: ${{ vars.HARNESSWALK_INSTANCE_ID }}
   HARNESSWALK_ECR_REPOSITORY: ${{ vars.HARNESSWALK_ECR_REPOSITORY }}
 
 jobs:
   gate:
-    # A push to main whose ci run passed, or a manual run on main.
+    # A push to main of this repository whose ci run passed (never a fork's run), or a manual
+    # run on main.
     if: >-
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
-       && github.event.workflow_run.event == 'push')
+       && github.event.workflow_run.event == 'push'
+       && github.event.workflow_run.head_repository.full_name == github.repository)
       || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     outputs:
@@ -67,37 +69,48 @@ jobs:
     needs: gate
     if: needs.gate.outputs.rollback == ''
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ needs.gate.outputs.sha }}
-      - uses: pnpm/action-setup@v4
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           package_json_file: web/package.json
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: "24"
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
-      - uses: aws-actions/configure-aws-credentials@v5
+      # pnpm install and the build run before any AWS credentials exist in this job.
+      - name: Build the web app
+        run: deploy/aws/scripts/deploy-web.sh --build-only
+      - uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5.1.1
         with:
           role-to-assume: ${{ vars.HARNESSWALK_DEPLOY_ROLE_ARN }}
           aws-region: us-east-1
           role-session-name: harnesswalk-web-${{ github.run_id }}
-      - name: Build and publish the web app
-        run: deploy/aws/scripts/deploy-web.sh
+      - name: Publish the web app
+        run: deploy/aws/scripts/deploy-web.sh --skip-build
 
   api:
     needs: gate
     if: needs.gate.outputs.rollback == ''
     # Native arm64 runner: the origin is a t4g (Graviton), so no QEMU emulation.
     runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ needs.gate.outputs.sha }}
-      - uses: docker/setup-buildx-action@v3
-      - uses: aws-actions/configure-aws-credentials@v5
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5.1.1
         with:
           role-to-assume: ${{ vars.HARNESSWALK_DEPLOY_ROLE_ARN }}
           aws-region: us-east-1
@@ -111,9 +124,14 @@ jobs:
     needs: gate
     if: needs.gate.outputs.rollback != ''
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v5
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5.1.1
         with:
           role-to-assume: ${{ vars.HARNESSWALK_DEPLOY_ROLE_ARN }}
           aws-region: us-east-1
@@ -130,6 +148,8 @@ jobs:
       && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
       - name: Smoke https://harnesswalk.vynci.dev
         run: deploy/aws/scripts/smoke.sh
