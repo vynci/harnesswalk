@@ -41,6 +41,8 @@ import { Plan, Reasoning } from './Reasoning'
 import { InputGuardBadges, OutputGuardBadges } from './Guardrails'
 import { MemoryTrace, ToolTrace } from './ToolTrace'
 import { usePackPrompts } from './usePackPrompts'
+import { DiagnoseAction } from '@/inspector/Diagnosis'
+import { packTitle } from '@/state/packs'
 
 /** The `_starter` pack's prompts, shown until the API lists packs (see usePackPrompts). */
 const TRY_THESE = [
@@ -269,6 +271,12 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
               )}
             </MessageFooter>
           )}
+          {/* P5: a turn rated bad, or one that did not answer, can be diagnosed from its trace. */}
+          {finished && !replaying && (turn.diagnosis || turn.summary?.diagnosis || feedback?.rating === 'bad' || (exit && exit !== 'answered')) && (
+            <div className="flex flex-col" data-testid="turn-diagnose">
+              <DiagnoseAction stored={turn.diagnosis ?? turn.summary?.diagnosis} target={{ turn_id: turn.turnId }} label="Diagnose this turn" />
+            </div>
+          )}
         </MessageContent>
       </Message>
     </div>
@@ -288,7 +296,10 @@ export function ChatPanel() {
   const exitReplay = useApp((s) => s.exitReplay)
   const replayState = useDisplayTurn()
   const marks = useApp((s) => s.marks)
-  const prompts = usePackPrompts() ?? TRY_THESE
+  const pack = useApp((s) => s.pack)
+  const packs = useApp((s) => s.packs)
+  const prompts = usePackPrompts(pack) ?? TRY_THESE
+  const packInfo = packs?.find((p) => p.id === pack)
   // Markers go after the turn they followed; one whose turn is not here goes first.
   const marksAfter = useMemo(() => {
     const out = new Map<string | null, OpsMark[]>()
@@ -350,6 +361,12 @@ export function ChatPanel() {
               </EmptyMedia>
               <EmptyTitle className="text-base">Walk the harness</EmptyTitle>
               <EmptyDescription>Send a message and watch it walk through the harness on the right, one node at a time.</EmptyDescription>
+              {packInfo && (
+                <EmptyDescription data-testid="empty-pack">
+                  On {packTitle(packs, pack)}
+                  {packInfo.feature ? `: ${packInfo.feature.toLowerCase()}` : ''}.
+                </EmptyDescription>
+              )}
             </EmptyHeader>
           </Empty>
         </>

@@ -24,20 +24,23 @@ export function DocReader() {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const target = useRef<HTMLElement | null>(null)
   const docId = open?.docId ?? null
+  // Documents are per pack (P5): the client asks for the session pack's.
+  const pack = useApp((s) => s.pack)
+  const key = `${pack ?? ''}:${docId ?? ''}`
 
   useEffect(() => {
     if (!api || !docId) return
     let cancelled = false
     api.knowledgeDoc(docId).then(
-      (doc) => !cancelled && setLoaded({ key: docId, doc }),
-      (err: unknown) => !cancelled && setLoaded({ key: docId, error: err instanceof Error ? err.message : String(err) }),
+      (doc) => !cancelled && setLoaded({ key, doc }),
+      (err: unknown) => !cancelled && setLoaded({ key, error: err instanceof Error ? err.message : String(err) }),
     )
     return () => {
       cancelled = true
     }
-  }, [api, docId])
+  }, [api, docId, key])
 
-  const current = loaded?.key === docId ? loaded : null
+  const current = loaded?.key === key ? loaded : null
   const doc = current?.doc
   useEffect(() => {
     if (doc && open?.chunk !== undefined) target.current?.scrollIntoView({ block: 'center' })

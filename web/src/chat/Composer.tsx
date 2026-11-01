@@ -129,6 +129,12 @@ export function Composer({
   const input = useRef<HTMLTextAreaElement>(null)
   const [options, setOptions] = useState(false)
   const dev = useApp((s) => s.capabilities?.mode === 'dev')
+  // P5: the pack the next message goes to names the placeholder; the starter pack keeps its own.
+  const packName = useApp((s) => {
+    const p = s.packs?.find((x) => x.id === s.pack)
+    return p && !p.default ? p.title || p.id : null
+  })
+  const placeholder = packName ? `Ask ${packName} something.` : 'Ask something about orders or support hours.'
   const schemaSet = useApp((s) => s.outputSchema.trim().length > 0)
   const tooLong = text.length > maxChars
   const canSend = !busy && !sending && text.trim().length > 0 && !tooLong
@@ -171,7 +177,7 @@ export function Composer({
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={busy ? 'The harness is working on the last message…' : 'Ask something about orders or support hours.'}
+          placeholder={busy ? 'The harness is working on the last message…' : placeholder}
           aria-describedby="composer-keys"
           rows={1}
           className="max-h-40 min-h-14 px-3.5 pt-3 text-sm md:text-sm"

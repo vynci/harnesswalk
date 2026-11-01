@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ArrowLeft, ArrowRight, FlaskConical, Play } from 'lucide-react'
-import type { DiagramNode, Lesson, LessonCodeLink } from '@/api/types'
+import type { DiagramNode, Lesson, LessonAlso, LessonCodeLink } from '@/api/types'
 import { Prose } from '@/components/prose'
 import { Button } from '@/components/ui/button'
+import { packTitle } from '@/state/packs'
 import { useApp } from '@/state/store'
 import { CheckYourself } from './CheckYourself'
 import { classifyLink } from './links'
@@ -31,49 +32,94 @@ function NewTab({ href, children }: { href: string; children: ReactNode }) {
   )
 }
 
-/** "Disable X and try it" or "Try it": sets up the chapter's demonstration for the next turn. */
-function TryActions({ lesson }: { lesson: Lesson }) {
+/**
+ * "Disable X and try it" or "Try it": sets up one demonstration for the next turn. A demonstration
+ * on another pack than the session's starts a new session on that pack first, and says so.
+ */
+function TryDemo({ demo, also = false }: { demo: LessonAlso; also?: boolean }) {
   const diagram = useApp((s) => s.diagram)
   const capabilities = useApp((s) => s.capabilities)
   const disabled = useApp((s) => s.disabled)
-  const [ready, setReady] = useState(false)
-  const t = lesson.try
-  if (!t || !capabilities) return null
+  const packs = useApp((s) => s.packs)
+  const pack = useApp((s) => s.pack)
+  const switching = useApp((s) => s.switchingPack)
+  const [ready, setReady] = useState<{ pack: string | null; switched: boolean } | null>(null)
+  if (!capabilities) return null
   const mode = capabilities.mode
   const dev = mode === 'dev'
-  const nodes = (t.disable ?? []).map((id) => diagram?.nodes.find((n) => n.id === id)).filter((n): n is DiagramNode => !!n)
-  const wantsDisable = (t.disable ?? []).length > 0
+  const target = demo.pack && capabilities.features.packs ? demo.pack : null
+  const known = !target || !packs || packs.some((p) => p.id === target)
+  const otherPack = !!target && target !== pack
+  const nodes = (demo.disable ?? []).map((id) => diagram?.nodes.find((n) => n.id === id)).filter((n): n is DiagramNode => !!n)
+  const wantsDisable = (demo.disable ?? []).length > 0
   // Disabling is a dev and private mode switch; fixtures are dev only.
-  const canDisable = wantsDisable && nodes.length === t.disable!.length && nodes.every((n) => n.can_disable) && mode !== 'public' && capabilities.features.disable_nodes !== false
-  const fixture = t.fixture && dev && capabilities.fixtures.includes(t.fixture) ? t.fixture : null
-  const plain = !wantsDisable && !!t.prompt && (!t.fixture || dev)
-  if (!canDisable && !plain) return null
+  const canDisable = wantsDisable && nodes.length === demo.disable!.length && nodes.every((n) => n.can_disable) && mode !== 'public' && capabilities.features.disable_nodes !== false
+  const fixture = demo.fixture && dev && capabilities.fixtures.includes(demo.fixture) ? demo.fixture : null
+  const plain = !wantsDisable && !!demo.prompt && (!demo.fixture || dev)
+  if ((!canDisable && !plain) || !known) return null
   const labels = nodes.map((n) => n.label).join(' and ')
+  const title = packTitle(packs, target)
 
-  const run = () => {
+  const run = async () => {
+    if (otherPack && !(await useApp.getState().choosePack(target!))) return
     const s = useApp.getState()
     if (canDisable) for (const n of nodes) if (!s.disabled.includes(n.id)) s.toggleDisabled(n.id)
     if (fixture) s.setFixture(fixture)
-    if (t.prompt) s.setDraft(t.prompt)
+    if (demo.prompt) s.setDraft(demo.prompt)
     s.focusComposer()
-    setReady(true)
+    setReady({ pack: target ?? pack, switched: otherPack })
   }
 
   const steps = [
+    otherPack ? `starts a new session on ${title}` : null,
     canDisable ? `turns ${labels} off for the next turn` : null,
     fixture ? `picks the ${fixture} fixture` : null,
-    t.prompt ? 'puts the prompt in the chat' : null,
+    demo.prompt ? 'puts the prompt in the chat' : null,
   ].filter(Boolean)
   const off = nodes.every((n) => disabled.includes(n.id))
+  const done = !!ready && ready.pack === pack && (!canDisable || off)
+  const base = canDisable ? `Disable ${labels} and try it` : 'Try it'
   return (
-    <div className="flex flex-col gap-1.5" data-testid="lesson-try">
-      <Button type="button" size="sm" variant="outline" className="self-start" onClick={run} data-testid="lesson-try-button">
+    <div className="flex flex-col gap-1.5" data-testid={also ? 'lesson-also' : 'lesson-try'} data-pack={target ?? ''}>
+      {also && demo.note && <p className="text-sm leading-relaxed">{demo.note}</p>}
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-auto min-h-7 max-w-full self-start py-1 text-left whitespace-normal"
+        onClick={() => void run()}
+        aria-disabled={switching ? true : undefined}
+        data-testid={also ? 'lesson-also-button' : 'lesson-try-button'}
+      >
         {canDisable ? <FlaskConical aria-hidden /> : <Play aria-hidden />}
-        {canDisable ? `Disable ${labels} and try it` : 'Try it'}
+        {also || otherPack ? `${base} on ${title}` : base}
       </Button>
       <p className="text-xs text-muted-foreground" role="status">
-        {ready && (!canDisable || off) ? 'Ready: press send in the chat.' : `This ${steps.join(', ')}. You press send.`}
+        {done
+          ? ready!.switched
+            ? `Started a new session on ${title}. Ready: press send in the chat.`
+            : 'Ready: press send in the chat.'
+          : `This ${steps.join(', ')}. You press send.`}
       </p>
+    </div>
+  )
+}
+
+/** The chapter's demonstration, then the same one on the domain packs (`also`). */
+function TryActions({ lesson }: { lesson: Lesson }) {
+  const also = lesson.also ?? []
+  if (!lesson.try && also.length === 0) return null
+  return (
+    <div className="flex flex-col gap-3">
+      {lesson.try && <TryDemo demo={lesson.try} />}
+      {also.length > 0 && (
+        <section className="flex flex-col gap-3" aria-label="On a domain pack" data-testid="lesson-also-list">
+          <h4 className="text-xs font-medium text-muted-foreground">The same demonstration on a domain pack</h4>
+          {also.map((a, i) => (
+            <TryDemo key={`${a.pack ?? ''}:${i}`} demo={a} also />
+          ))}
+        </section>
+      )}
     </div>
   )
 }
@@ -114,6 +160,7 @@ export function LessonTab({ node, onCodeLink }: { node: DiagramNode; onCodeLink:
   const anchor = ref?.anchor ?? null
   const lesson = useLesson(slug)
   const diagram = useApp((s) => s.diagram)
+  const repoUrl = useApp((s) => s.capabilities?.repo_url ?? null)
   const { outline } = useOutline()
   const markRead = useLessonProgress((s) => s.markRead)
   const article = useRef<HTMLElement>(null)
@@ -159,8 +206,9 @@ export function LessonTab({ node, onCodeLink }: { node: DiagramNode; onCodeLink:
     }
     return {
       a: ({ href, children }) => {
-        const link = classifyLink(href ?? '')
-        if (link.kind === 'external' || link.kind === 'repo') return <NewTab href={link.href}>{children}</NewTab>
+        const link = classifyLink(href ?? '', repoUrl)
+        if (link.kind === 'external') return <NewTab href={link.href}>{children}</NewTab>
+        if (link.kind === 'repo') return link.href ? <NewTab href={link.href}>{children}</NewTab> : <span title={link.path}>{children}</span>
         if (link.kind === 'code') {
           const target = codeTarget(link.path, link.symbol)
           return (
@@ -200,7 +248,7 @@ export function LessonTab({ node, onCodeLink }: { node: DiagramNode; onCodeLink:
         )
       },
     }
-  }, [data, diagram, outline, onCodeLink])
+  }, [data, diagram, outline, onCodeLink, repoUrl])
 
   if (!ref) return <p className="text-sm text-muted-foreground">This node has no chapter.</p>
   if (lesson.status === 'loading' || lesson.status === 'idle') return <p className="text-xs text-muted-foreground">Loading the chapter…</p>

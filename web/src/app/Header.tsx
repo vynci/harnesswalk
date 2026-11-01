@@ -10,10 +10,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { LessonsButton } from '@/lessons/LessonsButton'
+import { fixtureChoices, packTitle } from '@/state/packs'
 import { useApp } from '@/state/store'
+import { PackPicker } from './PackPicker'
 import { useDarkTheme } from './useTheme'
 
 const AUTO = '__auto__'
@@ -37,6 +39,7 @@ function SessionMenu() {
   const turns = useApp((s) => s.order.length)
   const newSession = useApp((s) => s.newSession)
   const notify = useApp((s) => s.notify)
+  const packName = useApp((s) => (s.packs ? packTitle(s.packs, s.pack) : null))
   const copy = () => {
     if (!sessionId) return
     navigator.clipboard?.writeText(sessionId).then(
@@ -60,6 +63,11 @@ function SessionMenu() {
             {sessionId ?? 'starts with your first message'}
             {turns ? ` · ${turns} turn${turns === 1 ? '' : 's'}` : ''}
           </span>
+          {packName && (
+            <span className="truncate text-xs font-normal text-muted-foreground" data-testid="session-pack">
+              on {packName}
+            </span>
+          )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={newSession}>
@@ -82,7 +90,11 @@ export function Header() {
   const setFixture = useApp((s) => s.setFixture)
   const invalidEvents = useApp((s) => s.invalidEvents)
   const disabled = useApp((s) => s.disabled)
+  const packs = useApp((s) => s.packs)
+  const pack = useApp((s) => s.pack)
   const dev = capabilities?.mode === 'dev'
+  // The session pack's own fixtures first, then the shared ones; other packs' are hidden.
+  const fixtures = fixtureChoices(packs, capabilities?.fixtures ?? [], pack)
 
   return (
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2">
@@ -123,7 +135,7 @@ export function Header() {
                 </SelectContent>
               </Select>
             </label>
-            {capabilities.fixtures.length > 0 && (
+            {fixtures.all.length > 0 && (
               <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 Fixture
                 <Select value={fixture ?? AUTO} onValueChange={(v) => setFixture(v === AUTO ? null : v)}>
@@ -132,11 +144,27 @@ export function Header() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={AUTO}>{mock ? 'by message' : 'default'}</SelectItem>
-                    {capabilities.fixtures.map((f) => (
-                      <SelectItem key={f} value={f}>
-                        {f}
-                      </SelectItem>
-                    ))}
+                    {fixtures.own.length > 0 && (
+                      <SelectGroup data-testid="fixture-group-pack">
+                        <SelectLabel>This pack</SelectLabel>
+                        {fixtures.own.map((f) => (
+                          <SelectItem key={f} value={f}>
+                            {f}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {fixtures.own.length > 0 && fixtures.shared.length > 0 && <SelectSeparator />}
+                    {fixtures.shared.length > 0 && (
+                      <SelectGroup data-testid="fixture-group-shared">
+                        {fixtures.own.length > 0 && <SelectLabel>Shared</SelectLabel>}
+                        {fixtures.shared.map((f) => (
+                          <SelectItem key={f} value={f}>
+                            {f}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
                   </SelectContent>
                 </Select>
               </label>
@@ -151,6 +179,7 @@ export function Header() {
           </Hint>
         )}
         {(dev || disabled.length > 0) && <Separator orientation="vertical" className="my-1.5" />}
+        <PackPicker />
         <div className="flex items-center gap-1">
           <LessonsButton />
           <ThemeButton />

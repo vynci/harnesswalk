@@ -156,6 +156,8 @@ test('the eval run and the release diff', async ({ page, request }) => {
   await page.getByTestId('node-release').click()
   await inspector.getByTestId('release-note').fill('returns: 14 day window')
   await inspector.getByTestId('release-create').click()
+  // The eval gate refuses the regressed skill; release it anyway (dev mode, audited).
+  await inspector.getByTestId('release-force').click({ timeout: 60_000 })
   await expect(page.getByTestId('ops-marker-text').last()).toHaveText(/^Release r\d+ active$/)
   await inspector.getByTestId('release-commit').filter({ hasText: 'Skill returns' }).click()
   await settle(page)
@@ -163,4 +165,120 @@ test('the eval run and the release diff', async ({ page, request }) => {
 
   // Leave the harness as it was for any test after this one.
   if (base) await request.post(`/v1/releases/${base}/rollback`, { data: {} })
+})
+
+// ---------- P5: one picture per domain pack, the picker, a lesson's Try buttons, the gate ----------
+
+async function onPack(page: Page, id: string) {
+  await page.getByTestId('pack-picker').click()
+  await page.locator(`[data-testid=pack-option][data-pack="${id}"]`).click()
+  await expect(page.getByTestId('pack-picker')).toHaveAttribute('data-pack', id, { timeout: 30_000 })
+}
+
+async function done(page: Page) {
+  await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+}
+
+test('the pack picker, open', async ({ page }) => {
+  await page.getByTestId('pack-picker').click()
+  await expect(page.getByTestId('pack-option')).toHaveCount(6)
+  await page.locator('[data-testid=pack-option][data-pack="finance"]').hover()
+  await page.waitForTimeout(300)
+  await page.screenshot({ path: out('pack-picker') })
+  await page.keyboard.press('Escape')
+})
+
+test('healthcare: the health number reaches the model as a placeholder', async ({ page }) => {
+  await onPack(page, 'healthcare')
+  await turn(page, 'pii_health_number_appointment', 'My health number is BH-4821-0937-Q. Can you check my appointment AP-1042?')
+  await done(page)
+  await expect(page.getByTestId('placeholder').first()).toBeVisible()
+  await page.getByTestId('node-input_guardrails').click()
+  await page.getByTestId('inspector').getByRole('tab', { name: 'Events' }).click()
+  await settle(page)
+  await page.screenshot({ path: out('pack-healthcare') })
+})
+
+test('ecommerce: a cancel waits on the approval card', async ({ page, request }) => {
+  await onPack(page, 'ecommerce')
+  await turn(page, 'cancel_approved_qf20430', 'Please cancel order QF-20430, I ordered the wrong size.')
+  const card = page.getByTestId('approval-card').last()
+  await expect(card).toContainText('Run cancel_order?')
+  await settle(page)
+  await page.screenshot({ path: out('pack-ecommerce') })
+  await card.getByRole('button', { name: 'Approve cancel_order' }).click()
+  await done(page)
+  await settleTurns(request)
+})
+
+test('logistics: track, hub capacity, reroute (approved) and eta in one turn', async ({ page }) => {
+  await onPack(page, 'logistics')
+  await turn(page, 'reroute_four_tools', 'Track TG-604118, check whether its alternate hub can take it, reroute it, and then give me the ETA confidence.')
+  const card = page.getByTestId('approval-card').last()
+  await card.getByRole('button', { name: /^Approve / }).click()
+  await done(page)
+  await expect(page.getByTestId('tool-line')).toHaveCount(4)
+  await settle(page)
+  await page.screenshot({ path: out('pack-logistics') })
+})
+
+test('sports: the router sends the second model call to the lookup rule', async ({ page }) => {
+  await onPack(page, 'sports')
+  await page.getByRole('switch', { name: 'Expert view' }).setChecked(true)
+  await turn(page, 'fixtures_ash', 'When does ASH play next, and where?')
+  await done(page)
+  await page.getByTestId('node-router').click()
+  const inspector = page.getByTestId('inspector')
+  await inspector.getByRole('tab', { name: /^Events/ }).click()
+  // The second router exit: the lookup rule picked the model for the call after the tool.
+  await inspector.getByRole('button', { name: /node_exit/ }).last().click()
+  await expect(inspector.getByText(/lookup/).first()).toBeVisible()
+  await settle(page)
+  await page.screenshot({ path: out('pack-sports') })
+})
+
+test('finance: a cited answer from the fund documents', async ({ page }) => {
+  await onPack(page, 'finance')
+  await turn(page, 'cite_mgmt_fee_hcp01', 'What is the management fee for Hollowmere Growth Partners III?')
+  await done(page)
+  await expect(page.getByTestId('citation-chip').first()).toBeVisible()
+  await page.getByRole('button', { name: /^Cited \d+ passage/ }).click().catch(() => {})
+  await settle(page)
+  await page.screenshot({ path: out('pack-finance') })
+})
+
+test('a chapter with its Try buttons', async ({ page }) => {
+  await page.getByTestId('lessons-button').click()
+  await page.locator('[data-testid=lesson-row][data-slug="02-input_guardrails"]').click()
+  const inspector = page.getByTestId('inspector')
+  await expect(inspector.getByTestId('lesson-also')).toBeVisible()
+  await inspector.getByTestId('lesson-try').scrollIntoViewIfNeeded()
+  await settle(page)
+  await page.screenshot({ path: out('lessons-tab') })
+})
+
+test('the release gate refuses a regressed pack', async ({ page, request }) => {
+  test.setTimeout(240_000)
+  await settleTurns(request)
+  await onPack(page, 'ecommerce')
+  const base = ((await (await request.get('/v1/releases?pack=ecommerce')).json()) as { active_release_id: string }).active_release_id
+  const inspector = page.getByTestId('inspector')
+  // A passing run first, so the gate's run regresses and is diagnosed.
+  await page.getByTestId('node-eval').click()
+  await inspector.getByTestId('eval-run-button').click()
+  await expect(inspector.getByTestId('eval-run-detail')).toHaveAttribute('data-status', 'done', { timeout: 90_000 })
+  const skill = (await (await request.get('/v1/artifacts/skill/order_status?pack=ecommerce')).json()) as { body: string }
+  await request.put('/v1/artifacts/skill/order_status?pack=ecommerce', { data: { body: skill.body.replace('Report the status', 'Describe the state'), note: 'order status: reworded' } })
+  await page.getByTestId('node-release').click()
+  await inspector.getByTestId('release-note').fill('reworded order status')
+  await inspector.getByTestId('release-create').click()
+  const chip = inspector.getByTestId('gate-failed').getByTestId('diagnosis-chip').first()
+  await expect(chip).toBeVisible({ timeout: 90_000 })
+  await inspector.getByTestId('gate-failed').getByTestId('diagnosis').first().scrollIntoViewIfNeeded()
+  // Let the toasts go, so the picture shows the panel.
+  await expect(page.locator('[data-sonner-toast]')).toHaveCount(0, { timeout: 10_000 })
+  await settle(page)
+  await page.screenshot({ path: out('release-gate') })
+  await request.put('/v1/artifacts/skill/order_status?pack=ecommerce', { data: { body: skill.body, note: 'restore' } })
+  await request.post(`/v1/releases/${base}/rollback`, { data: {} })
 })

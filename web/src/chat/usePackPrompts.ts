@@ -1,8 +1,6 @@
-// The empty chat's suggested prompts, from the active pack's `prompts.md` once the API lists
-// packs (GET /v1/packs with `features.packs`, P5). Until then, and whenever the lookup fails,
-// the caller keeps its `_starter` prompts.
-import { useEffect, useState } from 'react'
-import type { Api } from '@/api/client'
+// The empty chat's suggested prompts, from the session pack's `prompts` (GET /v1/packs with
+// `features.packs`, P5; the store loads the list at start-up). Until then, and whenever the
+// lookup failed, the caller keeps its `_starter` prompts.
 import type { PackSummary } from '@/api/types'
 import { useApp } from '@/state/store'
 
@@ -22,33 +20,10 @@ export function pickPack(packs: PackSummary[], packId: string | null | undefined
   return packs.find((p) => p.id === packId) ?? packs.find((p) => p.default) ?? packs.find((p) => p.id === '_starter') ?? packs[0]
 }
 
-const listed = new WeakMap<Api, Promise<PackSummary[]>>()
-
-/**
- * The active pack's prompts, or null to keep the fallback. The pack picker plugs in here: pass
- * the session's pack id (from the store, once pack selection per session lands) as `packId`.
- */
+/** The prompts of a pack (the session's when `packId` is the store's `pack`), or null to keep the fallback. */
 export function usePackPrompts(packId: string | null = null): string[] | null {
-  const api = useApp((s) => s.api)
   const enabled = useApp((s) => s.capabilities?.features.packs === true)
-  const [packs, setPacks] = useState<PackSummary[] | null>(null)
-  useEffect(() => {
-    if (!api || !enabled) return
-    let cancelled = false
-    let p = listed.get(api)
-    if (!p) {
-      p = api.packs()
-      listed.set(api, p)
-      p.catch(() => listed.delete(api))
-    }
-    p.then(
-      (list) => !cancelled && setPacks(list),
-      () => !cancelled && setPacks(null),
-    )
-    return () => {
-      cancelled = true
-    }
-  }, [api, enabled])
+  const packs = useApp((s) => s.packs)
   if (!enabled || !packs) return null
   const prompts = normalizePrompts(pickPack(packs, packId)?.prompts)
   return prompts.length ? prompts : null

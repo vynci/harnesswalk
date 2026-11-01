@@ -170,7 +170,13 @@ export interface Capabilities {
     step_over?: boolean
     /** P5: GET /v1/packs lists the packs, with their suggested prompts. */
     packs?: boolean
+    /** P5: POST /v1/diagnose maps a failed case or a bad turn to the layer at fault (dev and private). */
+    diagnose?: boolean
   }
+  /** P5: the configured pack and every pack id (GET /v1/packs has the cards). */
+  packs?: { default: string; ids: string[] }
+  /** P5 integration: the repository the lessons' code links open, without a trailing slash. */
+  repo_url?: string
   /** P4: which release serves turns, and whether the working set has unreleased edits. */
   release?: ReleaseState
   limits: {
@@ -208,6 +214,10 @@ export interface TurnSummary {
   checkpoint?: { step: number; at: string; restored: boolean } | null
   /** P4: what the turn ran on (`turn_start.summary.release`). */
   release?: { release_id: string | null; working_set: boolean; artifacts_hash: string } | null
+  /** P5: the pack the turn ran on (`turn_start.summary.pack`). */
+  pack?: string | null
+  /** P5: the latest diagnosis of this turn, or null. */
+  diagnosis?: Diagnosis | null
 }
 
 export type FeedbackRating = 'good' | 'bad'
@@ -235,6 +245,8 @@ export interface StartTurnRequest {
   output_schema?: Record<string, unknown>
   /** P3, dev mode: a model alias hint for the router. */
   model?: string
+  /** P5: `options.pack` names the pack of a new session (fixed after its first turn). */
+  options?: { pack?: string }
 }
 
 export interface StartTurnResponse {
@@ -286,6 +298,8 @@ export interface NodeSource {
 
 /** A chapter's `try` front matter: what the "try it" button sets up for the next turn. */
 export interface LessonTry {
+  /** P5 integration: the pack the demonstration runs on (`_starter` when the chapter names none). */
+  pack?: string
   fixture?: string
   prompt?: string
   /** Node ids to disable on the next turn. */
@@ -324,9 +338,15 @@ export interface LessonCodeLink {
 }
 
 /** GET /v1/lessons/{slug}: the list item plus the markdown (front matter stripped). */
+/** P5 integration: the same demonstration on a domain pack, with a note on what it shows there. */
+export interface LessonAlso extends LessonTry {
+  note?: string
+}
+
 export interface Lesson extends LessonListItem {
   markdown: string
   try: LessonTry | null
+  also?: LessonAlso[]
   code_links: LessonCodeLink[]
   prev: string | null
   next: string | null
@@ -343,15 +363,62 @@ export interface LessonSource {
 }
 
 /**
- * One pack in GET /v1/packs (P5, another builder's route). Only what the UI reads is typed:
- * `prompts` may be strings or `{prompt}` objects.
+ * One pack in GET /v1/packs (P5). `prompts` may be strings or `{prompt}` objects, so it is read
+ * through normalizePrompts.
  */
 export interface PackSummary {
   id: string
   title?: string
+  domain?: string | null
+  /** The one harness feature this pack shows off. */
+  feature?: string | null
   prompts?: unknown
+  /** docs, facts, episodes, skills, tools and golden, counted from the pack's files. */
+  counts?: Record<string, number>
   /** True for the configured `dataset` (GET /v1/packs, P5). */
   default?: boolean
+  /** This process has built the pack (a session ran on it). */
+  loaded?: boolean
+  /** The pack's own fake fixtures, dev mode only (P5 integration). */
+  fixtures?: string[]
+}
+
+export interface PackFile {
+  path: string
+  bytes: number
+  /**
+   * Which part of the harness reads the file (http_api.md, GET /v1/packs/{id}): a node id such as
+   * the procedural or knowledge store, `knowledge_source`, `golden`, `fixture`, `card` or `other`.
+   * The UI matches it against the diagram's ids and never names one.
+   */
+  role: string
+}
+
+/** GET /v1/packs/{id} (P5 integration): the card and the file tree. */
+export interface PackDetail extends PackSummary {
+  summary?: string | null
+  tier?: string | null
+  demonstrates?: { id?: string; nodes?: string[]; summary?: string } | null
+  licence?: string | null
+  tools?: string[]
+  size_bytes?: number
+  files: PackFile[]
+}
+
+/** GET /v1/packs/{id}/files/{path}: one file as text (`pdf_text` is the text pulled from a PDF). */
+export interface PackFileText extends PackFile {
+  pack: string
+  kind: 'text' | 'pdf_text' | string
+  text: string
+}
+
+/** POST /v1/sessions and GET /v1/sessions/{id} (P5). */
+export interface SessionInfo {
+  session_id: string
+  pack: string
+  tenant_id: string
+  created_at: string
+  turns?: number
 }
 
 // ---------- Context plane (P3) ----------
@@ -395,6 +462,8 @@ export interface MemoryDiff {
 
 export interface MemoryProposal {
   proposal_id: string
+  /** P5 integration: the pack whose memory writer made it. */
+  pack?: string
   store: string
   content: unknown
   source?: string
@@ -464,6 +533,11 @@ export interface EvalRunSummary {
   artifacts_hash?: string
   cost?: Cost
   diff?: { fixed: string[]; regressed: string[]; new: string[]; removed: string[] }
+  /** P5: `release_gate` for the run a release's gate started, else null. */
+  purpose?: 'release_gate' | string | null
+  /** P5: the layer of each diagnosed case. */
+  diagnoses?: Record<string, string>
+  case_tenant?: string
 }
 
 export interface EvalScore {
@@ -486,7 +560,59 @@ export interface EvalCase {
   previous_status: EvalCaseStatus | null
   regression: boolean
   error?: { code: string; message: string }
+  /** Why a skipped case was skipped (for example "applies in dev mode only, not private"). */
   detail?: string
+  /** P5 integration: the earlier case whose memory writes this one reads. */
+  after?: string | null
+  /** P5: the latest diagnosis of this case, or null. */
+  diagnosis?: Diagnosis | null
+}
+
+/** One trace fact a diagnosis found (evaluator.md, P5 additions). */
+export interface DiagnosisEvidence {
+  kind: string
+  fact: string
+  [key: string]: unknown
+}
+
+export type DiagnosisLayer = 'retrieval' | 'prompt_or_skill' | 'tool' | 'model' | 'guardrail' | 'budget' | 'unknown'
+
+/** POST /v1/diagnose: the layer at fault, the evidence and what to look at first. */
+export interface Diagnosis {
+  diagnosis_id?: string
+  target?: 'case' | 'turn'
+  run_id?: string
+  case_id?: string
+  turn_id?: string
+  pack?: string
+  layer: DiagnosisLayer | string
+  evidence?: DiagnosisEvidence[]
+  suggestion?: string
+  baseline?: { run_id: string; release_id: string | null; artifacts_hash: string } | null
+  automatic?: boolean
+  created_at?: string
+}
+
+/** One case of a pack's golden set (GET /v1/evals/golden), as stored. */
+export interface GoldenCase {
+  id: string
+  title?: string
+  prompt?: string
+  fixture?: string
+  expect?: Record<string, unknown>
+  /** P5: what the `checks` scorer checks. */
+  checks?: { router_rules?: string[]; retrieved?: Record<string, string> } | null
+  /** P5 integration: the modes the case applies in; absent means every mode. */
+  modes?: string[] | null
+  /** P5 integration: the earlier case whose memory writes this one reads. */
+  after?: string | null
+  tags?: string[]
+}
+
+export interface GoldenSet {
+  pack: string
+  path: string
+  cases: GoldenCase[]
 }
 
 export interface EvalRunDetail extends EvalRunSummary {
@@ -544,6 +670,38 @@ export interface ArtifactSaved extends Artifact {
   release?: ReleaseState
 }
 
+/** P5: the eval gate a release passed through (release.md, P5 additions); null before P5. */
+export interface ReleaseGate {
+  status: 'passed' | 'failed' | 'skipped'
+  reason?: string | null
+  suite?: string | null
+  min_pass_rate?: number | null
+  pass_rate?: number | null
+  run_ids?: string[]
+  failed_cases?: string[]
+  forced?: boolean
+}
+
+/** A failing case in a 409 `gate_failed` answer. */
+export interface GateFailedCase {
+  case_id: string
+  title?: string
+  status: EvalCaseStatus
+  run_id?: string
+  events_url?: string | null
+  scores?: Record<string, EvalScore>
+  error?: { code: string; message: string } | null
+  diagnosis?: Pick<Diagnosis, 'layer' | 'suggestion'> | null
+}
+
+/** POST /v1/releases answered 409 gate_failed: no release was made. */
+export interface GateFailure {
+  pack: string
+  message: string
+  gate: ReleaseGate
+  cases: GateFailedCase[]
+}
+
 export interface ReleaseSummary {
   release_id: string
   pack?: string
@@ -554,12 +712,14 @@ export interface ReleaseSummary {
   prev_hash: string
   active: boolean
   artifacts: { kind: string; name: string; version: number; hash: string }[]
+  gate?: ReleaseGate | null
 }
 
 export interface ReleaseList extends ReleaseState {
   pack: string
   releases: ReleaseSummary[]
-  verify: { ok: boolean; releases: number; broken_at?: string; artifact?: string }
+  /** P5: `activations` counts the activation log rows; `activation_broken_at` is the first bad one. */
+  verify: { ok: boolean; releases: number; broken_at?: string; artifact?: string; activations?: number; activation_broken_at?: number }
   activations?: { release_id: string; at: string; by: string; rollback_of: string | null }[]
 }
 
@@ -635,7 +795,16 @@ export interface Receipt {
   feedback?: TurnFeedback | null
 }
 
-export type OpsEventType = 'eval_run_started' | 'eval_case_finished' | 'eval_run_finished' | 'feedback_recorded' | 'artifact_changed' | 'artifact_released'
+export type OpsEventType =
+  | 'eval_run_started'
+  | 'eval_case_finished'
+  | 'eval_run_finished'
+  | 'feedback_recorded'
+  | 'artifact_changed'
+  | 'artifact_released'
+  // P5: a release's gate finished, and a diagnosis was stored.
+  | 'release_gated'
+  | 'diagnose_finished'
 
 /** An ops event (events.md section 10): on an eval run's stream, or on GET /v1/events. */
 export interface OpsEvent {

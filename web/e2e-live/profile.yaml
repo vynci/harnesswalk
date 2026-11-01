@@ -1,13 +1,8 @@
 # The live e2e server's profile (playwright.live.config.ts sets HARNESSWALK_PROFILE to it).
 # It only adds a tenant with a tool-call budget of two per turn, so the budget test can hit the
 # limit by sending X-Harnesswalk-Tenant: e2e-budget (dev mode honours the header); every other
-# test runs as the dev tenant on the shipped defaults, except that the P5 release gate is off:
-# the P4 gate walk releases a regressed skill on purpose (the "release anyway" control is the
-# integration pass's).
+# test runs as the dev tenant on the shipped defaults, the P5 release gate included.
 policy:
   budgets:
     tenants:
       e2e-budget: { tool_calls_per_turn: 2 }
-release:
-  gate:
-    enabled: false

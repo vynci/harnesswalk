@@ -1,17 +1,18 @@
 // Application state. Stream state per turn comes from the pure reducer; this store wires it to
 // the API, the stream client, the chat, replay and the view toggles.
 import { create } from 'zustand'
-import { ApiError, createApi, type Api, type ResumeMode, type Transport } from '@/api/client'
+import { ApiError, createApi, type Api, type CreateReleaseResult, type ResumeMode, type Transport } from '@/api/client'
 import { loadTurnEvents, openEvalStream, openOpsStream, openTurnStream, type TurnStream } from '@/api/stream'
 import type {
   ArtifactSaved,
   Capabilities,
+  Diagnosis,
   Diagram,
   EvalRunSummary,
   FeedbackRating,
   HarnessEvent,
   OpsEvent,
-  ReleaseDetail,
+  PackSummary,
   StartEvalRequest,
   TurnFeedback,
   TurnSummary,
@@ -19,6 +20,7 @@ import type {
 } from '@/api/types'
 import { artifactLabel, releaseMark, savedMark, type OpsMark } from './ops'
 import { buildEdgeIndex, initialTurnState, reduceEvent, reduceEvents, type EdgeIndex, type TurnState } from './reducer'
+import { fixtureChoices, packTitle } from './packs'
 import { load, rememberMessage, recallMessages, save } from './persist'
 
 export interface ChatTurn {
@@ -32,6 +34,8 @@ export interface ChatTurn {
   reconnected?: boolean
   /** P4: the Good or Bad sent from this browser, before the summary is read back. */
   feedback?: TurnFeedback | null
+  /** P5: a diagnosis asked for from this browser, before the summary is read back. */
+  diagnosis?: Diagnosis | null
 }
 
 /** An eval run this browser started, while its progress stream is open. */
@@ -66,6 +70,8 @@ export interface OpsRun {
   pack: string
   done: number
   total: number | null
+  /** P5: `release_gate` when a release's eval gate started the run. */
+  purpose?: string | null
 }
 
 /** 'system' is the default until the viewer picks one: it follows prefers-color-scheme. */
@@ -93,6 +99,15 @@ export interface AppState {
   disabled: string[]
 
   sessionId: string | null
+  /** P5: the packs GET /v1/packs lists (null until loaded, or without features.packs). */
+  packs: PackSummary[] | null
+  /**
+   * P5: the session's pack (from the session, its turn summaries or `turn_start`), or the pack
+   * the next new session starts on. Every pack-scoped call names it.
+   */
+  pack: string | null
+  /** P5: a new session on another pack is being made. */
+  switchingPack: boolean
   turns: Record<string, ChatTurn>
   order: string[]
   liveTurnId: string | null
@@ -168,9 +183,14 @@ export interface AppState {
   startEval: (req: StartEvalRequest) => Promise<string | null>
   saveArtifact: (kind: string, name: string, body: string, note?: string) => Promise<ArtifactSaved | null>
   restoreArtifact: (kind: string, name: string, version: number) => Promise<boolean>
-  createRelease: (note?: string) => Promise<ReleaseDetail | null>
+  /** POST /v1/releases on the session's pack; the gate's refusal comes back as `gateFailed`. */
+  createRelease: (note?: string, opts?: { force?: boolean }) => Promise<CreateReleaseResult | null>
   rollback: (releaseId: string) => Promise<boolean>
   sendFeedback: (turnId: string, rating: FeedbackRating, note?: string) => Promise<boolean>
+  /** P5: start a new session on a pack (POST /v1/sessions). Resolves false when it could not. */
+  choosePack: (packId: string) => Promise<boolean>
+  /** P5: ask which layer is at fault for a failed eval case or a turn with bad feedback. */
+  diagnose: (target: { run_id?: string; case_id: string } | { turn_id: string }) => Promise<Diagnosis | null>
 }
 
 /** A turn is running or paused: edits wait for it (the API answers 409 turn_running). */
@@ -240,6 +260,8 @@ export const useApp = create<AppState>()((set, get) => {
       {
         onEvent: (ev) => {
           updateTurn(turnId, (t) => ({ ...t, state: reduceEvent(t.state ?? initialTurnState(), ev, get().edgeIndex) }))
+          // The pack the turn runs on, as the harness says (P5): the session's pack from now on.
+          if (ev.type === 'turn_start' && typeof ev.summary?.pack === 'string' && ev.summary.pack !== get().pack) setPack(ev.summary.pack)
           // Step mode keeps the inspector on the node the walk stopped at.
           if (ev.type === 'node_paused' && ev.summary?.reason === 'breakpoint' && get().selectedNode && ev.node_id) {
             set({ selectedNode: ev.node_id })
@@ -288,6 +310,22 @@ export const useApp = create<AppState>()((set, get) => {
     }
   }
 
+  /**
+   * The session's pack: the client names it on every pack-scoped call, the inspectors read again,
+   * and this browser remembers it with the session, so a reload comes back on it.
+   */
+  const setPack = (pack: string | null, sessionId = get().sessionId) => {
+    get().api?.setPack(pack)
+    if (pack !== get().pack) set((s) => ({ pack, inspectorVersion: s.inspectorVersion + 1 }))
+    save('pack', pack ? { sessionId, pack } : null)
+  }
+
+  /** An ops event about another pack than the session's (its summary names the pack). */
+  const otherPack = (summary: Record<string, unknown>) => {
+    const pack = get().pack
+    return typeof summary.pack === 'string' && !!pack && summary.pack !== pack
+  }
+
   const addMark = (mark: OpsMark) => {
     const s = get()
     // One marker per change: the ops stream and this browser's own response both report it.
@@ -317,7 +355,7 @@ export const useApp = create<AppState>()((set, get) => {
       const kind = String(summary.kind ?? '')
       const name = String(summary.name ?? '')
       const version = Number(summary.version)
-      if (kind && name && Number.isFinite(version)) addMark(savedMark({ kind, name, version }, afterTurn(), ev.ts))
+      if (kind && name && Number.isFinite(version) && !otherPack(summary)) addMark(savedMark({ kind, name, version }, afterTurn(), ev.ts))
       pulse(ev.node_id)
       bump()
       void get().refreshCapabilities()
@@ -326,7 +364,7 @@ export const useApp = create<AppState>()((set, get) => {
       const rollbackOf = typeof summary.rollback_of === 'string' ? summary.rollback_of : null
       const before = typeof summary.previous_active === 'string' ? summary.previous_active : null
       const previous = rollbackOf ?? before
-      if (releaseId) {
+      if (releaseId && !otherPack(summary)) {
         addMark(releaseMark(releaseId, previous, rollbackOf !== null, afterTurn(), ev.ts, ev.event_id))
         setActiveRelease(releaseId)
       }
@@ -342,7 +380,8 @@ export const useApp = create<AppState>()((set, get) => {
       }
     } else if (ev.type === 'eval_run_started') {
       const runId = String(summary.run_id ?? ev.run_id ?? '')
-      if (runId) set({ opsRun: { runId, suite: String(summary.suite ?? ''), pack: String(summary.pack ?? ''), done: 0, total: typeof summary.total === 'number' ? summary.total : null } })
+      const purpose = typeof summary.purpose === 'string' ? summary.purpose : null
+      if (runId) set({ opsRun: { runId, suite: String(summary.suite ?? ''), pack: String(summary.pack ?? ''), done: 0, total: typeof summary.total === 'number' ? summary.total : null, purpose } })
       pulse(ev.node_id)
       bump()
     } else if (ev.type === 'eval_case_finished') {
@@ -395,6 +434,8 @@ export const useApp = create<AppState>()((set, get) => {
     }
     const messages = recallMessages()
     const oldestFirst = [...list].reverse()
+    const ranOn = oldestFirst.find((t) => typeof t.pack === 'string')?.pack
+    if (ranOn && ranOn !== get().pack) setPack(ranOn)
     set({
       turns: Object.fromEntries(
         oldestFirst.map((summary) => [
@@ -422,6 +463,32 @@ export const useApp = create<AppState>()((set, get) => {
     }
   }
 
+  /**
+   * The packs and the session's pack at start-up: the stored session's own pack when the API
+   * knows the session, else the pack this browser picked last, else the configured one.
+   */
+  const bootPack = async (api: Api, capabilities: Capabilities, sessionId: string | null) => {
+    let packs: PackSummary[] | null = null
+    try {
+      packs = await api.packs()
+    } catch {
+      // The picker stays empty; turns run on the configured pack.
+    }
+    const stored = load<{ sessionId: string | null; pack: string } | null>('pack', null)
+    let pack = stored && typeof stored.pack === 'string' && (stored.sessionId === sessionId || !stored.sessionId) ? stored.pack : null
+    if (sessionId) {
+      try {
+        pack = (await api.session(sessionId)).pack
+      } catch {
+        // An unknown session: loadHistory starts fresh, on the stored pack.
+      }
+    }
+    const known = (id: string | null) => !!id && (!packs || packs.some((p) => p.id === id))
+    if (!known(pack)) pack = capabilities.packs?.default ?? packs?.find((p) => p.default)?.id ?? null
+    set({ packs })
+    setPack(pack, sessionId)
+  }
+
   return {
     api: null,
     ready: false,
@@ -441,6 +508,9 @@ export const useApp = create<AppState>()((set, get) => {
     disabled: [],
 
     sessionId: null,
+    packs: null,
+    pack: null,
+    switchingPack: false,
     turns: {},
     order: [],
     liveTurnId: null,
@@ -475,7 +545,9 @@ export const useApp = create<AppState>()((set, get) => {
       set({ api, validate: opts.validate, mock: opts.mock ?? false, sessionId, marks })
       try {
         const [capabilities, diagram] = await Promise.all([api.capabilities(), api.diagram()])
+        if (capabilities.features.packs) await bootPack(api, capabilities, sessionId)
         set({ capabilities, diagram, edgeIndex: buildEdgeIndex(diagram.edges), ready: true, bootError: null })
+        if (get().pack && get().pack !== capabilities.packs?.default) void get().refreshCapabilities()
         if (capabilities.features.evals) void get().refreshLatestEval()
         if (capabilities.features.release || capabilities.features.evals || capabilities.features.feedback) openOps()
         if (sessionId) await loadHistory(sessionId)
@@ -485,7 +557,7 @@ export const useApp = create<AppState>()((set, get) => {
     },
 
     async send(text) {
-      const { api, sessionId, stepMode, provider, fixture, disabled, capabilities, liveTurnId, turns, outputSchema, modelHint } = get()
+      const { api, sessionId, stepMode, provider, fixture, disabled, capabilities, liveTurnId, turns, outputSchema, modelHint, pack } = get()
       const message = text.trim()
       if (!api || !message) return
       const dev = capabilities?.mode === 'dev'
@@ -511,11 +583,14 @@ export const useApp = create<AppState>()((set, get) => {
           ...(capabilities?.mode !== 'public' && capabilities?.features.disable_nodes !== false && disabled.length ? { disable: disabled } : {}),
           ...(parsed.schema ? { output_schema: parsed.schema } : {}),
           ...(dev && modelHint ? { model: modelHint } : {}),
+          // A new session starts on the chosen pack (P5); a session's pack is fixed after that.
+          ...(!sessionId && pack && capabilities?.features.packs ? { options: { pack } } : {}),
         })
         rememberMessage(res.turn_id, message)
         if (res.session_id !== sessionId) {
           set({ sessionId: res.session_id })
           save('session', res.session_id)
+          if (pack) save('pack', { sessionId: res.session_id, pack })
           // Markers made before the first message belong to this session now.
           if (get().marks.length) save('marks', { sessionId: res.session_id, marks: get().marks })
         }
@@ -568,6 +643,9 @@ export const useApp = create<AppState>()((set, get) => {
       stream = null
       save('session', null)
       save('marks', null)
+      // The chosen pack stays: the next first message starts the new session on it.
+      const pack = get().pack
+      save('pack', pack ? { sessionId: null, pack } : null)
       set({ sessionId: null, turns: {}, order: [], liveTurnId: null, replay: null, connection: 'idle', marks: [] })
     },
 
@@ -722,7 +800,17 @@ export const useApp = create<AppState>()((set, get) => {
       if (!api) return
       const before = get().capabilities?.release?.active_release_id ?? null
       try {
-        const capabilities = await api.capabilities()
+        let capabilities = await api.capabilities()
+        // Releases are per pack: the capabilities describe the configured one, so a session on
+        // another pack reads its own release state from GET /v1/artifacts?pack=.
+        const pack = get().pack
+        if (capabilities.features.packs && pack && pack !== capabilities.packs?.default && capabilities.features.release) {
+          try {
+            capabilities = { ...capabilities, release: (await api.artifacts()).release }
+          } catch {
+            // Keep the configured pack's state.
+          }
+        }
         set({ capabilities })
         const now = capabilities.release?.active_release_id ?? null
         // Without the ops stream (an older API), a release made elsewhere shows up here first.
@@ -825,20 +913,35 @@ export const useApp = create<AppState>()((set, get) => {
       }
     },
 
-    async createRelease(note) {
+    async createRelease(note, opts = {}) {
       const api = get().api
       if (!api) return null
       const previous = get().capabilities?.release?.active_release_id ?? null
       try {
-        const release = await api.createRelease(note)
-        get().notify('info', `Release ${release.release_id} created and active.`)
+        const out = await api.createRelease(note, opts)
+        set((s) => ({ inspectorVersion: s.inspectorVersion + 1 }))
+        if (out.gateFailed) {
+          const n = out.gateFailed.cases.length || out.gateFailed.gate.failed_cases?.length || 0
+          get().notify('error', `The eval gate refused the release: ${n} golden case${n === 1 ? '' : 's'} failed. Nothing was released.`)
+          return out
+        }
+        const release = out.release
+        get().notify(
+          'info',
+          release.gate?.forced
+            ? `Release ${release.release_id} created without the gate. The audit log records it as release_forced.`
+            : `Release ${release.release_id} created and active.`,
+        )
         if (!get().opsLive) addMark(releaseMark(release.release_id, previous, false, afterTurn()))
         setActiveRelease(release.release_id)
-        set((s) => ({ inspectorVersion: s.inspectorVersion + 1 }))
         await get().refreshCapabilities()
-        return release
+        return out
       } catch (err) {
-        get().notify('error', `Could not create the release: ${describe(err)}`)
+        const text =
+          err instanceof ApiError && err.code === 'turn_running'
+            ? 'A turn is running, so nothing was released. Try again when it ends.'
+            : `Could not create the release: ${describe(err)}`
+        get().notify('error', text)
         return null
       }
     },
@@ -872,6 +975,56 @@ export const useApp = create<AppState>()((set, get) => {
       } catch (err) {
         get().notify('error', `Could not record the feedback: ${describe(err)}`)
         return false
+      }
+    },
+
+    async choosePack(packId) {
+      const api = get().api
+      if (!api) return false
+      if (selectTurnRunning(get())) {
+        get().notify('info', 'A turn is still running. Stop it or wait for it to finish, then pick a pack.')
+        return false
+      }
+      set({ switchingPack: true })
+      try {
+        const info = await api.createSession(packId)
+        stream?.close()
+        stream = null
+        save('session', info.session_id)
+        save('marks', null)
+        set({ sessionId: info.session_id, turns: {}, order: [], liveTurnId: null, replay: null, connection: 'idle', marks: [], stopRequested: null })
+        setPack(info.pack, info.session_id)
+        // A fixture of the old pack would not be found on this one.
+        const fixture = get().fixture
+        if (fixture && !fixtureChoices(get().packs, get().capabilities?.fixtures ?? [], info.pack).all.includes(fixture)) set({ fixture: null })
+        set((s) => ({ packs: s.packs?.map((p) => (p.id === info.pack ? { ...p, loaded: true } : p)) ?? null }))
+        void get().refreshCapabilities()
+        void get().refreshLatestEval()
+        get().notify('info', `New session on ${packTitle(get().packs, info.pack)}.`)
+        return true
+      } catch (err) {
+        get().notify('error', `Could not start a session on ${packTitle(get().packs, packId)}: ${describe(err)}`)
+        return false
+      } finally {
+        set({ switchingPack: false })
+      }
+    },
+
+    async diagnose(target) {
+      const api = get().api
+      if (!api) return null
+      try {
+        const diagnosis = await api.diagnose(target)
+        if ('turn_id' in target && !('case_id' in target)) updateTurn(target.turn_id, (t) => ({ ...t, diagnosis }))
+        set((s) => ({ inspectorVersion: s.inspectorVersion + 1 }))
+        return diagnosis
+      } catch (err) {
+        const text =
+          err instanceof ApiError && err.code === 'nothing_to_diagnose'
+            ? `Nothing to diagnose: ${err.message}`
+            : `Could not diagnose: ${describe(err)}`
+        get().notify(err instanceof ApiError && err.code === 'nothing_to_diagnose' ? 'info' : 'error', text)
+        return null
       }
     },
   }

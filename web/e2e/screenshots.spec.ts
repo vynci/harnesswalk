@@ -54,6 +54,8 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByTestId('node-release').click()
     await inspector.getByTestId('release-note').fill('find_order experiment')
     await inspector.getByTestId('release-create').click()
+    // The gate refuses the regressed working set; release it anyway (dev mode, audited).
+    await inspector.getByTestId('release-force').click()
     await expect(inspector.getByTestId('release-detail')).toHaveAttribute('data-release', 'r2')
     await inspector.getByTestId('release-commit').click()
     await settle(page)

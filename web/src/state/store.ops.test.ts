@@ -70,7 +70,9 @@ describe('store: LLM Ops actions', () => {
     const body = (await useApp.getState().api!.artifact('prompt', 'system_prompt')).body
     await useApp.getState().saveArtifact('prompt', 'system_prompt', body + '\nBe kind.\n')
     const r2 = await useApp.getState().createRelease('kinder')
-    expect(r2?.release_id).toBe('r2')
+    // The edit keeps every golden case passing, so the gate lets it through.
+    expect(r2?.release?.release_id).toBe('r2')
+    expect(r2?.release?.gate).toMatchObject({ status: 'passed', pass_rate: 1, forced: false })
     expect(useApp.getState().capabilities?.release).toEqual({ active_release_id: 'r2', working_set_dirty: false, use_working_set: true })
     expect(useApp.getState().marks.at(-1)).toMatchObject({ kind: 'released', text: 'Release r2 active', restore: { type: 'rollback', releaseId: 'r1' } })
     expect(await useApp.getState().rollback('r1')).toBe(true)

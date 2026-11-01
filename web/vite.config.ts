@@ -8,7 +8,7 @@ import { defineConfig, loadEnv } from 'vite'
 // streams. The web app imports it directly instead of copying it, so it cannot drift.
 const specDir = fileURLToPath(new URL('../spec', import.meta.url))
 // Mock mode also reads the lesson chapters and the repo files the inspector shows (src/mock).
-const mockDirs = ['../lessons', '../harnesswalk', '../config', '../datasets/_starter'].map((d) => fileURLToPath(new URL(d, import.meta.url)))
+const mockDirs = ['../lessons', '../harnesswalk', '../config', '../datasets/_starter', '../datasets/finance'].map((d) => fileURLToPath(new URL(d, import.meta.url)))
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
