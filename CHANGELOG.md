@@ -11,7 +11,8 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 ## [Unreleased]
 
 ### Added
-
+- The empty chat shows a card per dataset pack; picking one starts a session on it (the header picker still works).
+- A Replay label on the chat action, and a Replay button on the status bar for a finished turn.
 - **The document reader shows the original file.** A Document view beside the chunk list: a
   pack PDF in the browser's own viewer (with an open and download fallback where the browser
   has none), a markdown document rendered with a rule naming the chunks at each boundary, any
@@ -24,7 +25,6 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 
 - The document reader is a fixed-height panel whose body scrolls inside it: a long document no
   longer runs past the dialog's bottom edge. The Legend dialog scrolls the same way.
-
 ## [0.1.0] - 2026-11-02
 
 The first public release, built in eight phases (P0 to P7).
