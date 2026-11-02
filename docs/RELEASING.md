@@ -63,6 +63,10 @@ Do these once, before the first tag.
 
 ### PyPI trusted publishing
 
+The PyPI job is skipped until the repository variable `PYPI_PUBLISH` is `true` (Settings,
+Secrets and variables, Actions, Variables). Set it after the two steps below, otherwise every
+release commit shows a failing check for a publisher that does not exist yet.
+
 Trusted publishing lets the workflow upload without any token stored in GitHub: PyPI trusts
 an OpenID Connect token that GitHub issues to that one workflow and environment.
 

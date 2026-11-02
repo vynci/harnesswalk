@@ -91,6 +91,9 @@ jobs:
   pypi:
     name: Publish to PyPI (trusted publishing)
     needs: build
+    # Off until the owner has set up the trusted publisher (docs/RELEASING.md): set the
+    # repository variable PYPI_PUBLISH to "true" to turn it on. Skipped, not failed, before that.
+    if: vars.PYPI_PUBLISH == 'true'
     runs-on: ubuntu-latest
     environment:
       name: pypi
