@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ComponentProps, type ReactElement } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { Citation, TurnNotice } from '@/api/types'
 import { Coins, Eye, History, Info, MessagesSquare, OctagonX, Play, RefreshCcw, Route, TriangleAlert } from 'lucide-react'
 import { Hint } from '@/components/hint'
@@ -144,16 +144,6 @@ function ReplyNotes({ notices }: { notices: TurnNotice[] }) {
 }
 
 /** A Message action: a ghost icon button with a tooltip (Replay; Good and Bad are in Feedback.tsx). */
-function MessageAction({ label, children, ...props }: { label: string; children: ReactElement } & Omit<ComponentProps<typeof Button>, 'children'>) {
-  return (
-    <Hint label={label} side="top">
-      <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={label} {...props}>
-        {children}
-      </Button>
-    </Hint>
-  )
-}
-
 function TurnView({
   turn,
   index,
