@@ -2,14 +2,18 @@
 // style menu (a DropdownMenu with one radio group), each with its title and the feature it shows
 // off, the session's pack checked. Picking another one starts a new session on it. The trigger
 // fits the pack's name (up to 24 rem, cut with an ellipsis only past that, the tooltip naming it
-// in full); on a phone it shows the first word of the name.
-import { ChevronDown, Database } from 'lucide-react'
+// in full); on a phone it shows the first word of the name. The menu ends with "Add your own
+// dataset", disabled until packs of one's own arrive (useFeature('pack_uploads')), with a link to
+// the guide that does it by hand (docs/your-own-data.md).
+import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui'
+import { ChevronDown, Database, Plus } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -17,8 +21,61 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { repoBlobUrl } from '@/lessons/links'
+import { useFeature } from '@/state/hooks'
 import { orderPacks, packTitle } from '@/state/packs'
 import { selectTurnRunning, useApp } from '@/state/store'
+
+/** The developer guide to a pack of one's own data, in the repository the API names. */
+export const OWN_DATA_GUIDE = 'docs/your-own-data.md'
+
+/**
+ * The menu's last entry: "Add your own dataset", disabled with its reason as the tooltip (on the
+ * wrapping element, since a disabled item takes no pointer events), so it never closes the menu
+ * or picks a pack. Under it, a muted line links to the guide; the link is its own menu item, so
+ * it stays clickable and reachable with the arrow keys while the entry is disabled.
+ */
+function AddOwnDataset({ tid, inline }: { tid: string; inline: boolean }) {
+  const feature = useFeature('pack_uploads')
+  const base = repoBlobUrl(useApp((s) => s.capabilities?.repo_url))
+  const guide = base ? `${base}${OWN_DATA_GUIDE}` : null
+  const reason = feature.reason ?? 'Feature coming soon.'
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div data-testid={`${tid}-manage`} data-disabled={feature.enabled ? 'false' : 'true'}>
+          <DropdownMenuItem disabled={!feature.enabled} onSelect={(e) => e.preventDefault()}>
+            <Plus aria-hidden />
+            <span>Add your own dataset</span>
+            <span className="sr-only">{reason}</span>
+          </DropdownMenuItem>
+          <p className="px-2 pb-1.5 pl-8 text-xs text-muted-foreground">
+            For now, add a folder under datasets/: see{' '}
+            {guide ? (
+              <DropdownMenuPrimitive.Item asChild>
+                <a
+                  href={guide}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="cursor-pointer rounded-xs font-medium text-foreground underline underline-offset-2 outline-hidden hover:text-brand focus:bg-accent data-highlighted:bg-accent"
+                  data-testid={`${tid}-manage-link`}
+                >
+                  the guide
+                </a>
+              </DropdownMenuPrimitive.Item>
+            ) : (
+              <span>the guide ({OWN_DATA_GUIDE})</span>
+            )}
+          </p>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side={inline ? 'right' : 'left'} className="max-w-64" data-testid={`${tid}-manage-reason`}>
+        {reason}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
 
 /**
  * `variant="inline"` is the empty chat's copy: an outline button at full width of its row with
@@ -90,6 +147,8 @@ export function PackPicker({ variant = 'header' }: { variant?: 'header' | 'inlin
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <AddOwnDataset tid={tid} inline={inline} />
       </DropdownMenuContent>
     </DropdownMenu>
   )
