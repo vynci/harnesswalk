@@ -61,7 +61,7 @@ export function PackPicker() {
               {title}
             </span>
             <span className="min-w-0 truncate sm:hidden">{short}</span>
-            <ChevronDown className="text-muted-foreground" aria-hidden />
+            <ChevronDown className="opacity-80" aria-hidden />
           </Button>
         </DropdownMenuTrigger>
       </Hint>
