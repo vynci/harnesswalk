@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { afterNote, gateText, layerLabel } from '@/inspector/p5View'
-import { artifactOfFile, buildTree, docIdOf, filesForNode, fixtureChoices, packTitle, pdfSource } from './packs'
+import { artifactOfFile, buildTree, docIdOf, filesForNode, fixtureChoices, orderPacks, PACK_ORDER, packTitle, pdfSource } from './packs'
 
 const packs = [
   { id: '_starter', title: 'Sample Shop', fixtures: ['tool_call'] },
@@ -15,6 +15,23 @@ describe('pack helpers', () => {
     expect(fixtureChoices(packs, all, '_starter').all).toEqual(['tool_call', 'plain_answer'])
     // Without the pack list every fixture is offered, as before P5.
     expect(fixtureChoices(null, all, 'finance').all).toEqual(all)
+  })
+
+  it('orders the packs: the starter first, the domain packs in the fixed walk, unknown ones by title', () => {
+    const listed = [
+      { id: 'finance', title: 'Hollowmere Capital Partners' },
+      { id: 'zeta', title: 'Zeta Works' },
+      { id: 'sports', title: 'The Copperline Community League' },
+      { id: '_starter', title: 'Sample Shop' },
+      { id: 'alpha' },
+      { id: 'healthcare', title: 'Brindlemoor Family Clinic' },
+      { id: 'ecommerce', title: 'Quillfern Outfitters' },
+      { id: 'logistics', title: 'Tallowgate Freight' },
+    ]
+    expect(orderPacks(listed).map((p) => p.id)).toEqual([...PACK_ORDER, 'alpha', 'zeta'])
+    // A copy: the list it was given keeps its order.
+    expect(listed[0]!.id).toBe('finance')
+    expect(orderPacks([])).toEqual([])
   })
 
   it('names a pack by its title, else its id', () => {

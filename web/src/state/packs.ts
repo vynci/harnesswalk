@@ -1,5 +1,5 @@
-// Pure helpers for the dataset packs (P5): the fixture menu of one pack, a pack's display name,
-// which of a pack's files an inspector shows, and the file tree built from their paths.
+// Pure helpers for the dataset packs (P5): their order, the fixture menu of one pack, a pack's
+// display name, which of a pack's files an inspector shows, and the file tree built from their paths.
 import type { PackFile, PackSummary } from '@/api/types'
 
 /**
@@ -13,6 +13,20 @@ export function fixtureChoices(packs: PackSummary[] | null | undefined, all: str
   const own = mine.filter((f) => all.includes(f))
   const shared = all.filter((f) => !owned.has(f))
   return { own, shared, all: [...own, ...shared] }
+}
+
+/**
+ * The packs' order in the header picker and the empty chat's chooser (owner's choice): the
+ * starter shop first, then the domain packs in a fixed walk; unknown packs follow by title.
+ */
+export const PACK_ORDER = ['_starter', 'healthcare', 'logistics', 'ecommerce', 'sports', 'finance']
+
+export function orderPacks<T extends { id: string; title?: string }>(packs: T[]): T[] {
+  const rank = (p: T) => {
+    const i = PACK_ORDER.indexOf(p.id)
+    return i === -1 ? PACK_ORDER.length : i
+  }
+  return [...packs].sort((a, b) => rank(a) - rank(b) || (a.title ?? a.id).localeCompare(b.title ?? b.id))
 }
 
 /** How a pack is named in the UI: its title, else its id. */
