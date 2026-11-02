@@ -48,10 +48,15 @@ def test_an_empty_or_repeated_release_is_refused() -> None:
         release.move_unreleased(once.replace("Nothing yet.", "- x"), "0.1.0", "2026-12-01")
 
 
-def test_the_repo_changelog_has_an_unreleased_section_to_release() -> None:
+def test_the_repo_changelog_keeps_an_unreleased_section() -> None:
+    """The heading is always there; right after a release its body is empty, and then a
+    release-prep must refuse rather than cut an empty release."""
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert release.section(text, "Unreleased").strip()
-    release.move_unreleased(text, "9.9.9", "2026-11-01")  # would succeed
+    assert "## [Unreleased]" in text
+    try:
+        release.move_unreleased(text, "9.9.9", "2026-11-01")  # there is something to release
+    except release.ReleaseError as exc:  # right after a release: the placeholder body only
+        assert "empty" in str(exc)
 
 
 def test_check_tag_matches_the_project_version(capsys) -> None:

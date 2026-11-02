@@ -127,10 +127,11 @@ def prep(version: str, date: str, dry_run: bool) -> int:
     print("Check the diff, run make test and make lint, then:\n")
     print(f'  git commit -am "chore(release): v{version}"')
     print("  git push origin main            # wait for ci to pass")
-    print(f"\nThen in GitHub, Releases, \"Draft a new release\": new tag v{version} on main, title")
-    print(f'"Harnesswalk {version}", notes empty, publish. The tag runs release.yml (PyPI, ghcr.io,')
-    print("notes and assets on the release); publishing runs deploy.yml (the site). A tag pushed")
-    print("from the command line publishes packages but does not deploy (docs/RELEASING.md).")
+    print(f'\nThen in GitHub, Releases, "Draft a new release": new tag v{version} on main, title')
+    print(f'"Harnesswalk {version}", notes empty, publish. The tag runs release.yml (PyPI,')
+    print("ghcr.io, notes and assets on the release); publishing runs deploy.yml (the site).")
+    print("A tag pushed from the command line publishes packages but does not deploy")
+    print("(docs/RELEASING.md).")
     return 0
 
 
