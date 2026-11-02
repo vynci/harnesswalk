@@ -8,8 +8,9 @@ into `harnesswalk/`, three things to try with the expected outcome, three questi
 yourself, and further reading.
 
 Everything runs offline on the `fake` provider: no model key, no cost, and the same result every
-time. The web app shows each chapter in the inspector's Lessons tab, lists them all in the Lessons
-drawer from the header, and offers "Disable X and try it" where a node can be switched off.
+time. The web app shows each chapter in the Guide (the header's Guide button; a node's inspector
+has "Open in Guide"), lists them all there, and offers "Disable X and try it" where a node can be
+switched off.
 
 Written for a developer who knows web services and has never built an agent runtime. Read them in
 order the first time; each one assumes the ones before it.
@@ -60,7 +61,7 @@ what changes.
 Every demonstration runs on the `_starter` pack, so the walk tells one story. The five switch
 chapters also show the same failure on the domain pack whose feature it is (`also` below):
 healthcare for input and output guardrails, ecommerce for policy and approval, finance for the
-memory writer. The Lessons tab gives each its own button.
+memory writer. The Guide chapter gives each its own button.
 
 ## Chapter format
 

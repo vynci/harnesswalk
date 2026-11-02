@@ -10,7 +10,9 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- The README is a short front door; the detail moved to `docs/quickstart.md`, `docs/walkthrough.md`, `docs/architecture.md` and `docs/repository.md`, with `docs/README.md` as the index.
 
 ## [0.1.1] - 2026-11-02
 
