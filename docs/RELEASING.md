@@ -10,6 +10,13 @@ its tooling tags or pushes on its own: the owner does both by hand.
 
 ## Every release
 
+The short way: in GitHub, Actions, **prepare-release**, "Run workflow" with the version (for
+example `0.1.1`). It bumps the version, cuts the changelog section, runs lint and the tests, and
+pushes `chore(release): v0.1.1` to `main`. Then go to step 4 (publish the release on that
+commit). A push made with the workflow's own token starts no `ci` run; add a repository secret
+`RELEASE_PUSH_TOKEN` (fine-grained personal token, contents: write) if you want `ci` on the
+bump commit too. The long way, by hand:
+
 1. On an up-to-date `main` with a clean tree, prepare it:
 
    ```sh

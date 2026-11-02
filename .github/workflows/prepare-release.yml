@@ -1,0 +1,65 @@
+name: prepare-release
+
+# One click before a release: bump the version, cut the changelog section and push the
+# "chore(release): v<version>" commit to main (what `make release-prep VERSION=` does by hand),
+# after lint and the test suite pass on the result. Then publish the GitHub Release on that
+# commit in the UI: the tag runs release.yml, the publish event runs deploy.yml.
+#
+# A push made with the workflow's own token starts no other workflow, so ci does not run on
+# the bump commit; this workflow runs lint and the tests itself instead. To have ci run too,
+# add a repository secret RELEASE_PUSH_TOKEN (a fine-grained personal token with contents:
+# write on this repository); the checkout then pushes with it. Branch protection must allow
+# that token (or the GITHUB_TOKEN) to push to main.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version to release, for example 0.1.1 (no v)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PUSH_TOKEN || github.token }}
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+      - name: The version is x.y.z and not released yet
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([a-z]+[0-9]+)?$ ]] || { echo "version must look like 0.1.1 or 0.2.0rc1, got: $VERSION" >&2; exit 1; }
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then echo "tag v$VERSION exists already" >&2; exit 1; fi
+      - name: Bump the version and cut the changelog section
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          uv sync
+          make release-prep VERSION="$VERSION"
+          git --no-pager diff --stat
+      - name: Lint and tests on the bumped tree
+        run: |
+          make lint
+          make test
+      - name: Commit and push to main
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore(release): v$VERSION"
+          git push origin HEAD:main
+          echo "Pushed $(git rev-parse --short HEAD). Now publish the release: Releases, Draft a new release, new tag v$VERSION on main." >> "$GITHUB_STEP_SUMMARY"

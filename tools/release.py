@@ -155,7 +155,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         version = project_version()
         if args.tag != f"v{version}":
-            raise ReleaseError(f"tag {args.tag} does not match the project version {version}")
+            raise ReleaseError(
+                f"tag {args.tag} does not match the project version {version}: run the "
+                f"prepare-release workflow (Actions) or `make release-prep VERSION=<x.y.z>`, push, "
+                "then publish the release on that commit"
+            )
         if INIT.read_text(encoding="utf-8").count(f'__version__ = "{version}"') != 1:
             raise ReleaseError(f"harnesswalk/__init__.py does not say {version}")
         print(f"tag {args.tag} matches version {version}")

@@ -580,6 +580,19 @@ live at https://harnesswalk.vynci.dev). The spec may still grow, under the addit
 is in [CHANGELOG.md](CHANGELOG.md) (and [spec/CHANGELOG.md](spec/CHANGELOG.md) for the spec).
 Private mode, framework adapters and a second implementation are deliberately later.
 
+## Releasing
+
+A release is a GitHub Release with a tag `v<version>` on `main`. Two steps: run the
+**prepare-release** workflow in the Actions tab with the version (it bumps the version, cuts
+the changelog section, runs lint and the tests, and pushes `chore(release): v<version>` to
+`main`; `make release-prep VERSION=<x.y.z>` does the same by hand), then publish the release on
+that commit ("Draft a new release", new tag `v<version>`, notes empty). The tag runs the
+`release` workflow (PyPI, the image on ghcr.io, notes and files on the release) and the publish
+event runs `deploy`, which ships that commit to the hosted sandbox. Pushes to `main` only run
+CI. The release workflow refuses a tag that does not name the project version, so a release
+made before the prepare step fails fast. Details, rollback and the one-time setup are in
+[docs/RELEASING.md](docs/RELEASING.md).
+
 ## Contributing
 
 Questions, spec corrections, lesson fixes, packs and conformance cases are all welcome.
