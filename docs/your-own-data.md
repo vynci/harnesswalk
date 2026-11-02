@@ -5,7 +5,7 @@ How do I use or integrate my own data? In Harnesswalk the answer is a pack: a fo
 the guardrail patterns for your identifiers, and the golden cases that prove it still works.
 This guide builds one for a set of support documents and two domain functions, end to end, with
 commands you can paste. It assumes a checkout with `make setup` done (see the
-[README](../README.md#quickstart)); every command runs from the repository root.
+[Quickstart](quickstart.md)); every command runs from the repository root.
 
 The pack format is fixed in [`spec/packs.md`](../spec/packs.md), the shipped packs are described
 in [`datasets/README.md`](../datasets/README.md), and the code that reads them is
@@ -467,7 +467,7 @@ HARNESSWALK_DATASET=my_support make run PROVIDER=fake
 
 Open http://127.0.0.1:8000, pick a fixture of your pack in the Fixture select and send its
 prompt. Then the real model: with Ollama running, `make run` (or `make run PROVIDER=anthropic`
-with a key, see [Use a real model](../README.md#use-a-real-model)), pick your pack in the menu
+with a key, see [Use a real model](quickstart.md#use-a-real-model)), pick your pack in the menu
 and ask in your own words, or on the command line:
 
 ```bash

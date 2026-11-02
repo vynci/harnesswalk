@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fresh-clone check: does the README work for a stranger on a clean machine?
+# Fresh-clone check: does the README Quickstart work for a stranger on a clean machine?
 #
 #   tools/fresh_clone_check.sh            # or: make fresh-clone
 #   FRESH_CLONE_REF=main tools/fresh_clone_check.sh
@@ -13,7 +13,8 @@
 #      make setup && make web-build && make run PROVIDER=fake
 #      then checks that http://127.0.0.1:8000 serves the app and the API answers a turn
 #      on the fake provider (the trailhead_return fixture the Quickstart suggests);
-#   3. runs the README's no-browser command and `make turn`;
+#   3. runs the no-browser command of docs/quickstart.md ("Other ways to run it") and the
+#      `make turn` of docs/walkthrough.md;
 #   4. runs `make test` and `make lint`.
 #
 # Any failed step exits non-zero with the step's name. Needs Docker and network access for the
@@ -143,12 +144,12 @@ kill "$server" 2>/dev/null || true
 pkill -f "harnesswalk serve" || true
 wait "$server" 2>/dev/null || true
 
-step "README: the no-browser turn"
+step "docs/quickstart.md: the no-browser turn"
 out="$(uv run harnesswalk turn "Where is order A-1001?" --provider fake --fixture tool_call)"
 echo "$out" | tail -4
 grep -q "A-1001" <<<"$out"
 
-step "README: make turn"
+step "docs/walkthrough.md: make turn"
 make turn | tail -3
 
 step "make test"
