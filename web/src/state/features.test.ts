@@ -61,6 +61,10 @@ describe('featureState', () => {
     expect(featureState(caps('dev', { evals: false }), 'evals').enabled).toBe(false)
     expect(featureState(caps('dev', { disable_nodes: undefined }), 'disable_nodes').enabled).toBe(true)
     expect(featureState(caps(), 'uploads')).toEqual({ enabled: false, reason: 'Attach, coming later' })
+    // Add your own dataset (the pack menu): off in every mode, the same words everywhere.
+    for (const mode of ['dev', 'private', 'public'] as const) {
+      expect(featureState(caps(mode), 'pack_uploads')).toEqual({ enabled: false, reason: 'Feature coming soon.' })
+    }
     expect(featureState(null, 'evals').reason).toBe('Connecting to the API.')
   })
 })
