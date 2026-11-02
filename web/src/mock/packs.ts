@@ -1,6 +1,6 @@
-// The dataset packs of the in-browser mock (P5): the starter pack and one domain pack (finance),
-// with their cards, their files from the repo (bundled into mock builds only) and their own fake
-// fixtures, in the shapes of GET /v1/packs, GET /v1/packs/{id} and GET /v1/packs/{id}/files/{path}.
+// The dataset packs of the in-browser mock (P5): the starter pack and the five domain packs, with
+// their cards, their files from the repo (bundled into mock builds only) and their own fake
+// fixtures (only finance has any: the other domain packs play the shared recorded streams), in the shapes of GET /v1/packs, GET /v1/packs/{id} and GET /v1/packs/{id}/files/{path}.
 import type { FixtureInfo, PackDetail, PackFile, PackSummary } from '@/api/types'
 import { repoFile, repoFilesUnder } from './repo'
 
@@ -50,6 +50,50 @@ const PACKS: MockPack[] = [
     prompts: promptsOf('datasets/finance/prompts.md'),
     fixtures: ['cite_mgmt_fee_hcp01', 'mem_reporting_currency_set', 'mem_statement_format_set', 'mem_statement_format_recall'],
     tools: ['fund_nav', 'capital_calls'],
+  },
+  {
+    id: 'healthcare',
+    title: 'Brindlemoor Family Clinic',
+    domain: 'healthcare',
+    feature: 'PII redaction and refusal',
+    summary: 'A front-desk assistant for a fictional three-site community clinic that redacts personal data before the model sees it and refuses medical advice.',
+    demonstrates: { id: 'pii_redaction_and_refusal', nodes: ['input_guardrails', 'output_guardrails'], summary: 'Personal data swapped for placeholders, and medical advice refused.' },
+    prompts: promptsOf('datasets/healthcare/prompts.md'),
+    fixtures: [],
+    tools: ['find_appointment', 'clinic_hours', 'list_services'],
+  },
+  {
+    id: 'logistics',
+    title: 'Tallowgate Freight',
+    domain: 'logistics',
+    feature: 'Multi-step tool use',
+    summary: 'An operations desk assistant for a regional freight forwarder that tracks, checks and reroutes shipments one tool at a time.',
+    demonstrates: { id: 'multi_step_tools', nodes: ['loop', 'tools'], summary: 'Three or four trips round the loop in one turn, one tool call each.' },
+    prompts: promptsOf('datasets/logistics/prompts.md'),
+    fixtures: [],
+    tools: ['track', 'eta', 'hub_capacity', 'reroute'],
+  },
+  {
+    id: 'ecommerce',
+    title: 'Quillfern Outfitters',
+    domain: 'ecommerce',
+    feature: 'Destructive action behind approval',
+    summary: 'An online outdoor and home goods shop where cancelling an order or issuing a refund pauses for a human approval before anything changes.',
+    demonstrates: { id: 'approval', nodes: ['policy', 'approval'], summary: 'A cancel or a refund waits for a human in the approval node.' },
+    prompts: promptsOf('datasets/ecommerce/prompts.md'),
+    fixtures: [],
+    tools: ['lookup_order', 'track_shipment', 'cancel_order', 'issue_refund'],
+  },
+  {
+    id: 'sports',
+    title: 'The Copperline Community League',
+    domain: 'sports',
+    feature: 'Cheap model routing for lookups',
+    summary: 'A volunteer help desk for an amateur football league, where fixture, table and player lookups are routed to the cheapest model for the phrasing step.',
+    demonstrates: { id: 'router', nodes: ['model_layer', 'router'], summary: 'Lookups phrased on the cheapest model by the router.' },
+    prompts: promptsOf('datasets/sports/prompts.md'),
+    fixtures: [],
+    tools: ['fixtures', 'standings', 'player_stats'],
   },
 ]
 

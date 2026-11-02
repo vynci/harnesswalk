@@ -46,7 +46,7 @@ describe('store: packs', () => {
   it('boots on the session’s pack and lists the packs', async () => {
     await boot(undefined, 'sess_demo')
     const s = useApp.getState()
-    expect(s.packs?.map((p) => p.id)).toEqual(['_starter', 'finance'])
+    expect(s.packs?.map((p) => p.id)).toEqual(['_starter', 'finance', 'healthcare', 'logistics', 'ecommerce', 'sports'])
     expect(s.pack).toBe('_starter')
     expect(s.api?.pack()).toBe('_starter')
   })
