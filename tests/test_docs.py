@@ -22,8 +22,8 @@ def test_every_contract_exists() -> None:
         assert (SPEC / "contracts" / f"{name}.md").exists(), name
 
 
-def test_readme_mermaid_matches_simple_view() -> None:
-    text = (ROOT / "README.md").read_text(encoding="utf-8")
+def test_architecture_mermaid_matches_simple_view() -> None:
+    text = (ROOT / "docs" / "architecture.md").read_text(encoding="utf-8")
     block = re.search(r"```mermaid\n(.*?)```", text, re.S).group(1)
     declared = set(re.findall(r"^\s+([a-z_]+)[\[\(]", block, re.M))
     assert declared == simple_ids()
