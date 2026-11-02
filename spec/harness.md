@@ -32,7 +32,7 @@ this file, `events.md`, the contracts, the examples.
   answer. It is everything except the model weights.
 - **Node**: one component of the harness with a stable id from `diagram.json`. Nodes are the unit
   of the diagram, the event stream, the lessons and the conformance paths.
-- **Simple node / expert node**: the simple view has 15 nodes. The expert view adds 14 child
+- **Simple node / expert node**: the simple view has 15 nodes. The advanced view adds 14 child
   nodes, each with a `parent` that is a simple node.
 - **Turn**: one unit of harness work with its own `turn_id` and `trace_id`. A chat request is a
   turn. A release or an eval run started outside chat is also a turn (`turn_start.summary.kind`).

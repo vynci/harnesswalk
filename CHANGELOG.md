@@ -25,7 +25,7 @@ The first public release, built in eight phases (P0 to P7 in [docs/ROADMAP.md](d
   SQLite. Every node emits typed events over Server-Sent Events. The `harnesswalk` command
   (`serve`, `turn`, `events`), the conformance runner and a Docker compose stack.
 - **The web app (P2).** A chat beside a live React Flow diagram lit by the event stream, simple
-  and expert views, step mode with Next and Continue, Stop, approval cards, replay of any
+  and advanced views, step mode with Next and Continue, Stop, approval cards, replay of any
   finished turn, an inspector per node with its lesson, config, events and code peek, and a mock
   mode that plays the recorded streams with no API.
 - **The full planes (P3).** Input guardrails (size, PII placeholders, injection scoring),

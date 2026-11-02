@@ -13,7 +13,7 @@ try:
 
 ## What it does
 
-Chapter 6 treated the model layer as one call. In the Expert view it opens into two parts, and
+Chapter 6 treated the model layer as one call. In the Advanced view it opens into two parts, and
 every model call shows both: a `router` span that picks the model, then one `providers` span per
 attempt.
 

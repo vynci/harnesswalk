@@ -108,7 +108,7 @@
             "x": { "type": "number" },
             "y": { "type": "number" },
             "expert": {
-              "description": "Optional fixed position in the expert view, where parents grow to hold their children. Absent means the simple-view position.",
+              "description": "Optional fixed position in the advanced view, where parents grow to hold their children. Absent means the simple-view position.",
               "type": "object",
               "additionalProperties": false,
               "required": ["x", "y"],
@@ -133,11 +133,11 @@
         "kind": { "enum": ["request", "data", "control", "telemetry", "release"] },
         "view": { "enum": ["simple", "expert"] },
         "refines": {
-          "description": "Expert edges only: the simple edge this one details. In expert view the renderer hides a simple edge once any edge refines it.",
+          "description": "Expert edges only: the simple edge this one details. In advanced view the renderer hides a simple edge once any edge refines it.",
           "type": "string"
         },
         "layout": {
-          "description": "Optional routing hints for the simple view, in the same units as node layout. The renderer draws the edge orthogonally from the source port through the waypoints to the target port. A port sits on the named side where the nearest waypoint projects onto it (the side centre when it does not). On an expert edge the hints are for the expert view, where a renderer may use only `handles`. Hints are hints: an edge without them is routed automatically.",
+          "description": "Optional routing hints for the simple view, in the same units as node layout. The renderer draws the edge orthogonally from the source port through the waypoints to the target port. A port sits on the named side where the nearest waypoint projects onto it (the side centre when it does not). On an expert edge the hints are for the advanced view, where a renderer may use only `handles`. Hints are hints: an edge without them is routed automatically.",
           "type": "object",
           "additionalProperties": false,
           "properties": {

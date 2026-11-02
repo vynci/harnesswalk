@@ -13,7 +13,7 @@ try:
 
 ## What it does
 
-Chapter 7 followed one call down the invoke path. The Expert view opens Tools into the two places
+Chapter 7 followed one call down the invoke path. The Advanced view opens Tools into the two places
 where the path touches code: the registry, which knows what tools exist, and the sandbox, which
 runs them.
 
@@ -101,7 +101,7 @@ repeats a side effect in this process.
 
 ## Try this
 
-1. **Read the span.** Send "Where is order A-1001?" with fixture `tool_call` in the Expert view
+1. **Read the span.** Send "Where is order A-1001?" with fixture `tool_call` in the Advanced view
    and open Sandbox. Expected: `level=subprocess network=blocked`, a `jail` on macOS or Linux, and
    `executed=True`; the tool line in the chat shows the same sandbox chip.
 2. **Run the sandbox tests.** `uv run pytest tests/unit/test_sandbox.py -v`. Expected: tests for

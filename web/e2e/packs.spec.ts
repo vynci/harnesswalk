@@ -10,7 +10,7 @@ const FEE = 'What is the management fee for Hollowmere Growth Partners III?'
 const node = (page: Page, id: string) => page.getByTestId(`node-${id}`)
 
 async function setView(page: Page, view: 'Simple' | 'Expert') {
-  const expert = page.getByRole('switch', { name: 'Expert view' })
+  const expert = page.getByRole('switch', { name: 'Advanced view' })
   const want = view === 'Expert' ? 'true' : 'false'
   if ((await expert.getAttribute('aria-checked')) === want) return
   await expert.focus()

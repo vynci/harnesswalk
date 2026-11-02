@@ -17,7 +17,7 @@ skills) is memory. What was said earlier in this conversation is memory. A durab
 a customer, a dated event from last week and a page of the returns policy are memory too. They
 differ in what they hold, how they are ranked and who may write them, so Harnesswalk keeps them
 in five stores: procedural, session, semantic, episodic and knowledge. The simple view draws
-them as one node; the expert view opens it into the five, and chapter 16 walks each one.
+them as one node; the advanced view opens it into the five, and chapter 16 walks each one.
 
 What they share is the read side. The context builder enters Memory once per turn with the
 user's message, and Memory asks each store in a fixed order with the same query shape: the

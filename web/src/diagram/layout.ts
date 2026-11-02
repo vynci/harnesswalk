@@ -3,19 +3,19 @@
 //
 // Rules:
 // 1. A node with a `layout` hint in diagram.json is placed exactly there (`layout.expert` in the
-//    expert view, where parents grow to hold their children).
+//    advanced view, where parents grow to hold their children).
 // 2. Otherwise the runtime planes (control, context, execution) are columns left to right in
 //    `groups[].order`, and the ops plane, which sits outside the runtime, is a row beneath them.
 //    Inside a plane dagre lays the nodes out over the plane's own edges plus a chain in walk
 //    order, so a column reads top to bottom in the order a request meets it.
-// 3. In the expert view an expanded parent becomes a container and its expert children sit
+// 3. In the advanced view an expanded parent becomes a container and its expert children sit
 //    inside it: where their own `layout` hints put them (relative to the parent's top-left), or
 //    else in a two-column grid. The padding and gaps leave room for an edge lane between them.
 // 4. The runtime columns share one top and one bottom; the ops row sits beneath them.
 // 5. An edge whose `layout` hint was drawn for these node boxes follows its hint: named sides,
 //    bend points (route.ts). Every other edge is routed automatically around the node boxes,
 //    with clear air round every node it does not connect and a lane gap between parallel
-//    edges. In the expert view the edges inside one plane are routed first and the plane grows
+//    edges. In the advanced view the edges inside one plane are routed first and the plane grows
 //    to hold their lanes; the edges between planes are routed after, through the gutters.
 // 6. In the simple view the edges to and from LLM Ops and the telemetry edges are optional: the
 //    renderer hides them by default and draws one bus per runtime plane into each ops node
@@ -45,7 +45,7 @@ const PAD_CHILD = 12
 /** How close an edge may run along a group border it crosses, or along a plane border. */
 const RAIL_GROUP = 12
 const RAIL_PLANE = 14
-/** Expert view: a plane grows to keep this much air round the lanes of its own edges. */
+/** Advanced view: a plane grows to keep this much air round the lanes of its own edges. */
 const PLANE_LANE_MARGIN = 18
 /** The straight run out of a nested child before an edge may bend. */
 const CHILD_STUB = 12
@@ -58,7 +58,7 @@ export const BADGE_ROW_H = 52
 
 export interface ViewOptions {
   view: View
-  /** Parents whose expert children are collapsed in the expert view. */
+  /** Parents whose expert children are collapsed in the advanced view. */
   collapsed: ReadonlySet<string>
 }
 
@@ -154,7 +154,7 @@ export function visibleEdges(
 ): { edge: DiagramEdge; carries: string[] }[] {
   const drawn = diagram.edges.filter((e) => visible.has(e.from) && visible.has(e.to))
   const drawnIds = new Set(drawn.map((e) => e.id))
-  // "In expert view the renderer hides a simple edge once any edge refines it."
+  // "In advanced view the renderer hides a simple edge once any edge refines it."
   const refined = new Set(
     drawn.filter((e) => e.refines && drawnIds.has(e.id)).map((e) => e.refines as string),
   )
@@ -403,7 +403,7 @@ function routeEdges(
 ): VisibleEdge[] {
   const walk = new Map(diagram.walk_order.map((id, i) => [id, i]))
   const byId = new Map(diagram.nodes.map((n) => [n.id, n]))
-  // Hints were drawn for the simple-view boxes. In the expert view they still hold for an edge
+  // Hints were drawn for the simple-view boxes. In the advanced view they still hold for an edge
   // whose two ends sit exactly where they do in the simple view.
   const simpleSize = (n: DiagramNode) => sizeOf(diagram, n, visibleNodeIds(diagram, { view: 'simple', collapsed: new Set() }))
   const hintHolds = (id: string) => {

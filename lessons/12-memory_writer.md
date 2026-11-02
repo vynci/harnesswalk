@@ -51,7 +51,7 @@ pointing at an empty folder), so no earlier run has stored the name. Open Memory
 "Disable on the next turn", and send the prompt. The `remember` call runs and the scripted reply
 says "I have asked to remember your name for next time", but Memory writer is `skipped` and
 nothing is written. Click New session in the header and ask "What is my preferred name?" with
-fixture `plain_answer`: in the expert view the Semantic node is `skipped` with `hits: 0`. The
+fixture `plain_answer`: in the advanced view the Semantic node is `skipped` with `hits: 0`. The
 agent has forgotten, and once more the model's own words are not evidence of what happened.
 
 Now send the first prompt again with the writer on. The walk ends with two `memory_proposed` and

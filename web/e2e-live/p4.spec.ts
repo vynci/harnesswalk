@@ -18,7 +18,7 @@ const repo = fileURLToPath(new URL('../..', import.meta.url))
 const run = promisify(execFile)
 
 async function setView(page: Page, view: 'Simple' | 'Expert') {
-  const expert = page.getByRole('switch', { name: 'Expert view' })
+  const expert = page.getByRole('switch', { name: 'Advanced view' })
   const want = view === 'Expert' ? 'true' : 'false'
   if ((await expert.getAttribute('aria-checked')) === want) return
   await expert.click()

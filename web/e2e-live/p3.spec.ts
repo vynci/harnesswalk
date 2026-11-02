@@ -59,7 +59,7 @@ test('citations: the Trailhead question lights all five stores and its chips ope
 })
 
 test('the knowledge inspector lists the pack documents and opens one', async ({ page }) => {
-  await page.getByRole('switch', { name: 'Expert view' }).setChecked(true)
+  await page.getByRole('switch', { name: 'Advanced view' }).setChecked(true)
   await node(page, 'knowledge').click()
   const inspector = page.getByTestId('inspector')
   await inspector.getByRole('tab', { name: 'Records' }).click()

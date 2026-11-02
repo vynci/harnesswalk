@@ -120,11 +120,11 @@ test('on a narrow screen the Guide opens as a sheet with its own close', async (
   await expect(sheet).toBeHidden()
   await expect(page.getByTestId('guide-button')).toBeFocused()
 })
-test('a group chapter switches to the expert view and selects its first node', async ({ page }) => {
+test('a group chapter switches to the advanced view and selects its first node', async ({ page }) => {
   await page.getByTestId('guide-button').click()
   const slug = await page.getByTestId('lesson-row').nth(15).getAttribute('data-slug')
   await page.getByTestId('lesson-row').nth(15).click()
-  await expect(page.getByRole('switch', { name: 'Expert view' })).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByRole('switch', { name: 'Advanced view' })).toHaveAttribute('aria-checked', 'true')
   const inspector = page.getByTestId('inspector')
   await expect(inspector).toContainText(/inside Memory/)
   expect(slug).toMatch(/^16-/)
@@ -145,7 +145,7 @@ test('an expert node opens its group chapter at its own section', async ({ page 
     const markdown = `# Inside memory\n\n> The five stores.\n\n## The stores\n\n${kids.map((k) => `### ${k.label}\n\n${filler}`).join('\n\n')}\n`
     mock.lessons.chapters.push({ slug: '16-memory-inside', n: 16, title: 'Inside memory', hook: 'The five stores.', node_id: 'memory', covers: kids.map((k) => k.id), group: true, words: 900, url: '/v1/lessons/16-memory-inside', markdown, try: null, code_links: [] })
   })
-  await page.getByRole('switch', { name: 'Expert view' }).click()
+  await page.getByRole('switch', { name: 'Advanced view' }).click()
   await node(page, 'semantic').click()
   await page.getByTestId('inspector').getByTestId('open-in-guide').click()
   const chapter = guide(page).getByTestId('guide-chapter')

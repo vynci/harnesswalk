@@ -111,7 +111,7 @@
       "label": "Memory",
       "kind": "store",
       "view": "simple",
-      "lesson": "The stores the context builder reads from, shown as one group. They share a retrieval interface but differ in what they hold, how they rank, and how they are written. Expand it in the expert view to see the five stores: procedural, session, semantic, episodic and knowledge.",
+      "lesson": "The stores the context builder reads from, shown as one group. They share a retrieval interface but differ in what they hold, how they rank, and how they are written. Expand it in the advanced view to see the five stores: procedural, session, semantic, episodic and knowledge.",
       "lesson_url": "lessons/04-memory.md",
       "lesson_summary": "Five stores, one retrieval interface: procedural, session, semantic, episodic, knowledge.",
       "source_hint": "harnesswalk/context/stores/__init__.py",
