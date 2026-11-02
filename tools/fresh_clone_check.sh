@@ -39,6 +39,10 @@ if [[ "${1:-}" != "--inside" ]]; then
   fi
   git -C "$root" bundle create "$work/repo.bundle" "$ref" 2>/dev/null
   cp "$0" "$work/fresh_clone_check.sh"
+  # mktemp makes a 0700 directory; inside the container an unprivileged user must read the
+  # bundle and this script through the bind mount (Linux hosts keep the mode, Docker Desktop
+  # does not), so open it up: it holds nothing secret.
+  chmod 755 "$work" && chmod 644 "$work"/*
   echo "fresh-clone: $commit in a clean $image container"
   docker run --rm --init \
     -v "$work:/in:ro" \
@@ -67,14 +71,17 @@ if [[ "$(id -u)" == 0 ]]; then
   pip install --quiet --root-user-action=ignore "uv==${FRESH_CLONE_UV:-0.12.24}"
   echo "node $(node --version), uv $(uv --version | cut -d' ' -f2), python $(python3 --version | cut -d' ' -f2)"
   useradd --create-home --shell /bin/bash walker
-  # Run the rest as an ordinary user: the tool sandbox's limits do not bind root.
+  # Copy the inputs out of the read-only mount so the walker user can read them whatever the
+  # host's permissions were, then run the rest as an ordinary user: the tool sandbox's limits
+  # do not bind root.
+  install -d -m 755 /opt/fresh && cp /in/repo.bundle /in/fresh_clone_check.sh /opt/fresh/ && chmod 644 /opt/fresh/*
   exec runuser -u walker -- env HOME=/home/walker FRESH_CLONE_COMMIT="${FRESH_CLONE_COMMIT:-}" \
-    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 PATH="$PATH" bash /in/fresh_clone_check.sh --inside
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 PATH="$PATH" bash /opt/fresh/fresh_clone_check.sh --inside
 fi
 
 cd "$HOME"
 step "git clone (the bundle of ${FRESH_CLONE_COMMIT:-HEAD}) && cd harnesswalk"
-git -c advice.detachedHead=false clone --quiet /in/repo.bundle harnesswalk
+git -c advice.detachedHead=false clone --quiet /opt/fresh/repo.bundle harnesswalk
 cd harnesswalk
 git switch --quiet -c main
 
