@@ -202,6 +202,12 @@ outputs (four; there is no instance variable, the scripts find the origin by its
 | `HARNESSWALK_WEB_BUCKET` | `HarnesswalkEdge.WebBucketName` |
 | `HARNESSWALK_DISTRIBUTION_ID` | `HarnesswalkEdge.DistributionId` |
 
+The deploy role trusts the GitHub OIDC subject in both of its spellings, `repo:vynci/harnesswalk:ref:...`
+and the immutable form with ids, `repo:vynci@5421780/harnesswalk@1440080163:ref:...`, which
+GitHub uses when "immutable subject" is on for the repository (check with
+`gh api repos/vynci/harnesswalk/actions/oidc/customization/sub`). A role that trusts only the
+plain form fails with "Not authorized to perform sts:AssumeRoleWithWebIdentity".
+
 The deploy workflow pins every action to a full commit SHA, gives `id-token: write` only to the
 `web`, `api` and `rollback` jobs, deploys only a published (non-pre-release) release of this
 repository or a manual run from `main`, and builds the web app before it assumes the role

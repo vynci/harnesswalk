@@ -50,7 +50,12 @@ describe('HarnesswalkCi', () => {
       Condition: {
         StringEquals: { 'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com' },
         StringLike: {
-          'token.actions.githubusercontent.com:sub': ['repo:vynci/harnesswalk:ref:refs/heads/main', 'repo:vynci/harnesswalk:ref:refs/tags/v*'],
+          'token.actions.githubusercontent.com:sub': [
+            'repo:vynci/harnesswalk:ref:refs/heads/main',
+            'repo:vynci/harnesswalk:ref:refs/tags/v*',
+            'repo:vynci@5421780/harnesswalk@1440080163:ref:refs/heads/main',
+            'repo:vynci@5421780/harnesswalk@1440080163:ref:refs/tags/v*',
+          ],
         },
       },
     });

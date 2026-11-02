@@ -6,6 +6,7 @@ import {
   DEPLOY_DOCUMENT,
   ECR_REPOSITORY,
   GITHUB_BRANCH,
+  GITHUB_REPO_IMMUTABLE,
   GITHUB_OIDC_URL,
   GITHUB_REPO,
   ORIGIN_ROLE_TAG,
@@ -63,10 +64,10 @@ export class CiStack extends cdk.Stack {
         StringEquals: { 'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com' },
         // The deploy workflow runs on a published release (refs/tags/v*) and, by hand, on main.
         StringLike: {
-          'token.actions.githubusercontent.com:sub': [
-            `repo:${GITHUB_REPO}:ref:refs/heads/${GITHUB_BRANCH}`,
-            `repo:${GITHUB_REPO}:ref:refs/tags/v*`,
-          ],
+          'token.actions.githubusercontent.com:sub': [GITHUB_REPO, GITHUB_REPO_IMMUTABLE].flatMap((repo) => [
+            `repo:${repo}:ref:refs/heads/${GITHUB_BRANCH}`,
+            `repo:${repo}:ref:refs/tags/v*`,
+          ]),
         },
       }),
     });

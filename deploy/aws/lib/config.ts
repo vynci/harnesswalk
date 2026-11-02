@@ -15,6 +15,13 @@ export const ECR_REPOSITORY = 'harnesswalk/api';
 export const LOG_GROUP = '/harnesswalk/prod';
 export const GITHUB_REPO = 'vynci/harnesswalk';
 export const GITHUB_BRANCH = 'main';
+/**
+ * GitHub's immutable OIDC subject (on by default for new repositories) names the owner and the
+ * repository by id as well: `repo:vynci@5421780/harnesswalk@1440080163:ref:...`. The role
+ * trusts both spellings. Check with
+ * `gh api repos/vynci/harnesswalk/actions/oidc/customization/sub`.
+ */
+export const GITHUB_REPO_IMMUTABLE = 'vynci@5421780/harnesswalk@1440080163';
 export const GITHUB_OIDC_URL = 'https://token.actions.githubusercontent.com';
 export const STACKS = {
   edge: 'HarnesswalkEdge',
