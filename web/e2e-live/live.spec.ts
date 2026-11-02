@@ -84,7 +84,7 @@ test('tool_call: a read-only tool runs under policy and the reply streams in', a
   await pickFixture(page, 'tool_call')
   await send(page, 'Where is order A-1001?')
   await expect(status(page)).toHaveAttribute('data-phase', 'done')
-  // An answered turn shows no exit on the status bar; the session chip's This turn card has it.
+  // An answered turn shows no exit on the status bar; the turn's report has it.
   await expect(status(page)).not.toContainText('exit:')
   await expectStates(page, {
     gateway: 'done',
