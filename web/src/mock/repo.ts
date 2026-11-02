@@ -8,6 +8,19 @@ const files = import.meta.glob(['../../../config/*.yaml', '../../../datasets/_st
   eager: true,
 }) as Record<string, string>
 
+// The packs' PDF documents as built asset URLs, so the reader's Document view embeds the real file
+// (the mock answers fetch, not a browser loading a URL itself, so it cannot serve the bytes).
+const pdfs = import.meta.glob(['../../../datasets/_starter/docs/*.pdf', '../../../datasets/finance/docs/*.pdf'], {
+  query: '?url&no-inline',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>
+
+/** The URL a pack PDF is served at in a mock build, by its path in the repo. */
+export function repoPdfUrl(path: string): string | undefined {
+  return pdfs[key(path)]
+}
+
 function key(path: string): string {
   return `../../../${path}`
 }

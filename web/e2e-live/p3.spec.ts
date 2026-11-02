@@ -41,6 +41,12 @@ test('citations: the Trailhead question lights all five stores and its chips ope
   await chips.first().click()
   const reader = page.getByTestId('doc-reader')
   await expect(reader).toContainText('Returns policy')
+  // A markdown document opens as written, at the section the cited chunk was cut from.
+  await expect(reader.getByTestId('doc-view')).toHaveAttribute('data-view', 'document')
+  const section = reader.locator('[data-testid=doc-segment][data-cited="true"]')
+  await expect(section).toHaveAttribute('data-chunks', new RegExp(`(^| )${cited[0]!.chunk}( |$)`))
+  await expect(section).toBeInViewport()
+  await reader.getByRole('radio', { name: 'Chunks' }).click()
   await expect(reader.locator('[data-cited="true"]')).toHaveAttribute('data-position', String(cited[0]!.chunk))
   await expect(reader.locator('[data-cited="true"]')).toContainText('30 days')
   await page.keyboard.press('Escape')
