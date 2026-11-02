@@ -15,33 +15,23 @@ Understand, inspect and experiment with the infrastructure behind production AI 
 <!-- After the first release is on PyPI (docs/RELEASING.md), add inside the paragraph above:
 <a href="https://pypi.org/project/harnesswalk/"><img src="https://img.shields.io/pypi/v/harnesswalk.svg" alt="PyPI"></a> -->
 
-The harness runs: a request walks the gateway, guardrails, context builder, memory, loop, model
-layer, tools, policy, approval, audit and trace, and every step is an event you can stream,
-store and replay. The web UI shows it: a chat beside a live diagram, step mode, approvals,
-replay and a code peek per node. The hosted sandbox at https://harnesswalk.vynci.dev runs it
-with nothing to install (Claude Haiku and Claude Sonnet under a shared daily budget, or the
-scripted fake model; every session is deleted after two hours), or run it on your machine
-below. Where it stands: [Status](#status).
-
-![A finished turn: the chat on the left, every node it visited lit on the diagram](docs/screenshots/turn-done.png)
-
 ## Why this exists
 
-Harnesswalk is an educational and developer-experience project, not another agent framework or
-boilerplate. Most agent projects show how to connect an LLM, define tools and build a loop, and
-the harness around that loop, where most of the engineering of a production agent lives, stays
-out of sight. Harnesswalk makes the entire harness visible and inspectable. Run an agent
-locally, watch a request travel through the components and read the code behind each one;
-pause execution, replay events and inspect memory; experiment with guardrails, policies,
-approvals, evaluations and releases, and see what each one changes.
+Most agent projects show how to connect an LLM, define tools and build a loop. The harness
+around that loop, where most of the engineering of a production agent lives, stays out of sight.
+That harness is the gateway, guardrails, policy, approvals, the context builder, memory, the
+loop, tools, trace, evals and releases. Harnesswalk is an educational, open-source, local-first
+harness built to be read. One command brings up a working agent beside a live diagram of its
+harness, and every step of a request lights the node it passes through. Click a node to read its
+code, config and events, pause a turn at every node, or replay a past turn from its stored
+events. Switch a guardrail or a policy off, edit a skill, or cut a release, and see what each
+change does.
 
 **What it is not.** Not a framework to build on, not a hosted product, and no lock-in: the
 [spec](spec/) and its [conformance suite](spec/conformance/README.md) let any other runtime, in
 any language, light the same diagram.
 
 ## Quickstart
-
-### Run it in two minutes
 
 No model key needed: the fake provider replays scripted turns, so the whole walk runs offline.
 You need [uv](https://docs.astral.sh/uv/) and Node 24 with pnpm 10 (`corepack enable`), or Docker.
@@ -51,87 +41,46 @@ git clone https://github.com/vynci/harnesswalk.git && cd harnesswalk
 make setup && make web-build && make run PROVIDER=fake
 ```
 
-Open http://127.0.0.1:8000, pick a fixture in the Fixture select of the message box (try
-`trailhead_return`), and send a message. The request walks the diagram node by node; click any
+Open http://127.0.0.1:8000. Pick a fixture in the Fixture select at the top of the page (try
+`trailhead_return`), and send a message. The request walks the diagram node by node. Click any
 node to see its code, config and events.
 
-Other ways to run it:
-
-```sh
-HARNESSWALK_PROVIDER=fake make up          # Docker: api + web, postgres (pgvector) and ollama
-uv run harnesswalk turn "Where is order A-1001?" --provider fake --fixture tool_call   # no browser
-```
-
-From a release, without cloning (the wheel carries the config, the spec, the packs, the
-lessons and the web app; its stores go to `./harnesswalk-data` unless `HARNESSWALK_DATA_DIR`
-says otherwise):
-
-```sh
-pip install harnesswalk && harnesswalk serve --provider fake                  # http://127.0.0.1:8000
-docker run --rm -p 8000:8000 -e HARNESSWALK_PROVIDER=fake ghcr.io/vynci/harnesswalk
-```
+To skip setup, the hosted sandbox at https://harnesswalk.vynci.dev needs nothing installed. It
+runs Claude Haiku, Claude Sonnet and the fake model under a shared daily budget, and deletes
+every session after two hours.
 
 ### Use a real model
 
-Bring your Anthropic key, any OpenAI-compatible endpoint, or a local model through Ollama. Each
-block runs after `make setup && make web-build`, and the fake provider is always there to fall
-back to with no key.
+- **Anthropic:** `export ANTHROPIC_API_KEY=...` in your shell, then `make run PROVIDER=anthropic`.
+- **OpenAI-compatible:** point `OPENAI_BASE_URL` at your endpoint, then `uv run harnesswalk serve --provider openai_compatible`.
+- **Ollama:** `ollama pull llama3.1:8b`, then `make run PROVIDER=ollama`.
 
-With an Anthropic key (the router picks Claude Sonnet 5.5 or Claude Haiku 5.5 per call; the
-Model Selector in the message box, or `--model` on the command line, pins one):
+[docs/quickstart.md](docs/quickstart.md) has the full commands, Docker, the release installs and
+the rules: hosted providers stay off until you select one, and the tests never call one.
 
-```sh
-export ANTHROPIC_API_KEY=...                 # in your shell only, never in a file
-make run PROVIDER=anthropic                  # the web app on http://127.0.0.1:8000
-uv run harnesswalk turn "Where is order A-1001?" --provider anthropic --model hosted-haiku
-```
+## What you will see
 
-With an OpenAI-compatible endpoint (vLLM, llama.cpp, LM Studio, or a hosted API that speaks
-`/chat/completions`; the base URL includes the version prefix):
+[![A finished turn: the chat on the left, every node it visited lit on the diagram](docs/screenshots/turn-done.png)](docs/walkthrough.md#send-a-message)
 
-```sh
-export OPENAI_BASE_URL=http://127.0.0.1:8001/v1   # your endpoint
-export OPENAI_API_KEY=...                         # if it needs one
-uv run harnesswalk serve --provider openai_compatible --set models.models.compat-default.name=<model>
-```
+A finished turn: the chat on the left, every node it visited lit on the diagram.
 
-With [Ollama](https://ollama.com), on your own machine:
+[![The inspector on the Loop node, Code tab](docs/screenshots/inspector-code.png)](docs/walkthrough.md#inspect-a-node)
 
-```sh
-ollama pull llama3.1:8b                      # about 5 GB, once
-make run PROVIDER=ollama                     # plain `make run` does the same while Ollama is up
-uv run harnesswalk turn "What are your support hours?" --provider ollama
-```
+The inspector peeks at a node's code, here the loop's, beside its lesson.
 
-Hosted providers are never used unless you select one: a key that merely sits in your shell
-routes nothing, because `config/models.yaml` keeps `anthropic` and `openai_compatible` off
-until `--provider` (or `HARNESSWALK_PROVIDER`) picks them. The automated tests (`make test`,
-`make e2e` and CI) never call a hosted model; they run on the fake provider. And to skip setup
-altogether, the hosted sandbox at https://harnesswalk.vynci.dev needs nothing installed.
+[![The release gate refuses a release that broke a golden case](docs/screenshots/release-gate.png)](docs/walkthrough.md#the-release-gate)
 
-## What this is
+The eval gate refuses a release that broke a golden case, and names the case.
 
-An agent is a model inside a harness. The harness is everything else: the gateway that decides
-who is asking, the guardrails that check what goes in and out, the policy that decides which
-tools may run, the context builder that chooses what the model sees, the memory it reads and the
-gate that controls what it writes, the loop, the tools, the trace, the evals, the release
-process.
-
-Harnesswalk is an open-source, local-first harness built to be read. One command brings up
-a working agent and a web page with two panels: a chat, and a live systems diagram of the
-harness. Send a message and watch it travel. Every node lights up as the request passes through
-it. Click a node to see what is behind it: the code for a guardrail, the rules for policy, the
-skills in procedural memory, the assembled context with a budget bar per slice, the timeline in
-the trace.
+The [walkthrough](docs/walkthrough.md) takes each of these one step at a time.
 
 ## Packs
 
-A pack is the content a harness runs with: a fictional business's system prompt, skills, tools,
-documents, seed memory and golden set (`spec/packs.md`, `datasets/README.md`). Pick one in the
-header and the next session runs on it: the suggestions, the fixtures, the inspectors' file
-trees and the Eval inspector's golden set all follow. Every pack is synthetic and CC0, with a
-provenance card that says how it was made and reviewed, and every pack's golden set passes on
-the fake provider (`uv run harnesswalk packs validate`, `uv run harnesswalk eval <pack>`).
+A pack is the content a session runs with: a fictional business's system prompt, skills, tools,
+documents, seed memory and golden set ([spec/packs.md](spec/packs.md),
+[datasets/README.md](datasets/README.md)). Every pack is synthetic and CC0 with a provenance
+card, and its golden set passes on the fake provider (`uv run harnesswalk packs validate`,
+`uv run harnesswalk eval <pack>`).
 
 | Pack | Business | What it shows |
 |---|---|---|
@@ -142,17 +91,7 @@ the fake provider (`uv run harnesswalk packs validate`, `uv run harnesswalk eval
 | `sports` | Copperline Community League | Cheap model routing: the call after a read-only lookup takes the `lookup` rule |
 | `finance` | Hollowmere Capital Partners | Citations and the memory writer: cited fund answers, and a preference remembered in one session and recalled in the next |
 
-![Healthcare: the health number reaches the model as a placeholder](docs/screenshots/pack-healthcare.png)
-
-![Ecommerce: a refund waits for approval](docs/screenshots/pack-ecommerce.png)
-
-![Logistics: track, hub capacity, reroute and ETA in one walk](docs/screenshots/pack-logistics.png)
-
-![Sports: the second model call routed by the lookup rule](docs/screenshots/pack-sports.png)
-
-![Finance: a cited answer, and a remembered preference](docs/screenshots/pack-finance.png)
-
-## Use your own data
+### Use your own data
 
 Your own documents and functions go in a pack of their own: a folder under `datasets/` with
 your markdown and PDFs, a system prompt and skills, the tools the model may call and the golden
@@ -163,422 +102,26 @@ starter to a release.
 
 ## Lessons
 
-`lessons/` is a short course, one chapter per node in walk order and one per expert group (21
-in all, indexed in [lessons/README.md](lessons/README.md)). Each chapter says what the node
-does, what breaks without it (the exact pack, fixture and prompt, verified on the fake
-provider), walks its code with links into `harnesswalk/`, and ends with three things to try and
-three questions. In the web app every node's inspector opens its Guide chapter with "Disable X and
-try it" (or "Try it"), which sets up the demonstration for the next turn; the five chapters
-whose node can be switched off also show the failure on the domain pack whose feature it is.
-The Guide drawer in the header lists every chapter with your progress.
+`lessons/` is a short course of 21 chapters, one per node in walk order and one per expert group
+([lessons/README.md](lessons/README.md)). Each chapter shows what breaks without its node, with
+the exact pack, fixture and prompt, verified on the fake provider. It walks the node's code and
+ends with three things to try and three questions. In the web app the Guide button in the header
+opens every chapter beside the diagram, and a Try button sets up the demonstration for your next
+turn. [Lessons in the Guide](docs/walkthrough.md#lessons-in-the-guide) shows how.
 
-![A chapter in the Guide, with its Try buttons](docs/screenshots/lessons-tab.png)
+## Architecture
 
-## Walk through it one node at a time
-
-Turn on step mode and the harness stops at every node, like a debugger. Press Next and the
-request moves one hop. The inspector of the current node stays open beside a short lesson: what
-the node does, what breaks without it, and something to try. Replay does the same over a past
-turn without calling the model again.
-
-The lessons follow the same order as the walk, so reading the course and stepping through a
-request are the same activity.
-
-## The diagram
-
-Fifteen nodes in four groups in the simple view. The advanced view expands memory, the model
-layer, tools, trace, eval and release into 14 more nodes. The diagram is data
-([spec/diagram/diagram.json](spec/diagram/diagram.json)) and the running harness serves it from
-its registered components, so the picture cannot drift from the code.
-
-```mermaid
-flowchart LR
-    subgraph control["Control plane"]
-        gateway["Gateway"]
-        input_guardrails["Input guardrails"]
-        policy["Policy"]
-        approval["Approval"]
-        audit["Audit"]
-    end
-    subgraph context["Context plane"]
-        context_builder["Context builder"]
-        memory[("Memory<br/>procedural, session, semantic,<br/>episodic, knowledge")]
-        memory_writer["Memory writer"]
-    end
-    subgraph execution["Execution plane"]
-        loop["Loop"]
-        model_layer["Model layer"]
-        tools["Tools"]
-        output_guardrails["Output guardrails"]
-    end
-    subgraph ops["LLM Ops"]
-        trace["Trace"]
-        eval["Eval"]
-        release["Release"]
-    end
-
-    gateway -->|message| input_guardrails
-    gateway -.->|identity + tenant| policy
-    input_guardrails -->|clean input| context_builder
-    memory -->|retrieve + rank, within budget| context_builder
-    context_builder -->|assembled context| loop
-    loop -->|inference| model_layer
-    model_layer -->|completion| loop
-    loop -->|tool call| tools
-    tools -.->|policy check per call| policy
-    policy -->|record decision| audit
-    policy -.->|needs approval| approval
-    approval -->|record decision| audit
-    approval -.->|approve / deny, resume| tools
-    tools -->|observation| loop
-    loop -->|final answer| output_guardrails
-    output_guardrails -->|reply via channel| gateway
-    loop -->|checkpoint per step| memory
-    loop -->|proposed memories| memory_writer
-    memory_writer -->|gated writes| memory
-    loop -.->|telemetry| trace
-    trace -.->|sample + feedback| eval
-    eval -->|proposed fixes, facts and skills| memory_writer
-    eval ==>|eval gate| release
-    release ==>|loaded on release| memory
-```
-
-Solid arrows carry requests and data, dotted arrows carry control and telemetry, thick arrows
-carry releases.
-
-## Principles
-
-1. **Glass box.** Every component is small, readable and inspectable from the UI.
-2. **The event stream is the product.** Every node emits typed events. The animation, the trace
-   store, step mode, replay and the evals all read the same stream. Emit the events from any
-   language and you get the UI.
-3. **Code for controls, text for intent.** Guardrails, policy and budgets are code and config.
-   Prompts and skills carry intent. The UI shows which is which.
-4. **Local-first.** Runs offline with a local model. Hosted models are optional.
-5. **Learn by poking.** Edit a skill, change a budget, add a policy rule, switch a node off, run
-   the same prompt again, and watch the diagram change.
-6. **Framework-free core.** The loop is plain code you can read. Agent frameworks appear only as
-   optional adapter examples that show where they would plug in.
-
-## The spec comes first
-
-The contract is in [`spec/`](spec/), written before the code:
-
-| Path | What it fixes |
-|---|---|
-| [spec/harness.md](spec/harness.md) | Planes, nodes, invariants, the multi-tenant rule, modes |
-| [spec/diagram/](spec/diagram/) | Canonical node ids, edges, lessons, walk order |
-| [spec/events.schema.json](spec/events.schema.json), [spec/events.md](spec/events.md) | The harness event contract and its OpenTelemetry mapping |
-| [spec/contracts/](spec/contracts/) | One interface per component, plus the HTTP API |
-| [spec/conformance/](spec/conformance/) | Black-box cases any implementation can run |
-
-The reference implementation is Python (FastAPI, no agent framework) in
-[`harnesswalk/`](harnesswalk/), and the TypeScript web UI is in [`web/`](web/). Another
-implementation proves itself with the conformance suite, which runs against any HTTP harness
-(`tests/conformance/runner.py --command` or `--base-url`, see
-[spec/conformance/README.md](spec/conformance/README.md)); the spec's version rules are in
-[spec/VERSIONING.md](spec/VERSIONING.md).
-
-## Try it
-
-You need [uv](https://docs.astral.sh/uv/) (Python 3.12 or newer), and for the web app Node 24
-with pnpm 10 (`corepack enable` gives you the pinned pnpm).
-
-### The web app
-
-```sh
-make setup && make web-build && make run PROVIDER=fake
-```
-
-Then open http://127.0.0.1:8000. `make run` serves the API and the built app from one process on
-`127.0.0.1:8000`. With `PROVIDER=fake` no model is needed: the fake provider replays scripted
-replies. With [Ollama](https://ollama.com) running (`ollama pull llama3.1:8b`), plain `make run`
-answers with a real local model instead. One Ctrl+C stops the server, even with browser tabs
-open: their event streams end first, then the stores close (an open tab reconnects when the
-server is back).
-
-- **Send a message** and watch it walk the diagram: each node lights while it works and shows a
-  one-line stat when it is done. The reply streams into the chat, and the bar above the diagram
-  shows the phase, the exit, tokens, cost and the event count.
-- **Fixtures.** While the next turn runs on the fake model, the message box has a Fixture
-  select beside the Model Selector with the starter and conformance
-  fixtures (`tool_call`, `approval_approve`, `approval_deny`, `step_mode`, `cancel_running`,
-  `guardrail_block` and more). Fake replies are canned: each fixture scripts the first turn (or
-  first few turns) of a session, whatever you type, and a turn past the script fails with
-  `fixture_exhausted`. Choose New session in the session chip at the right of the header, or
-  pick another fixture, to go again.
-- **Approvals.** Pick `approval_approve` or `approval_deny` and ask to cancel an order. Policy
-  marks `cancel_order` as destructive, the turn pauses on the Approval node, and a card in the
-  chat waits for your Approve or Deny.
-
-![The approval: the tool line waits and a Run cancel_order? prompt asks for Deny or Approve while the turn waits on the Approval node](docs/screenshots/approval-card.png)
-
-![The chat: a muted question bubble, a tool line opened to its policy and sandbox, the reply, the Replay action, and the message input with its plus and arrow-up send](docs/screenshots/chat.png)
-
-- **Memory and citations (P3).** Pick `trailhead_return` and ask "Can I return order A-1003,
-  the Trailhead backpack?". All five memory badges light (procedural, session, a seed fact and
-  a seed event about A-1003, and the returns policy from knowledge), and the reply cites the
-  passages it used as chips. Click a chip, or a line under "Cited 2 passages", to open the
-  document at that passage. Then start a New session, pick `remember_fact`, say "Please
-  remember that my preferred name is Sam." and watch the Memory writer run after the reply
-  (a "Remembered in semantic" line in the chat; its inspector's Writes tab shows the diff).
-  Ask "What is my preferred name?" next: semantic memory answers with the fact you just wrote.
-
-![Citation chips opening the returns policy at the cited passage](docs/screenshots/citations.png)
-
-- **Guardrails, budgets and audit (P3).** `pii_redacted` with a message that holds an email
-  shows the placeholder the model saw (`[EMAIL_1]`), and in dev mode a switch reveals the reply
-  with your value restored. Every tool line says where the call ran (sandbox level, network,
-  jail). A turn that runs out of its tool-call budget ends with a notice that quotes the policy.
-  The Audit node's Records tab lists the hash chain and a Verify button checks it on the server.
-- **The release gate: edit, eval, release, roll back (P4).** Everything the harness loads (the
-  system prompt, each skill, policy, context, models and tools) is a versioned artifact, and
-  this walk changes one and catches the regression before it ships:
-  1. **Run a baseline.** Click the Eval node; its Runs tab has Run. The golden suite replays
-     every case of `datasets/_starter/golden.jsonl` on the fake provider and scores it (node
-     path, tool calls, citations, schema, PII, answer). All pass.
-  2. **Edit a skill.** Turn on Advanced view on the diagram, click Procedural, open the Prompt
-     tab, press Edit on `returns` and change "within 30 days of delivery" to "within 14 days of
-     delivery". Save shows the diff, puts a "Skill returns v2 saved" marker in the chat, and the
-     status bar says "working set (unreleased changes)". In dev the working set is what turns
-     use, so the edit applies to the next turn.
-  3. **Run golden again.** The `returns_window` case now fails (its fixture expects the 30 day
-     window in the skill) and is marked a regression: it failed in this run and passed in the
-     run before. The Eval node carries a regression chip, and the case opens to expected
-     against actual and to its turn in replay. A failed count includes cases that errored.
-  4. **Release, then roll back.** The Release node's Releases tab creates a release from the
-     working set (a hash-chained snapshot; its changes open as a diff) and lists earlier ones.
-     Edit again if you like, then pick `r1` and Roll back: the working set gets r1's content back
-     as new versions (history is never rewritten), a "Rolled back" marker lands in the chat, and
-     the Procedural inspector shows the old text and the old content stamp. Pick the
-     `golden_returns_window` fixture and ask "How long do I have to return a shipped order?":
-     the answer says 30 days again, and the turn records that it ran on `r1`.
-
-  Releases made anywhere (another tab, `harnesswalk release` on the command line) reach the
-  page live over the tenant's ops stream, `GET /v1/events`.
-
-![An eval run: 16 cases, one regression, the failing case opened to expected against actual](docs/screenshots/eval-run.png)
-
-![A release: the active release, the hash chain, and the skill's change as a diff](docs/screenshots/release-diff.png)
-
-- **Feedback and the trace (P4).** Good and Bad under a reply record a rating and an optional
-  note (every tab of the session sees it). The Trace node's Turns tab queries stored turns by
-  session, node, status and time, with a receipt per node and per model call; "eval case
-  turns" lists the turns of your eval runs, which replay like chat turns.
-- **Step mode.** Switch on Step mode (under the message box) before sending. The harness stops at every node, like a
-  debugger; Next moves one hop, Step over runs past a node's expert children to the next node
-  of the simple view, Continue runs to the end, and Stop cancels the turn (a model or tool call
-  already in flight finishes first).
-- **Inspect a node.** Click any node (or focus it and press Enter) for its lesson, its config,
-  prompt or records, the events it emitted this turn, and its source code. For the guardrails,
-  policy and the memory writer, the inspector can also switch the node off for your next turn,
-  to see what breaks without it.
-
-![The inspector on the Loop node, Code tab](docs/screenshots/inspector-code.png)
-
-- **Replay.** Every finished turn has a Replay button: a slider walks the stored events back
-  and forth on the diagram without calling the model again. History survives a reload.
-- **Simple and Expert.** The Advanced view switch at the bottom right of the diagram opens
-  memory, the model layer, tools and trace into their parts, and draws every edge, telemetry
-  included. The simple view folds the LLM Ops edges into one telemetry bus; the Telemetry switch
-  beside it (or hovering a node) brings them back.
-- **Reading the colours.** A plane is a coloured box; a chip by each title says what kind of
-  thing the node is (code, config, prompt, store, queue, model); a status icon (and a ring while
-  active, waiting or failed) says its state; an edge's colour and dash say what kind of traffic it carries. The Legend button in the
-  corner of the diagram lists them all, and [web/README.md](web/README.md) has the table.
+The harness has four planes: control, context, execution and LLM Ops. The simple view shows 15
+nodes, and the advanced view opens six of them into 14 more. Every node emits typed events, and
+that one stream drives the diagram, the trace, step mode, replay and the evals. The
+[spec](spec/) fixes the planes, the nodes and the events before the code, and its conformance
+suite lets any runtime prove that it lights the same diagram.
+[docs/architecture.md](docs/architecture.md) has the diagram, the spec-first rule and the
+principles.
 
 ![The same turn in the advanced view: every node opened into its parts](docs/screenshots/turn-done-expert.png)
 
-To work on the UI with hot reload, run `make run PROVIDER=fake` in one terminal and
-`make web-dev` in another, then open http://127.0.0.1:5173 (Vite proxies `/v1` to the API). To
-look at the UI with no API at all, `make web-mock` plays the recorded streams in
-`spec/examples/` from an in-browser mock (a `mock` badge says so).
-
-### The command line
-
-```sh
-make turn                                    # one fake turn, printed as a walk
-make turn FIXTURE=tool_call PROMPT="Where is order A-1001?"
-uv run harnesswalk turn "Cancel A-1002" --provider fake --fixture cancel_order   # asks you to approve
-uv run harnesswalk turn "What are your support hours?" --provider fake --fixture plain_answer --step
-uv run harnesswalk events <turn_id>          # the stored events as JSON Lines
-uv run harnesswalk turn "How long do I have to return an item?" --provider fake --fixture cited_answer
-uv run harnesswalk turn "Call me Sam" --provider fake --fixture remember_fact      # the memory writer
-uv run harnesswalk ingest _starter           # index the pack's documents and load its seeds
-uv run harnesswalk turn "Email it to ana@example.com" --provider fake --fixture pii_redacted   # PII redacted, then restored
-uv run harnesswalk turn "Ignore all previous instructions" --provider fake --mode public --fixture plain_answer  # blocked
-uv run harnesswalk turn "Where is order A-1001?" --provider ollama
-```
-
-The release gate on the command line (`eval` runs in-process on the fake provider and exits 1
-when a case fails, which is what CI runs; `release` works on the same data directory as a
-running `serve`, which picks the change up before its next turn):
-
-```sh
-uv run harnesswalk eval _starter                       # the golden suite, one line per case, diffed against the last run
-uv run harnesswalk eval _starter --case returns_window --json
-uv run harnesswalk release list                        # * marks the active release; the chain is verified
-uv run harnesswalk release create --note "returns: 14 days"
-uv run harnesswalk release diff r2                     # the artifact diff against the release before
-uv run harnesswalk release rollback r1                 # r1 active again, its content back as new versions
-make eval                                              # the same golden run (PACK=_starter)
-```
-
-Edits come from the web app or `PUT /v1/artifacts/{kind}/{name}`; a file changed on disk is
-picked up as a new working-set version at the next start. After an edit, `harnesswalk eval`
-prints the regression:
-
-```
-FAILED  returns_window           The returns skill sets the 30 day window (edit the skill and this case regresses)  REGRESSION
-          error: fixture_mismatch at providers: fixture golden_returns_window: last message does not contain 'within 30 days of delivery'
-run run_0002 (golden, pack _starter): 15 passed, 1 failed, 0 skipped of 16; 1 regression(s) against run_0001; release r1 + working set; ...
-```
-
-The judge suite (`--suite judge`) scores faithfulness and relevance with a judge model
-(`claude-haiku-5-5` through the router's `judge` step) and needs a configured hosted or local
-model; CI never runs it.
-
-The memory and citation walk on the command line (the session id comes from the first turn's
-output):
-
-```sh
-uv run harnesswalk ingest _starter --force   # index the documents, load the seed facts and events
-uv run harnesswalk turn "Can I return order A-1003, the Trailhead backpack?" --provider fake --fixture trailhead_return
-uv run harnesswalk turn "Please remember that my preferred name is Sam." --provider fake --fixture remember_fact
-uv run harnesswalk turn "What is my preferred name?" --provider fake --fixture remember_fact --session <session_id>
-```
-
-`make turn` prints every node the request visited, in order, nested, with its status, its time
-and a short summary, then the reply and the cost receipt. In dev and private modes each tool call runs in its own
-subprocess (no network unless the tool is `external` and policy allowed it, a timeout, a memory
-cap and an output cap); `sandbox.level: inprocess` in `config/harness.yaml` turns that off. Starter fixtures live in
-`datasets/_starter/fixtures/fake/`; the conformance fixtures in `spec/conformance/fixtures/`
-work too.
-
-### Docker
-
-```sh
-make up                                      # docker compose: api (with the web app), postgres, ollama
-```
-
-The api image builds `web/` in a Node stage and serves it at http://127.0.0.1:8000. See
-[deploy/README.md](deploy/README.md) for the profiles and for running it without a model.
-
-**Vectors in Postgres.** SQLite holds the vectors by default, so nothing above needs Docker.
-To keep the semantic, episodic and knowledge vectors in pgvector instead, start only the
-compose Postgres and point the harness at it:
-
-```sh
-docker compose -f deploy/docker-compose.yml --profile dev up -d postgres
-HARNESSWALK_VECTORS=pgvector make run PROVIDER=fake   # POSTGRES_* or HARNESSWALK_DATABASE_URL pick the server
-docker compose -f deploy/docker-compose.yml --profile dev down
-```
-
-The connection comes from `HARNESSWALK_DATABASE_URL`, else from `POSTGRES_HOST`, `POSTGRES_PORT`,
-`POSTGRES_USER`, `POSTGRES_DB` and `POSTGRES_PASSWORD` (the compose defaults work as they are).
-`make up` runs the whole stack with pgvector already on.
-
-### Public mode
-
-The hosted sandbox at https://harnesswalk.vynci.dev runs in public mode: an anonymous
-tenant per browser for two hours, then every row of it is deleted; Claude Haiku 5.5, Claude
-Sonnet 5.5 and the fake model, with a shared daily budget for the Claude models (bring your own
-key to skip it); rate limits, capped loops and pure tools only. To try it locally on the fake model, with the stores
-in a scratch directory:
-
-```sh
-HARNESSWALK_MODE=public HARNESSWALK_SECRET=change-me HARNESSWALK_DATA_DIR=/tmp/hw-public \
-  uv run harnesswalk serve --provider fake
-uv run harnesswalk sweep --mode public    # delete expired tenants now (the server does it every 5 minutes)
-```
-
-The settings are the `public:` block of `config/harness.yaml`; the HTTP side (the `public`
-object in `GET /v1/capabilities`, `GET /readyz`, BYO keys, the 409 and 429 shapes) is in
-[`spec/contracts/http_api.md`](spec/contracts/http_api.md), "P6 additions".
-
-### OpenTelemetry
-
-Off by default. Install the optional extra and point the harness at an OTLP/HTTP collector:
-
-```sh
-uv sync --extra otel
-HARNESSWALK_OTLP_ENDPOINT=http://127.0.0.1:4318 make run PROVIDER=fake
-```
-
-Every finished turn is exported as spans (a root `harnesswalk.turn`, one span per node, GenAI
-attribute names for model and tool calls) and every ops event as a span of its own; the mapping
-is in `spec/events.md` section 8. Reply text, message deltas, previews and notes are never
-exported, and no secret is ever in an event. `trace.otel.endpoint` in `config/harness.yaml`
-does the same as the variable.
-
-### The API
-
-[`spec/contracts/http_api.md`](spec/contracts/http_api.md): `POST /v1/turns`, the event stream
-as Server-Sent Events at `GET /v1/turns/{id}/events` (with `?after=` cursors and
-`?follow=false` for replay), `GET /v1/turns/{id}`, `POST /v1/turns/{id}/resume` for step mode,
-`POST /v1/turns/{id}/cancel`, `POST /v1/approvals/{id}`, `GET /v1/sessions/{id}/turns`,
-`GET /v1/diagram`, `GET /v1/nodes/{id}` and its `/source`, `GET /v1/capabilities`,
-`GET /v1/audit` (the tenant's hash-chained audit records, dev and private), the context plane's
-`GET /v1/knowledge/docs[/{id}]` and `GET|POST /v1/memory/proposals[/{id}]` (the review gate), and
-`GET /healthz`. P4 adds LLM Ops: eval runs (`/v1/evals/runs`, their progress as SSE, each case's
-stored turn stream), feedback (`POST /v1/turns/{id}/feedback`), the versioned artifacts and
-releases (`GET|PUT /v1/artifacts/{kind}/{name}`, `/v1/releases`, rollback), the trace query and
-receipts (`/v1/trace/turns`), and `GET /v1/events`, every ops event of a tenant as one live
-stream.
-
-`harnesswalk serve` survives a restart: a turn that was waiting on an approval comes back
-paused, with its output schema and its memory proposals, and deciding it finishes the same turn;
-a turn the restart cut off is closed with error code `restarted`. A second `serve` on the same
-data directory refuses to start while the first holds `data/owner.lock` (`--takeover` asks it to
-stop).
-
-### Tests
-
-```sh
-make test          # unit tests, spec checks, conformance suite (offline, fake provider)
-make conformance   # one PASS or FAIL line per conformance case
-make conformance BASE_URL=http://127.0.0.1:8000   # the cases a running server can take
-make lint          # ruff
-make web-test      # eslint, tsc and Vitest for web/
-make e2e           # Playwright in Chromium against a real API with the fake provider
-make wheel-smoke   # build the wheel, install it in a clean venv outside the repo, run it
-make fresh-clone   # this README's Quickstart, make test and lint in a clean python:3.12 container (Docker)
-```
-
-`make e2e` builds the app, starts `harnesswalk serve --provider fake` on a scratch port
-(`E2E_PORT`, default 8765) with its stores in a temporary directory, drives the UI through the
-conformance fixtures and the P3 walks (citations, memory write and review, PII, budgets, audit,
-step mode through the stores, and an approval that survives a restart, on a second server it
-starts and kills itself), the P4 gate above in the browser (edit, golden run, regression,
-release, edit, rollback, the next turn on the old version), a release made with the CLI showing
-up live, feedback across tabs, step-over, the trace query, and a restart that keeps a paused
-turn's output schema, and stops the servers. On macOS it runs under `caffeinate -i`, because
-an idle sleep in the middle of the run freezes the browser and the server and fails whichever
-test was waiting; run `pnpm test:e2e:live` by hand the same way. `make web-e2e-mock` runs the
-smoke tests against the mock build, and `make screenshots` recaptures the pictures above.
-
-## Repository layout
-
-```
-spec/       the language-agnostic contract
-harnesswalk/ reference implementation (Python); harnesswalk/README.md maps nodes to modules
-config/     harness.yaml, policy.yaml, context.yaml, models.yaml
-web/        chat and diagram UI (React, TypeScript); web/README.md
-datasets/   the packs: _starter and five domain packs (healthcare, ecommerce, logistics, sports, finance)
-lessons/    the course: one chapter per node in walk order, then one per expert group
-deploy/     docker compose: dev and homelab profiles
-docs/       roadmap, releasing, screenshots
-tests/      unit tests, spec checks and the conformance runner
-tools/      release prep, the wheel smoke, the fresh-clone check, pack generation
-```
-
-## Status
-
-Alpha. Version 0.1.0 is the first release: the spec at 0.1.0, the reference harness with all
-29 nodes implemented, the web app, six packs, 21 lessons and public mode (the hosted sandbox is
-live at https://harnesswalk.vynci.dev). The spec may still grow, under the additive rules of [spec/VERSIONING.md](spec/VERSIONING.md). What changed
-is in [CHANGELOG.md](CHANGELOG.md) (and [spec/CHANGELOG.md](spec/CHANGELOG.md) for the spec).
-Private mode, framework adapters and a second implementation are deliberately later.
+Every page of the documentation is listed in [docs/README.md](docs/README.md).
 
 ## Releasing
 
@@ -592,6 +135,14 @@ event runs `deploy`, which ships that commit to the hosted sandbox. Pushes to `m
 CI. The release workflow refuses a tag that does not name the project version, so a release
 made before the prepare step fails fast. Details, rollback and the one-time setup are in
 [docs/RELEASING.md](docs/RELEASING.md).
+
+## Status
+
+Alpha. Version 0.1.0 is the first release: the spec at 0.1.0, the reference harness with all
+29 nodes implemented, the web app, six packs, 21 lessons and public mode for the hosted sandbox.
+The spec may still grow, under the additive rules of [spec/VERSIONING.md](spec/VERSIONING.md).
+What changed is in [CHANGELOG.md](CHANGELOG.md) (and [spec/CHANGELOG.md](spec/CHANGELOG.md) for the spec).
+Private mode, framework adapters and a second implementation are deliberately later.
 
 ## Contributing
 
