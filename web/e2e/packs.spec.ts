@@ -36,7 +36,7 @@ test('the pack picker starts a session on finance: its prompts, its fixtures and
   await expect(picker).toHaveAttribute('data-pack', '_starter')
   await expect(picker).toContainText('Sample Shop')
   await picker.click()
-  // The six packs; "Add your own dataset" at the end is not a pack option.
+  // The six packs; "Use your own dataset" at the end is not a pack option.
   const options = page.getByTestId('pack-option')
   await expect(options).toHaveCount(6)
   await expect(page.getByTestId('pack-manage')).toBeVisible()
@@ -144,16 +144,17 @@ test('the empty chat offers the packs as a dropdown: one pick switches the pack,
   expect(pack).toBe('healthcare')
 })
 
-test('the pack menu ends with Add your own dataset: disabled, coming soon, and a link to the guide that works', async ({ page }) => {
+test('the pack menu ends with Use your own dataset: disabled, coming soon, and a link to the guide that works', async ({ page }) => {
   const picker = page.getByTestId('pack-picker')
   await picker.click()
   const menu = page.getByTestId('pack-menu')
   await expect(menu).toBeVisible()
   const entry = menu.getByTestId('pack-manage')
   await expect(entry).toHaveAttribute('data-disabled', 'true')
-  const item = entry.getByRole('menuitem', { name: /Add your own dataset/ })
+  const item = entry.getByRole('menuitem', { name: /Use your own dataset/ })
   await expect(item).toHaveAttribute('aria-disabled', 'true')
-  await expect(entry).toContainText('For now, add a folder under datasets/: see the guide')
+  await expect(entry).toContainText('Today: a folder under datasets/')
+  await expect(entry.getByTestId('pack-manage-link')).toHaveText('Guide')
   // Last in the menu, below every pack.
   const lastPack = await menu.getByTestId('pack-option').last().boundingBox()
   const box = await entry.boundingBox()

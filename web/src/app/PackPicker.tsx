@@ -31,7 +31,7 @@ import { selectTurnRunning, useApp } from '@/state/store'
 export const OWN_DATA_GUIDE = 'docs/your-own-data.md'
 
 /**
- * The menu's last entry: "Add your own dataset", disabled with its reason as the tooltip (on the
+ * The menu's last entry: "Use your own dataset", disabled with its reason as the tooltip (on the
  * wrapping element, since a disabled item takes no pointer events), so it never closes the menu
  * or picks a pack. Under it, a muted line links to the guide; the link is its own menu item, so
  * it stays clickable and reachable with the arrow keys while the entry is disabled.
@@ -47,11 +47,11 @@ function AddOwnDataset({ tid, inline }: { tid: string; inline: boolean }) {
         <div data-testid={`${tid}-manage`} data-disabled={feature.enabled ? 'false' : 'true'}>
           <DropdownMenuItem disabled={!feature.enabled} onSelect={(e) => e.preventDefault()}>
             <Plus aria-hidden />
-            <span>Add your own dataset</span>
+            <span>Use your own dataset</span>
             <span className="sr-only">{reason}</span>
           </DropdownMenuItem>
           <p className="px-2 pb-1.5 pl-8 text-xs text-muted-foreground">
-            For now, add a folder under datasets/: see{' '}
+            Today: a folder under datasets/ ·{' '}
             {guide ? (
               <DropdownMenuPrimitive.Item asChild>
                 <a
@@ -61,11 +61,11 @@ function AddOwnDataset({ tid, inline }: { tid: string; inline: boolean }) {
                   className="cursor-pointer rounded-xs font-medium text-foreground underline underline-offset-2 outline-hidden hover:text-brand focus:bg-accent data-highlighted:bg-accent"
                   data-testid={`${tid}-manage-link`}
                 >
-                  the guide
+                  Guide
                 </a>
               </DropdownMenuPrimitive.Item>
             ) : (
-              <span>the guide ({OWN_DATA_GUIDE})</span>
+              <span>{OWN_DATA_GUIDE}</span>
             )}
           </p>
         </div>

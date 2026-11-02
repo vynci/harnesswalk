@@ -12,14 +12,14 @@ export interface FeatureState {
   reason: string | null
 }
 
-/** The tooltip of "Add your own dataset" in every mode: not built yet (a pack is a folder for now). */
+/** The tooltip of "Use your own dataset" in every mode: not built yet (a pack is a folder for now). */
 export const PACK_UPLOADS_SOON = 'Feature coming soon.'
 
 /** The tooltip of a private-only control in public mode. */
 export const PRIVATE_ONLY: Record<FeatureName, string> = {
   artifact_edit: 'Editing needs a private workspace. Coming later.',
   uploads: 'Uploads need a private workspace.',
-  // "Add your own dataset" in the pack menu: a pack of one's own arrives with accounts.
+  // "Use your own dataset" in the pack menu: a pack of one's own arrives with accounts.
   pack_uploads: PACK_UPLOADS_SOON,
   memory_review: 'Reviewing memory needs a private workspace. Coming later.',
   evals: 'Eval runs need a private workspace. Coming later.',
