@@ -568,9 +568,8 @@ tools/      release prep, the wheel smoke, the fresh-clone check, pack generatio
 Alpha. Version 0.1.0 is the first release: the spec at 0.1.0, the reference harness with all
 29 nodes implemented, the web app, six packs, 21 lessons and public mode (the hosted sandbox is
 live at https://harnesswalk.vynci.dev). The spec may still grow, under the additive rules of [spec/VERSIONING.md](spec/VERSIONING.md). What changed
-is in [CHANGELOG.md](CHANGELOG.md) (and [spec/CHANGELOG.md](spec/CHANGELOG.md) for the spec);
-what is next, and what is deliberately later (private mode, framework adapters, a second
-implementation), is in [docs/ROADMAP.md](docs/ROADMAP.md).
+is in [CHANGELOG.md](CHANGELOG.md) (and [spec/CHANGELOG.md](spec/CHANGELOG.md) for the spec).
+Private mode, framework adapters and a second implementation are deliberately later.
 
 ## Contributing
 

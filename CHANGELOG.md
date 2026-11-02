@@ -10,7 +10,7 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 
 ## [Unreleased]
 
-The first public release, built in eight phases (P0 to P7 in [docs/ROADMAP.md](docs/ROADMAP.md)).
+The first public release, built in eight phases (P0 to P7).
 
 ### Added
 
