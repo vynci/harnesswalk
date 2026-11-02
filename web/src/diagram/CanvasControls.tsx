@@ -6,7 +6,7 @@ import { useApp } from '@/state/store'
 import { Legend } from './Legend'
 
 /**
- * The diagram's own controls, one compact card at the top right of the canvas: the Expert view
+ * The diagram's own controls, one compact card at the top right of the canvas: the Advanced view
  * switch and the Legend button. Telemetry edges (traces, eval, release) are always drawn.
  */
 export function CanvasControls() {
@@ -23,8 +23,8 @@ export function CanvasControls() {
     >
       <Hint label="Expand each group into its parts and draw every edge." side="bottom">
         <label className="flex cursor-pointer items-center gap-1.5">
-          <Switch size="sm" checked={expert} onCheckedChange={(on) => setView(on ? 'expert' : 'simple')} aria-label="Expert view" data-testid="view-toggle" />
-          Expert view
+          <Switch size="sm" checked={expert} onCheckedChange={(on) => setView(on ? 'expert' : 'simple')} aria-label="Advanced view" data-testid="view-toggle" />
+          Advanced view
         </label>
       </Hint>
       <Separator orientation="vertical" className="my-1" />

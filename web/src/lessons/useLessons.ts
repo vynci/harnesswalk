@@ -73,7 +73,7 @@ export function useOutline(): { outline: OutlineEntry[]; status: LessonLoad<Less
 }
 
 /**
- * Open a chapter in the Guide: select its node on the canvas (the expert view for a group
+ * Open a chapter in the Guide: select its node on the canvas (the advanced view for a group
  * chapter), show its chapter and move focus to the chapter's title.
  */
 export function openChapter(entry: OutlineEntry): void {

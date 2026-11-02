@@ -315,7 +315,7 @@ the plus button and the Model Selector for your own key in P6; Subagent in P7.
 | Composer | Input Group (Textarea, Buttons, Text), Dropdown Menu (Model Selector), Select (fixture), Textarea (`output_schema`, dev only), Kbd, Tooltip, Spinner; Switch (Step mode) on the hint line under the input, right-aligned |
 | Approval, step controls | Item (Media, Content, Title, Description, Actions, Footer), Code Block, Badge, Button |
 | Inspector | A Resizable pane docked beside the diagram (not a modal Sheet, so step mode keeps it open) with Tabs and Scroll Area; the LLM Ops tabs (Runs, Releases, Turns) with Input, Select, Toggle Group, Badge, Table and the Confirmation Item; artifact edits with Textarea, Input and the Code Block diff; Badge (kind, view); Events as a Trace opening to the event JSON in a Code Block; Code and config in a Code Block with line numbers; prompts in `Prose`; records in a Table; payload views picked by shape (`src/inspector/shapes.ts`): the audit chain with a Verify Button, store records with a scope Badge, the document list, memory writes as Cards with a diff and Accept/Reject, the context budget as Progress bars; Switch (disable next turn); Kbd (Esc) |
-| Diagram | Nodes are Cards (CardTitle, CardDescription) on their own warm surface (`--node-surface`) with Badges for the kind chip, store badges, the off and not-yet tags and the regressions chip on the node that runs evals; the canvas controls are one Card with two Switches (Expert view, Telemetry) and a Button opening the legend Dialog; the turn status bar is a Card with a budget readout that opens the turn shown's report in a Popover. The canvas, edges and layout stay React Flow |
+| Diagram | Nodes are Cards (CardTitle, CardDescription) on their own warm surface (`--node-surface`) with Badges for the kind chip, store badges, the off and not-yet tags and the regressions chip on the node that runs evals; the canvas controls are one Card with two Switches (Advanced view, Telemetry) and a Button opening the legend Dialog; the turn status bar is a Card with a budget readout that opens the turn shown's report in a Popover. The canvas, edges and layout stay React Flow |
 | Guide | A Resizable pane (under the inspector, or beside it from 1680 px) or a Sheet (under 1024 px) with a Scroll Area: the chapter list, or one chapter in `Prose` (react-markdown, remark-gfm) with Buttons (try it, code walk links, Previous and Next chapter) and the Questionnaire |
 | Replay bar | Card, Button Group (previous, play, next, step over), Slider, Tooltip with Kbd |
 | Feedback | Popover (the optional note), Textarea, Badge (judge scores) |
@@ -407,7 +407,7 @@ and says what it teaches in `lesson_summary`. The code is in `src/lessons/`.
   merged with what `GET /v1/lessons` serves, so a chapter not written yet still has its row),
   each row with the title, the hook and its progress in words, or one chapter with "All
   chapters" back to the list. A chapter from the list selects its node on the canvas (a group
-  chapter switches to the expert view and selects its first covered node) and focus moves to
+  chapter switches to the advanced view and selects its first covered node) and focus moves to
   the chapter's title; Next chapter (in the list and at the end of a chapter) does the same for
   the next one. While the Guide is open it follows the node picked on the canvas to its chapter.
 - **Progress** (`progress.ts`, `useProgress.ts`) is kept per viewer in `localStorage` as
@@ -435,14 +435,14 @@ node stands out against the quiet done ones. An active edge shows its label besi
 never on it, so the moving dot does not pass under it. With reduced motion there is no pulse,
 moving dash or dot; states still show by colour and weight.
 
-The canvas controls (one card at the bottom right of the diagram) hold the Expert view switch,
+The canvas controls (one card at the bottom right of the diagram) hold the Advanced view switch,
 the Telemetry switch and the Legend button. Legend opens a Dialog with one row per channel:
 states, node kinds, edge kinds; Esc or the close button shuts it and focus returns to the
 button. It starts closed and nothing about it is remembered. Toasts appear top left, under the
 chat's header, clear of the app header, the composer, the canvas controls and the inspector.
 The Telemetry switch matters in the simple view only: by default the edges to and from LLM Ops
 are hidden and one dotted bus runs from the execution plane to Trace; the switch draws them all,
-and hovering a node draws its own. The expert view always draws every edge, so there the switch
+and hovering a node draws its own. The advanced view always draws every edge, so there the switch
 shows on and disabled.
 
 ## How the diagram stays in step with the spec
@@ -455,14 +455,14 @@ shows on and disabled.
 - The UI never hard-codes nodes or edges. It draws whatever `GET /v1/diagram` returns, and the
   API generates that from its node registry merged with `spec/diagram/diagram.json`.
 - Layout is computed from the diagram: `layout` hints when a node has them (`layout.expert` in
-  the expert view), otherwise the runtime planes are columns in `groups[].order`, the ops plane
+  the advanced view), otherwise the runtime planes are columns in `groups[].order`, the ops plane
   is a row beneath, and dagre orders each plane along `walk_order`. Expert nodes sit inside their
-  `parent`; an expert edge that `refines` a simple edge replaces it in the expert view and lights
+  `parent`; an expert edge that `refines` a simple edge replaces it in the advanced view and lights
   it in the simple view.
 - Edges are routed from the spec too. An edge's `layout` hint names the side each end uses
   (`handles`), its bend points (`waypoints`) and which side of the line its label sits on; a port
   sits where the nearest bend point projects onto its side, so a lane is written once. An edge
-  without hints, or whose nodes moved (most of the expert view), goes through a deterministic
+  without hints, or whose nodes moved (most of the advanced view), goes through a deterministic
   orthogonal router (`src/diagram/route.ts`: A* over a sparse grid around the node boxes, with
   costs for bends, crossings and, steeply, running along another edge). `routes.test.ts` checks
   that no two edges overlap on one line and no edge runs through a node.

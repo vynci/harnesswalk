@@ -28,7 +28,7 @@ async function send(page: Page, text: string) {
  * at this viewport, and a click would wait for it to go.
  */
 async function setView(page: Page, view: 'Simple' | 'Expert') {
-  const expert = page.getByRole('switch', { name: 'Expert view' })
+  const expert = page.getByRole('switch', { name: 'Advanced view' })
   const want = view === 'Expert' ? 'true' : 'false'
   if ((await expert.getAttribute('aria-checked')) === want) return
   await expert.focus()

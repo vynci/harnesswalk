@@ -13,7 +13,7 @@ try:
 
 ## What it does
 
-Chapter 4 showed the shared read path. Turn on the Expert view and Memory opens into five
+Chapter 4 showed the shared read path. Turn on the Advanced view and Memory opens into five
 stores. They answer the same query shape, and each answers it differently.
 
 ### Procedural
@@ -104,7 +104,7 @@ provider, Ollama `nomic-embed-text` otherwise.
    `read_doc`. Expected: Knowledge retrieves chunks as usual, then the model calls `read_doc` on
    `trailhead_backpack` (`tools ... outcome=ok`) and answers with the 2 year warranty.
 3. **Pack scope and tenant scope.** Run the `remember_fact` prompt, then open Semantic in the
-   expert view. Expected: the six seed facts with scope `pack` and `preferred name: Sam` with scope
+   advanced view. Expected: the six seed facts with scope `pack` and `preferred name: Sam` with scope
    `tenant`. Send the same prompt as another tenant (`X-Harnesswalk-Tenant: other` with curl) and
    list that tenant's facts. Expected: the seeds, and no Sam.
 

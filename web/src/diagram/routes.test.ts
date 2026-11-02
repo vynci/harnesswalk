@@ -144,7 +144,7 @@ describe('without hints', () => {
   })
 })
 
-describe('expert view routes', () => {
+describe('advanced view routes', () => {
   const expert = computeLayout(diagram, { view: 'expert', collapsed: new Set() })
   const byId = new Map(expert.nodes.map((n) => [n.id, n]))
 

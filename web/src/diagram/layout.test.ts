@@ -139,7 +139,7 @@ describe('visibleEdges', () => {
     expect(mem.carries).toContain('procedural_to_context_builder')
   })
 
-  it('hides a simple edge once a drawn edge refines it in the expert view', () => {
+  it('hides a simple edge once a drawn edge refines it in the advanced view', () => {
     const vis = visibleNodeIds(diagram, expert)
     const ids = visibleEdges(diagram, vis).map((e) => e.edge.id)
     expect(ids).toContain('procedural_to_context_builder')

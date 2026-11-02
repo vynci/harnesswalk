@@ -42,7 +42,7 @@ uv run harnesswalk eval _starter
 
 Expected: `16 passed, 0 failed, 0 skipped of 16` for `run_0001`. Now make a change that reads
 fine: in `datasets/_starter/skills/returns.md`, change "within 30 days of delivery" to "within 14
-days of delivery". (In the web app: Expert view, Procedural, Prompt tab, Edit on `returns`.) Run
+days of delivery". (In the web app: Advanced view, Procedural, Prompt tab, Edit on `returns`.) Run
 the golden set again:
 
 ```text

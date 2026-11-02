@@ -137,9 +137,9 @@ test('Stop cancels a paused turn', async ({ page }) => {
   await expect(page.getByTestId('turn-status')).toContainText('exit: cancelled')
 })
 
-test('expert view expands children and the inspector shows lesson and code', async ({ page }) => {
+test('advanced view expands children and the inspector shows lesson and code', async ({ page }) => {
   await expect(node(page, 'procedural')).toHaveCount(0)
-  await page.getByRole('switch', { name: 'Expert view' }).click()
+  await page.getByRole('switch', { name: 'Advanced view' }).click()
   await expect(node(page, 'procedural')).toBeVisible()
   await page.getByRole('button', { name: 'Collapse Memory' }).click()
   await expect(node(page, 'procedural')).toHaveCount(0)
@@ -165,7 +165,7 @@ test('a focused node opens its inspector with Enter', async ({ page }) => {
 
 test('the canvas controls: the legend dialog explains the colours and telemetry edges are always drawn', async ({ page }) => {
   const controls = page.getByRole('group', { name: 'Diagram controls' })
-  await expect(controls.getByRole('switch', { name: 'Expert view' })).toBeVisible()
+  await expect(controls.getByRole('switch', { name: 'Advanced view' })).toBeVisible()
   await expect(page.getByRole('banner').getByRole('switch')).toHaveCount(0)
   await expect(node(page, 'policy').getByTestId('kind-chip')).toHaveAttribute('data-kind', 'config')
 
@@ -354,7 +354,7 @@ test('the inspector events are a trace whose lines open to the event JSON', asyn
   await expect(events).toContainText('"finish_reason"')
 })
 
-test('the theme button and the Expert view switch, and the session menu starts a new session', async ({ page }) => {
+test('the theme button and the Advanced view switch, and the session menu starts a new session', async ({ page }) => {
   // No saved choice: the light OS preference wins, so the button offers dark.
   await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
   await expect(page.getByRole('button', { name: /theme/ })).toHaveCount(1)
@@ -368,7 +368,7 @@ test('the theme button and the Expert view switch, and the session menu starts a
   await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
   await expect(page.getByRole('button', { name: 'Switch to dark theme' })).toBeVisible()
 
-  const expert = page.getByRole('switch', { name: 'Expert view' })
+  const expert = page.getByRole('switch', { name: 'Advanced view' })
   await expect(expert).toHaveAttribute('aria-checked', 'false')
   await expert.click()
   await expect(expert).toHaveAttribute('aria-checked', 'true')

@@ -13,7 +13,7 @@ try:
 
 ## What it does
 
-Chapter 14 used eval as a gate. The Expert view opens it into three parts that answer three
+Chapter 14 used eval as a gate. The Advanced view opens it into three parts that answer three
 different questions: did this change break a known case, how are real turns going, and when
 something failed, where is the fix?
 

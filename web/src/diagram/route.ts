@@ -6,7 +6,7 @@
 //   where the nearest bend point projects onto the named side, so a lane is written once.
 // - automatic: an A* search over a sparse orthogonal grid built from the node boxes, with costs
 //   for length, bends, crossing an earlier edge and, steeply, running along one. Used for any
-//   edge without hints, which in practice is the expert view.
+//   edge without hints, which in practice is the advanced view.
 import type { Side } from '@/api/types'
 
 export type Pt = [number, number]

@@ -13,7 +13,7 @@ try:
 
 ## What it does
 
-The Expert view opens Trace into one child, Cost. It is small on purpose, because the numbers it
+The Advanced view opens Trace into one child, Cost. It is small on purpose, because the numbers it
 reports are already on the events: every model call's `node_exit` carries a `cost` object (input
 and output tokens, and dollars priced from `config/models.yaml`), and every span carries its
 duration. The receipt is the sum of those node exits and nothing else, never `turn_end`, so a

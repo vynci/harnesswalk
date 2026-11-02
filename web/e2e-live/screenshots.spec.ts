@@ -75,8 +75,8 @@ test('a finished turn', async ({ page, browser }) => {
   await sheet.close()
 })
 
-test('a finished turn in the expert view', async ({ page }) => {
-  await page.getByRole('switch', { name: 'Expert view' }).setChecked(true)
+test('a finished turn in the advanced view', async ({ page }) => {
+  await page.getByRole('switch', { name: 'Advanced view' }).setChecked(true)
   await turn(page, 'tool_call', 'Where is order A-1001?')
   await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
   await settle(page)
@@ -132,7 +132,7 @@ test('the eval run and the release diff', async ({ page, request }) => {
   await inspector.getByTestId('eval-run-button').click()
   await expect(inspector.getByTestId('eval-run-detail')).toHaveAttribute('data-status', 'done', { timeout: 60_000 })
 
-  await page.getByRole('switch', { name: 'Expert view' }).setChecked(true)
+  await page.getByRole('switch', { name: 'Advanced view' }).setChecked(true)
   await page.getByTestId('node-procedural').click()
   await inspector.getByRole('tab', { name: 'Prompt' }).click()
   // The README's gate walk: the returns skill's window changes, so returns_window regresses.
@@ -144,7 +144,7 @@ test('the eval run and the release diff', async ({ page, request }) => {
   await editor.getByTestId('artifact-save').click()
   await expect(editor.getByTestId('artifact-saved')).toBeVisible()
 
-  await page.getByRole('switch', { name: 'Expert view' }).setChecked(false)
+  await page.getByRole('switch', { name: 'Advanced view' }).setChecked(false)
   await page.getByTestId('node-eval').click()
   await inspector.getByTestId('eval-run-button').click()
   const detail = inspector.getByTestId('eval-run-detail')
@@ -228,7 +228,7 @@ test('logistics: track, hub capacity, reroute (approved) and eta in one turn', a
 
 test('sports: the router sends the second model call to the lookup rule', async ({ page }) => {
   await onPack(page, 'sports')
-  await page.getByRole('switch', { name: 'Expert view' }).setChecked(true)
+  await page.getByRole('switch', { name: 'Advanced view' }).setChecked(true)
   await turn(page, 'fixtures_ash', 'When does ASH play next, and where?')
   await done(page)
   await page.getByTestId('node-router').click()

@@ -1,7 +1,7 @@
 # Lessons
 
 One chapter per node, in walk order: the order a request meets the nodes, from the gateway to
-release. Then one chapter per expert group, for the nodes the Expert view opens. Each chapter has
+release. Then one chapter per expert group, for the nodes the Advanced view opens. Each chapter has
 the same six parts: what the node does, what breaks without it (with the exact pack, fixture and
 prompt that show the failure, verified on the fake provider), a walk through its code with links
 into `harnesswalk/`, three things to try with the expected outcome, three questions to check

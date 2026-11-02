@@ -13,7 +13,7 @@ try:
 
 ## What it does
 
-The Expert view opens Release into one child, Artifacts: the store that every version and every
+The Advanced view opens Release into one child, Artifacts: the store that every version and every
 release lives in, one SQLite file at `data/releases.db`. Release (chapter 15) is the policy of
 what gets served and when; Artifacts is the record that makes that policy trustworthy.
 
