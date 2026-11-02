@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Hint } from '@/components/hint'
 import { Card } from '@/components/ui/card'
@@ -67,6 +67,8 @@ export function TurnStatusBar({ turn }: { turn: TurnState }) {
   })
   const report = useMemo(() => (turn.phase === 'idle' ? null : turnReport(turn, replaying ? null : summary)), [turn, replaying, summary])
   const release = useApp((s) => s.capabilities?.release)
+  const enterReplay = useApp((s) => s.enterReplay)
+  const finished = turn.phase !== 'idle' && turn.phase !== 'running' && turn.phase !== 'paused'
   // P6: the public sandbox's limits count too, shown even before the first turn.
   const limits = useApp((s) => (s.capabilities?.mode === 'public' ? s.capabilities.public?.limits : undefined))
   // Only the phase is announced. The duration changes as the turn runs, and a live region over
@@ -94,6 +96,14 @@ export function TurnStatusBar({ turn }: { turn: TurnState }) {
       {turn.exit && turn.exit !== 'answered' && <span className="text-muted-foreground">exit: {turn.exit}</span>}
       {turn.phase !== 'idle' && turn.durationMs !== null && <span className="text-muted-foreground tabular-nums">{formatMs(turn.durationMs)}</span>}
       <BudgetReadout text={budgetReadout(report?.rows ?? [], limits)} report={report} limits={limits} />
+      {finished && !replaying && turn.turnId && (
+        <Hint label="Replay this turn on the diagram">
+          <Button variant="ghost" size="xs" className="pointer-events-auto -my-1 gap-1 text-muted-foreground" onClick={() => void enterReplay(turn.turnId!)} data-testid="status-replay-button">
+            <Play />
+            Replay
+          </Button>
+        </Hint>
+      )}
       {release?.working_set_dirty && (
         <Hint label="Working set has unreleased changes">
           <span className="pointer-events-auto flex size-4 items-center justify-center" role="img" aria-label="Working set has unreleased changes" data-testid="release-dirty">
