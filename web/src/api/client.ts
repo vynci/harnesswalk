@@ -197,6 +197,8 @@ export function createApi(t: Transport) {
     // P3: the context plane's routes and the audit export.
     knowledgeDocs: () => call<{ pack: string; docs: KnowledgeDoc[] }>('GET', `/v1/knowledge/docs${scoped()}`),
     knowledgeDoc: (docId: string) => call<KnowledgeDocDetail>('GET', `/v1/knowledge/docs/${encodeURIComponent(docId)}${scoped()}`),
+    /** A URL the API returned for the browser to load itself (a document's `file.url`): an origin-relative one gets the API base. */
+    resolveUrl: (url: string) => (url.startsWith('/') && !url.startsWith('//') ? `${t.baseUrl}${url}` : url),
     memoryProposals: (status: 'pending' | 'all' = 'pending') =>
       call<{ proposals: MemoryProposal[] }>('GET', `/v1/memory/proposals${scoped({ status })}`),
     decideProposal: (proposalId: string, decision: 'accept' | 'reject', reason?: string) =>

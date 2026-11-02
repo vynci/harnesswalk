@@ -490,6 +490,20 @@ export interface Citation {
   citation: string
 }
 
+/**
+ * Where a pack document's original file is served (`GET /v1/packs/{pack}/files/docs/{name}?raw=1`):
+ * the PDF or the markdown as written. Null for a tenant document, and for documents a profile's
+ * own `docs_dir` supplies (added after 0.1.0, so absent from an older server).
+ */
+export interface KnowledgeDocFile {
+  pack: string
+  /** The path in the pack, `docs/<name>`. */
+  path: string
+  /** Relative to the API's origin. */
+  url: string
+  media_type: string
+}
+
 export interface KnowledgeDoc {
   doc_id: string
   title: string
@@ -498,6 +512,7 @@ export interface KnowledgeDoc {
   version: string
   chunks: number
   scope: 'pack' | 'tenant' | string
+  file?: KnowledgeDocFile | null
 }
 
 export interface KnowledgeChunk {

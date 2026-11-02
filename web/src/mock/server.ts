@@ -8,7 +8,9 @@ import type {
   Capabilities,
   Cost,
   Diagram,
+  Citation,
   HarnessEvent,
+  KnowledgeDocFile,
   NodeInfo,
   NodeSource,
   StartTurnRequest,
@@ -20,7 +22,7 @@ import { MARKDOWN_PROMPT, MARKDOWN_REPLY } from './markdown'
 import { MockEvalEventSource, MockOps, MockOpsEventSource } from './ops'
 import { allFixtures, DEFAULT_PACK, fixtureInfo, PACK_IDS, packDetail, packFiles, packSummary } from './packs'
 import { payloadFor } from './payloads'
-import { repoFile, sourceFor } from './repo'
+import { repoFile, repoPdfUrl, sourceFor } from './repo'
 
 export interface MockOptions {
   /** Milliseconds between streamed events. 0 plays as fast as timers allow. */
@@ -135,6 +137,18 @@ const HOSTED = new Set(['hosted-haiku', 'hosted-sonnet'])
 function toTemplate(e: HarnessEvent): Template {
   const { seq: _s, ts: _t, event_id: _e, trace_id: _tr, turn_id: _tu, session_id: _se, tenant_id: _te, ...rest } = e
   return structuredClone(rest)
+}
+
+/**
+ * Pack fixtures the mock answers with a cited reply on the plain answer's stream, as the fake
+ * provider plays them on the real server: the reply's `[n]` and `turn_end.summary.citations`.
+ * The chunk is the mock's own cut of the document (one chunk per `##` section).
+ */
+const CITED: Record<string, { reply: string; citations: Citation[] }> = {
+  cite_mgmt_fee_hcp01: {
+    reply: 'HCP-01 charges a management fee of 1.75 percent a year on commitments during the investment period. [1]',
+    citations: [{ n: 1, doc: 'fund_sheet_hcp01', chunk: 4, citation: 'Hollowmere Growth Partners III: fund fact sheet, Fees and carry' }],
+  },
 }
 
 function pickExample(req: StartTurnRequest): ExampleName {
@@ -443,6 +457,12 @@ export class MockServer {
       const path = m[2]!.split('/').map(decodeURIComponent).join('/')
       if (!PACK_IDS.includes(id)) return apiError(404, 'pack_not_found', `No dataset pack ${id}.`)
       const file = packFiles(id).find((f) => f.path === path)
+      if (url.searchParams.get('raw') === '1') {
+        // A document's original file: markdown under docs/ only (a PDF's file.url is its asset URL).
+        const doc = file && /^docs\/[^/]+\.md$/.test(file.path) ? file : undefined
+        if (!doc) return apiError(404, 'file_not_found', `No document file ${path} in pack ${id}.`)
+        return new Response(doc.text, { status: 200, headers: { 'Content-Type': 'text/markdown; charset=utf-8', 'Content-Disposition': 'inline' } })
+      }
       return file ? json(200, { pack: id, path: file.path, bytes: file.bytes, role: file.role, kind: file.kind, text: file.text }) : apiError(404, 'file_not_found', `No file ${path} in pack ${id}.`)
     }
     if ((m = p.match(/^\/v1\/packs\/([^/]+)$/)) && method === 'GET') {
@@ -698,6 +718,7 @@ export class MockServer {
     const approvalId = `apr_${String(turnNo).padStart(4, '0')}_${hex(4)}`
     // A message asking for a table or markdown gets the markdown reply on the plain answer's stream.
     const markdown = name === 'plain_answer' && MARKDOWN_PROMPT.test(req.message)
+    const cited = name === 'plain_answer' && req.fixture ? CITED[req.fixture] : undefined
     // P6, `budget=midturn`: the first Claude turn crosses the shared budget between two calls.
     const routed = this.opts.public ? (req.model ?? this.publicModels().find((m) => m.default)?.alias ?? '') : ''
     const fellThrough = this.opts.public?.budget === 'midturn' && !this.spentMidTurn && HOSTED.has(routed)
@@ -705,6 +726,8 @@ export class MockServer {
     const templates = applyDisabled(EXAMPLES[name].map(toTemplate), disabled, this.diagram).map((t) => {
       if (fellThrough && t.type === 'turn_end') t = { ...t, summary: { ...t.summary, notices: [{ reason: 'budget_exhausted', message: BUDGET_NOTICE }] } }
       if (markdown && t.type === 'turn_end') return { ...t, summary: { ...t.summary, reply: MARKDOWN_REPLY } }
+      if (cited && t.type === 'turn_end') return { ...t, summary: { ...t.summary, reply: cited.reply, citations: cited.citations } }
+      if (cited && t.type === 'node_exit' && t.node_id === 'gateway' && t.summary?.phase === 'reply') return { ...t, summary: { ...t.summary, reply_chars: cited.reply.length } }
       if (markdown && t.type === 'node_exit' && t.node_id === 'gateway' && t.summary?.phase === 'reply') return { ...t, summary: { ...t.summary, reply_chars: MARKDOWN_REPLY.length } }
       return t.summary && typeof t.summary.approval_id === 'string' ? { ...t, summary: { ...t.summary, approval_id: approvalId } } : t
     })
@@ -1159,6 +1182,18 @@ export class MockEventSource implements EventSourceLike {
  * A pack's documents, cut into chunks at each heading like the harness does first. A PDF the
  * pack ships is read from the markdown it was rendered from (`sources/`), as its text.
  */
+/**
+ * Where a mock document's original file is: a markdown file at the pack files route (`?raw=1`,
+ * which this mock answers), a PDF at its bundled asset URL (an <object> loads it, not fetch).
+ */
+function mockDocFile(pack: string, path: string): KnowledgeDocFile | null {
+  if (path.endsWith('.pdf')) {
+    const url = repoPdfUrl(`datasets/${pack}/${path}`)
+    return url ? { pack, path, url, media_type: 'application/pdf' } : null
+  }
+  return { pack, path, url: `/v1/packs/${pack}/files/${path}?raw=1`, media_type: 'text/markdown; charset=utf-8' }
+}
+
 function mockDocs(pack = DEFAULT_PACK) {
   return packFiles(pack)
     .filter((f) => f.path.startsWith('docs/') && /\.(md|pdf)$/.test(f.path))
@@ -1171,6 +1206,6 @@ function mockDocs(pack = DEFAULT_PACK) {
         const body = (position === 0 ? sec.replace(/^#\s+.+$/m, '') : sec.split('\n').slice(1).join('\n')).trim()
         return { position, heading, text: body, tokens: Math.ceil(body.length / 4), citation: heading ? `${title}, ${heading}` : title }
       })
-      return { doc_id: name.replace(/\.(md|pdf)$/, ''), title, path: name, kind: name.endsWith('.pdf') ? 'pdf' : 'markdown', version: 'mock', scope: 'pack', text, chunks }
+      return { doc_id: name.replace(/\.(md|pdf)$/, ''), title, path: name, kind: name.endsWith('.pdf') ? 'pdf' : 'markdown', version: 'mock', scope: 'pack', text, chunks, file: mockDocFile(pack, path) }
     })
 }

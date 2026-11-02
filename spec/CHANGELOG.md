@@ -17,6 +17,11 @@ Spec 0.1.0 is still the draft below until the first package release (`v0.1.0`).
   `truncated` flag), and `GET /v1/trace/turns/{turn_id}/details/{event_id}` serves one to the
   turn's own tenant (`contracts/http_api.md`, Trace). Those events gain one summary key,
   `has_payload: true`; nothing else in the stream changes.
+- Document files (`contracts/http_api.md`, "Context plane routes" and "Packs"): the knowledge
+  document routes gain `file` (`{pack, path, url, media_type}` or `null`), and
+  `GET /v1/packs/{pack_id}/files/docs/{name}?raw=1` serves a pack document's original file
+  (`application/pdf` or `text/markdown; charset=utf-8`, inline, cacheable) in every mode, only
+  from the pack's `docs/`.
 
 ## [0.1.0] - draft, frozen at the v0.1.0 release
 

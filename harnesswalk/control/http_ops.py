@@ -22,6 +22,7 @@ P5 (http_api.md, "P5 additions"):
 
     GET  /v1/packs                                    the dataset packs this harness can load
     GET  /v1/packs/{id}, /v1/packs/{id}/files/{path}  one pack's card and file tree, one file
+                                                      (`?raw=1`: a document's original file)
     POST /v1/sessions, GET /v1/sessions/{id}          a session on a pack, and its summary
     POST /v1/diagnose                                 a failed case or a bad turn, diagnosed
     POST /v1/releases                                 runs the eval gate first (409 gate_failed)
@@ -38,7 +39,7 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 
 from harnesswalk.control.gateway import GatewayError
 from harnesswalk.control.sse import until_stopped
@@ -51,6 +52,7 @@ from harnesswalk.ops.eval.offline import scratch_tenant, stream_of
 from harnesswalk.ops.eval.online import MAX_NOTE_CHARS
 from harnesswalk.ops.ops_events import OPS_STREAM
 from harnesswalk.ops.trace import full_receipt
+from harnesswalk.packs import DOC_MEDIA_TYPES
 
 if TYPE_CHECKING:
     from harnesswalk.runtime import Harness
@@ -58,6 +60,7 @@ if TYPE_CHECKING:
 CURSOR = re.compile(r"-?\d{1,18}")
 SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 PACK_FILE_MAX_BYTES = 512 * 1024
+RAW_CACHE = "public, max-age=300"  # a pack document changes only with the checkout
 SESSION_COOKIE = "harnesswalk_session"  # http_api.py sets the same cookie on POST /v1/turns
 TENANT_COOKIE = "harnesswalk_tenant"
 
@@ -136,6 +139,23 @@ def add_ops_routes(
 
     # -- packs and sessions (P5) ----------------------------------------------------------------
 
+    def raw_doc(info: Any, pack_id: str, path: str) -> FileResponse:
+        """`?raw=1`: a knowledge document's original file, as the reader embeds it. Only a file
+        directly under the pack's `docs/` with a document type (Pack.doc_file); anything else,
+        `..` and hidden files included, is 404. Every mode: pack content is public (CC0)."""
+        name = path.removeprefix("docs/") if path.startswith("docs/") else ""
+        listed = any(f["path"] == path for f in info.files())
+        target = info.doc_file(name) if listed else None
+        if target is None:
+            raise GatewayError(404, "file_not_found", f"No document file {path} in pack {pack_id}.")
+        return FileResponse(
+            target,
+            media_type=DOC_MEDIA_TYPES[target.suffix.lower()],
+            filename=target.name,
+            content_disposition_type="inline",
+            headers={"Cache-Control": RAW_CACHE, "X-Content-Type-Options": "nosniff"},
+        )
+
     @app.get("/v1/packs")
     async def list_packs() -> JSONResponse:
         return JSONResponse(h.pack_list())
@@ -158,8 +178,10 @@ def add_ops_routes(
         return JSONResponse({**card, **info.summary(h.pack, loaded), "files": info.files()})
 
     @app.get("/v1/packs/{pack_id}/files/{path:path}")
-    async def get_pack_file(pack_id: str, path: str) -> JSONResponse:
+    async def get_pack_file(pack_id: str, path: str, raw: bool = False) -> Response:
         info = find_pack(pack_id)
+        if raw:
+            return raw_doc(info, pack_id, path)
         listed = {f["path"]: f for f in info.files()}
         entry = listed.get(path)
         if entry is None:  # only files the tree lists: no `..`, no hidden files

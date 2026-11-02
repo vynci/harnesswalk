@@ -12,6 +12,10 @@ the same identity rules as the rest of the API.
 P5: `?pack=` on the knowledge routes picks the pack (default the configured one), and a
 proposal is decided by the memory writer of the pack its session runs on, so an accepted fact
 lands in that pack's memory.
+
+A pack document carries `file`: where its original file is served (the pack files route with
+`?raw=1`), so the reader can show the PDF or the markdown as written; null for a tenant
+document or a documents directory that is not the pack's own (a profile's `docs_dir`).
 """
 
 from __future__ import annotations
@@ -19,14 +23,37 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
+from urllib.parse import quote
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from harnesswalk import packs
 from harnesswalk.control.gateway import GatewayError
 
 if TYPE_CHECKING:
     from harnesswalk.runtime import Harness
+
+
+def doc_file(h: Any, doc: dict[str, Any]) -> dict[str, Any] | None:
+    """`{pack, path, url, media_type}` of a pack document's original file, or None."""
+    if doc.get("scope") != "pack":
+        return None
+    info = packs.find(h.settings, h.pack)
+    target = info.doc_file(str(doc.get("path") or "")) if info is not None else None
+    if target is None:
+        return None
+    try:  # the store indexed this directory, not one a profile names instead
+        if h.knowledge_dir().resolve() != target.parent.resolve():
+            return None
+    except OSError:
+        return None
+    return {
+        "pack": h.pack,
+        "path": f"docs/{target.name}",
+        "url": f"/v1/packs/{quote(h.pack)}/files/docs/{quote(target.name)}?raw=1",
+        "media_type": packs.DOC_MEDIA_TYPES[target.suffix.lower()],
+    }
 
 
 def add_memory_routes(
@@ -108,7 +135,8 @@ def add_memory_routes(
         identity, _ = identities.resolve(request)
         h = pack_view(pack)
         view = SimpleNamespace(tenant_id=identity.tenant_id, user_id=identity.user_id)
-        return JSONResponse({"pack": h.pack, "docs": h.knowledge.docs(view)})
+        docs = [{**d, "file": doc_file(h, d)} for d in h.knowledge.docs(view)]
+        return JSONResponse({"pack": h.pack, "docs": docs})
 
     @app.get("/v1/knowledge/docs/{doc_id}")
     async def get_doc(request: Request, doc_id: str, pack: str | None = None) -> JSONResponse:
@@ -118,4 +146,4 @@ def add_memory_routes(
         doc = h.knowledge.doc(view, doc_id)
         if doc is None:
             raise GatewayError(404, "doc_not_found", f"No document {doc_id} for this tenant.")
-        return JSONResponse(doc)
+        return JSONResponse({**doc, "file": doc_file(h, doc)})

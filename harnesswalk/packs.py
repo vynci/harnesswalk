@@ -44,6 +44,12 @@ DEFAULT_ROOTS = ("datasets",)
 MAX_PROMPTS = 10
 LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+(.+?)\s*$")
 DOC_EXTS = (".md", ".markdown", ".pdf")
+# The media type a knowledge document's original file is served with (`?raw=1`, http_api.md).
+DOC_MEDIA_TYPES = {
+    ".pdf": "application/pdf",
+    ".md": "text/markdown; charset=utf-8",
+    ".markdown": "text/markdown; charset=utf-8",
+}
 BUILTIN_TOOLS = ("calculator", "read_skill", "remember", "read_doc")
 TIERS = {
     # tier: (docs, pdf docs, skills, pack tools, facts, episodes, golden cases, try-these prompts)
@@ -202,6 +208,22 @@ class Pack:
     def docs(self) -> list[Path]:
         d = self.path / "docs"
         return sorted(p for p in d.glob("*") if p.is_file() and p.suffix.lower() in DOC_EXTS)
+
+    def doc_file(self, name: str) -> Path | None:
+        """The original file of one knowledge document, by its file name under `docs/`, or None:
+        one path segment, not hidden, a document type, a regular file, and inside `docs/` once
+        symlinks are resolved. The walls of `GET /v1/packs/{id}/files/docs/{name}?raw=1`."""
+        if not name or "/" in name or "\\" in name or name.startswith("."):
+            return None
+        docs = self.path / "docs"
+        target = docs / name
+        if target.suffix.lower() not in DOC_EXTS or not target.is_file():
+            return None
+        try:
+            target.resolve().relative_to(docs.resolve())
+        except (OSError, ValueError):
+            return None
+        return target
 
     def doc_ids(self) -> set[str]:
         return {re.sub(r"[^a-z0-9_]+", "_", p.stem.lower()).strip("_") for p in self.docs()}
