@@ -147,7 +147,9 @@ jobs:
 
   github-release:
     name: Create the GitHub Release
-    needs: [build, pypi, image]
+    # Notes and files land on the release even when PyPI refuses (publisher not set up yet);
+    # the pypi job can be re-run on its own.
+    needs: [build, image]
     runs-on: ubuntu-latest
     permissions:
       contents: write
