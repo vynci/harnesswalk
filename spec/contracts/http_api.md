@@ -550,10 +550,17 @@ All four are tenant-scoped like every other route.
   memory is never written); `404` for a proposal of another tenant or none; `409`
   `proposal_not_pending` when it is not waiting at the review gate (decided at most once).
 - `GET /v1/knowledge/docs` returns `{"pack", "docs": [{doc_id, title, path, kind, version,
-  chunks, scope}]}` (`scope` is `pack` or `tenant`).
+  chunks, scope, file}]}` (`scope` is `pack` or `tenant`; `file` below).
 - `GET /v1/knowledge/docs/{doc_id}` returns `{doc_id, title, path, kind, version, scope, text,
-  chunks: [{position, heading, text, tokens, citation}]}`, or `404` `doc_not_found`. A
+  chunks: [{position, heading, text, tokens, citation}], file}`, or `404` `doc_not_found`. A
   citation chip (`turn_end.summary.citations`) opens here at `chunks[chunk]`.
+- `file` (added after 0.1.0): where the document's original file is served, `{pack, path, url,
+  media_type}`, for example `{"pack": "healthcare", "path": "docs/billing_faq.pdf", "url":
+  "/v1/packs/healthcare/files/docs/billing_faq.pdf?raw=1", "media_type": "application/pdf"}`;
+  `url` is relative to the API's origin. `null` for a tenant document (tenant uploads are not
+  served yet) and for a pack whose documents come from another directory
+  (`stores.knowledge.docs_dir`, as the conformance profile sets it). A client shows the file
+  (`kind` `pdf` embedded, `markdown` rendered) and keeps the chunks for citations.
 
 The store inspectors (`GET /v1/nodes/semantic`, `episodic`, `knowledge`, `memory`) return
 `counts`, `last_records` (tenant-scoped; pack seeds and documents marked `scope: pack`) and
@@ -816,7 +823,7 @@ Additive. Every existing endpoint keeps its shape; new fields are listed where t
 |---|---|---|
 | `GET /v1/packs` | The dataset packs this harness can load | P5 |
 | `GET /v1/packs/{pack_id}` | One pack's card and file tree | P5 integration |
-| `GET /v1/packs/{pack_id}/files/{path}` | One file of a pack, as text | P5 integration |
+| `GET /v1/packs/{pack_id}/files/{path}` | One file of a pack, as text; `?raw=1`, a document's original file | P5 integration; `raw` after 0.1.0 |
 | `POST /v1/sessions` | Start a session on a pack | P5 |
 | `GET /v1/sessions/{session_id}` | One session: its pack and turn count | P5 |
 | `POST /v1/diagnose` | Map a failed eval case or a bad turn to the layer at fault | P5 |
@@ -853,6 +860,24 @@ pack_not_found` for an unknown pack.
 file tree lists (anything else, `..` included, is `404 file_not_found`); `kind` is `text`, or
 `pdf_text` with the text extracted from a PDF. Files over 512 KiB are `413 file_too_large`, a
 file that is not UTF-8 is `415 not_text`.
+
+`GET /v1/packs/{pack_id}/files/docs/{name}?raw=1` (added after 0.1.0; every mode, tenant-free,
+since pack documents are public content): a knowledge document's original file, the bytes as
+they are on disk, which `file.url` of the knowledge document routes names. Only a file directly
+under the pack's `docs/` with a document type (`.pdf`, `.md`, `.markdown`), listed in the file
+tree, and inside `docs/` once symlinks are resolved; anything else with `raw=1` (another
+directory, a hidden file, `..` in any spelling, an unknown name) is `404 file_not_found` as
+JSON. The response:
+
+| Header | Value |
+|---|---|
+| `Content-Type` | `application/pdf`, or `text/markdown; charset=utf-8` |
+| `Content-Disposition` | `inline; filename="<name>"`, so a browser shows it rather than saving it |
+| `Cache-Control` | `public, max-age=300` (with `ETag` and `Last-Modified`) |
+| `X-Content-Type-Options` | `nosniff` |
+
+The size cap of the JSON form does not apply. Without `raw` (or `raw=0`) the route answers as
+above.
 
 `GET /v1/memory/proposals` takes `?pack=` (P5 integration): only that pack's proposals, `422
 invalid_request` for an unknown pack; the response then echoes `pack`. Each proposal carries
