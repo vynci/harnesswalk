@@ -55,7 +55,7 @@ export function DocReader() {
   const doc = current?.doc
   return (
     <Dialog open={!!open} onOpenChange={(o) => !o && closeDoc()}>
-      <DialogContent className="flex h-[85dvh] flex-col gap-0 p-0 sm:max-w-[44rem]" data-testid="doc-reader">
+      <DialogContent className="flex h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[44rem]" data-testid="doc-reader">
         {doc ? (
           <DocPanel key={key} doc={doc} chunk={open?.chunk} resolveUrl={api?.resolveUrl ?? ((u) => u)} />
         ) : (
