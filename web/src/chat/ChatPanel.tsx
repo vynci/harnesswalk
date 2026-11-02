@@ -303,9 +303,12 @@ function TurnView({
           )}
           {finished && !replaying && (
             <MessageFooter className="-ml-1.5 px-0" data-testid="message-actions">
-              <MessageAction label="Replay this turn on the diagram" onClick={() => void enterReplay(turn.turnId)} data-testid="replay-button">
-                <Play />
-              </MessageAction>
+              <Hint label="Replay this turn on the diagram" side="top">
+                <Button variant="ghost" size="xs" className="gap-1 text-muted-foreground" onClick={() => void enterReplay(turn.turnId)} data-testid="replay-button">
+                  <Play />
+                  Replay
+                </Button>
+              </Hint>
               {feedbackOn && <FeedbackActions turnId={turn.turnId} feedback={feedback} />}
               <ScoreChips scores={turn.summary?.scores} />
               {feedback?.note && (
