@@ -1,8 +1,8 @@
 // The Guide (once the lessons drawer): the chapter list with this viewer's progress, and
-// one chapter at a time with its Try buttons and Check yourself. Docked as a pane at the right
+// one chapter at a time with its Try buttons. Docked as a pane at the right
 // edge of the workspace beside the inspector on a wide screen, a Sheet over it on a narrow one.
 import { useEffect, useRef, type ReactNode } from 'react'
-import { ArrowRight, BookOpen, CircleCheck, CircleDashed, Eye, List, X } from 'lucide-react'
+import { ArrowRight, BookOpen, CircleDashed, Eye, List, X } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
@@ -20,19 +20,15 @@ import { useLessonProgress } from './useProgress'
 
 const num = (n: number) => String(n).padStart(2, '0')
 
-/** Read, checked, or neither: an icon and the words, so the state is never colour or icon alone. */
+/** Read or not: an icon and the word, so the state is never colour or icon alone. */
 function ProgressText({ slug, written }: { slug: string; written: boolean }) {
   const entry = useLessonProgress((s) => s.progress[slug])
   const status = chapterStatus({ [slug]: entry ?? {} }, slug)
   if (!written) return <span className="text-xs text-muted-foreground">Not written yet</span>
-  const [Icon, text] = status.checked
-    ? [CircleCheck, 'Read, checked']
-    : status.read
-      ? [Eye, status.answered ? `Read, ${status.answered} answered` : 'Read']
-      : [CircleDashed, 'Not started']
+  const [Icon, text] = status.read ? [Eye, 'Read'] : [CircleDashed, 'Not started']
   return (
-    <span className="flex items-center gap-1 text-xs text-muted-foreground" data-testid="lesson-progress" data-read={status.read} data-checked={status.checked}>
-      <Icon className={cn('size-3.5', status.checked && 'text-state-done')} aria-hidden />
+    <span className="flex items-center gap-1 text-xs text-muted-foreground" data-testid="lesson-progress" data-read={status.read}>
+      <Icon className="size-3.5" aria-hidden />
       {text}
     </span>
   )

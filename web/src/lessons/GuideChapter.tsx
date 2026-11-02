@@ -8,11 +8,10 @@ import { Button } from '@/components/ui/button'
 import { packTitle } from '@/state/packs'
 import { usePanels, type CodeTarget } from '@/state/panels'
 import { useApp } from '@/state/store'
-import { CheckYourself } from './CheckYourself'
 import { classifyLink } from './links'
 import { stepEntry, type OutlineEntry } from './outline'
 import { lessonRef, parseLesson } from './parse'
-import { headingSlug, rehypeHeadingIds } from './slug'
+import { rehypeHeadingIds } from './slug'
 import { openChapter, takeLessonFocus, useLesson, useOutline } from './useLessons'
 import { useLessonProgress } from './useProgress'
 
@@ -149,7 +148,7 @@ function ChapterNav({ entry, outline }: { entry: OutlineEntry | undefined; outli
 
 /**
  * One chapter in the Guide: the node's chapter (`lesson_url`), its markdown in Prose with GitHub
- * heading ids, the Try buttons, the Check yourself section as a Questionnaire, and Previous and
+ * heading ids, the Try buttons, and Previous and
  * Next. An expert node opens its group chapter at its own section. A code walk link opens the
  * node's inspector on the Code tab.
  */
@@ -279,7 +278,6 @@ export function GuideChapter({ node }: { node: DiagramNode }) {
   }
 
   const parent = data.group && data.node_id ? diagram?.nodes.find((n) => n.id === data.node_id) : undefined
-  const checksId = parsed.checksHeading ? headingSlug(parsed.checksHeading) : null
   return (
     <article ref={article} className="flex flex-col gap-4" aria-labelledby="lesson-title" data-testid="guide-chapter" data-status="ok" data-slug={data.slug}>
       <header className="flex flex-col gap-1">
@@ -298,14 +296,6 @@ export function GuideChapter({ node }: { node: DiagramNode }) {
           {parsed.before}
         </ReactMarkdown>
       </Prose>
-      {parsed.checks && (
-        <section aria-labelledby={checksId!} className="mt-2 flex flex-col gap-3">
-          <h2 id={checksId!} className="scroll-mt-2 text-[0.95rem] font-medium">
-            {parsed.checksHeading}
-          </h2>
-          <CheckYourself slug={data.slug} questions={parsed.checks} />
-        </section>
-      )}
       {parsed.after && (
         <Prose className={PROSE}>
           <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHeadingIds]} components={components}>

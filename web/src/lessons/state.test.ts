@@ -2,36 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { diagram } from '@/test/fixtures'
 import type { LessonListItem } from '@/api/types'
 import { buildOutline, stepEntry } from './outline'
-import type { CheckQuestion } from './parse'
 import { answersOf, chapterStatus, loadProgress, markRead, PROGRESS_KEY, recordAnswer, sanitize, saveProgress } from './progress'
-import { firstOpen, quizView } from './quiz'
 
-const q = (right: number): CheckQuestion => ({ n: 1, text: 'Q', answer: 'A', choices: [0, 1, 2].map((i) => ({ text: `c${i}`, correct: i === right })) })
-
-describe('quiz state', () => {
-  const questions = [q(1), q(2), q(0)]
-
-  it('starts with nothing answered', () => {
-    const v = quizView(questions, {})
-    expect(v).toMatchObject({ answered: 0, right: 0, total: 3, complete: false })
-    expect(v.items.map((i) => i.correct)).toEqual([null, null, null])
-    expect(firstOpen(v)).toBe(0)
-  })
-
-  it('says whether each choice is right and completes at three answers', () => {
-    const partial = quizView(questions, { 0: 1, 1: 0 })
-    expect(partial.items.map((i) => i.correct)).toEqual([true, false, null])
-    expect(partial.items[1]!.rightIndex).toBe(2)
-    expect(firstOpen(partial)).toBe(2)
-    const done = quizView(questions, { 0: 1, 1: 0, 2: 0 })
-    expect(done).toMatchObject({ answered: 3, right: 2, complete: true })
-    expect(firstOpen(done)).toBe(2)
-  })
-
-  it('ignores an answer outside the choices', () => {
-    expect(quizView(questions, { 0: 7 }).answered).toBe(0)
-  })
-})
 
 describe('progress store', () => {
   afterEach(() => vi.unstubAllGlobals())

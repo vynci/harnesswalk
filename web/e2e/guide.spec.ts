@@ -96,7 +96,7 @@ test('a node on the canvas, then Open in Guide, shows its chapter; the Guide the
   const chapter = guide(page).getByTestId('guide-chapter')
   await expect(chapter).toHaveAttribute('data-slug', /^08-/)
   await expect(chapter.getByTestId('lesson-title')).toBeFocused()
-  await expect(chapter.getByRole('heading', { name: 'Check yourself' })).toBeVisible()
+  await expect(chapter.getByRole('heading', { name: 'Check yourself' })).toHaveCount(0)
   // The Guide and the inspector are both open: picking another node moves both.
   await node(page, 'gateway').click()
   await expect(inspector.getByTestId('inspector-title')).toHaveText('Gateway')
@@ -161,7 +161,7 @@ test('Open in Guide from the inspector, for a written and an unwritten chapter',
   await inspector.getByTestId('open-in-guide').click()
   const chapter = guide(page).getByTestId('guide-chapter')
   await expect(chapter).toHaveAttribute('data-slug', CHAPTER)
-  await expect(chapter.getByRole('heading', { name: 'Check yourself' })).toBeVisible()
+  await expect(chapter.getByRole('heading', { name: 'Check yourself' })).toHaveCount(0)
   // The Guide follows the reader between nodes; a chapter the mock does not have (here
   // chapter 03, removed for the test) says it is not written yet.
   await page.evaluate(() => {
@@ -193,40 +193,6 @@ test('a code walk link opens the Code tab at the symbol, and another file with a
   await inspector.getByTestId('code-back').click()
   await expect(inspector.getByTestId('code-peek-path')).toHaveCount(0)
   await expect(inspector).toContainText('harnesswalk/control/input_guardrails.py')
-})
-
-test('answering the three checks marks the chapter checked, and it is remembered', async ({ page }) => {
-  await openFromGuide(page, CHAPTER)
-  const checks = page.getByTestId('check-yourself')
-  // Only the active question is shown; the others are hidden and inert.
-  const feedback = checks.locator('[data-testid=check-question][data-active] [data-testid=check-feedback]')
-  await expect(checks.getByRole('progressbar')).toHaveText('Question 1 of 3')
-  await expect(checks.getByTestId('check-count')).toHaveText('0 of 3 answered')
-  await checks.getByRole('radio', { name: /advice the input can argue with/ }).click()
-  await expect(feedback).toHaveAttribute('data-correct', 'true')
-  await expect(feedback).toContainText('never sees the argument')
-  await checks.getByRole('button', { name: 'Next question' }).click()
-  await expect(checks.getByRole('progressbar')).toHaveText('Question 2 of 3')
-  // Keyboard: the letters pick a choice.
-  await checks.getByRole('radio', { name: /memory writer redacts the email anyway/ }).focus()
-  await page.keyboard.press('a')
-  await expect(feedback).toHaveAttribute('data-correct', 'false')
-  await expect(feedback).toContainText('Not quite. The answer is C.')
-  await checks.getByRole('button', { name: 'Next question' }).click()
-  await checks.getByRole('radio', { name: /refused at the guardrail/ }).click()
-  await expect(checks).toHaveAttribute('data-complete', 'true')
-  await expect(checks.getByTestId('check-count')).toHaveText('All 3 answered, 2 right')
-
-  await contents(page)
-  await expect(row(page, CHAPTER).getByTestId('lesson-progress')).toHaveAttribute('data-checked', 'true')
-  await expect(row(page, CHAPTER)).toContainText('Read, checked')
-
-  await page.reload()
-  await expect(node(page, 'gateway')).toBeVisible()
-  await page.getByTestId('guide-button').click()
-  await expect(row(page, CHAPTER)).toContainText('Read, checked')
-  await row(page, CHAPTER).click()
-  await expect(page.getByTestId('check-yourself')).toHaveAttribute('data-complete', 'true')
 })
 
 test('disable and try: the node is off, the fixture and prompt are set, and the turn skips it', async ({ page }) => {
