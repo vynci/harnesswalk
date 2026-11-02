@@ -140,26 +140,29 @@ test('the pack picker: finance changes the prompts, the fixtures, the turn’s p
   await pickPack(page, '_starter')
 })
 
-test('one click on a pack card in the empty chat starts a session on that pack, and the next turn runs on it', async ({ page, request }) => {
+test('one pick in the empty chat\u2019s dropdown starts a session on that pack, and the next turn runs on it', async ({ page, request }) => {
   const all = await packs(request)
   if ((await page.getByTestId('chat-turn').count()) > 0) await newSession(page)
-  const grid = page.getByTestId('empty-pack-grid')
-  const cards = grid.getByTestId('empty-pack-card')
-  await expect(cards).toHaveCount(all.length)
-  await expect(cards.first()).toHaveAttribute('data-pack', '_starter')
-  await expect(grid.locator('[data-selected=true]')).toHaveAttribute('data-pack', '_starter')
-  const card = grid.locator('[data-pack="finance"]')
-  await expect(card).toContainText('Hollowmere Capital Partners')
-  await expect(card).toContainText('Citations and the memory writer')
-  await card.click()
+  const chooser = page.getByTestId('empty-pack-chooser')
+  const picker = chooser.getByTestId('empty-pack-picker')
+  await expect(picker).toHaveAttribute('data-pack', '_starter')
+  await picker.click()
+  await expect(page.getByTestId('empty-pack-menu')).toBeVisible()
+  const options = page.getByTestId('empty-pack-menu').getByTestId('empty-pack-option')
+  await expect(options).toHaveCount(all.length)
+  await expect(options.first()).toHaveAttribute('data-pack', '_starter')
+  const finance = page.getByTestId('empty-pack-menu').locator('[data-pack="finance"]')
+  await expect(finance).toContainText('Hollowmere Capital Partners')
+  await expect(finance).toContainText('Citations and the memory writer')
+  await finance.click()
 
-  // The same switch as the header picker's: the picker, the prompts, the selected card.
+  // The same switch as the header picker's: the picker, the prompts, the chooser's own button.
   await expect(page.getByTestId('pack-picker')).toHaveAttribute('data-pack', 'finance', { timeout: 30_000 })
-  await expect(card).toHaveAttribute('data-selected', 'true')
-  await expect(grid.locator('[data-selected=true]')).toHaveCount(1)
+  await expect(picker).toHaveAttribute('data-pack', 'finance')
+  await expect(chooser.getByTestId('empty-pack-feature')).toContainText('Citations and the memory writer')
   await expect(page.getByTestId('try-prompt').first()).toHaveText(FEE)
 
-  // The next turn runs on finance, as the harness records it, and the chat shows it instead of the cards.
+  // The next turn runs on finance, as the harness records it, and the chat shows it instead of the chooser.
   await pickFixture(page, 'cite_mgmt_fee_hcp01')
   await send(page, FEE)
   await expect(status(page)).toHaveAttribute('data-phase', 'done')
@@ -168,7 +171,7 @@ test('one click on a pack card in the empty chat starts a session on that pack, 
   const turnId = await page.getByTestId('chat-turn').last().getAttribute('data-turn-id')
   expect(((await (await request.get(`/v1/turns/${turnId}`)).json()) as { pack: string }).pack).toBe('finance')
   await expect(page.getByTestId('citation-chip').first()).toBeVisible()
-  await expect(grid).toHaveCount(0)
+  await expect(chooser).toHaveCount(0)
   await pickPack(page, '_starter')
 })
 

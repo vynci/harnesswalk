@@ -20,7 +20,13 @@ import { Spinner } from '@/components/ui/spinner'
 import { orderPacks, packTitle } from '@/state/packs'
 import { selectTurnRunning, useApp } from '@/state/store'
 
-export function PackPicker() {
+/**
+ * `variant="inline"` is the empty chat's copy: an outline button at full width of its row with
+ * the whole title, the menu opening below it, its own test ids (the header's stay unique).
+ */
+export function PackPicker({ variant = 'header' }: { variant?: 'header' | 'inline' } = {}) {
+  const inline = variant === 'inline'
+  const tid = inline ? 'empty-pack' : 'pack'
   const packs = useApp((s) => s.packs)
   const pack = useApp((s) => s.pack)
   const switching = useApp((s) => s.switchingPack)
@@ -35,27 +41,27 @@ export function PackPicker() {
       <Hint label={running ? `${title}. A turn is running: pick a pack when it ends` : `Dataset pack: ${title}${current?.feature ? `, ${current.feature.toLowerCase()}` : ''}. Picking another starts a new session.`}>
         <DropdownMenuTrigger asChild>
           <Button
-            size="sm"
-            variant="default"
-            className="w-auto max-w-[min(24rem,40vw)] min-w-0 shrink gap-1.5 font-medium shadow-xs max-sm:max-w-40"
+            size={inline ? 'default' : 'sm'}
+            variant={inline ? 'outline' : 'default'}
+            className={inline ? 'w-auto max-w-sm min-w-0 gap-2 font-medium' : 'w-auto max-w-[min(24rem,40vw)] min-w-0 shrink gap-1.5 font-medium shadow-xs max-sm:max-w-40'}
             aria-label={`Dataset pack: ${title}`}
             aria-disabled={running || switching ? true : undefined}
             onClick={(e) => {
               if (running || switching) e.preventDefault()
             }}
-            data-testid="pack-picker"
+            data-testid={`${tid}-picker`}
             data-pack={pack ?? ''}
           >
             {switching ? <Spinner role={undefined} aria-hidden className="motion-reduce:animate-none" /> : <Database aria-hidden />}
-            <span className="min-w-0 truncate max-sm:hidden" data-testid="pack-picker-title">
+            <span className={inline ? 'min-w-0 truncate' : 'min-w-0 truncate max-sm:hidden'} data-testid={`${tid}-picker-title`}>
               {title}
             </span>
-            <span className="min-w-0 truncate sm:hidden">{short}</span>
-            <ChevronDown className="opacity-80" aria-hidden />
+            {!inline && <span className="min-w-0 truncate sm:hidden">{short}</span>}
+            <ChevronDown className={inline ? 'opacity-60' : 'opacity-80'} aria-hidden />
           </Button>
         </DropdownMenuTrigger>
       </Hint>
-      <DropdownMenuContent align="end" className="w-80" data-testid="pack-menu">
+      <DropdownMenuContent align={inline ? 'start' : 'end'} className="w-80" data-testid={`${tid}-menu`}>
         <DropdownMenuLabel className="flex flex-col gap-0.5">
           <span>Dataset pack</span>
           <span className="text-xs font-normal text-muted-foreground">Each pack shows off one feature. Picking one starts a new session on it.</span>
@@ -68,7 +74,7 @@ export function PackPicker() {
           }}
         >
           {orderPacks(packs).map((p) => (
-            <DropdownMenuRadioItem key={p.id} value={p.id} className="items-start" data-testid="pack-option" data-pack={p.id} disabled={running}>
+            <DropdownMenuRadioItem key={p.id} value={p.id} className="items-start" data-testid={`${tid}-option`} data-pack={p.id} data-selected={p.id === pack ? 'true' : 'false'} disabled={running}>
               <span className="flex min-w-0 flex-col gap-1">
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate font-medium">{p.title || p.id}</span>
