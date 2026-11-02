@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { closeSessionChip, openSessionChip } from './helpers'
+import { closeSessionChip, closeTurnReport, openSessionChip, openTurnReport } from './helpers'
 
 // Mock mode: the build serves the spec/examples streams from an in-browser mock, quickly.
 const URL = '/?mockStepMs=10'
@@ -204,7 +204,7 @@ test('the canvas controls: the legend dialog explains the colours and telemetry 
   expect(canvas.x + canvas.width - (box.x + box.width)).toBeLessThan(40)
 })
 
-test('a finished turn: the status bar stays slim and the session chip holds the turn facts', async ({ page }) => {
+test("a finished turn: the status bar stays slim, its readout opens the turn's report and the chip holds the session", async ({ page }) => {
   await send(page, 'Where is order A-1001?')
   const bar = page.getByTestId('turn-status')
   await expect(bar).toHaveAttribute('data-phase', 'done')
@@ -215,16 +215,98 @@ test('a finished turn: the status bar stays slim and the session chip holds the 
   await expect(bar).not.toContainText('events')
   await expect(bar).not.toContainText('tool call')
   await expect(bar.getByTestId('release-dirty')).toHaveCount(0)
-  // The chip's This turn card: the facts, the release, the budgets as bars.
-  const pop = await openSessionChip(page)
-  const card = pop.getByTestId('budget-card')
+  // The readout is a control: it opens this turn's report under the bar.
+  const readout = page.getByTestId('budget-trigger')
+  await expect(readout).toHaveAttribute('aria-expanded', 'false')
+  const card = await openTurnReport(page)
+  await expect(readout).toHaveAttribute('aria-expanded', 'true')
+  await expect(card).toContainText('This turn')
   await expect(card.getByTestId('turn-exit')).toHaveText('answered')
   await expect(card.getByTestId('turn-tool-calls')).toHaveText('1')
   await expect(card.getByTestId('turn-events')).toHaveText(/^\d+$/)
   await expect(card.getByTestId('turn-duration')).toHaveText(/\d( ms| s)$/)
-  await expect(card.getByTestId('release-status')).toHaveText('Release r1')
+  await expect(card.getByTestId('turn-release')).toHaveText('Ran on release r1')
+  await closeTurnReport(page)
+  await expect(readout).toHaveAttribute('aria-expanded', 'false')
+  // The same report is the turn's row on the chat timeline, closed until it is opened.
+  const row = page.getByTestId('turn-report').last()
+  await expect(row).toHaveAttribute('data-open', 'false')
+  await expect(row.getByTestId('turn-report-summary')).toHaveText(/^answered · \d+(\.\d+)? (ms|s) · \d+ tok · \$\d\.\d{4}$/)
+  // The chip is about the session: no turn card, the totals and the release line.
+  const pop = await openSessionChip(page)
+  await expect(pop.getByTestId('budget-card')).toHaveCount(0)
+  await expect(pop.getByTestId('turn-exit')).toHaveCount(0)
+  await expect(pop.getByTestId('session-totals')).toBeVisible()
+  await expect(pop.getByTestId('release-status')).toHaveText('Release r1')
   await expect(pop.getByTestId('release-status')).toHaveCount(1)
   await closeSessionChip(page)
+})
+
+test("the turn rows keep every turn's report: the first one reads after the second finished", async ({ page }) => {
+  await page.getByTestId('session-menu').click()
+  await page.getByTestId('session-popover').getByRole('button', { name: 'New session' }).click()
+  await expect(page.getByTestId('chat-turn')).toHaveCount(0)
+  await send(page, 'Where is order A-1001?')
+  await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  await send(page, 'What are your support hours?')
+  await expect(page.getByTestId('chat-turn')).toHaveCount(2)
+  await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  // Both rows are closed by default; turn 1's opens from the keyboard and keeps its own facts.
+  const rows = page.getByTestId('turn-report')
+  await expect(rows).toHaveCount(2)
+  await expect(rows.nth(0)).toHaveAttribute('data-turn', '1')
+  await expect(rows.nth(1)).toHaveAttribute('data-open', 'false')
+  const toggle = rows.nth(0).getByTestId('turn-report-toggle')
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await toggle.focus()
+  await page.keyboard.press('Enter')
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  const first = await openTurnReport(page, 1)
+  await expect(first.getByTestId('turn-exit')).toHaveText('answered')
+  await expect(first.getByTestId('turn-tool-calls')).toHaveText('1')
+  await expect(first.getByTestId('turn-release')).toHaveText('Ran on release r1')
+  await expect(first.locator('[data-testid="budget-row"][data-label="Tokens"]')).toBeVisible()
+  // Turn 2 answered without a tool: its report is its own.
+  const second = await openTurnReport(page, 2)
+  await expect(second.getByTestId('turn-tool-calls')).toHaveText('0')
+  // The chip sums the session: two turns, one tool call.
+  const pop = await openSessionChip(page)
+  await expect(pop.getByTestId('total-turns')).toHaveText('2')
+  await expect(pop.getByTestId('total-tool-calls')).toHaveText('1')
+  await closeSessionChip(page)
+  // The latest report was left open, so the next turn's opens when it ends.
+  await send(page, 'Where is order A-1001?')
+  await expect(page.getByTestId('chat-turn')).toHaveCount(3)
+  await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  await expect(rows.nth(2)).toHaveAttribute('data-open', 'true')
+  // Closed again, the one after stays closed.
+  await rows.nth(2).getByTestId('turn-report-toggle').click()
+  await send(page, 'What are your support hours?')
+  await expect(page.getByTestId('chat-turn')).toHaveCount(4)
+  await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  await expect(rows.nth(3)).toHaveAttribute('data-open', 'false')
+})
+
+test("after a reload a turn from the session history still shows its report from the stored summary", async ({ page }) => {
+  // The mock boots on its seeded session: its turns come back from the history.
+  await expect(page.getByTestId('turn-report').first()).toBeVisible()
+  const read = async () => {
+    const card = await openTurnReport(page, 1)
+    await expect(card.getByTestId('turn-exit')).toHaveText('answered')
+    await expect(card.getByTestId('turn-duration')).toHaveText(/\d( ms| s)$/)
+    await expect(card.getByTestId('turn-events')).toHaveText(/^[1-9]\d*$/)
+    await expect(card.getByTestId('turn-cost')).toHaveText(/^\$\d\.\d{4}$/)
+    // What the summary does not hold is left out, and the card says where it is.
+    await expect(card.getByTestId('turn-tool-calls')).toHaveCount(0)
+    await expect(card.getByTestId('turn-report-partial')).toBeVisible()
+    return card
+  }
+  await expect(page.getByTestId('turn-report').first()).toHaveAttribute('data-source', 'summary')
+  await read()
+  await page.reload()
+  await expect(node(page, 'gateway')).toBeVisible()
+  await expect(page.getByTestId('turn-report').first()).toHaveAttribute('data-open', 'false')
+  await read()
 })
 
 test('a tool call shows inline in the chat and opens to its details', async ({ page }) => {
@@ -338,6 +420,9 @@ test('an empty chat suggests prompts, and a suggestion sends', async ({ page }) 
   await page.getByTestId('session-menu').click()
   await page.getByTestId('session-popover').getByRole('button', { name: 'New session' }).click()
   await expect(page.getByText('Walk the harness')).toBeVisible()
+  // No turn yet: the status bar's readout still opens, and says what it will show.
+  await expect((await openTurnReport(page)).getByTestId('turn-report-empty')).toHaveText("Send a message to see this turn's budget.")
+  await closeTurnReport(page)
   await page.getByRole('group', { name: 'Try these' }).getByRole('button', { name: 'Where is order A-1001?' }).click()
   await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
   await expect(page.getByTestId('try-prompt')).toHaveCount(0)

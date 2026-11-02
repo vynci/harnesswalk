@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { closeSessionChip, openSessionChip } from './helpers'
+import { closeSessionChip, closeTurnReport, openSessionChip, openTurnReport } from './helpers'
 
 // Screenshots of the P4 panels from the mock build, for review: the eval run and the release
 // diff. Skipped unless HARNESSWALK_MOCK_SHOTS names a directory, so the e2e run writes nothing.
@@ -113,5 +113,36 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.locator('[data-testid^="node-"][data-state="active"]').first()).toBeVisible()
     await page.mouse.move(0, 0)
     await shot(page, `active-node-${theme}`)
+  })
+}
+
+// The session chip's popover (session scope), a turn's report opened on the chat timeline, and
+// the status bar's readout open on the current turn's report.
+for (const theme of ['light', 'dark'] as const) {
+  test(`session timeline, ${theme}`, async ({ page }) => {
+    await page.addInitScript((t) => localStorage.setItem('harnesswalk.theme', JSON.stringify(t)), theme)
+    await page.goto('/?mockStepMs=10')
+    await expect(page.getByTestId('node-gateway')).toBeVisible()
+    await page.getByTestId('session-menu').click()
+    await page.getByTestId('session-popover').getByRole('button', { name: 'New session' }).click()
+    for (const text of ['Where is order A-1001?', 'What are your support hours?']) {
+      await page.getByTestId('composer-input').fill(text)
+      await page.getByTestId('send-button').click()
+      await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+    }
+    await expect(page.getByTestId('chat-turn')).toHaveCount(2)
+    await openSessionChip(page)
+    await settle(page)
+    await shot(page, `session-popover-${theme}`)
+    await closeSessionChip(page)
+    await openTurnReport(page, 1)
+    await page.getByTestId('turn-report').first().scrollIntoViewIfNeeded()
+    await settle(page)
+    await shot(page, `turn-report-row-${theme}`)
+    await page.getByRole('region', { name: 'Chat' }).screenshot({ path: `${dir}/turn-report-chat-${theme}.png` })
+    await openTurnReport(page)
+    await settle(page)
+    await shot(page, `turn-report-popover-${theme}`)
+    await closeTurnReport(page)
   })
 }

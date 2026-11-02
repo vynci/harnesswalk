@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { closeSessionChip, Harness, lastTurnEvents, node, openSessionChip, pickFixture, send, status, stepThrough, turnDone } from './helpers'
+import { closeTurnReport, Harness, lastTurnEvents, node, openTurnReport, pickFixture, send, status, stepThrough, turnDone } from './helpers'
 
 // Phase 3 against the real harness: the context plane (citations, memory write and read back,
 // the review gate) and the control plane (PII redaction, budgets, the audit chain, sandbox
@@ -151,9 +151,9 @@ test.describe('a tenant with a tool-call budget of two per turn', () => {
     await expect(lines.nth(2)).toContainText('tool calls per turn 2/2')
     await lines.nth(0).click()
     await expect(page.getByTestId('tool-trace').getByTestId('sandbox-chip').first()).toHaveAttribute('data-level', 'subprocess')
-    const budgetRow = (await openSessionChip(page)).locator('[data-testid="budget-row"][data-label="tool calls per turn"]')
+    const budgetRow = (await openTurnReport(page)).locator('[data-testid="budget-row"][data-label="tool calls per turn"]')
     await expect(budgetRow).toContainText('2 / 2')
-    await closeSessionChip(page)
+    await closeTurnReport(page)
     await expect(page.getByTestId('stat-policy')).toContainText('budget 2/2')
     await expect(page.getByTestId('stat-policy').locator('[data-why]')).toHaveAttribute('title', /budget is 2 per turn/)
   })
