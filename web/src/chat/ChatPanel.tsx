@@ -4,7 +4,7 @@ import { Coins, Eye, History, Info, MessagesSquare, OctagonX, Play, RefreshCcw, 
 import { Hint } from '@/components/hint'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
 import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
 import {
@@ -43,6 +43,7 @@ import { Plan, Reasoning } from './Reasoning'
 import { InputGuardBadges, OutputGuardBadges } from './Guardrails'
 import { MemoryTrace, ToolTrace } from './ToolTrace'
 import { usePackPrompts } from './usePackPrompts'
+import { PackChooser } from './PackChooser'
 import { TurnReportRow } from './TurnReport'
 import { DiagnoseAction } from '@/inspector/Diagnosis'
 import { packTitle } from '@/state/packs'
@@ -336,6 +337,8 @@ export function ChatPanel() {
   const packs = useApp((s) => s.packs)
   const prompts = usePackPrompts(pack) ?? TRY_THESE
   const packInfo = packs?.find((p) => p.id === pack)
+  // With more than one pack the empty chat offers them all; with one it names it.
+  const choosable = !!packs && packs.length > 1
   // Markers go after the turn they followed; one whose turn is not here goes first.
   const marksAfter = useMemo(() => {
     const out = new Map<string | null, OpsMark[]>()
@@ -390,20 +393,25 @@ export function ChatPanel() {
               ))}
             </div>
           )}
-          <Empty className="min-h-0 p-8">
+          <Empty className="min-h-0 justify-center-safe overflow-y-auto p-6">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <Route />
               </EmptyMedia>
               <EmptyTitle className="text-base">Walk the harness</EmptyTitle>
               <EmptyDescription>Send a message and watch it walk through the harness on the right, one node at a time.</EmptyDescription>
-              {packInfo && (
+              {packInfo && !choosable && (
                 <EmptyDescription data-testid="empty-pack">
                   On {packTitle(packs, pack)}
                   {packInfo.feature ? `: ${packInfo.feature.toLowerCase()}` : ''}.
                 </EmptyDescription>
               )}
             </EmptyHeader>
+            {choosable && packs && (
+              <EmptyContent className="max-w-xl">
+                <PackChooser packs={packs} />
+              </EmptyContent>
+            )}
           </Empty>
         </>
       ) : (

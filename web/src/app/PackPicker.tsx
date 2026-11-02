@@ -17,18 +17,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
-import { packTitle } from '@/state/packs'
+import { orderPacks, packTitle } from '@/state/packs'
 import { selectTurnRunning, useApp } from '@/state/store'
-
-/** The menu's order (owner's choice): the starter shop first, then the domain packs in a fixed walk; unknown packs follow by title. */
-const PACK_ORDER = ['_starter', 'healthcare', 'logistics', 'ecommerce', 'sports', 'finance']
-function orderPacks<T extends { id: string; title?: string }>(packs: T[]): T[] {
-  const rank = (p: T) => {
-    const i = PACK_ORDER.indexOf(p.id)
-    return i === -1 ? PACK_ORDER.length : i
-  }
-  return [...packs].sort((a, b) => rank(a) - rank(b) || (a.title ?? a.id).localeCompare(b.title ?? b.id))
-}
 
 export function PackPicker() {
   const packs = useApp((s) => s.packs)

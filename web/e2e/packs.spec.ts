@@ -36,11 +36,12 @@ test('the pack picker starts a session on finance: its prompts, its fixtures and
   await expect(picker).toContainText('Sample Shop')
   await picker.click()
   const options = page.getByTestId('pack-option')
-  await expect(options).toHaveCount(2)
+  await expect(options).toHaveCount(6)
   await expect(options.nth(0)).toHaveAttribute('aria-checked', 'true')
-  await expect(options.nth(1)).toContainText('Hollowmere Capital Partners')
-  await expect(options.nth(1)).toContainText('Citations and the memory writer')
-  await options.nth(1).click()
+  const finance = page.locator('[data-testid=pack-option][data-pack="finance"]')
+  await expect(finance).toContainText('Hollowmere Capital Partners')
+  await expect(finance).toContainText('Citations and the memory writer')
+  await finance.click()
 
   await expect(picker).toHaveAttribute('data-pack', 'finance')
   // The trigger fits the whole name: nothing is cut.
@@ -49,7 +50,7 @@ test('the pack picker starts a session on finance: its prompts, its fixtures and
   expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
   await expect(page.getByText('New session on Hollowmere Capital Partners.')).toBeVisible()
   await expect(page.getByTestId('chat-turn')).toHaveCount(0)
-  await expect(page.getByTestId('empty-pack')).toHaveText('On Hollowmere Capital Partners: citations and the memory writer.')
+  await expect(page.locator('[data-testid=empty-pack-card][data-selected=true]')).toHaveAttribute('data-pack', 'finance')
   await expect(page.getByTestId('try-prompt').first()).toHaveText(FEE)
 
   // The fixture menu: this pack's own first, then the shared ones; the starter's are hidden.
@@ -73,6 +74,68 @@ test('the pack picker starts a session on finance: its prompts, its fixtures and
   await page.getByTestId('session-popover').getByRole('button', { name: 'New session' }).click()
   await expect(picker).toHaveAttribute('data-pack', 'finance')
   await expect(page.getByTestId('try-prompt').first()).toHaveText(FEE)
+})
+
+const SHOP_HOURS = 'What are your support hours?'
+const CLINIC_FIRST = 'My health number is BH-4821-0937-Q. Can you check my appointment AP-1042?'
+
+test('the empty chat lists the packs as cards: one click switches the pack, its prompts and the header picker', async ({ page }) => {
+  // The mock opens on a session with turns: a new one shows the empty state.
+  await page.getByTestId('session-menu').click()
+  await page.getByTestId('session-popover').getByRole('button', { name: 'New session' }).click()
+  await expect(page.getByTestId('chat-turn')).toHaveCount(0)
+
+  const grid = page.getByTestId('empty-pack-grid')
+  const cards = grid.getByTestId('empty-pack-card')
+  await expect(page.getByText('Pick a dataset to walk through:')).toBeVisible()
+  await expect(page.getByTestId('empty-pack')).toHaveCount(0)
+  // The header picker's fixed order, the session's pack selected.
+  await expect(cards).toHaveCount(6)
+  expect(await cards.evaluateAll((els) => els.map((el) => el.getAttribute('data-pack')))).toEqual(['_starter', 'healthcare', 'logistics', 'ecommerce', 'sports', 'finance'])
+  await expect(cards.nth(0)).toHaveAttribute('data-selected', 'true')
+  await expect(cards.nth(0)).toHaveAttribute('aria-current', 'true')
+  await expect(grid.locator('[data-selected=true]')).toHaveCount(1)
+  await expect(cards.nth(0)).toContainText('Sample Shop')
+  await expect(cards.nth(0)).toContainText('A tour of every node')
+  await expect(cards.nth(1)).toContainText('Brindlemoor Family Clinic')
+  await expect(cards.nth(1)).toContainText('healthcare')
+  await expect(cards.nth(1)).toContainText('PII redaction and refusal')
+  await expect(page.getByTestId('try-prompt').first()).toHaveText(SHOP_HOURS)
+  // Two columns at the chat panel's width: the second card sits beside the first.
+  const [a, b] = [await cards.nth(0).boundingBox(), await cards.nth(1).boundingBox()]
+  expect(Math.abs(a!.y - b!.y)).toBeLessThan(2)
+  expect(b!.x).toBeGreaterThan(a!.x + a!.width - 1)
+
+  // Keyboard: the cards are buttons in the tab order.
+  await cards.nth(0).focus()
+  await page.keyboard.press('Tab')
+  await expect(cards.nth(1)).toBeFocused()
+  await page.keyboard.press('Enter')
+
+  const clinic = grid.locator('[data-pack="healthcare"]')
+  await expect(page.getByTestId('pack-picker')).toHaveAttribute('data-pack', 'healthcare')
+  await expect(page.getByTestId('pack-picker-title')).toHaveText('Brindlemoor Family Clinic')
+  await expect(page.getByText('New session on Brindlemoor Family Clinic.')).toBeVisible()
+  await expect(clinic).toHaveAttribute('data-selected', 'true')
+  await expect(cards.nth(0)).toHaveAttribute('data-selected', 'false')
+  await expect(grid.locator('[data-selected=true]')).toHaveCount(1)
+  await expect(page.getByTestId('try-prompt').first()).toHaveText(CLINIC_FIRST)
+
+  // A click works the same way; back on the shop its prompts come back.
+  await cards.nth(0).click()
+  await expect(page.getByTestId('pack-picker')).toHaveAttribute('data-pack', '_starter')
+  await expect(page.getByTestId('try-prompt').first()).toHaveText(SHOP_HOURS)
+  await clinic.click()
+  await expect(page.getByTestId('pack-picker')).toHaveAttribute('data-pack', 'healthcare')
+
+  // After a turn the chat shows its messages and the grid is gone.
+  await page.getByTestId('try-prompt').first().click()
+  await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
+  await expect(page.getByTestId('chat-turn')).toHaveCount(1)
+  await expect(grid).toHaveCount(0)
+  const turnId = await page.getByTestId('chat-turn').last().getAttribute('data-turn-id')
+  const pack = await page.evaluate((id) => (globalThis as unknown as { __harnesswalkMock: { getTurn: (id: string) => { pack: string } } }).__harnesswalkMock.getTurn(id!).pack, turnId)
+  expect(pack).toBe('healthcare')
 })
 
 test('the inspectors show the pack’s files as a File Tree; a skill opens in the editor, a PDF as its source', async ({ page }) => {

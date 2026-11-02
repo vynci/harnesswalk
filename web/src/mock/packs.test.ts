@@ -23,17 +23,26 @@ describe('mock packs', () => {
     const { api } = setup()
     const caps = await api.capabilities()
     expect(caps.features).toMatchObject({ packs: true, diagnose: true })
-    expect(caps.packs).toEqual({ default: '_starter', ids: ['_starter', 'finance'] })
+    expect(caps.packs).toEqual({ default: '_starter', ids: ['_starter', 'finance', 'healthcare', 'logistics', 'ecommerce', 'sports'] })
     expect(caps.repo_url).toBe('https://github.com/vynci/harnesswalk')
     const packs = await api.packs()
     expect(packs.map((p) => [p.id, p.default])).toEqual([
       ['_starter', true],
       ['finance', false],
+      ['healthcare', false],
+      ['logistics', false],
+      ['ecommerce', false],
+      ['sports', false],
     ])
     const finance = packs.find((p) => p.id === 'finance')!
     expect(finance.feature).toBe('Citations and the memory writer')
     expect(finance.fixtures!.every((f) => caps.fixtures.includes(f))).toBe(true)
     expect((finance.prompts as string[])[0]).toBe('What is the management fee for Hollowmere Growth Partners III?')
+    // The other domain packs: their cards and prompts from the repo, and no fixtures of their own.
+    const clinic = packs.find((p) => p.id === 'healthcare')!
+    expect([clinic.title, clinic.domain, clinic.feature]).toEqual(['Brindlemoor Family Clinic', 'healthcare', 'PII redaction and refusal'])
+    expect((clinic.prompts as string[])[0]).toBe('My health number is BH-4821-0937-Q. Can you check my appointment AP-1042?')
+    expect(packs.filter((p) => p.id !== '_starter' && p.id !== 'finance').every((p) => (p.prompts as string[]).length > 0 && p.fixtures!.length === 0)).toBe(true)
   })
 
   it('serves a pack card with its files by role, a file as text, and a PDF by its source', async () => {
