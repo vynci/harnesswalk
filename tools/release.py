@@ -124,11 +124,13 @@ def prep(version: str, date: str, dry_run: bool) -> int:
         # uv.lock records the project's own version; --offline keeps every pin as it is.
         subprocess.run(["uv", "lock", "--offline"], cwd=ROOT, check=True)
     print(f"\nversion {current} -> {version}; CHANGELOG.md has a [{version}] - {date} section.")
-    print("Check the diff, run make test and make lint, then (the owner, by hand):\n")
+    print("Check the diff, run make test and make lint, then:\n")
     print(f'  git commit -am "chore(release): v{version}"')
-    print(f'  git tag -a v{version} -m "Harnesswalk {version}"')
-    print(f"  git push origin main v{version}")
-    print("\nThe tag starts .github/workflows/release.yml: PyPI, ghcr.io and the GitHub Release.")
+    print("  git push origin main            # wait for ci to pass")
+    print(f"\nThen in GitHub, Releases, \"Draft a new release\": new tag v{version} on main, title")
+    print(f'"Harnesswalk {version}", notes empty, publish. The tag runs release.yml (PyPI, ghcr.io,')
+    print("notes and assets on the release); publishing runs deploy.yml (the site). A tag pushed")
+    print("from the command line publishes packages but does not deploy (docs/RELEASING.md).")
     return 0
 
 

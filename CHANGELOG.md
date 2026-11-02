@@ -10,6 +10,10 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.0] - 2026-11-02
+
 The first public release, built in eight phases (P0 to P7).
 
 ### Added
@@ -66,4 +70,5 @@ The first public release, built in eight phases (P0 to P7).
 - `make web-build` and the other web targets run pnpm from inside `web/`, so corepack uses the
   pinned pnpm on a fresh machine instead of failing with `ERR_PNPM_BAD_PM_VERSION`.
 
-[Unreleased]: https://github.com/vynci/harnesswalk/commits/main
+[Unreleased]: https://github.com/vynci/harnesswalk/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/vynci/harnesswalk/releases/tag/v0.1.0
