@@ -1,8 +1,9 @@
 name: deploy
 
-# harnesswalk.vynci.dev (deploy/README.md). After `ci` passes on a push to main: the web app to
-# S3 + CloudFront, the api image to ECR and onto the origin, then a smoke against the domain.
-# A manual run with a tag rolls the origin back to that image instead.
+# harnesswalk.vynci.dev (deploy/README.md). A published GitHub Release (tag v<version>, made in
+# the GitHub UI) deploys that commit: the web app to S3 + CloudFront, the api image to ECR and
+# onto the origin, then a smoke against the domain. Pushes to main only run `ci`. A manual run
+# from main deploys main's head, or with a tag rolls the origin back to that image instead.
 #
 # No secrets live here: the job assumes the HarnesswalkCi deploy role with GitHub OIDC, and the
 # names come from repository variables (Settings > Secrets and variables > Actions > Variables):
@@ -11,15 +12,13 @@ name: deploy
 #   HARNESSWALK_DISTRIBUTION_ID   HarnesswalkEdge output DistributionId
 #   HARNESSWALK_ECR_REPOSITORY    HarnesswalkCi output RepositoryUri
 # The origin instance is found by its tag (harnesswalk:role=origin), so it needs no variable.
-# The role trusts only refs/heads/main of this repository. Only the jobs that assume it get
+# The role trusts only refs/heads/main and refs/tags/v* of this repository. Only the jobs that assume it get
 # id-token: write, and the web job builds before it has any AWS credentials. Every action is
 # pinned to a full commit SHA (the comment names the release).
 
 on:
-  workflow_run:
-    workflows: [ci]
-    types: [completed]
-    branches: [main]
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -42,12 +41,14 @@ env:
 
 jobs:
   gate:
-    # A push to main of this repository whose ci run passed (never a fork's run), or a manual
-    # run on main.
+    # A published release of this repository (a full release, not a pre-release, on a v tag),
+    # or a manual run on main. A release made by a workflow token never fires this event, so
+    # only a release made in the GitHub UI or with a personal token deploys.
     if: >-
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
-       && github.event.workflow_run.event == 'push'
-       && github.event.workflow_run.head_repository.full_name == github.repository)
+      (github.event_name == 'release' && github.event.action == 'published'
+       && github.event.release.prerelease == false && github.event.release.draft == false
+       && startsWith(github.event.release.tag_name, 'v')
+       && github.event.repository.full_name == github.repository)
       || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     outputs:
@@ -56,7 +57,7 @@ jobs:
     steps:
       - id: pick
         env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          HEAD_SHA: ${{ github.sha }}
           TAG: ${{ inputs.tag }}
         run: |
           echo "sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"

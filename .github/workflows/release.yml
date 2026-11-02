@@ -168,8 +168,17 @@ jobs:
         run: |
           flags=()
           if [[ "$PRERELEASE" == true ]]; then flags+=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "Harnesswalk $VERSION" \
-            --notes-file notes/release-notes.md \
-            --verify-tag "${flags[@]}"
+          # The owner makes the release in the GitHub UI (that is what deploys the site), so it
+          # usually exists already: then attach the distributions and fill in the notes. A tag
+          # pushed by hand without a release gets one created here (it publishes packages only).
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --title "Harnesswalk $VERSION" --notes-file notes/release-notes.md "${flags[@]}"
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Harnesswalk $VERSION" \
+              --notes-file notes/release-notes.md \
+              --verify-tag "${flags[@]}"
+          fi

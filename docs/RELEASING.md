@@ -1,6 +1,7 @@
 # Releasing
 
-A release is a tag `v<version>` on `main`. The tag runs `.github/workflows/release.yml`, which
+A release is a GitHub Release with a new tag `v<version>` on `main`, made in the GitHub UI.
+The tag runs `.github/workflows/release.yml`, which
 builds the sdist and the wheel (with the web app inside), installs the wheel in a clean venv
 and runs it, publishes it to [PyPI](https://pypi.org/project/harnesswalk/) with trusted
 publishing, pushes a `linux/amd64` and `linux/arm64` image to `ghcr.io/vynci/harnesswalk`,
@@ -21,15 +22,21 @@ its tooling tags or pushes on its own: the owner does both by hand.
    what it would change.
 2. Check it locally: `make test`, `make lint`, `make web-build && make wheel-smoke` (the wheel
    from a clean venv, with the app), and `make fresh-clone` (the README in a clean container).
-3. Commit, tag and push (the commands `release-prep` printed):
+3. Commit and push `main`, then wait for `ci` to pass:
 
    ```sh
    git commit -am "chore(release): v0.1.0"
-   git tag -a v0.1.0 -m "Harnesswalk 0.1.0"
-   git push origin main v0.1.0
+   git push origin main
    ```
 
-4. Watch the `release` workflow. The `pypi` job waits for an approval when the `pypi`
+4. In GitHub, Releases, "Draft a new release": choose "Create new tag" `v0.1.0` on `main`,
+   title `Harnesswalk 0.1.0`, leave the notes empty (the workflow fills them from the
+   changelog), tick "Set as a pre-release" only for an `a`, `b` or `rc` version, and publish.
+   Publishing creates the tag, which runs `release` (PyPI, GHCR, notes and assets on this
+   release), and the publish event runs `deploy`, which ships this commit to
+   harnesswalk.vynci.dev. A tag pushed from the command line publishes packages but does not
+   deploy, because a release created by a workflow token fires no `release` event.
+5. Watch the `release` and `deploy` workflows. The `pypi` job waits for an approval when the `pypi`
    environment has required reviewers (recommended). When it is done:
    `pip install harnesswalk==0.1.0`, `docker pull ghcr.io/vynci/harnesswalk:0.1.0`, and the
    release page lists the sdist and the wheel.

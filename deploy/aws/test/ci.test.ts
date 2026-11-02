@@ -44,17 +44,19 @@ describe('HarnesswalkCi', () => {
     expect(t.Principal.Federated).toBe(arn);
   });
 
-  it('trusts only the main branch of vynci/harnesswalk', () => {
+  it('trusts only the main branch and v tags of vynci/harnesswalk', () => {
     expect(trust()).toMatchObject({
       Action: 'sts:AssumeRoleWithWebIdentity',
       Condition: {
-        StringEquals: {
-          'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-          'token.actions.githubusercontent.com:sub': 'repo:vynci/harnesswalk:ref:refs/heads/main',
+        StringEquals: { 'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com' },
+        StringLike: {
+          'token.actions.githubusercontent.com:sub': ['repo:vynci/harnesswalk:ref:refs/heads/main', 'repo:vynci/harnesswalk:ref:refs/tags/v*'],
         },
       },
     });
-    expect(JSON.stringify(trust())).not.toContain('StringLike');
+    const subs = JSON.stringify(trust().Condition.StringLike['token.actions.githubusercontent.com:sub']);
+    expect(subs).not.toContain('*:');
+    expect(subs).not.toContain('refs/heads/*');
   });
 
   it('scopes S3 to the web bucket and CloudFront to the distribution', () => {

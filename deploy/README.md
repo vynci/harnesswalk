@@ -203,8 +203,8 @@ outputs (four; there is no instance variable, the scripts find the origin by its
 | `HARNESSWALK_DISTRIBUTION_ID` | `HarnesswalkEdge.DistributionId` |
 
 The deploy workflow pins every action to a full commit SHA, gives `id-token: write` only to the
-`web`, `api` and `rollback` jobs, deploys only runs of `ci` on pushes to this repository's
-`main` (never a fork's), and builds the web app before it assumes the role
+`web`, `api` and `rollback` jobs, deploys only a published (non-pre-release) release of this
+repository or a manual run from `main`, and builds the web app before it assumes the role
 (`deploy-web.sh --build-only`, then `--skip-build`). If the variable `HARNESSWALK_INSTANCE_ID`
 was set by an earlier version of this runbook, delete it.
 
@@ -237,8 +237,13 @@ was set by an earlier version of this runbook, delete it.
 
 ### Upgrades
 
-- **Code.** Push to `main`; CI, then the deploy workflow (web and api in parallel, then the
-  smoke). By hand: `make deploy-web` and `make deploy-api`.
+- **Code.** Pushes to `main` run CI only. The site deploys from a published GitHub Release:
+  `make release-prep VERSION=<x.y.z>`, commit, push `main`, wait for CI, then in GitHub
+  "Draft a new release" with a new tag `v<x.y.z>` and publish it. The `release` workflow
+  (the tag) publishes PyPI and GHCR; the `deploy` workflow (the release event) ships that
+  commit (web and api in parallel, then the smoke). A pre-release publishes packages but does
+  not deploy. By hand: `make deploy-web` and `make deploy-api`, or the `deploy` workflow's
+  manual run from `main`.
 - **Infrastructure.** `make deploy-diff`, then `deploy/aws/scripts/deploy-stacks.sh <stack>`.
 - **AMI or user data.** Both replace the instance (`userDataCausesReplacement`; the AMI is pinned
   in `cdk.json`, find a newer one with `aws ec2 describe-images --owners amazon --filters

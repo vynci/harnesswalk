@@ -57,12 +57,16 @@ export class CiStack extends cdk.Stack {
 
     this.role = new iam.Role(this, 'DeployRole', {
       roleName: 'harnesswalk-github-deploy',
-      description: `GitHub Actions deploy for ${GITHUB_REPO} (${GITHUB_BRANCH} only)`,
+      description: `GitHub Actions deploy for ${GITHUB_REPO} (${GITHUB_BRANCH} and release tags only)`,
       maxSessionDuration: cdk.Duration.hours(1),
       assumedBy: new iam.WebIdentityPrincipal(provider.oidcProviderArn, {
-        StringEquals: {
-          'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-          'token.actions.githubusercontent.com:sub': `repo:${GITHUB_REPO}:ref:refs/heads/${GITHUB_BRANCH}`,
+        StringEquals: { 'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com' },
+        // The deploy workflow runs on a published release (refs/tags/v*) and, by hand, on main.
+        StringLike: {
+          'token.actions.githubusercontent.com:sub': [
+            `repo:${GITHUB_REPO}:ref:refs/heads/${GITHUB_BRANCH}`,
+            `repo:${GITHUB_REPO}:ref:refs/tags/v*`,
+          ],
         },
       }),
     });
