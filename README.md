@@ -15,21 +15,37 @@ Understand, inspect and experiment with the infrastructure behind production AI 
 <!-- After the first release is on PyPI (docs/RELEASING.md), add inside the paragraph above:
 <a href="https://pypi.org/project/harnesswalk/"><img src="https://img.shields.io/pypi/v/harnesswalk.svg" alt="PyPI"></a> -->
 
-## Why this exists
+## What this is, and what it is not
 
-Most agent projects show how to connect an LLM, define tools and build a loop. The harness
-around that loop, where most of the engineering of a production agent lives, stays out of sight.
-That harness is the gateway, guardrails, policy, approvals, the context builder, memory, the
-loop, tools, trace, evals and releases. Harnesswalk is an educational, open-source, local-first
-harness built to be read. One command brings up a working agent beside a live diagram of its
-harness, and every step of a request lights the node it passes through. Click a node to read its
-code, config and events, pause a turn at every node, or replay a past turn from its stored
-events. Switch a guardrail or a policy off, edit a skill, or cut a release, and see what each
-change does.
+Most agent tutorials show how to call a model, define tools and run a loop. Harnesswalk is about
+the harness around that loop: the gateway, guardrails, policy, approvals, the context builder,
+memory, the trace, evals and releases. It is an educational, open-source, local-first harness
+built to be read. One command brings up a working agent beside a live diagram of its harness,
+and every step of a request lights the node it passes through. Click a node to read its code,
+config, events and the exact payload it saw, pause a turn at every node, or replay a past turn.
+Switch a guardrail off, edit a skill, or cut a release, and see what each change does.
 
-**What it is not.** Not a framework to build on, not a hosted product, and no lock-in: the
-[spec](spec/) and its [conformance suite](spec/conformance/README.md) let any other runtime, in
-any language, light the same diagram.
+Some honest boundaries, so you know what you are looking at:
+
+- **One harness shape, not the harness.** There is no canonical agent harness. Harnesswalk
+  models a governed assistant: a multi-tenant chat agent with policy, approvals, audit, memory
+  and a release gate, the shape of a customer-facing support or operations agent. The
+  coding-agent shape that the word often means today (a filesystem, a shell, subagents, hooks,
+  compaction by context reset, planning files) is a different harness and is not modelled here.
+- **Designed, not grown.** The nodes come from a design, not from failures observed in a
+  production system. Each node has a "what breaks without it" demonstration in the Guide; those
+  are built demonstrations. The field's advice stands: in a real agent, add a control when the
+  model fails without it and remove it when the model stops failing.
+- **A teaching model, not a debugger for your agent.** LangGraph Studio, LangSmith, Langfuse and
+  Braintrust show the real trace of your real agent. Harnesswalk is a small, fixed harness you
+  can walk end to end, with scripted replies offline or real models when you choose. Learn the
+  moving parts here, then debug your own agent in those tools.
+- **A contract, not a standard.** The [spec](spec/) and the typed event stream exist because
+  the web app reads its nodes and edges from them and a test fails when the code drifts. The
+  [conformance suite](spec/conformance/README.md) checks this implementation; a second
+  implementation does not exist yet.
+- **Not a framework and not a hosted product.** Nothing to build on, nothing to lock into. Copy
+  what is useful.
 
 ## Quickstart
 
@@ -138,11 +154,13 @@ made before the prepare step fails fast. Details, rollback and the one-time setu
 
 ## Status
 
-Alpha. Version 0.1.0 is the first release: the spec at 0.1.0, the reference harness with all
-29 nodes implemented, the web app, six packs, 21 lessons and public mode for the hosted sandbox.
-The spec may still grow, under the additive rules of [spec/VERSIONING.md](spec/VERSIONING.md).
-What changed is in [CHANGELOG.md](CHANGELOG.md) (and [spec/CHANGELOG.md](spec/CHANGELOG.md) for the spec).
-Private mode, framework adapters and a second implementation are deliberately later.
+Alpha, one author, used by nobody in production. Version 0.1.1 has the spec at 0.1.0, the
+reference harness with all 29 nodes, the web app, six packs, 21 lessons and public mode for the
+hosted sandbox. The spec may still grow, under the additive rules of
+[spec/VERSIONING.md](spec/VERSIONING.md). What changed is in [CHANGELOG.md](CHANGELOG.md) (and
+[spec/CHANGELOG.md](spec/CHANGELOG.md) for the spec). Private mode, framework adapters and a
+second implementation are deliberately later; subagents, hooks and compaction by context reset
+are out of scope for this harness shape.
 
 ## Contributing
 

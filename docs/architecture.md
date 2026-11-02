@@ -10,6 +10,25 @@ context builder chooses what the model sees. Memory holds what the model reads, 
 writer gates what it writes. Around them run the loop, the tools, the trace, the evals and the
 release process.
 
+## Which harness this models
+
+There is no canonical agent harness, so it matters which one a diagram shows. Harnesswalk models
+a governed assistant: a multi-tenant chat agent that answers people, reads company documents,
+calls a few domain tools, and is run by a team that needs policy, approvals, an audit trail,
+evals and releases. That is the shape of a customer-facing support or operations agent.
+
+It does not model the coding-agent harness: a single user, a filesystem and a shell as the main
+tools, subagents, hooks, compaction by resetting the context, planning files, and long runs that
+span many context windows. Those pieces solve different problems and would need different nodes.
+Where the two shapes share a part (the loop, the model layer, the trace, the evals), what you
+learn here transfers; where they differ, do not expect to find it here.
+
+The nodes were designed, not grown. Each has a "what breaks without it" demonstration in the
+Guide, built so a learner can watch the failure. In a real system the advice from people who run
+agents in production is the opposite order: add a control when the model fails without it, tie
+it to the failure it fixes, and remove it when the model no longer needs it. Treat the full
+diagram as a map of what can exist, not a list of what you must build.
+
 ## Planes and nodes
 
 The harness has four planes. The simple view shows 15 nodes. The advanced view opens six of them
