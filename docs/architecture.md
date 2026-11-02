@@ -1,0 +1,145 @@
+# Architecture
+
+How Harnesswalk is put together: the planes and nodes of the diagram, the event stream that
+drives everything you see, and the spec that comes before the code. For the files behind it, see
+[repository.md](repository.md).
+
+An agent is a model inside a harness. The harness is everything else. The gateway decides who is
+asking. The guardrails check what goes in and out. The policy decides which tools may run. The
+context builder chooses what the model sees. Memory holds what the model reads, and the memory
+writer gates what it writes. Around them run the loop, the tools, the trace, the evals and the
+release process.
+
+## Planes and nodes
+
+The harness has four planes. The simple view shows 15 nodes. The advanced view opens six of them
+into 14 more, so the full diagram has 29.
+
+| Plane | Simple view | Opened in the advanced view |
+|---|---|---|
+| Control plane | Gateway, Input guardrails, Policy, Approval, Audit | |
+| Context plane | Context builder, Memory, Memory writer | Memory: Procedural, Session, Semantic, Episodic, Knowledge |
+| Execution plane | Loop, Model layer, Tools, Output guardrails | Model layer: Router, Providers. Tools: Registry, Sandbox |
+| LLM Ops | Trace, Eval, Release | Trace: Cost. Eval: Online eval, Offline eval, Diagnose. Release: Artifacts |
+
+The control plane decides who is asking, what they may do and who must approve, and keeps the
+permanent record. The context plane decides what the model sees and holds the single gated path
+that writes memory. The execution plane runs the loop, the models it calls, the tools it runs and
+the checks on what it says. LLM Ops sits outside the runtime: traces and cost, evaluation, and the
+release of versioned artifacts back into the harness.
+
+This is the simple view:
+
+```mermaid
+flowchart LR
+    subgraph control["Control plane"]
+        gateway["Gateway"]
+        input_guardrails["Input guardrails"]
+        policy["Policy"]
+        approval["Approval"]
+        audit["Audit"]
+    end
+    subgraph context["Context plane"]
+        context_builder["Context builder"]
+        memory[("Memory<br/>procedural, session, semantic,<br/>episodic, knowledge")]
+        memory_writer["Memory writer"]
+    end
+    subgraph execution["Execution plane"]
+        loop["Loop"]
+        model_layer["Model layer"]
+        tools["Tools"]
+        output_guardrails["Output guardrails"]
+    end
+    subgraph ops["LLM Ops"]
+        trace["Trace"]
+        eval["Eval"]
+        release["Release"]
+    end
+
+    gateway -->|message| input_guardrails
+    gateway -.->|identity + tenant| policy
+    input_guardrails -->|clean input| context_builder
+    memory -->|retrieve + rank, within budget| context_builder
+    context_builder -->|assembled context| loop
+    loop -->|inference| model_layer
+    model_layer -->|completion| loop
+    loop -->|tool call| tools
+    tools -.->|policy check per call| policy
+    policy -->|record decision| audit
+    policy -.->|needs approval| approval
+    approval -->|record decision| audit
+    approval -.->|approve / deny, resume| tools
+    tools -->|observation| loop
+    loop -->|final answer| output_guardrails
+    output_guardrails -->|reply via channel| gateway
+    loop -->|checkpoint per step| memory
+    loop -->|proposed memories| memory_writer
+    memory_writer -->|gated writes| memory
+    loop -.->|telemetry| trace
+    trace -.->|sample + feedback| eval
+    eval -->|proposed fixes, facts and skills| memory_writer
+    eval ==>|eval gate| release
+    release ==>|loaded on release| memory
+```
+
+Solid arrows carry requests and data. Dotted arrows carry control and telemetry. Thick arrows
+carry releases.
+
+## The event stream
+
+Every node emits typed events, and the event stream is the product. The contract is
+[spec/events.schema.json](../spec/events.schema.json), described in
+[spec/events.md](../spec/events.md) with its OpenTelemetry mapping. One stream drives everything
+you see:
+
+- **The diagram** lights each node as its events arrive.
+- **The trace** stores the stream, with a receipt per node and per model call.
+- **Step mode** pauses the stream at every node until you press Next.
+- **Replay** walks a stored stream back and forth without calling the model again.
+- **The evals** score a golden case by the path, the tool calls and the answer its stream holds.
+
+Emit the same events from any language and you get the same UI.
+
+## The spec comes first
+
+The contract is in [`spec/`](../spec/), written before the code:
+
+| Path | What it fixes |
+|---|---|
+| [spec/harness.md](../spec/harness.md) | Planes, nodes, invariants, the multi-tenant rule, modes |
+| [spec/diagram/](../spec/diagram/) | Canonical node ids, edges, lessons, walk order |
+| [spec/events.schema.json](../spec/events.schema.json), [spec/events.md](../spec/events.md) | The harness event contract and its OpenTelemetry mapping |
+| [spec/contracts/](../spec/contracts/) | One interface per component, plus the HTTP API |
+| [spec/conformance/](../spec/conformance/) | Black-box cases any implementation can run |
+
+The reference implementation is Python (FastAPI, no agent framework) in
+[`harnesswalk/`](../harnesswalk/). The TypeScript web UI is in [`web/`](../web/). A change in
+behaviour starts in the spec, and [CONTRIBUTING.md](../CONTRIBUTING.md#the-spec-is-the-contract)
+has the rules.
+
+Another implementation proves itself with the conformance suite. The suite runs against any HTTP
+harness, through `tests/conformance/runner.py --command` or `--base-url`, as
+[spec/conformance/README.md](../spec/conformance/README.md) explains. The spec's version rules
+are in [spec/VERSIONING.md](../spec/VERSIONING.md). Any runtime that passes the suite, in any
+language, lights the same diagram.
+
+## The diagram cannot drift
+
+The diagram is data, in [spec/diagram/diagram.json](../spec/diagram/diagram.json). Node and edge
+ids live only there. A module registers under an id at import time, and an unknown id fails right
+there. The running harness serves the diagram from its registered components (`GET /v1/diagram`),
+so the picture cannot drift from the code. Tests keep the diagram on this page, the lessons index
+and the module map in [harnesswalk/README.md](../harnesswalk/README.md) in step with it.
+
+## Principles
+
+1. **Glass box.** Every component is small, readable and inspectable from the UI.
+2. **The event stream is the product.** The animation, the trace store, step mode, replay and
+   the evals all read the same stream.
+3. **Code for controls, text for intent.** Guardrails, policy and budgets are code and config.
+   Prompts and skills carry intent. The UI shows which is which.
+4. **Local-first.** It runs offline with a local model. Hosted models are optional.
+5. **Learn by poking.** Edit a skill, change a budget, add a policy rule or switch a node off.
+   Then run the same prompt again and watch the diagram change.
+6. **Framework-free core.** The loop is plain code you can read. Agent frameworks appear only as
+   optional adapter examples that show where they would plug in.

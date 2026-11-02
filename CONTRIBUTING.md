@@ -41,7 +41,8 @@ and `make fresh-clone` repeats the whole setup in a clean container (Docker).
   breaking. Record every spec edit under `Unreleased` in `spec/CHANGELOG.md`.
 - **The diagram cannot drift.** Node and edge ids live only in `spec/diagram/diagram.json`.
   A module registers under an id at import time, and an unknown id fails right there; tests
-  keep the README diagram, the lessons index and the module map in step with it.
+  keep the diagram in `docs/architecture.md`, the lessons index and the module map in step
+  with it.
 - **Every node emits events.** A component that does work reports it through the event
   contract (`spec/events.md`), inside its node's span.
 - **Framework-free core.** No agent framework (LangChain, LangGraph, agent SDKs) as a
@@ -146,7 +147,8 @@ behaviour is a spec change and lands with the spec text it tests.
    the core, no hidden global state, events for the work it does.
 4. Safety: nothing widens what public mode allows, no secret can reach an event, a log or the
    repo, and tool code stays inside the sandbox rules.
-5. Teaching: the lessons, README and inspector text still describe what the code does.
+5. Teaching: the lessons, the README, the pages in `docs/` and the inspector text still
+   describe what the code does.
 
 A maintainer reviews within a week or so. Expect questions rather than a verdict; it is a
 conversation about the shape, and most pull requests take a round or two.
