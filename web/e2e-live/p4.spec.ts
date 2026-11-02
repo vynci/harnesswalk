@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
-import { closeSessionChip, Harness, lastTurnEvents, node, openSessionChip, pickFixture, send, settleTurns, status, turnDone } from './helpers'
+import { closeSessionChip, closeTurnReport, Harness, lastTurnEvents, node, openSessionChip, openTurnReport, pickFixture, send, settleTurns, status, turnDone } from './helpers'
 
 // Phase 4 against the real harness (fake provider): the gate (edit a skill, run golden, see the
 // regression; the P5 eval gate refuses the release, Release anyway forces it and the audit log
@@ -169,6 +169,9 @@ test('the P4 gate: a skill edit regresses a golden case; release, edit again, ro
   const events = await lastTurnEvents(page, request)
   expect((events[0]!.summary as { release: { release_id: string } }).release.release_id).toBe(base)
   expect(events[events.length - 1]!.status).toBe('done')
+  // The turn's report names the release it ran on.
+  await expect((await openTurnReport(page)).getByTestId('turn-release')).toHaveText(`Ran on release ${base}`)
+  await closeTurnReport(page)
 })
 
 test('a release made with the CLI shows up live: a chat marker and the session chip, no reload', async ({ page, request }) => {
@@ -209,6 +212,8 @@ test('feedback is stored, shown after a reload, and reaches another tab live', a
   const there = other.getByTestId('chat-turn').last()
   await expect(there.getByTestId('feedback-bad')).toHaveAttribute('aria-pressed', 'true')
   await expect(there.getByTestId('feedback-note-text')).toHaveText('“Too short.”')
+  // Its turn row on the timeline carries the report's summary line.
+  await expect(other.getByTestId('turn-report').last().getByTestId('turn-report-summary')).toHaveText(/^answered · .+ · \d+ tok · \$\d\.\d{4}$/)
 
   // Good from the second tab reaches the first through feedback_recorded on the ops stream.
   await there.getByTestId('feedback-good').click()

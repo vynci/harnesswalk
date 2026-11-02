@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { Harness, node, send, status } from './helpers'
+import { closeSessionChip, Harness, node, openTurnReport, send, status } from './helpers'
 
 // Phase 6 against the real harness in public mode (fake provider, a test secret): a turn on
 // fake-small, its markdown reply rendered (the fixture in e2e-live/fixtures), Auto naming no
@@ -119,16 +119,19 @@ test('a public turn on fake-small with a chosen fixture plays that fixture', asy
   await expect(reply.getByTestId('markdown-table')).toHaveCount(0)
 })
 
-test('the session chip counts down and its popover shows the limits, following capabilities.public', async ({ page }) => {
+test('the session chip counts down, and the chip and the readout show the limits, following capabilities.public', async ({ page }) => {
   const caps = await open(page)
   test.skip(!caps.public?.session_expires_at, 'needs the P6 API (capabilities.public)')
   const chip = page.getByTestId('session-menu')
   await expect(chip.getByTestId('session-countdown')).toHaveText(/^(\d+ h )?\d+ m$/)
-  // The status bar's readout opens the same popover.
-  await page.getByTestId('budget-trigger').click()
+  await chip.click()
   const pop = page.getByTestId('session-popover')
   await expect(pop.getByTestId('session-ends')).toContainText(/Everything in it is deleted then\.$/)
-  await expect(pop.getByTestId('limits-card').getByTestId('limit-remaining')).toHaveText(/^\d+ \/ \d+$/)
+  await expect(pop.getByTestId('session-totals').getByTestId('limit-remaining')).toHaveText(/^\d+ \/ \d+$/)
+  await closeSessionChip(page)
+  // Before a turn the status bar's readout opens the sandbox's limits.
+  const report = await openTurnReport(page)
+  await expect(report.getByTestId('limits-card').getByTestId('limit-remaining')).toHaveText(/^\d+ \/ \d+$/)
 })
 
 test('private-only controls stay visible and disabled with their reason; read-only views stay live', async ({ page }) => {

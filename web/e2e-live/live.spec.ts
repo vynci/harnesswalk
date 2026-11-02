@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
-import { closeSessionChip, openSessionChip } from './helpers'
+import { closeTurnReport, openSessionChip, closeSessionChip, openTurnReport } from './helpers'
 
 // The real harness: `harnesswalk serve --provider fake` in dev mode serves this build (see
 // playwright.live.config.ts). Each test opens its own browser context, so its own session.
@@ -84,7 +84,7 @@ test('tool_call: a read-only tool runs under policy and the reply streams in', a
   await pickFixture(page, 'tool_call')
   await send(page, 'Where is order A-1001?')
   await expect(status(page)).toHaveAttribute('data-phase', 'done')
-  // An answered turn shows no exit on the status bar; the session chip's This turn card has it.
+  // An answered turn shows no exit on the status bar; the turn's report has it.
   await expect(status(page)).not.toContainText('exit:')
   await expectStates(page, {
     gateway: 'done',
@@ -113,15 +113,19 @@ test('tool_call: a read-only tool runs under policy and the reply streams in', a
   expect(turn.exit).toBe('answered')
   await expect(page.getByTestId('assistant-message').last()).toHaveText(turn.reply!)
   expect(turn.reply).toContain('A-1001')
-  // The receipt shown is turn_end.cost, and every event arrived once: the session chip's This
-  // turn card shows them, with the exit and the one tool call.
+  // The receipt shown is turn_end.cost, and every event arrived once: the turn's report (the
+  // status bar's readout opens it) shows them, with the exit and the one tool call.
   const tokens = turn.cost.input_tokens + turn.cost.output_tokens
   expect(tokens).toBeGreaterThan(0)
-  const card = (await openSessionChip(page)).getByTestId('budget-card')
+  const card = await openTurnReport(page)
   await expect(card.getByTestId('turn-exit')).toHaveText('answered')
   await expect(card.getByTestId('turn-tool-calls')).toHaveText('1')
   await expect(card.locator('[data-testid="budget-row"][data-label="Tokens"]')).toHaveAttribute('data-used', String(tokens))
   await expect(card.getByTestId('turn-events')).toHaveText(String(turn.event_count))
+  await closeTurnReport(page)
+  // The session chip sums the session's turns.
+  const pop = await openSessionChip(page)
+  await expect(pop.getByTestId('total-tokens')).toHaveText(/^\d+$/)
   await closeSessionChip(page)
   // The reply also came as message_delta events inside the gateway's reply span.
   await node(page, 'gateway').click()
@@ -243,8 +247,8 @@ test('a dropped stream reconnects from its cursor without losing or repeating ev
   expect(urls.length).toBeGreaterThan(1)
   expect(urls[1]).toMatch(/\/events\?after=\d+$/)
   const turn = await lastTurn(page, request)
-  await expect((await openSessionChip(page)).getByTestId('turn-events')).toHaveText(String(turn.event_count))
-  await closeSessionChip(page)
+  await expect((await openTurnReport(page)).getByTestId('turn-events')).toHaveText(String(turn.event_count))
+  await closeTurnReport(page)
   await expect(page.getByTestId('assistant-message').last()).toHaveText(turn.reply!)
 })
 

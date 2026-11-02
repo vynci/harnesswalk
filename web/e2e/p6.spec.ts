@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { closeTurnReport, openTurnReport } from './helpers'
 
 // Phase 6 in mock mode: markdown replies, and the public site (`?mode=public`): the model picker
 // (Auto first, a model out of today's budget, the Fixture select on the fake model), the key
@@ -193,7 +194,7 @@ test.describe('public mode with the budget spent', () => {
   })
 })
 
-test('public mode: the session chip counts down and its popover holds the session, the limits and the turn', async ({ page }) => {
+test('public mode: the session chip counts down and its popover holds the session, its totals and the limits', async ({ page }) => {
   await openPublic(page)
   const chip = page.getByTestId('session-menu')
   await expect(chip.getByTestId('mode-badge')).toHaveText('public · mock')
@@ -205,27 +206,41 @@ test('public mode: the session chip counts down and its popover holds the sessio
   await expect(pop.getByTestId('session-ends')).toHaveText(/^This sandbox session ends in (1 h 59 m|2 h 0 m), at .+\. Everything in it is deleted then\.$/)
   await expect(pop.getByRole('button', { name: 'New session' })).toBeVisible()
   await expect(pop.getByTestId('session-copy')).toBeDisabled()
+  // Session totals hold the requests left this hour; the limits card the per-turn limits.
+  const totals = pop.getByTestId('session-totals')
+  await expect(totals.getByTestId('total-turns')).toHaveText('0')
+  await expect(totals.getByTestId('limit-remaining')).toHaveText('27 / 30')
   const card = pop.getByTestId('limits-card')
-  await expect(card.getByTestId('limit-remaining')).toHaveText('27 / 30')
   await expect(card.getByTestId('limit-steps')).toHaveText('8')
   await expect(card.getByTestId('limit-tokens')).toHaveText('16.0k')
   await expect(pop.getByTestId('budget-card')).toHaveCount(0)
   await page.keyboard.press('Escape')
   await expect(pop).toBeHidden()
 
-  // After a turn the same popover shows its budgets; the status bar's readout opens it.
+  // Before a turn the status bar's readout opens the sandbox's limits only.
+  const readout = page.getByTestId('budget-trigger')
+  await expect(readout).toHaveText(/^27 requests left$/)
+  const idle = await openTurnReport(page)
+  await expect(idle.getByTestId('limits-card').getByTestId('limit-remaining')).toHaveText('27 / 30')
+  await expect(idle.getByTestId('budget-card')).toHaveCount(0)
+  await closeTurnReport(page)
+
+  // After a turn the readout opens the turn's report; the chip stays about the session.
   await send(page, 'What are your support hours?')
   await expect(page.getByTestId('turn-status')).toHaveAttribute('data-phase', 'done')
-  const readout = page.getByTestId('budget-trigger')
   await expect(readout).toHaveText(/^\d+% budget$/)
-  await readout.click()
-  await expect(pop).toBeVisible()
-  await expect(pop.getByTestId('budget-card')).toContainText('This turn')
-  await expect(pop.getByTestId('budget-card')).toContainText('Tokens')
-  await expect(pop.getByTestId('budget-card').getByTestId('turn-exit')).toHaveText('answered')
-  await expect(pop.getByTestId('budget-card').getByTestId('turn-tool-calls')).toHaveText('0')
+  const report = await openTurnReport(page)
+  await expect(report.getByTestId('budget-card')).toContainText('This turn')
+  await expect(report.locator('[data-testid="budget-row"][data-label="Tokens"]')).toBeVisible()
+  await expect(report.getByTestId('turn-exit')).toHaveText('answered')
+  await expect(report.getByTestId('turn-tool-calls')).toHaveText('0')
+  await expect(report.getByTestId('limits-card')).toHaveCount(0)
+  await closeTurnReport(page)
+  await chip.click()
   await expect(pop.getByTestId('session-copy')).toBeEnabled()
+  await expect(pop.getByTestId('total-turns')).toHaveText('1')
   await expect(pop.getByTestId('limits-card')).toBeVisible()
+  await expect(pop.getByTestId('budget-card')).toHaveCount(0)
 })
 
 test('dev mode: the chip shows the mode only, and its popover the session without a countdown', async ({ page }) => {
@@ -239,6 +254,7 @@ test('dev mode: the chip shows the mode only, and its popover the session withou
   await expect(pop.getByTestId('session-ends')).toHaveCount(0)
   await expect(pop.getByTestId('limits-card')).toHaveCount(0)
   await expect(pop.getByRole('button', { name: 'New session' })).toBeVisible()
+  await expect(pop.getByTestId('limit-remaining')).toHaveCount(0)
 })
 
 test('public mode: under ten minutes the chip turns to the warning colour', async ({ page }) => {

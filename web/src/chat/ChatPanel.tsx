@@ -31,6 +31,7 @@ import {
   type LimitFacts,
 } from '@/state/turnFacts'
 import type { OpsMark } from '@/state/ops'
+import { turnReport } from '@/state/turnReport'
 import { useApp, type ChatTurn } from '@/state/store'
 import { FeedbackActions, ScoreChips } from './Feedback'
 import { OpsMarker } from './OpsMarker'
@@ -42,6 +43,7 @@ import { Plan, Reasoning } from './Reasoning'
 import { InputGuardBadges, OutputGuardBadges } from './Guardrails'
 import { MemoryTrace, ToolTrace } from './ToolTrace'
 import { usePackPrompts } from './usePackPrompts'
+import { TurnReportRow } from './TurnReport'
 import { DiagnoseAction } from '@/inspector/Diagnosis'
 import { packTitle } from '@/state/packs'
 
@@ -151,7 +153,21 @@ function MessageAction({ label, children, ...props }: { label: string; children:
   )
 }
 
-function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; index: number; state?: TurnState; live: boolean; replaying: boolean }) {
+function TurnView({
+  turn,
+  index,
+  state,
+  live,
+  replaying,
+  latest,
+}: {
+  turn: ChatTurn
+  index: number
+  state?: TurnState
+  live: boolean
+  replaying: boolean
+  latest: boolean
+}) {
   const decide = useApp((s) => s.decide)
   const resume = useApp((s) => s.resume)
   const enterReplay = useApp((s) => s.enterReplay)
@@ -174,6 +190,8 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
   const checkpoint = turn.summary?.checkpoint
   const [reveal, setReveal] = useState(false)
   const events = state?.events
+  // The divider's report: a replayed turn's stays at the replay's cursor, so no stored summary.
+  const report = useMemo(() => turnReport(state, replaying ? null : turn.summary), [state, replaying, turn.summary])
   const input = useMemo(() => (events ? inputGuardFacts(events) : null), [events])
   const output = useMemo(() => (events ? outputGuardFacts(events) : null), [events])
   const citations = useMemo(() => (events ? citationsOf(events) : []), [events])
@@ -188,12 +206,7 @@ function TurnView({ turn, index, state, live, replaying }: { turn: ChatTurn; ind
 
   return (
     <div className="flex flex-col gap-4" data-testid="chat-turn" data-turn-id={turn.turnId} data-phase={phase}>
-      <Marker variant="separator" className="text-xs">
-        <MarkerContent>
-          Turn {index + 1}
-          {started && Number.isFinite(started.getTime()) ? ` · ${started.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
-        </MarkerContent>
-      </Marker>
+      <TurnReportRow turnId={turn.turnId} index={index} started={started} report={report} latest={latest} />
       <Message align="end">
         <MessageContent className="gap-1.5">
           <Bubble variant="muted" align="end">
@@ -413,7 +426,14 @@ export function ChatPanel() {
                   const isReplayed = replay?.turnId === id
                   return (
                     <MessageScrollerItem key={id} messageId={id} scrollAnchor>
-                      <TurnView turn={turn} index={index} state={isReplayed ? replayState : turn.state} live={id === liveTurnId} replaying={isReplayed} />
+                      <TurnView
+                        turn={turn}
+                        index={index}
+                        state={isReplayed ? replayState : turn.state}
+                        live={id === liveTurnId}
+                        replaying={isReplayed}
+                        latest={index === order.length - 1}
+                      />
                       {!isReplayed && (marksAfter.get(id) ?? []).length > 0 && (
                         <div className="mt-6 flex flex-col gap-3">
                           {marksAfter.get(id)!.map((m) => (

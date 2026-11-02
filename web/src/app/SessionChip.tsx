@@ -1,24 +1,23 @@
 // The session chip at the far right of the header: the mode (public, dev, private) and, in public
-// mode, how long the sandbox session has left. It opens one popover that holds the session (the
-// countdown in words with the time it ends, the session id with Copy, New session), the public
-// sandbox's limits, and the turn shown (its exit, duration, tool calls, events, release, budgets
-// and the policy's sentence). The status bar's budget readout opens it too.
+// mode, how long the sandbox session has left. It opens one popover about the whole session: the
+// session (the countdown in words with the time it ends, the session id with Copy, the pack, New
+// session), its totals over every turn (with the requests left this hour in public mode), the
+// public sandbox's limits and the release line. Each turn's own report is on the chat's timeline,
+// and the status bar's readout opens the turn shown's.
 import { useMemo, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { Check, ChevronDown, CircleUserRound, Copy, Hourglass, RotateCcw } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
-import { budgetRows } from '@/diagram/budget'
-import { SandboxLimits, TurnBudget, type TurnFact } from '@/diagram/BudgetDetails'
-import { formatMs } from '@/diagram/stats'
-import { useDisplayTurn } from '@/state/hooks'
+import { RequestsLeft, SandboxLimits } from '@/diagram/BudgetDetails'
+import type { PublicInfo } from '@/api/types'
 import { packTitle } from '@/state/packs'
 import { usePanels } from '@/state/panels'
-import type { TurnState } from '@/state/reducer'
 import { useApp } from '@/state/store'
-import { budgetFacts } from '@/state/turnFacts'
+import { sessionTotals, turnReport } from '@/state/turnReport'
 import { CHIP_WARN_MS, chipText, endsSentence, leftText } from './sandbox'
 import { useNow } from './useSandbox'
 
@@ -55,10 +54,7 @@ function CopyId({ sessionId }: { sessionId: string | null }) {
   )
 }
 
-/**
- * Which release serves turns: "Release r2", or the working set's unreleased edits in the
- * waiting colour. In the This turn card once a turn is shown, in the Session section before.
- */
+/** Which release serves turns: "Release r2", or the working set's unreleased edits in the waiting colour. */
 function ReleaseLine() {
   const release = useApp((s) => s.capabilities?.release)
   if (!release) return null
@@ -81,25 +77,48 @@ function ReleaseLine() {
   )
 }
 
-/** The turn shown (live or replayed): its facts, the release, its budgets and the policy. */
-function ThisTurn({ turn }: { turn: TurnState }) {
-  const budget = useMemo(() => budgetFacts(turn.events), [turn.events])
-  const rows = budgetRows(turn, budget)
-  const tokens = turn.cost.input_tokens + turn.cost.output_tokens
-  const facts: TurnFact[] = []
-  if (turn.exit) facts.push({ label: 'Exit', value: turn.exit, testId: 'turn-exit' })
-  const duration = turn.durationMs !== null ? formatMs(turn.durationMs) : undefined
-  if (duration) facts.push({ label: 'Duration', value: duration, testId: 'turn-duration' })
-  facts.push({ label: 'Tool calls', value: String(budget.toolCalls), testId: 'turn-tool-calls' })
-  facts.push({ label: 'Events', value: String(turn.events.length), testId: 'turn-events' })
-  // Tokens, cost and steps show as bars when the loop has a budget for them, else as facts.
-  if (!budget.budgetTokens) facts.push({ label: 'Tokens', value: String(tokens), testId: 'turn-tokens', title: 'Input plus output tokens' })
-  if (!budget.budgetUsd) facts.push({ label: 'Cost', value: `$${turn.cost.usd.toFixed(4)}`, testId: 'turn-cost' })
-  if (!budget.maxSteps && budget.steps !== undefined) facts.push({ label: 'Steps', value: String(budget.steps), testId: 'turn-steps' })
+/** The session's turns summed: turns, tokens, cost, tool calls and events, and the requests left (public). */
+function SessionTotals({ limits }: { limits?: PublicInfo['limits'] }) {
+  const list = useApp(useShallow((s) => s.order.map((id) => s.turns[id])))
+  const totals = useMemo(() => sessionTotals(list.filter((t) => !!t).map((t) => turnReport(t.state, t.summary))), [list])
+  const rows: { label: string; value: string; testId: string; title?: string }[] = [
+    { label: 'Turns', value: String(totals.turns), testId: 'total-turns' },
+    { label: 'Tokens', value: String(totals.tokens), testId: 'total-tokens', title: 'Input plus output tokens' },
+    { label: 'Cost', value: `$${totals.usd.toFixed(4)}`, testId: 'total-cost' },
+    {
+      label: 'Tool calls',
+      value: totals.toolCallTurns < totals.turns ? `${totals.toolCalls} (in ${totals.toolCallTurns} of ${totals.turns} turns)` : String(totals.toolCalls),
+      testId: 'total-tool-calls',
+      title: totals.toolCallTurns < totals.turns ? 'A turn read back from the session history carries no tool-call count until it is replayed' : undefined,
+    },
+    { label: 'Events', value: String(totals.events), testId: 'total-events' },
+  ]
+  return (
+    <section className="flex flex-col gap-1.5" aria-label="Session totals" data-testid="session-totals">
+      <h3 className="font-medium">Session totals</h3>
+      <dl className="flex flex-col gap-1 text-xs">
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-baseline justify-between gap-2" title={r.title}>
+            <dt className="text-muted-foreground">{r.label}</dt>
+            <dd className="truncate font-mono tabular-nums" data-testid={r.testId}>
+              {r.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {limits && <RequestsLeft limits={limits} />}
+    </section>
+  )
+}
+
+/** The release line under a separator, when the API reports releases. */
+function ReleaseSection() {
+  const has = useApp((s) => !!s.capabilities?.release)
+  if (!has) return null
   return (
     <>
       <Separator />
-      <TurnBudget facts={facts} rows={rows} why={budget.why} release={<ReleaseLine />} />
+      <ReleaseLine />
     </>
   )
 }
@@ -108,14 +127,12 @@ export function SessionChip() {
   const capabilities = useApp((s) => s.capabilities)
   const mock = useApp((s) => s.mock)
   const sessionId = useApp((s) => s.sessionId)
-  const turns = useApp((s) => s.order.length)
   const newSession = useApp((s) => s.newSession)
   const packName = useApp((s) => (s.packs ? packTitle(s.packs, s.pack) : null))
   const limits = useApp((s) => (s.capabilities?.mode === 'public' ? s.capabilities.public?.limits : undefined))
   const open = usePanels((s) => s.sessionOpen)
   const setOpen = usePanels((s) => s.setSessionOpen)
   const session = useSessionLeft()
-  const turn = useDisplayTurn()
   if (!capabilities) return null
   const mode = `${capabilities.mode}${mock ? ' · mock' : ''}`
   const warn = !!session && session.left <= CHIP_WARN_MS
@@ -163,7 +180,6 @@ export function SessionChip() {
           <div className="flex items-center gap-1">
             <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" data-testid="session-id" title={sessionId ?? undefined}>
               {sessionId ? <span className="font-mono">{sessionId}</span> : 'No id yet: it starts with your first message'}
-              {turns ? ` · ${turns} turn${turns === 1 ? '' : 's'}` : ''}
             </span>
             <CopyId sessionId={sessionId} />
           </div>
@@ -172,7 +188,6 @@ export function SessionChip() {
               on {packName}
             </span>
           )}
-          {turn.phase === 'idle' && <ReleaseLine />}
           <Button
             type="button"
             size="sm"
@@ -187,13 +202,15 @@ export function SessionChip() {
             <RotateCcw aria-hidden /> New session
           </Button>
         </section>
+        <Separator />
+        <SessionTotals limits={limits} />
         {limits && (
           <>
             <Separator />
-            <SandboxLimits limits={limits} />
+            <SandboxLimits limits={limits} requests={false} />
           </>
         )}
-        {turn.phase !== 'idle' && <ThisTurn turn={turn} />}
+        <ReleaseSection />
       </PopoverContent>
     </Popover>
   )
