@@ -1,9 +1,5 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/harnesswalk-wordmark-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/brand/harnesswalk-wordmark.svg">
-    <img src="docs/brand/harnesswalk-wordmark.svg" alt="Harnesswalk" width="360">
-  </picture>
+  <img src="docs/brand/harnesswalk-wordmark.svg" alt="Harnesswalk" width="360">
 </p>
 
 <p align="center"><strong>An interactive way to understand AI agent harnesses</strong></p>
