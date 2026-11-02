@@ -4,7 +4,7 @@
 import type { Capabilities, ModelUnavailableReason, PackSummary, PublicModel } from '@/api/types'
 import { fixtureChoices } from './packs'
 
-export type FeatureName = 'artifact_edit' | 'uploads' | 'memory_review' | 'evals' | 'judge' | 'release' | 'disable_nodes' | 'diagnose' | 'byo_key_ui'
+export type FeatureName = 'artifact_edit' | 'uploads' | 'pack_uploads' | 'memory_review' | 'evals' | 'judge' | 'release' | 'disable_nodes' | 'diagnose' | 'byo_key_ui'
 
 export interface FeatureState {
   enabled: boolean
@@ -12,10 +12,15 @@ export interface FeatureState {
   reason: string | null
 }
 
+/** The tooltip of "Add your own dataset" in every mode: not built yet (a pack is a folder for now). */
+export const PACK_UPLOADS_SOON = 'Feature coming soon.'
+
 /** The tooltip of a private-only control in public mode. */
 export const PRIVATE_ONLY: Record<FeatureName, string> = {
   artifact_edit: 'Editing needs a private workspace. Coming later.',
   uploads: 'Uploads need a private workspace.',
+  // "Add your own dataset" in the pack menu: a pack of one's own arrives with accounts.
+  pack_uploads: PACK_UPLOADS_SOON,
   memory_review: 'Reviewing memory needs a private workspace. Coming later.',
   evals: 'Eval runs need a private workspace. Coming later.',
   judge: 'The judge suite needs a private workspace. Coming later.',
@@ -30,6 +35,7 @@ export const PRIVATE_ONLY: Record<FeatureName, string> = {
 const NOT_OFFERED: Record<FeatureName, string> = {
   artifact_edit: 'This API does not offer artifact editing.',
   uploads: 'Attach, coming later',
+  pack_uploads: PACK_UPLOADS_SOON,
   memory_review: 'Review is off in this mode: nothing here can be accepted.',
   evals: 'This API does not offer eval runs.',
   judge: 'The judge suite needs a judge model (evals.judge.model); this API has none.',
@@ -42,8 +48,8 @@ const NOT_OFFERED: Record<FeatureName, string> = {
 export function featureState(capabilities: Capabilities | null | undefined, name: FeatureName): FeatureState {
   if (!capabilities) return { enabled: false, reason: 'Connecting to the API.' }
   if (capabilities.mode === 'public') return { enabled: false, reason: PRIVATE_ONLY[name] }
-  // Uploads are not built in any mode yet.
-  if (name === 'uploads') return { enabled: false, reason: NOT_OFFERED.uploads }
+  // Uploads, of a file or of a whole dataset pack, are not built in any mode yet.
+  if (name === 'uploads' || name === 'pack_uploads') return { enabled: false, reason: NOT_OFFERED[name] }
   // Older APIs leave disable_nodes out: absent means on (P2).
   const on =
     name === 'disable_nodes' ? capabilities.features.disable_nodes !== false : name === 'byo_key_ui' ? capabilities.features.byo_key === true : capabilities.features[name] === true

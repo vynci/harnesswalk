@@ -6,6 +6,7 @@ import { expect, test, type Page } from '@playwright/test'
 // mode in replay.
 const URL = '/?mockStepMs=10'
 const FEE = 'What is the management fee for Hollowmere Growth Partners III?'
+const GUIDE = 'https://github.com/vynci/harnesswalk/blob/main/docs/your-own-data.md'
 
 const node = (page: Page, id: string) => page.getByTestId(`node-${id}`)
 
@@ -35,8 +36,10 @@ test('the pack picker starts a session on finance: its prompts, its fixtures and
   await expect(picker).toHaveAttribute('data-pack', '_starter')
   await expect(picker).toContainText('Sample Shop')
   await picker.click()
+  // The six packs; "Add your own dataset" at the end is not a pack option.
   const options = page.getByTestId('pack-option')
   await expect(options).toHaveCount(6)
+  await expect(page.getByTestId('pack-manage')).toBeVisible()
   await expect(options.nth(0)).toHaveAttribute('aria-checked', 'true')
   const finance = page.locator('[data-testid=pack-option][data-pack="finance"]')
   await expect(finance).toContainText('Hollowmere Capital Partners')
@@ -107,6 +110,9 @@ test('the empty chat offers the packs as a dropdown: one pick switches the pack,
   await expect(options).toHaveCount(6)
   expect(await options.evaluateAll((els) => els.map((el) => el.getAttribute('data-pack')))).toEqual(['_starter', 'healthcare', 'logistics', 'ecommerce', 'sports', 'finance'])
   await expect(options.nth(0)).toHaveAttribute('data-selected', 'true')
+  // The same last entry as the header's menu, with its own test ids.
+  await expect(menu.getByTestId('empty-pack-manage')).toHaveAttribute('data-disabled', 'true')
+  await expect(menu.getByTestId('empty-pack-manage-link')).toHaveAttribute('href', GUIDE)
   await expect(options.nth(1)).toContainText('Brindlemoor Family Clinic')
   await expect(options.nth(1)).toContainText('healthcare')
   await expect(options.nth(1)).toContainText('PII redaction and refusal')
@@ -136,6 +142,40 @@ test('the empty chat offers the packs as a dropdown: one pick switches the pack,
   const turnId = await page.getByTestId('chat-turn').last().getAttribute('data-turn-id')
   const pack = await page.evaluate((id) => (globalThis as unknown as { __harnesswalkMock: { getTurn: (id: string) => { pack: string } } }).__harnesswalkMock.getTurn(id!).pack, turnId)
   expect(pack).toBe('healthcare')
+})
+
+test('the pack menu ends with Add your own dataset: disabled, coming soon, and a link to the guide that works', async ({ page }) => {
+  const picker = page.getByTestId('pack-picker')
+  await picker.click()
+  const menu = page.getByTestId('pack-menu')
+  await expect(menu).toBeVisible()
+  const entry = menu.getByTestId('pack-manage')
+  await expect(entry).toHaveAttribute('data-disabled', 'true')
+  const item = entry.getByRole('menuitem', { name: /Add your own dataset/ })
+  await expect(item).toHaveAttribute('aria-disabled', 'true')
+  await expect(entry).toContainText('For now, add a folder under datasets/: see the guide')
+  // Last in the menu, below every pack.
+  const lastPack = await menu.getByTestId('pack-option').last().boundingBox()
+  const box = await entry.boundingBox()
+  expect(box!.y).toBeGreaterThan(lastPack!.y + lastPack!.height)
+
+  // The reason is the tooltip, on the wrapping element (a disabled item takes no pointer events).
+  await entry.hover()
+  await expect(page.getByRole('tooltip')).toHaveText('Feature coming soon.')
+
+  // A click on the disabled entry neither closes the menu nor picks a pack.
+  await item.click({ force: true })
+  await expect(menu).toBeVisible()
+  await expect(picker).toHaveAttribute('data-pack', '_starter')
+  await expect(menu.getByTestId('pack-option').first()).toHaveAttribute('aria-checked', 'true')
+
+  // The guide link stays clickable: it opens docs/your-own-data.md in a new tab (stubbed here).
+  const link = entry.getByTestId('pack-manage-link')
+  await expect(link).toHaveAttribute('href', GUIDE)
+  await expect(link).toHaveAttribute('target', '_blank')
+  await page.context().route('https://github.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Use your own data</title>' }))
+  const [popup] = await Promise.all([page.waitForEvent('popup'), link.click()])
+  await expect(popup).toHaveURL(GUIDE)
 })
 
 test('the inspectors show the pack’s files as a File Tree; a skill opens in the editor, a PDF as its source', async ({ page }) => {

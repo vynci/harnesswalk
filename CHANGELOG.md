@@ -14,6 +14,10 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 
 - The empty chat shows a card per dataset pack; picking one starts a session on it (the header picker still works).
 - A Replay label on the chat action, and a Replay button on the status bar for a finished turn.
+- **Use your own data.** `docs/your-own-data.md` builds a pack from your own documents and
+  functions, from copying the starter to a gated release, linked from the README. The pack
+  menu ends with Add your own dataset, disabled ("Feature coming soon.") with a link to that
+  guide.
 - **The document reader shows the original file.** A Document view beside the chunk list: a
   pack PDF in the browser's own viewer (with an open and download fallback where the browser
   has none), a markdown document rendered with a rule naming the chunks at each boundary, any
