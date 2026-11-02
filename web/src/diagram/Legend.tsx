@@ -2,7 +2,7 @@ import { BookOpen } from 'lucide-react'
 import type { EdgeKind, NodeKind, PlaneId } from '@/api/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import type { NodeState } from '@/state/reducer'
 import { StateIcon } from './HarnessNode'
 import { edgeColor, KIND_HINT, KIND_ICON } from './planes'
@@ -77,48 +77,50 @@ export function Legend() {
           Legend
         </Button>
       </DialogTrigger>
-      <DialogContent className="gap-4 sm:max-w-xl" data-testid="legend">
+      <DialogContent className="flex max-h-[85dvh] flex-col gap-4 sm:max-w-xl" data-testid="legend">
         <DialogHeader>
           <DialogTitle>Legend</DialogTitle>
           <DialogDescription>Faint: not used this turn. Moving: in use now. Stronger: used this turn.</DialogDescription>
         </DialogHeader>
-        <dl className="flex flex-col gap-2.5 text-xs text-muted-foreground">
-          <Row title="State">
-            {STATES.map((s) => (
-              <Entry key={s.state} title={s.title}>
-                <StateIcon state={s.state} spin={false} />
-                {s.label}
-              </Entry>
-            ))}
-            <Entry title="Not built yet: faded, with a not yet pill">
-              <Badge variant="outline" className="h-4 border-dashed border-current px-1.5 font-normal text-muted-foreground">
-                not yet
-              </Badge>
-              not built
-            </Entry>
-          </Row>
-          <Row title="Node">
-            {KINDS.map((k) => {
-              const Icon = KIND_ICON[k]
-              return (
-                <Entry key={k} title={KIND_HINT[k]}>
-                  <Badge variant="kind" className="size-4 p-0 [&>svg]:size-2.5!" data-kind={k}>
-                    <Icon strokeWidth={2.25} aria-hidden />
-                  </Badge>
-                  {k}
+        <DialogBody>
+          <dl className="flex flex-col gap-2.5 text-xs text-muted-foreground">
+            <Row title="State">
+              {STATES.map((s) => (
+                <Entry key={s.state} title={s.title}>
+                  <StateIcon state={s.state} spin={false} />
+                  {s.label}
                 </Entry>
-              )
-            })}
-          </Row>
-          <Row title="Edge">
-            {EDGES.map((e) => (
-              <Entry key={e.label} title={e.title}>
-                <EdgeSwatch kind={e.kind} reverse={e.reverse} />
-                {e.label}
+              ))}
+              <Entry title="Not built yet: faded, with a not yet pill">
+                <Badge variant="outline" className="h-4 border-dashed border-current px-1.5 font-normal text-muted-foreground">
+                  not yet
+                </Badge>
+                not built
               </Entry>
-            ))}
-          </Row>
-        </dl>
+            </Row>
+            <Row title="Node">
+              {KINDS.map((k) => {
+                const Icon = KIND_ICON[k]
+                return (
+                  <Entry key={k} title={KIND_HINT[k]}>
+                    <Badge variant="kind" className="size-4 p-0 [&>svg]:size-2.5!" data-kind={k}>
+                      <Icon strokeWidth={2.25} aria-hidden />
+                    </Badge>
+                    {k}
+                  </Entry>
+                )
+              })}
+            </Row>
+            <Row title="Edge">
+              {EDGES.map((e) => (
+                <Entry key={e.label} title={e.title}>
+                  <EdgeSwatch kind={e.kind} reverse={e.reverse} />
+                  {e.label}
+                </Entry>
+              ))}
+            </Row>
+          </dl>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   )
