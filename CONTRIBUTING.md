@@ -92,7 +92,9 @@ events, a golden set with a fake fixture per case, and a provenance card. Start 
 `datasets/_starter/` and the layout in `datasets/README.md` and `spec/packs.md`. Content is
 synthetic and CC0 1.0: no real people, brands or places, and no copied text. Run
 `uv run harnesswalk packs validate <pack>` and `uv run harnesswalk eval <pack>` until both
-pass. The CI `packs` job runs every pack's golden set.
+pass. The CI `packs` job runs every pack's golden set. A worked example of a pack, from an empty
+folder to a gated release, is [docs/your-own-data.md](docs/your-own-data.md) (it uses your own
+documents, which stay out of the repository, but every step is the same for a contributed pack).
 
 ### A lesson
 

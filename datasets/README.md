@@ -96,6 +96,13 @@ content. Emails on `example.com`, `example.net`, `example.org`, `.invalid` or `.
 in the 555-01xx block are reserved test values and allowed. CI runs `packs validate` and the
 golden suite of every pack on the fake provider.
 
+## A pack of your own data
+
+To run the harness on your own documents and functions rather than a fictional business, follow
+[docs/your-own-data.md](../docs/your-own-data.md): it copies the starter's skeleton, adds
+markdown and PDFs, a read tool and a write tool, guardrail patterns and golden cases, and covers
+what the validator expects of a pack that stays private.
+
 ## Making or regenerating a pack
 
 Domain packs are generated with `tools/gen_pack.py`, Synthea style: the generator and its

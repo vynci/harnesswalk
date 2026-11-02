@@ -152,6 +152,15 @@ the fake provider (`uv run harnesswalk packs validate`, `uv run harnesswalk eval
 
 ![Finance: a cited answer, and a remembered preference](docs/screenshots/pack-finance.png)
 
+## Use your own data
+
+Your own documents and functions go in a pack of their own: a folder under `datasets/` with
+your markdown and PDFs, a system prompt and skills, the tools the model may call and the golden
+cases that guard them. The harness picks it up like the shipped packs, so it shows in the pack
+menu, runs through the same policy, guardrails and sandbox, and passes or fails the same eval
+gate. [docs/your-own-data.md](docs/your-own-data.md) builds one step by step, from copying the
+starter to a release.
+
 ## Lessons
 
 `lessons/` is a short course, one chapter per node in walk order and one per expert group (21
