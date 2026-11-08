@@ -36,6 +36,7 @@ EXPECT_KEYS = {
     "answer_contains",
     "answer_exact",
     "answer_regex",
+    "tool_calls_mode",  # exact | ordered: how a `model` run grades tool_calls (evaluator.md)
 }
 
 
@@ -130,6 +131,8 @@ def _expect(raw: Any, where: str, case_id: str) -> dict[str, Any]:
     unknown = set(expect) - EXPECT_KEYS - {"path_excludes", "exit_reason"}
     if unknown:
         raise GoldenError(f"{where}: case {case_id} has unknown expect keys {sorted(unknown)}")
+    if expect.get("tool_calls_mode", "ordered") not in ("exact", "ordered"):
+        raise GoldenError(f"{where}: case {case_id} tool_calls_mode must be exact or ordered")
     for key in ("answer_contains",):
         if key in expect and isinstance(expect[key], str):
             expect[key] = [expect[key]]

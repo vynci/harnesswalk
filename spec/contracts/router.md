@@ -127,12 +127,14 @@ router:
 
 ## Model suite: the pinned router
 
-Additive (spec 0.1.0). An eval case turn of the `model` suite (`evaluator.md`, "Model suite
-and the scorecard") pins every model call to one alias. Rules are still evaluated in order and
-matched by `when`, and the matched rule's id is what the `router` span reports, so rule checks
-stay meaningful. A rule whose `max_price_out_per_mtok` is below the pinned alias's price is
-skipped as if all its models were priced out. The rule's `use` list is not consulted: the
-route's `model` is the pinned alias and `alternatives` is empty (no fallback). A pinned alias
+Additive (spec 0.1.0). An eval case turn of the `model` suite, or of a `judge` run that names
+a model (`evaluator.md`, "Model suite and the scorecard"), pins every model call to one alias.
+Rules are still evaluated in order and matched by `when`, and the first matching rule's id is
+what the `router` span reports, so rule checks stay meaningful. A rule's
+`max_price_out_per_mtok` does not apply to a pinned alias: the run chose the alias on purpose,
+and a cap that pushed a priced alias to the next rule would misreport the step (a hosted
+model's after-tool call as `default` instead of `lookup`). The rule's `use` list is not
+consulted: the route's `model` is the pinned alias and `alternatives` is empty (no fallback). A pinned alias
 whose provider is not configured or not healthy fails the call with `provider_error`. Pins are
 set only by the harness for its own eval turns, never from HTTP.
 
