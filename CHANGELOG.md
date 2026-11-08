@@ -56,8 +56,26 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
   reachable, no tool that needs a human without approval), and the conformance runner runs the
   suite under each profile (`--profile`, `--all-profiles`; cases declare `requires` and are
   skipped, not failed). `make conformance` and CI run every profile.
+- **Model grading.** The `model` suite grades `tool_calls` as ordered (the expected calls in
+  order, extra calls to read tools allowed; `expect.tool_calls_mode: exact` keeps a case
+  strict) and `answer_match` on normalized text (case, Unicode, whitespace, dates, times,
+  amounts, numbers). The `golden` suite stays exact.
+- **Scorecard samples and carried columns.** `--samples N` repeats each cell (mean, min and
+  max); every cell runs at temperature 0 where the provider takes it; the page adds a
+  `tool_calls` split and the cases a model fails that most other models pass; `--carry` with
+  `--carry-models` re-grades columns of an earlier scorecard from their stored results without
+  calling the model. The published scorecard re-runs the local columns with two samples and
+  carries the hosted ones from 2026-11-08, re-graded.
 
 ### Fixed
+
+- A structured reply (`output_schema`) written as prose and a fenced JSON block, as real models
+  do after a tool call, is repaired to its valid JSON value instead of replaced with "I could
+  not produce a reply in the required format."
+- `harnesswalk eval --suite judge --model <alias>` answers on that alias. A hint outside the
+  matched router rule's aliases was ignored, so `--model local-4b` answered on `local-8b`.
+- A model pinned by an eval run is no longer moved to another router rule by a rule's price
+  cap, so a hosted model's after-tool call reports the `lookup` rule as it should.
 
 - The Ollama adapter asks for the alias's `context_tokens` as `options.num_ctx`, so a model is
   no longer loaded with its full declared context (up to 262144 tokens) and several models fit
