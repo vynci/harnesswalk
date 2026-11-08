@@ -26,6 +26,12 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
   (for example `think: false`), and `models.providers.ollama.base_url_env` names the variable
   that overrides `base_url` (`HARNESSWALK_OLLAMA_URL`, as before).
 
+### Fixed
+
+- The Ollama adapter asks for the alias's `context_tokens` as `options.num_ctx`, so a model is
+  no longer loaded with its full declared context (up to 262144 tokens) and several models fit
+  on the GPUs at once. An alias without `context_tokens` keeps Ollama's default.
+
 ### Changed
 
 - The README is a short front door; the detail moved to `docs/quickstart.md`, `docs/walkthrough.md`, `docs/architecture.md` and `docs/repository.md`, with `docs/README.md` as the index.
