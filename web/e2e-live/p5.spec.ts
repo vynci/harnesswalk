@@ -264,7 +264,7 @@ interface Demo {
   note?: string
 }
 
-const PII = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+|BH-\d{4}-\d{4}-[A-Z]/
+const PII = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+|BH-\d{4}-\d{4}-[A-Z]|\b\d{3} \d{3} \d{3}\b/ // email, health number, SIN (gov_services)
 
 test('every lesson’s demonstration runs from its chapter in the Guide: the turn ends and each disabled node is skipped', async ({ page, request }) => {
   test.setTimeout(900_000)
