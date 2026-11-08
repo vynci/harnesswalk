@@ -314,6 +314,7 @@ class ModelLayer:
                     ctx.tenant_id, ctx.session_id, ctx.turn_id, ctx.turn_index, ctx.model_calls
                 ),
                 params=cfg.get("params"),
+                context_tokens=cfg.get("context_tokens"),
             )
             hold = None
             site_paid = price(cfg, 0, 1)[0] > 0 or price(cfg, 1, 0)[0] > 0

@@ -98,15 +98,17 @@ async def preflight_ollama(
     name: str,
     params: dict[str, Any] | None = None,
     *,
+    context_tokens: int | None = None,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> str | None:
-    """One tiny `/api/chat` call with a tool: loads the model and finds a model that takes no
-    tools (HTTP 400). Returns the `n/a` reason, or None when the model answered."""
+    """One tiny `/api/chat` call with a tool: loads the model (with the alias's context window,
+    as the cells will) and finds a model that takes no tools (HTTP 400). Returns the `n/a`
+    reason, or None when the model answered."""
     body: dict[str, Any] = {
         "model": name,
         "stream": False,
         "messages": [{"role": "user", "content": "Say ok."}],
-        "options": {"num_predict": 1},
+        "options": {"num_predict": 1, **({"num_ctx": context_tokens} if context_tokens else {})},
         "tools": [
             {
                 "type": "function",
@@ -131,6 +133,21 @@ async def preflight_ollama(
     if response.status_code >= 400:
         return f"the model did not load (HTTP {response.status_code})"
     return None
+
+
+async def unload_ollama(
+    base_url: str, name: str, *, transport: httpx.AsyncBaseTransport | None = None
+) -> bool:
+    """Unload a model from the Ollama server (`keep_alive: 0`), so the next model's cells do not
+    compete with it for VRAM. Never raises; True when the server said yes."""
+    try:
+        async with httpx.AsyncClient(timeout=PROBE_TIMEOUT_S * 3, transport=transport) as client:
+            response = await client.post(
+                f"{base_url}/api/generate", json={"model": name, "keep_alive": 0}
+            )
+    except httpx.HTTPError:
+        return False
+    return response.status_code < 400
 
 
 def availability(
@@ -230,12 +247,13 @@ async def run_matrix(
     reasons: dict[str, str | None],
     *,
     prepare: Callable[[str], Awaitable[str | None]] | None = None,
+    finish: Callable[[str], Awaitable[Any]] | None = None,
     log: Callable[[str], None] = lambda _line: None,
 ) -> list[dict[str, Any]]:
     """Every (pack, model) cell, model by model (one Ollama model loaded at a time). A model
     with a reason in `reasons`, or one `prepare(alias)` returns a reason for (it runs once,
     before the model's first cell: the Ollama preflight), is `n/a` in every pack; a cell that
-    raises is `error`."""
+    raises is `error`. `finish(alias)` runs after a model's last cell (the Ollama unload)."""
     cells = []
     for alias in models:
         if not reasons.get(alias) and prepare is not None:
@@ -264,6 +282,11 @@ async def run_matrix(
                 log(f"{alias:<14} {pack:<12} {_ratio(t)} in {took:.0f}s")
             else:
                 log(f"{alias:<14} {pack:<12} {cell['status']}: {cell.get('reason')}")
+        if finish is not None and not reasons.get(alias):
+            try:
+                await finish(alias)
+            except Exception:  # an unload that fails never stops the matrix
+                log(f"{alias:<14} could not be unloaded")
     return cells
 
 
@@ -428,6 +451,8 @@ def render_markdown(data: dict[str, Any]) -> str:
         "`answer_match` checks exact substrings written for the fixture replies, so a real model",
         'that words a right answer differently fails it; "answer_match only" counts the failed',
         "cases where every other scorer passed (read those replies before calling them wrong).",
+        "`tool_calls` is equality with the fixture's tool sequence, so a model that also reads a",
+        "skill or looks a record up before acting fails it even when the extra call is sensible.",
     ]
     for m in models:
         a = m["alias"]

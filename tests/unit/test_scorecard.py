@@ -197,6 +197,47 @@ async def test_the_ollama_adapter_sends_alias_params() -> None:
     )
     assert seen[0]["think"] is False
     assert seen[0]["options"] == {"temperature": 0, "num_predict": 64}  # the layer's cap wins
+    # No context_tokens: no num_ctx, Ollama's own default (backward compatible).
+    assert "num_ctx" not in seen[0]["options"]
+    await p.complete(
+        ProviderRequest(
+            model="qwen3.5:4b", messages=[Message("user", "hi")], tools=[], context_tokens=32000
+        )
+    )
+    assert seen[1]["options"]["num_ctx"] == 32000
+
+
+@pytest.mark.anyio
+async def test_the_model_layer_asks_ollama_for_the_alias_context(tmp_path: Path) -> None:
+    from harnesswalk.control.gateway import TurnRequest
+    from harnesswalk.types import Identity
+
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/chat":
+            seen.append(json.loads(request.content))
+            return httpx.Response(200, json={"message": {"content": "9am to 5pm"}})
+        return httpx.Response(200, json={"models": []})
+
+    h = Harness(settings(tmp_path, "plain_answer", profile=None))
+    h._turn_providers["ollama"] = OllamaProvider(
+        "http://ollama:11434", transport=httpx.MockTransport(handler)
+    )
+    h.provider_available = lambda name: True  # the test stands in for a reachable Ollama
+    state = await h.gateway.start_turn(
+        TurnRequest(
+            message="What are your support hours?",
+            identity=Identity("dev", None, ["user"], anonymous=False),
+            provider="ollama",
+            pin_model="local-4b",
+            internal=True,
+        )
+    )
+    await h.gateway.wait(state.ctx.turn_id, timeout=30)
+    assert seen and seen[0]["model"] == "qwen3.5:4b"
+    assert seen[0]["options"]["num_ctx"] == 32000 and seen[0]["think"] is False
+    await h.aclose()
 
 
 # -- probing Ollama ----------------------------------------------------------------------------
@@ -217,6 +258,9 @@ def ollama_mock(tools: bool = True, chat_status: int = 200) -> httpx.MockTranspo
         if path == "/api/chat":
             body = "model does not support tools" if chat_status == 400 else "{}"
             return httpx.Response(chat_status, text=body)
+        if path == "/api/generate":
+            sent = json.loads(request.content)
+            return httpx.Response(200 if sent.get("keep_alive") == 0 else 400, json={})
         return httpx.Response(404)
 
     return httpx.MockTransport(handler)
@@ -230,6 +274,7 @@ async def test_probing_ollama_finds_models_capabilities_and_tool_support() -> No
     assert probe["models"]["qwen3.5:4b"]["capabilities"] == ["completion", "tools"]
     assert probe["models"]["qwen3.5:2b"] == {"present": False}
     assert await sc.preflight_ollama(url, "qwen3.5:4b", transport=ollama_mock()) is None
+    assert await sc.unload_ollama(url, "qwen3.5:4b", transport=ollama_mock()) is True
     no_tools = ollama_mock(chat_status=400)
     assert await sc.preflight_ollama(url, "x", transport=no_tools) == "no tool support"
 
@@ -391,10 +436,17 @@ async def test_the_matrix_records_n_a_and_never_aborts() -> None:
     async def prepare(alias: str) -> str | None:
         return "no tool support" if alias == "notools" else None
 
+    unloaded: list[str] = []
+
+    async def finish(alias: str) -> None:
+        unloaded.append(alias)
+        if alias == "boom":
+            raise RuntimeError("unload failed")
+
     reasons = {"fake-small": None, "missing": "gone", "notools": None, "boom": None}
     cells = await sc.run_matrix(
         ["p1", "p2"], ["fake-small", "missing", "notools", "boom"], run_cell, reasons,
-        prepare=prepare,
+        prepare=prepare, finish=finish,
     )  # fmt: skip
     by = {(c["pack"], c["model"]): c for c in cells}
     assert len(cells) == 8
@@ -403,6 +455,7 @@ async def test_the_matrix_records_n_a_and_never_aborts() -> None:
     assert by[("p1", "boom")]["status"] == "error" and "fell over" in by[("p1", "boom")]["reason"]
     assert by[("p2", "fake-small")]["status"] == "ok"
     assert ("p1", "missing") not in ran and ("p1", "notools") not in ran
+    assert unloaded == ["fake-small", "boom"]  # after each model that ran, and never fatal
 
 
 def test_the_scorecard_cli_writes_markdown_and_json(tmp_path: Path, monkeypatch, capsys) -> None:

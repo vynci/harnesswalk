@@ -58,6 +58,8 @@ class OllamaProvider:
             "stream": False,
             "options": {"num_predict": request.max_output_tokens},
         }
+        if request.context_tokens:  # else Ollama loads the model's full declared context
+            body["options"]["num_ctx"] = int(request.context_tokens)
         if request.tools:
             body["tools"] = [
                 {

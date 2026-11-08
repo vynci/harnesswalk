@@ -49,6 +49,9 @@ class ProviderRequest:
     api_key: str | None = field(default=None, repr=False)  # BYO key: one call, never logged
     turn: TurnRef | None = None
     params: dict[str, Any] | None = None  # extra provider fields from models.<alias>.params
+    # models.<alias>.context_tokens: the context window to ask for (Ollama `options.num_ctx`,
+    # so a model is not loaded with its full declared context). None: the provider's default.
+    context_tokens: int | None = None
 
 
 @dataclass

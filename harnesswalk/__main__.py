@@ -658,7 +658,19 @@ def _scorecard(args: argparse.Namespace) -> int:
             if cfg.get("provider") != "ollama":
                 return None
             say(f"{alias:<14} loading {cfg.get('name', alias)} on {ollama_url}")
-            return await sc.preflight_ollama(ollama_url, cfg.get("name", alias), cfg.get("params"))
+            return await sc.preflight_ollama(
+                ollama_url,
+                cfg.get("name", alias),
+                cfg.get("params"),
+                context_tokens=cfg.get("context_tokens"),
+            )
+
+        async def finish(alias: str) -> None:
+            cfg = configured[alias]
+            if cfg.get("provider") == "ollama" and await sc.unload_ollama(
+                ollama_url, cfg.get("name", alias)
+            ):
+                say(f"{alias:<14} unloaded {cfg.get('name', alias)}")
 
         async def run_cell(pack: str, alias: str) -> dict[str, Any]:
             cfg = configured[alias]
@@ -681,7 +693,9 @@ def _scorecard(args: argparse.Namespace) -> int:
             spent["usd"] += float((cell.get("cost") or {}).get("usd", 0.0))
             return cell
 
-        cells = await sc.run_matrix(wanted, aliases, run_cell, reasons, prepare=prepare, log=say)
+        cells = await sc.run_matrix(
+            wanted, aliases, run_cell, reasons, prepare=prepare, finish=finish, log=say
+        )
         models = []
         for a in aliases:
             cfg = configured[a]
