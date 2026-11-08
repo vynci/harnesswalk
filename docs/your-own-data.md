@@ -527,6 +527,14 @@ faithfulness and relevance against the case's `rubric`:
 `uv run harnesswalk eval my_support --suite judge --model hosted-haiku`. It calls a hosted
 model, so it costs money and never runs in CI.
 
+Between the two, the `model` suite answers each case on a real model and keeps the
+deterministic scorers, with no judge: `uv run harnesswalk eval my_support --suite model --model
+local-4b` tells you whether that model calls the tools your cases expect, cites what they
+expect and keeps to policy. `answer_match` substrings were written for the fixture replies, so
+read a reply that fails only `answer_match` before you call it wrong. `harnesswalk scorecard
+--packs my_support --models fake-small,local-4b,local-9b --out my_scorecard.md` runs that for a
+row of models at once ([scorecard.md](scorecard.md) is the one for the shipped packs).
+
 ## What is coming in the app
 
 The pack menu in the header (and in the empty chat) ends with **Add your own dataset**. It is

@@ -10,6 +10,22 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 
 ## [Unreleased]
 
+### Added
+
+- **The model ladder scorecard.** `harnesswalk scorecard` runs every pack's golden set on each
+  model alias you list (one `model`-suite eval run per cell, one model at a time) and writes a
+  pack x model pass matrix with a failure breakdown by scorer to `docs/scorecard.md`, plus the
+  cell data as JSON. A model that cannot run is `n/a` with the reason. The published matrix
+  covers `fake-small`, five local models on a homelab Ollama and two hosted models.
+- **The `model` eval suite.** `harnesswalk eval <pack> --suite model --model <alias>` (and
+  `POST /v1/evals/runs` with `suite: model`) answers every case on that alias, pinned for every
+  model call, and scores it with the deterministic scorers only. Its regression diff compares
+  runs of the same model.
+- Model aliases `local-2b` (qwen3.5:2b), `local-4b` (qwen3.5:4b), `local-9b` (qwen3.5:9b) and
+  `local-e4b` (gemma4:e4b), with thinking off. The Ollama adapter sends an alias's `params`
+  (for example `think: false`), and `models.providers.ollama.base_url_env` names the variable
+  that overrides `base_url` (`HARNESSWALK_OLLAMA_URL`, as before).
+
 ### Changed
 
 - The README is a short front door; the detail moved to `docs/quickstart.md`, `docs/walkthrough.md`, `docs/architecture.md` and `docs/repository.md`, with `docs/README.md` as the index.
