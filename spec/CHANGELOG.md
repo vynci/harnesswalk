@@ -12,6 +12,13 @@ conforms when it runs every pack on `operated`, the default profile.
 
 ### Added
 
+- Pack format (P2, additive, still 0.2.0; `packs.md`, `contracts/evaluator.md` "P2
+  additions"): multi-turn golden cases (`turns: [{user, expect?, checks?}]` in place of
+  `prompt`, played in one session, scored per turn as `turn<n>.<scorer>` and over the
+  session; `fixture` may be a list aligned with the turns), a case's `roles`, the `checks`
+  keys `compacted` and `summary`, the `skills/policy.md` convention with validator rule 10,
+  and `provenance: {card, generator: {model, date, prompt_hash}}` on the pack card. The
+  domain tier's pack-tool count widens from 2 to 4 to 2 to 12.
 - Harness profiles (`harness.md` section 10): a named harness shape, a file with `id`,
   `title`, `summary`, `rung`, `disable`, `stores` and `overrides`, validated on load. Six ship as
   the ladder `minimal`, `guarded`, `grounded`, `remembered`, `governed`, `operated` (everything
