@@ -246,8 +246,12 @@ def load_settings(
         data["dataset"] = env["HARNESSWALK_DATASET"]
     if env.get("HARNESSWALK_VECTORS"):
         set_dotted(data, "storage.vectors", env["HARNESSWALK_VECTORS"])
-    if env.get("HARNESSWALK_OLLAMA_URL"):
-        set_dotted(data, "models.providers.ollama.base_url", env["HARNESSWALK_OLLAMA_URL"])
+    # `models.providers.ollama.base_url_env` (default HARNESSWALK_OLLAMA_URL): the variable,
+    # when set and not empty, wins over `base_url`, so a remote Ollama needs no `--set`.
+    ollama = ((data.get("models") or {}).get("providers") or {}).get("ollama") or {}
+    ollama_env = ollama.get("base_url_env") or "HARNESSWALK_OLLAMA_URL"
+    if env.get(ollama_env):
+        set_dotted(data, "models.providers.ollama.base_url", env[ollama_env])
     if fixture:
         set_dotted(data, "models.providers.fake.fixture", fixture)
     elif mode == "public" and (data.get("public") or {}).get("fake_fixture"):

@@ -124,3 +124,15 @@ router:
   (`fake-small`), and the `model_layer` exit summary carries `notice: budget_exhausted` and
   `downgraded_from: <alias>`; the turn's notice reaches `turn_end.summary.notices`. A spent
   budget never fails a turn while a free alias is in the rule.
+
+## Model suite: the pinned router
+
+Additive (spec 0.1.0). An eval case turn of the `model` suite (`evaluator.md`, "Model suite
+and the scorecard") pins every model call to one alias. Rules are still evaluated in order and
+matched by `when`, and the matched rule's id is what the `router` span reports, so rule checks
+stay meaningful. A rule whose `max_price_out_per_mtok` is below the pinned alias's price is
+skipped as if all its models were priced out. The rule's `use` list is not consulted: the
+route's `model` is the pinned alias and `alternatives` is empty (no fallback). A pinned alias
+whose provider is not configured or not healthy fails the call with `provider_error`. Pins are
+set only by the harness for its own eval turns, never from HTTP.
+

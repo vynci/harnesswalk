@@ -13,6 +13,10 @@ harnesswalk packs list|validate [<pack>]|ingest [<pack>]
 harnesswalk eval <pack> --suite golden    run the pack's golden set (fake provider) and score it
 harnesswalk eval <pack> --suite judge --model hosted-haiku
                                           answer on a model and score with the judge
+harnesswalk eval <pack> --suite model --model local-4b
+                                          answer on that model, deterministic scorers only
+harnesswalk scorecard --models fake-small,local-4b --out docs/scorecard.md
+                                          the pack x model pass matrix (model suite runs)
 harnesswalk release list|create|rollback <id>|diff <id> [--pack ID]
                                           the versioned artifacts and their releases
 harnesswalk release create --no-gate      skip the eval gate (dev mode only, audited)
@@ -459,7 +463,15 @@ def _eval(args: argparse.Namespace) -> int:
 
     if args.suite == "golden" and not args.provider:
         args.provider = "fake"  # deterministic answers and hash embeddings, as in CI
-    settings = _settings(args, **{"dataset": args.pack, "sandbox.level": "inprocess"})
+    extra: dict[str, Any] = {"dataset": args.pack, "sandbox.level": "inprocess"}
+    if args.suite == "model":
+        # As a scorecard cell: the model alias's provider only, and hash-vector retrieval, so
+        # every model sees the same context.
+        if not args.provider and args.model:
+            probe = _settings(args)
+            args.provider = probe.get(f"models.models.{args.model}.provider", None)
+        extra["stores.embeddings.provider"] = "fake"
+    settings = _settings(args, **extra)
 
     async def run() -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
         harness = Harness(settings)
@@ -597,6 +609,122 @@ def _release(args: argparse.Namespace) -> int:
     return asyncio.run(run())
 
 
+LADDER = "fake-small,local-2b,local-4b,local-9b,local-e4b,local-8b"
+
+
+def _scorecard(args: argparse.Namespace) -> int:
+    """`harnesswalk scorecard`: one `model`-suite eval run per (pack, model), sequentially,
+    rendered as docs/scorecard.md (and JSON). Exit 2 on an unknown pack or model alias."""
+    from pathlib import Path
+
+    from harnesswalk import packs as packs_mod
+    from harnesswalk.ops.eval import scorecard as sc
+    from harnesswalk.runtime import Harness
+
+    base = _settings(args)
+    roots = packs_mod.pack_roots(base)
+    found = sorted(packs_mod.discover(roots=roots), key=lambda p: (p != "_starter", p))
+    wanted = found if args.packs == "all" else [p.strip() for p in args.packs.split(",")]
+    unknown = [p for p in wanted if p not in found]
+    if unknown or not wanted:
+        print(f"harnesswalk scorecard: no dataset pack {unknown or args.packs}", file=sys.stderr)
+        return 2
+    aliases = [a.strip() for a in args.models.split(",") if a.strip()]
+    configured = base.get("models.models", {})
+    bad = [a for a in aliases if a not in configured or configured[a].get("embedding")]
+    if bad or not aliases:
+        print(f"harnesswalk scorecard: unknown model alias {bad or args.models}", file=sys.stderr)
+        return 2
+    ollama_url = (base.get("models.providers.ollama.base_url", "") or "").rstrip("/")
+    ollama_names = [
+        configured[a].get("name", a) for a in aliases if configured[a].get("provider") == "ollama"
+    ]
+    overrides = {
+        "sandbox.level": "inprocess",
+        "stores.embeddings.provider": "fake",  # the same retrieval for every model: hash vectors
+        "evals.case_timeout_s": args.case_timeout,
+    }
+    spent = {"usd": 0.0}
+
+    def say(line: str) -> None:
+        print(line, file=sys.stderr, flush=True)
+
+    async def run() -> dict[str, Any]:
+        ollama = await sc.probe_ollama(ollama_url, ollama_names) if ollama_names else None
+        reasons = {a: sc.availability(a, configured[a], base, ollama) for a in aliases}
+
+        async def prepare(alias: str) -> str | None:
+            cfg = configured[alias]
+            if cfg.get("provider") != "ollama":
+                return None
+            say(f"{alias:<14} loading {cfg.get('name', alias)} on {ollama_url}")
+            return await sc.preflight_ollama(ollama_url, cfg.get("name", alias), cfg.get("params"))
+
+        async def run_cell(pack: str, alias: str) -> dict[str, Any]:
+            cfg = configured[alias]
+            priced = float(cfg.get("price_out_per_mtok") or 0) > 0
+            if priced and spent["usd"] >= args.max_usd:
+                return sc.not_run(pack, alias, f"spend cap ${args.max_usd:.2f} reached")
+            cell_args = argparse.Namespace(**{**vars(args), "provider": cfg["provider"]})
+            settings = _settings(cell_args, **{"dataset": pack, **overrides})
+            harness = Harness(settings)
+            try:
+                start = harness.evals.offline.start(
+                    args.tenant, pack, "model", model=alias, by="cli:scorecard"
+                )
+                await harness.evals.offline.wait(start["run_id"])
+                summary = harness.evals.store.run(args.tenant, start["run_id"]) or {}
+                cases = harness.evals.store.cases(start["run_id"])
+            finally:
+                await harness.aclose()
+            cell = sc.cell_of(pack, alias, summary, cases)
+            spent["usd"] += float((cell.get("cost") or {}).get("usd", 0.0))
+            return cell
+
+        cells = await sc.run_matrix(wanted, aliases, run_cell, reasons, prepare=prepare, log=say)
+        models = []
+        for a in aliases:
+            cfg = configured[a]
+            info = ((ollama or {}).get("models") or {}).get(cfg.get("name", a)) or {}
+            models.append({
+                "alias": a, "provider": cfg.get("provider"), "name": cfg.get("name", a),
+                "label": cfg.get("label"), "details": info.get("details") or {},
+                "digest": info.get("digest"), "params": cfg.get("params"),
+                "price_in_per_mtok": cfg.get("price_in_per_mtok", 0),
+                "price_out_per_mtok": cfg.get("price_out_per_mtok", 0),
+            })  # fmt: skip
+        command = " ".join([
+            *(["HARNESSWALK_OLLAMA_URL=" + ollama_url] if ollama_names else []),
+            *(["ANTHROPIC_API_KEY=<your key>"]
+              if any(configured[a].get("provider") == "anthropic" for a in aliases) else []),
+            "uv run harnesswalk scorecard", f"--models {','.join(aliases)}",
+            f"--packs {args.packs}", f"--out {args.out}",
+            *([f"--json {args.json}"] if args.json else []),
+        ])  # fmt: skip
+        return sc.scorecard_data(
+            cells=cells, models=models, packs=wanted, tenant=args.tenant,
+            harness_version=__version__, spec_version=SPEC_VERSION, ollama=ollama,
+            embeddings="fake (hash vectors, the same for every model)",
+            case_timeout_s=args.case_timeout, command=command, json_path=args.json,
+        )  # fmt: skip
+
+    data = asyncio.run(run())
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(sc.render_markdown(data), encoding="utf-8")
+    if args.json:
+        path = Path(args.json)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    stats = sc.summarize(data)
+    for a in aliases:
+        s = stats[a]
+        state = f"{s['passed']}/{s['scored']}" if s["ran"] else "n/a"
+        print(f"{a:<14} {state:<9} ${s['usd']:.4f}  {s['seconds']:.0f}s")
+    print(f"wrote {out}" + (f" and {args.json}" if args.json else ""))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="harnesswalk", description="Walk through an AI harness, one node at a time."
@@ -629,11 +757,25 @@ def build_parser() -> argparse.ArgumentParser:
     ev = sub.add_parser("eval", help="run a pack's golden set and score every case")
     common(ev)
     ev.add_argument("pack", help="dataset pack, for example _starter")
-    ev.add_argument("--suite", choices=["golden", "judge"], default="golden")
-    ev.add_argument("--model", help="judge suite: the model alias that answers the cases")
+    ev.add_argument("--suite", choices=["golden", "judge", "model"], default="golden")
+    ev.add_argument(
+        "--model", help="judge and model suites: the model alias that answers the cases"
+    )
     ev.add_argument("--case", action="append", help="run only this case id (repeatable)")
     ev.add_argument("--tenant", default="dev")
     ev.add_argument("--json", action="store_true", help="print the run detail as JSON")
+
+    sc = sub.add_parser("scorecard", help="the pack x model pass matrix (model suite runs)")
+    common(sc)
+    sc.add_argument("--packs", default="all", help="all (default) or a comma-separated list")
+    sc.add_argument("--models", default=LADDER, help=f"comma-separated aliases ({LADDER})")
+    sc.add_argument("--out", default="docs/scorecard.md", help="the Markdown to write")
+    sc.add_argument("--json", metavar="PATH", help="also write the scorecard data as JSON")
+    sc.add_argument("--tenant", default="scorecard", help="the tenant that owns the runs")
+    sc.add_argument("--case-timeout", type=float, default=120.0, help="seconds per case turn")
+    sc.add_argument(
+        "--max-usd", type=float, default=5.0, help="stop priced cells once the runs spent this"
+    )
 
     rl = sub.add_parser("release", help="list, create, roll back or diff releases")
     common(rl)
@@ -704,6 +846,8 @@ def main(argv: list[str] | None = None) -> int:
         return _eval(args)
     if args.command == "release":
         return _release(args)
+    if args.command == "scorecard":
+        return _scorecard(args)
     if args.command == "packs":
         return _packs(args)
     if args.command == "sweep":

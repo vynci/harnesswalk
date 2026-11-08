@@ -279,7 +279,11 @@ class Diagnoser:
         events = self.h.tracer.get_turn(case_tenant, case["turn_id"]) if case["turn_id"] else []
         evidence = trace_facts(events, case.get("expected"))
         baseline = None
-        for earlier in self.store.runs_before(tenant_id, run["pack"], run["suite"], run_id):
+        same_model = run.get("model") if run["suite"] == "model" else None
+        earlier_runs = self.store.runs_before(
+            tenant_id, run["pack"], run["suite"], run_id, model=same_model
+        )
+        for earlier in earlier_runs:
             if self.store.case_statuses(earlier["run_id"]).get(case_id) == "passed":
                 baseline = self._baseline(earlier, case_id)
                 break

@@ -44,6 +44,7 @@ class OllamaProvider:
 
     @classmethod
     def from_settings(cls, settings: Any) -> OllamaProvider:
+        # `base_url` already holds `base_url_env`'s value when that is set (config/loader.py).
         cfg = settings.get("models.providers.ollama")
         return cls(cfg["base_url"], float(cfg.get("timeout_s", 120)))
 
@@ -71,6 +72,11 @@ class OllamaProvider:
             ]
         if request.output_schema:
             body["format"] = request.output_schema
+        for name, value in (request.params or {}).items():  # models.<alias>.params
+            if name == "options" and isinstance(value, dict):
+                body["options"] = {**value, **body["options"]}
+            else:
+                body.setdefault(name, value)  # for example `think: false`
         data = await post_json(
             f"{self.base_url}/api/chat",
             body,

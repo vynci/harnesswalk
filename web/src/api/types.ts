@@ -574,7 +574,8 @@ export interface AuditExport {
 
 // ---------- LLM Ops (P4, spec/contracts/http_api.md "P4 additions") ----------
 
-export type EvalSuite = 'golden' | 'judge'
+// `model`: the cases answer on one model alias, deterministic scorers only (the scorecard).
+export type EvalSuite = 'golden' | 'judge' | 'model'
 export type EvalCaseStatus = 'passed' | 'failed' | 'skipped' | 'error'
 
 export interface EvalTotals {

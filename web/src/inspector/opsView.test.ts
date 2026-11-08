@@ -23,6 +23,7 @@ describe('eval panel text', () => {
     expect(runHeadline({ status: 'done', totals: { cases: 16, passed: 15, failed: 1, skipped: 0 } }, undefined, 1)).toBe('Ran 16 cases, 1 failed (1 error)')
     expect(regressionText(1, 'run_0001')).toBe('1 regression: a case that failed or errored in this run and passed in run_0001')
     expect(runName({ suite: 'golden', pack: '_starter', model: null })).toBe('Golden · _starter')
+    expect(runName({ suite: 'model', pack: 'sports', model: 'local-4b' })).toBe('Model · sports · local-4b')
   })
 
   it('groups by scorer with failing suites first and sorts regressions to the top', () => {

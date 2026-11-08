@@ -38,7 +38,7 @@ does not exist yet and the node is served with `implemented: false`.
 | `ops` | `cost.py` | `cost` | `tracer.md` | implemented |
 | `ops` | `eval/__init__.py` | `eval` | `evaluator.md` | implemented (P4: golden runs, judge, online scores, feedback) |
 | `ops` | `eval/online.py` | `online_eval` | `evaluator.md` | implemented (sampled judge, thumbs and notes) |
-| `ops` | `eval/offline.py` | `offline_eval` | `evaluator.md` | implemented (golden runs, scorers, diff against the previous run) |
+| `ops` | `eval/offline.py` | `offline_eval` | `evaluator.md` | implemented (golden, judge and model runs, scorers, diff against the previous run) |
 | `ops` | `eval/diagnose.py` | `diagnose` | `evaluator.md` | implemented (P5: a failed case or a bad turn mapped to the layer at fault from the trace; automatic on regression) |
 | `ops` | `release.py` | `release` | `release.md` | implemented (P4: served set, edits, releases, rollback, reload; P5: the eval gate on release) |
 | `ops` | `artifacts.py` | `artifacts` | `release.md` | implemented (versions, the release and activation hash chains and the served-set index in `data/releases.db`) |
@@ -82,6 +82,7 @@ Modules that are not nodes:
 | (top) | `packs.py` | P5 dataset packs, the one discovery module behind `GET /v1/packs`, sessions, eval runs, releases, the CLI and the validator; the `pack.yaml` schema and the pack validator |
 | `ops` | `lease.py` | P4 `data/owner.lock`: one `serve` per data directory, `--takeover` |
 | `ops` | `eval/golden.py`, `eval/scorers.py`, `eval/judge.py`, `eval/store.py` | P4 golden sets, deterministic scorers, the judge, `data/evals.db` |
+| `ops` | `eval/scorecard.py` | The model ladder scorecard: Ollama probes, the pack x model matrix of `model` runs, its Markdown (`harnesswalk scorecard`) |
 | `adapters` | `storage/sqlite.py` | The SQLite helper behind the trace, session, audit and approval stores |
 | `adapters` | `storage/vectors.py` | Vector indexes: `sqlite` (brute-force cosine) and `pgvector`, chosen by `storage.vectors` |
 | `adapters` | `mcp/` | MCP client that registers server tools (later phase) |

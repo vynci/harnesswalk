@@ -608,8 +608,8 @@ Additive. Every existing endpoint keeps its shape; new fields are listed where t
 | Field | Required | Meaning |
 |---|---|---|
 | `pack` | yes | The loaded dataset pack; another pack is `422 invalid_request` |
-| `suite` | yes | `golden` (every case on the `fake` provider with its fixture; deterministic scorers) or `judge` (judged scorers) |
-| `model` | no | `judge` only: a model alias from `config/models.yaml` whose provider is configured, used to answer the cases. Without it the cases answer from their fixtures and only the scoring is judged. On `golden` it must be absent or a `fake` alias |
+| `suite` | yes | `golden` (every case on the `fake` provider with its fixture; deterministic scorers), `judge` (judged scorers) or `model` (every case answered by `model`, pinned for every call; deterministic scorers, no judge; `evaluator.md`, "Model suite and the scorecard") |
+| `model` | `model` suite: yes | `judge` and `model`: a model alias from `config/models.yaml` whose provider is configured, used to answer the cases. On `judge` it is optional: without it the cases answer from their fixtures and only the scoring is judged. On `golden` it must be absent or a `fake` alias. On `model` it is required (`400 invalid_request` without it) and a `fake` alias answers from the case fixtures |
 | `cases` | no | Case ids to run; default every case. An unknown id is `400 invalid_request` |
 
 `202` `{ "run_id": "run_0003", "events_url": "/v1/evals/runs/run_0003/events" }`. A `judge` run
@@ -634,7 +634,8 @@ at most 200). Each run summary:
 
 `status` is `running`, `done` or `error` (the run could not finish; `error` carries
 `{code, message}`). `release_id`, `working_set` and `artifacts_hash` say what was under test.
-`cost` is the judge's spend plus the hosted answers' spend (0 on `golden`). `totals.failed`
+`cost` is the judge's spend plus the hosted answers' spend (0 on `golden`; on `model`, the
+answers' spend). `totals.failed`
 counts `failed` and `error` cases.
 
 `GET /v1/evals/runs/{run_id}` returns the summary plus:
@@ -653,11 +654,13 @@ expected list), `schema` (the reply validates against the case's `output_schema`
 exact or regex, when the case gives one), `faithfulness` and `relevance` (judge, 0 to 1, pass
 at `evals.judge.threshold`, default 0.7). A scorer is applicable when the case gives what it
 checks (`pii_leak` always applies). `golden` applies `path`, `citations`, `tool_calls`,
-`schema`, `pii_leak`, `answer_match`; `judge` applies `schema`, `pii_leak`, `faithfulness`,
-`relevance`, so deterministic and judged results stay apart (`evaluator.md`). A case passes
+`schema`, `pii_leak`, `answer_match` (and `checks`); `model` applies the same deterministic
+ones; `judge` applies `schema`, `pii_leak`, `faithfulness`, `relevance`, so deterministic and
+judged results stay apart (`evaluator.md`). A case passes
 when every applicable scorer passes; a case with no fixture is `skipped` on `golden`.
 `regression` is true when the case is `failed` or `error` now and was `passed` in
-`previous_run_id` (the last finished run of the same tenant, pack and suite).
+`previous_run_id` (the last finished run of the same tenant, pack and suite, and on `model`
+of the same model).
 
 Case turns run on the harness like any turn (`turn_start.summary.channel: eval`,
 `summary.eval_run_id`), each in its own session, in a scratch tenant per run

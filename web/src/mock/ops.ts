@@ -823,7 +823,8 @@ export class MockOps {
     }
     if (method === 'POST' && p === '/v1/evals/runs') {
       if (typeof body.pack !== 'string') return apiError(400, 'invalid_request', 'pack and suite are required strings')
-      if (body.suite !== 'golden' && body.suite !== 'judge') return apiError(400, 'invalid_request', 'suite must be golden or judge')
+      if (body.suite !== 'golden' && body.suite !== 'judge' && body.suite !== 'model') return apiError(400, 'invalid_request', 'suite must be golden, judge or model')
+      if (body.suite === 'model') return apiError(422, 'provider_not_configured', 'The mock has no model to answer the cases with.')
       if (body.suite === 'judge') return apiError(422, 'judge_unavailable', 'The judge suite needs a configured model other than fake.')
       if (this.runs.some((r) => r.status === 'running')) return apiError(409, 'eval_running', 'Another eval run of this tenant is running.')
       const ids = Array.isArray(body.cases) ? body.cases.map(String) : null

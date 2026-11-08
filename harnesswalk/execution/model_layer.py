@@ -158,6 +158,8 @@ class ModelLayer:
         sent with the reader's key (default: the turn has one); `spent`: route as if the shared
         budget were spent (a reservation was refused)."""
         router = self.router
+        if ctx.model_pin is not None:  # the eval model suite
+            router = router.pinned(ctx.model_pin)
         if ctx.providers is not None:
             chosen, health = ctx.providers, self.health
             router = router.restricted(lambda p: p in chosen and (health is None or health.ok(p)))
