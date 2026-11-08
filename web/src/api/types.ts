@@ -378,6 +378,8 @@ export interface LessonListItem {
   covers: string[]
   /** An expert group chapter (`NN-<parent>-inside`). */
   group: boolean
+  /** 0.2.0: the nodes the chapter needs switched on; absent from an older server. */
+  requires?: string[]
   words: number
   url: string
 }
@@ -440,6 +442,30 @@ export interface PackSummary {
   loaded?: boolean
   /** The pack's own fake fixtures, dev mode only (P5 integration). */
   fixtures?: string[]
+  /** 0.2.0: the harness profile the server runs the pack with (`null` when it does not load). */
+  profile?: string | null
+}
+
+/** 0.2.0: one harness profile of GET /v1/profiles (spec/harness.md section 10). */
+export interface HarnessProfile {
+  id: string
+  title: string
+  summary: string
+  /** Its place on the ladder, 1 (minimal) to 6 (operated). */
+  rung: number
+  /** The node ids the profile file switches off. */
+  disable: string[]
+  /** What this server switches off for it, in its mode (public mode keeps the controls on). */
+  off: string[]
+  stores: string[]
+  overrides: Record<string, unknown>
+}
+
+export interface ProfileList {
+  default: string
+  /** The server-wide profile that replaces every pack's, or null. */
+  override: string | null
+  profiles: HarnessProfile[]
 }
 
 export interface PackFile {

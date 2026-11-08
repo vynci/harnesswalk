@@ -10,6 +10,10 @@ import { memoryBadges, nodeStat, nodeWhy } from './stats'
 
 export interface FlowOptions {
   disabled: ReadonlySet<string>
+  /** 0.2.0: the nodes the session pack's profile switches off: dimmed, never hidden. */
+  profileOff?: ReadonlySet<string>
+  /** The id of that profile, for the tooltip ("off in profile minimal"). */
+  profileId?: string | null
   onToggle: (id: string) => void
   /** Simple view: draw the optional edges (LLM Ops and telemetry) instead of the bus. */
   showOps?: boolean
@@ -78,9 +82,10 @@ export function toFlow(
     const childIds = diagram.nodes.filter((n) => n.parent === l.id).map((n) => n.id)
     const showBadges = l.id === BADGE_NODE && !l.expanded && childIds.length > 0
     const stat = nodeStat(run)
-    // Served as disabled for this session, or switched off here for the next turn.
-    const off = l.node.disabled === true ? 'now' : opts.disabled.has(l.id) ? 'next' : null
-    const offText = off === 'now' ? ', disabled' : off === 'next' ? ', off next turn' : ''
+    // Served as disabled, switched off by the pack's profile (0.2.0), or switched off here for
+    // the next turn.
+    const off = l.node.disabled === true ? 'now' : opts.profileOff?.has(l.id) ? 'profile' : opts.disabled.has(l.id) ? 'next' : null
+    const offText = off === 'now' ? ', disabled' : off === 'profile' ? `, off in profile ${opts.profileId ?? ''}`.trimEnd() : off === 'next' ? ', off next turn' : ''
     const alert = opts.alerts?.[l.id]
     const opsChip = opts.opsChips?.[l.id]
     return {
@@ -106,6 +111,7 @@ export function toFlow(
         isChild: Boolean(l.parentId),
         current: current === l.id,
         off,
+        profile: off === 'profile' ? (opts.profileId ?? null) : null,
         alert,
         opsChip,
         pulse: opts.pulse === l.id,
@@ -119,6 +125,8 @@ export function toFlow(
     const active = activeId !== null && e.carries.includes(activeId)
     const visited = e.carries.some((id) => (turn.edges[id]?.count ?? 0) > 0)
     const end = (id: string) => (byId.has(id) ? id : null)
+    // An edge into or out of a node the profile switches off is dimmed with it.
+    const dim = Boolean(opts.profileOff?.has(e.source) || opts.profileOff?.has(e.target))
     return {
       id: e.id,
       type: 'flow',
@@ -138,6 +146,7 @@ export function toFlow(
         labelAt: e.labelAt,
         color: edgeColor(e.kind, e.sourcePlane, e.reverse),
         bus: e.bus,
+        dim,
       },
     }
   })

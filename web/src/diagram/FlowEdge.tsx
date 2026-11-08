@@ -15,6 +15,8 @@ export interface FlowEdgeData extends Record<string, unknown> {
   /** CSS colour of the stroke (planes.ts edgeColor). */
   color: string
   bus: boolean
+  /** 0.2.0: one end is a node the profile switches off. */
+  dim?: boolean
 }
 
 export type FlowEdgeType = Edge<FlowEdgeData, 'flow'>
@@ -52,6 +54,7 @@ function FlowEdgeImpl({ id, data, source, target }: EdgeProps<FlowEdgeType>) {
         data-kind={d.kind}
         data-state={state}
         data-bus={d.bus ? 'true' : undefined}
+        data-dim={d.dim ? 'true' : undefined}
         style={{ '--edge-color': d.color } as CSSProperties}
         data-testid={`edge-${id}`}
       >

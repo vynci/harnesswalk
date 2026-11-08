@@ -2,7 +2,7 @@
 // real config, prompt and skill files. Bundled only into mock builds.
 const sources = import.meta.glob('../../../harnesswalk/**/*.py', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 // The packs the mock serves (mock/packs.ts): every dataset pack, text files only.
-const files = import.meta.glob(['../../../config/*.yaml', '../../../datasets/*/**/*.{md,yaml,jsonl}'], {
+const files = import.meta.glob(['../../../config/*.yaml', '../../../config/profiles/*.yaml', '../../../datasets/*/**/*.{md,yaml,jsonl}'], {
   query: '?raw',
   import: 'default',
   eager: true,

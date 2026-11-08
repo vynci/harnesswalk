@@ -5,7 +5,9 @@ import { ArrowLeft, ArrowRight, FlaskConical, Play } from 'lucide-react'
 import type { DiagramNode, Lesson, LessonAlso } from '@/api/types'
 import { Prose } from '@/components/prose'
 import { Button } from '@/components/ui/button'
+import { useProfile } from '@/state/hooks'
 import { packTitle } from '@/state/packs'
+import { gapText, profileGap } from '@/state/profiles'
 import { usePanels, type CodeTarget } from '@/state/panels'
 import { useApp } from '@/state/store'
 import { classifyLink } from './links'
@@ -165,6 +167,10 @@ export function GuideChapter({ node }: { node: DiagramNode }) {
   const data = lesson.status === 'ok' ? lesson.data : undefined
   const parsed = useMemo(() => (data ? parseLesson(data.markdown) : null), [data])
   const entry = outline.find((e) => e.slug === slug)
+  // 0.2.0: the chapter's node is off under the session pack's profile: say so, and where it is on.
+  const profile = useProfile()
+  const profiles = useApp((s) => s.profiles)
+  const gap = profileGap(profile, profiles, data?.requires ?? entry?.requires)
   const onCodeLink = useCallback(
     (target: CodeTarget) => {
       useApp.getState().openInspector(node.id, 'code')
@@ -289,6 +295,11 @@ export function GuideChapter({ node }: { node: DiagramNode }) {
           {parsed.title || data.title}
         </h3>
         {(parsed.hook || data.hook) && <p className="text-sm text-muted-foreground">{parsed.hook || data.hook}</p>}
+        {gap && (
+          <p className="mt-1 rounded-md border border-dashed px-2.5 py-1.5 text-xs text-muted-foreground" data-testid="lesson-profile-off" data-profile={gap.profile.id}>
+            {gapText(gap)}
+          </p>
+        )}
       </header>
       <TryActions lesson={data} />
       <Prose className={PROSE}>

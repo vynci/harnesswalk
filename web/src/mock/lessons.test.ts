@@ -17,7 +17,7 @@ describe('mock lesson routes', () => {
     const ch = body.lessons.find((l) => l.slug === '02-input_guardrails')!
     expect(ch).toMatchObject({ n: 2, title: 'Input guardrails', covers: [ch.node_id], group: false, url: '/v1/lessons/02-input_guardrails' })
     expect(ch.words).toBeGreaterThan(600)
-    expect(Object.keys(ch).sort()).toEqual(['covers', 'group', 'hook', 'n', 'node_id', 'slug', 'title', 'url', 'words'])
+    expect(Object.keys(ch).sort()).toEqual(['covers', 'group', 'hook', 'n', 'node_id', 'requires', 'slug', 'title', 'url', 'words'])
   })
 
   it('serves one chapter without its front matter, with try and code links', async () => {

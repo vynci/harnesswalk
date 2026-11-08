@@ -20,7 +20,10 @@ import { EXAMPLE_MESSAGES, EXAMPLE_NAMES, EXAMPLES, servedDiagram, type ExampleN
 import { MockLessons } from './lessons'
 import { MARKDOWN_PROMPT, MARKDOWN_REPLY } from './markdown'
 import { MockEvalEventSource, MockOps, MockOpsEventSource } from './ops'
-import { allFixtures, DEFAULT_PACK, fixtureInfo, PACK_IDS, packDetail, packFiles, packSummary } from './packs'
+import { allFixtures, DEFAULT_PACK, fixtureInfo, PACK_IDS, packDetail, packFiles, packSummary, profileList } from './packs'
+
+/** The controls a public server never switches off, whatever the profile (harness.md 10.5). */
+const PUBLIC_KEEP = ['input_guardrails', 'output_guardrails', 'policy', 'approval', 'audit']
 import { payloadFor } from './payloads'
 import { repoFile, repoPdfUrl, sourceFor } from './repo'
 
@@ -412,6 +415,7 @@ export class MockServer {
     if (method === 'GET' && p === '/healthz') return json(200, { status: 'ok', mode: 'dev', provider: 'fake' })
     if (method === 'GET' && p === '/v1/capabilities') return json(200, this.capabilities())
     if (method === 'GET' && p === '/v1/diagram') return json(200, this.diagram)
+    if (method === 'GET' && p === '/v1/profiles') return json(200, profileList(this.opts.public !== null, PUBLIC_KEEP))
     if (method === 'POST' && p === '/v1/turns') {
       this.turnRequests.push(structuredClone(body) as unknown as StartTurnRequest)
       const refused = this.publicRefusal(body as unknown as StartTurnRequest, header(init, 'x-harnesswalk-provider-key'))
@@ -609,7 +613,7 @@ export class MockServer {
     return {
       mode: 'dev',
       version: '0.2.0-mock',
-      spec_version: '0.1.0',
+      spec_version: '0.2.0',
       providers: [
         { name: 'fake', configured: true, default: true, models: ['fake-small'] },
         { name: 'ollama', configured: false, default: false, models: ['llama3.1:8b'] },
@@ -662,7 +666,7 @@ export class MockServer {
     return {
       mode: 'public',
       version: '0.2.0-mock',
-      spec_version: '0.1.0',
+      spec_version: '0.2.0',
       providers: [
         { name: 'anthropic', configured: true, default: true, models: ['hosted-haiku', 'hosted-sonnet'] },
         { name: 'fake', configured: true, default: false, models: ['fake-small'] },
@@ -831,7 +835,7 @@ export class MockServer {
       const end = turn.queue.find((t) => t.type === 'turn_end')
       const reply = (end?.summary?.reply as string | undefined) ?? ''
       const deltas: Template[] = words(reply).map((delta, index) => ({
-        schema_version: '0.1.0',
+        schema_version: '0.2.0',
         type: 'message_delta',
         node_id: 'gateway',
         status: 'active',
@@ -850,7 +854,7 @@ export class MockServer {
     }
     if (ev.type === 'node_enter' && turn.stepping) {
       turn.stepOver = false
-      this.emit(turn, { schema_version: '0.1.0', type: 'node_paused', node_id: ev.node_id, status: 'waiting', summary: { reason: 'breakpoint' } })
+      this.emit(turn, { schema_version: '0.2.0', type: 'node_paused', node_id: ev.node_id, status: 'waiting', summary: { reason: 'breakpoint' } })
       turn.waiting = { kind: 'breakpoint', nodeId: ev.node_id! }
       turn.status = 'paused'
       return
@@ -887,7 +891,7 @@ export class MockServer {
     turn.stepOver = mode === 'step_over'
     turn.waiting = null
     turn.status = 'running'
-    this.emit(turn, { schema_version: '0.1.0', type: 'node_resumed', node_id: nodeId, status: 'active', summary: { reason: 'breakpoint', mode } })
+    this.emit(turn, { schema_version: '0.2.0', type: 'node_resumed', node_id: nodeId, status: 'active', summary: { reason: 'breakpoint', mode } })
     this.schedule(turn)
     return json(200, { turn_id: turnId, resumed_node_id: nodeId, mode })
   }
@@ -924,7 +928,7 @@ export class MockServer {
     for (let i = open.length - 1; i >= 0; i--) {
       const o = open[i]!
       this.emit(turn, {
-        schema_version: '0.1.0',
+        schema_version: '0.2.0',
         type: 'error',
         node_id: o.nodeId,
         status: 'error',
@@ -938,7 +942,7 @@ export class MockServer {
     )
     const steps = turn.events.filter((e) => e.type === 'node_enter' && e.node_id === 'model_layer').length
     const end = this.emit(turn, {
-      schema_version: '0.1.0',
+      schema_version: '0.2.0',
       type: 'turn_end',
       status: 'done',
       duration_ms: Math.max(0, now - Date.parse(turn.events[0]!.ts)),

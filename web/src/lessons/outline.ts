@@ -17,6 +17,8 @@ export interface OutlineEntry {
   nodeId: string | null
   /** The view that node is drawn in. */
   view: View
+  /** 0.2.0: the nodes the chapter needs switched on (`requires`), empty when it names none. */
+  requires: string[]
 }
 
 const numberOf = (slug: string) => Number(slug.slice(0, 2)) || 0
@@ -45,6 +47,7 @@ export function buildOutline(diagram: Diagram | null, list: LessonListItem[] | n
       written: !!item,
       nodeId: targetNode.id,
       view: targetNode.view,
+      requires: item?.requires ?? [],
     })
   }
   // A served chapter the diagram does not point at still gets a row.
@@ -61,6 +64,7 @@ export function buildOutline(diagram: Diagram | null, list: LessonListItem[] | n
       written: true,
       nodeId: node?.id ?? null,
       view: node?.view ?? 'simple',
+      requires: item.requires ?? [],
     })
   }
   return [...entries.values()].sort((a, b) => a.n - b.n || a.slug.localeCompare(b.slug))

@@ -20,6 +20,7 @@ import type {
   TraceTurnPage,
   Capabilities,
   Diagram,
+  ProfileList,
   KnowledgeDoc,
   KnowledgeDocDetail,
   Diagnosis,
@@ -172,6 +173,8 @@ export function createApi(t: Transport) {
     transport: t,
     capabilities: () => call<Capabilities>('GET', '/v1/capabilities'),
     diagram: () => call<Diagram>('GET', '/v1/diagram'),
+    /** 0.2.0: the harness profiles, so the UI never hard-codes the ladder. */
+    profiles: () => call<ProfileList>('GET', '/v1/profiles'),
     /** POST /v1/turns; `apiKey` (P6, BYO key) goes in the provider key header for this turn only. */
     startTurn: (req: StartTurnRequest, opts: { apiKey?: string | null } = {}) =>
       call<StartTurnResponse>('POST', '/v1/turns', req, opts.apiKey ? { [PROVIDER_KEY_HEADER]: opts.apiKey } : undefined),
