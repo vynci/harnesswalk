@@ -3,7 +3,8 @@
 # Keys are referenced by environment variable name only, never by value.
 providers:
   fake: { fixture: plain_answer }
-  ollama: { base_url: http://localhost:11434, timeout_s: 120 }
+  # HARNESSWALK_OLLAMA_URL, when set, wins over base_url (a remote Ollama needs no --set).
+  ollama: { base_url: http://localhost:11434, base_url_env: HARNESSWALK_OLLAMA_URL, timeout_s: 120 }
   # Hosted providers are off unless selected (HARNESSWALK_PROVIDER) or enabled here, so a key in
   # your shell never turns into a paid fallback by accident.
   anthropic: { enabled: false, base_url: https://api.anthropic.com, api_key_env: ANTHROPIC_API_KEY, timeout_s: 60 }
@@ -13,6 +14,12 @@ models:
   fake-small:   { provider: fake, label: Fake model (scripted), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
   local-8b:     { provider: ollama, name: "llama3.1:8b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
   local-small:  { provider: ollama, name: "llama3.2:3b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
+  # The model ladder (docs/scorecard.md): small local models an eval run pins with --model.
+  # Thinking off, as for the hosted aliases: the harness does not replay thinking.
+  local-2b:     { provider: ollama, name: "qwen3.5:2b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  local-4b:     { provider: ollama, name: "qwen3.5:4b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  local-9b:     { provider: ollama, name: "qwen3.5:9b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  local-e4b:    { provider: ollama, name: "gemma4:e4b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
   # Pinned Anthropic ids (PLAN section 13). Prices per million tokens, first-party API, prompts
   # up to 100K tokens for Haiku. The harness does not replay thinking blocks, so each model
   # runs with a thinking mode that needs none.

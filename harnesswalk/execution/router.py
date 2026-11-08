@@ -17,6 +17,11 @@ a model hint that wins when the matched rule allows it.
 P6: a router may also carry an alias filter (`gated`): in public mode the model layer narrows
 each call to the aliases of `public.models` that can answer now (site key or BYO key, and the
 shared daily budget for priced aliases, control/public.py).
+
+Model suite (evaluator.md, "Model suite"): a router may be `pinned` to one alias for an eval
+case turn. Rules still match by their `when` (so a case's `router_rules` keep their meaning)
+and a rule's `max_price_out_per_mtok` still applies to the pinned alias, but the rule's own
+`use` list is not consulted: every call answers on the pinned alias, with no fallback.
 """
 
 from __future__ import annotations
@@ -58,22 +63,28 @@ class Router:
         models: dict[str, dict[str, Any]],
         provider_ok: Callable[[str], bool],
         alias_ok: Callable[[str], bool] | None = None,
+        pin: str | None = None,
     ) -> None:
         self._rules = rules
         self._models = models
         self._provider_ok = provider_ok
         self._alias_ok = alias_ok
+        self._pin = pin
 
     def rules(self) -> list[dict[str, Any]]:
         return list(self._rules)
 
     def restricted(self, provider_ok: Callable[[str], bool]) -> Router:
         """The same rules over a narrower set of providers (a per-turn provider choice)."""
-        return Router(self._rules, self._models, provider_ok, self._alias_ok)
+        return Router(self._rules, self._models, provider_ok, self._alias_ok, self._pin)
 
     def gated(self, alias_ok: Callable[[str], bool]) -> Router:
         """The same rules over the aliases `alias_ok` lets through (P6, public mode)."""
-        return Router(self._rules, self._models, self._provider_ok, alias_ok)
+        return Router(self._rules, self._models, self._provider_ok, alias_ok, self._pin)
+
+    def pinned(self, alias: str) -> Router:
+        """The same rules with every call answered by `alias` (the eval `model` suite)."""
+        return Router(self._rules, self._models, self._provider_ok, self._alias_ok, alias)
 
     @staticmethod
     def matches(when: dict[str, Any], req: RouteRequest) -> bool:
@@ -105,7 +116,32 @@ class Router:
         uncapped = {k: v for k, v in rule.items() if k != "max_price_out_per_mtok"}
         return any(self._usable(alias, req, uncapped) for alias in rule.get("use", []))
 
+    def _route_pinned(self, req: RouteRequest, alias: str) -> Route:
+        """The first matching rule whose price cap the pinned alias fits; the alias answers."""
+        model = self._models.get(alias)
+        if model is None or model.get("embedding"):
+            raise ProviderError("provider_error", f"unknown model alias {alias!r}", retryable=False)
+        if not self._provider_ok(model.get("provider", "")) or (
+            self._alias_ok is not None and not self._alias_ok(alias)
+        ):
+            raise ProviderError(
+                "provider_error",
+                f"the pinned model {alias} has no configured provider for this request",
+                retryable=False,
+            )
+        price_out = float(model.get("price_out_per_mtok") or 0)
+        for rule in self._rules:
+            if not self.matches(rule.get("when") or {}, req):
+                continue
+            cap = rule.get("max_price_out_per_mtok")
+            if cap is not None and price_out > float(cap):
+                continue  # as an unpinned rule whose models are all priced out
+            return Route(rule=rule["id"], model=alias, alternatives=[])
+        raise ProviderError("provider_error", "no router rule matched", retryable=False)
+
     def route(self, req: RouteRequest) -> Route:
+        if self._pin is not None:
+            return self._route_pinned(req, self._pin)
         for rule in self._rules:
             if not self.matches(rule.get("when") or {}, req):
                 continue

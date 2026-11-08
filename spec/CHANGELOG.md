@@ -22,6 +22,11 @@ Spec 0.1.0 is still the draft below until the first package release (`v0.1.0`).
   `GET /v1/packs/{pack_id}/files/docs/{name}?raw=1` serves a pack document's original file
   (`application/pdf` or `text/markdown; charset=utf-8`, inline, cacheable) in every mode, only
   from the pack's `docs/`.
+- The `model` eval suite (`contracts/evaluator.md`, "Model suite and the scorecard";
+  `contracts/http_api.md`, Evals): the cases answer on one model alias, pinned for every call
+  (`contracts/router.md`, "Model suite: the pinned router"), and the deterministic scorers
+  judge them, with no LLM judge. A `model` run is compared with the previous run of the same
+  model. Additive: no new event type, no version change.
 
 ## [0.1.0] - draft, frozen at the v0.1.0 release
 

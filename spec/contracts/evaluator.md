@@ -126,7 +126,8 @@ The P0 keys (`input`, `path_includes`, `must_cite`, `judge.rubric`) are read as 
 Fixed names, each `{value, pass, detail}`: `path`, `citations`, `tool_calls`, `schema`,
 `pii_leak`, `answer_match`, `checks` (deterministic, read from the case turn's events, stored
 details and reply only) and `faithfulness`, `relevance` (judged). `golden` runs the
-deterministic ones, `judge` runs `schema`, `pii_leak` and the judged ones. `checks` (P5
+deterministic ones, `judge` runs `schema`, `pii_leak` and the judged ones, and `model` (see
+"Model suite and the scorecard") runs the deterministic ones on a real model's answers. `checks` (P5
 integration) runs when the case has `checks`: the `router` node's `summary.rule` of each model
 call must equal `router_rules`, and each `retrieved` store's items in the context builder's
 stored detail must include the substring.
@@ -164,7 +165,7 @@ stream (`events.md` section 10). The diff against the previous run of the same t
 and suite lists `fixed`, `regressed`, `new` and `removed` case ids; `regression` is "failed
 or error now, passed before".
 
-CLI: `harnesswalk eval <pack> --suite golden|judge [--model ALIAS] [--case ID ...] [--json]`
+CLI: `harnesswalk eval <pack> --suite golden|judge|model [--model ALIAS] [--case ID ...] [--json]`
 prints one line per case and exits 1 when any case fails (CI runs the golden suite on the fake
 provider). P4 configuration keys:
 
@@ -264,3 +265,46 @@ tenant held the case turns either way.
 |---|---|---|
 | `evals.diagnose.auto` | `true` | Diagnose regressed cases when a run finishes |
 | `evals.scratch_tenant` | `true` | Case turns in a scratch tenant per run (P4) or in the caller's tenant |
+
+## Model suite and the scorecard
+
+Additive (spec 0.1.0, no version change). A third offline suite, `model`, answers every case
+from a real model and judges it with the deterministic scorers only, so "does this model pass
+the golden set" has an answer that needs no judge model and is reproducible from the trace.
+
+- **Request.** `suite: model` needs `model`: an alias from `config/models.yaml` (not an
+  embedding alias) whose provider the harness can use, else `400 invalid_request` (no alias,
+  unknown alias) or `422 provider_not_configured`. A `fake` alias is always usable.
+- **Answering.** Every model call of a case turn is pinned to the alias: the router still
+  matches its rule by the call's `when` (so a case's `checks.router_rules` keep their meaning),
+  and a rule's `max_price_out_per_mtok` still applies to the pinned alias (a rule that prices it
+  out passes to the next matching rule, as an unpinned rule whose models are all priced out
+  does), but the rule's own `use` list is not consulted and there is no fallback
+  (`router.md`, "Model suite: the pinned router"). A `fake` alias answers from the case's
+  fixture, so on `fake-small` the `model` suite reproduces `golden`; a case with no fixture is
+  then `skipped`.
+- **Scoring.** Every applicable deterministic scorer (`path`, `citations`, `tool_calls`,
+  `schema`, `pii_leak`, `answer_match`, `checks`); no LLM judge, `judge_model` is `null`.
+  `answer_match` substrings are written for the fixture replies, so a model that words a right
+  answer differently fails it: read the reply before calling it wrong.
+- **Cost.** The answers' usage is summed on the run's `cost`, as on `judge`.
+- **Regressions.** The previous run of a `model` run is the last finished run of the same
+  tenant, pack, suite **and model**, so a 4B run is never compared with a 9B run; the diagnose
+  baseline ("the last pass") is keyed the same way. `golden` and `judge` keep their lookup.
+
+### The scorecard
+
+`harnesswalk scorecard [--packs all|a,b] [--models a,b] [--out docs/scorecard.md]
+[--json PATH] [--tenant scorecard] [--case-timeout S] [--max-usd N]` runs one `model`-suite
+run per (pack, model), one cell at a time, model by model, in-process and in its own tenant
+(default `scorecard`, so the dev tenant's regression history is untouched). Each cell runs on
+the alias's provider only, with hash-vector embeddings (`stores.embeddings.provider: fake`) so
+every model sees the same retrieval. A cell that cannot run is `n/a` with the reason (the
+provider is not configured or not reachable, the model is not on the Ollama server, the model
+takes no tools, the spend cap is reached) and the matrix goes on. The Markdown has a header
+(date UTC, harness and spec version, Ollama host and version, the models with their tags,
+parameter sizes and quantization from `/api/show`), the pass-count matrix (packs as rows,
+models as columns, `passed/scored`), and per model the failed cases by scorer name, the three
+failing cases the most models also fail, and the tokens, cost and wall time. The JSON holds
+every cell's totals and, per case, its status, failing scorers and error codes.
+

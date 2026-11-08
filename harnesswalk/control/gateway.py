@@ -115,6 +115,9 @@ class TurnRequest:
     # fixture in any mode and is not rate-limited. Never set from HTTP.
     internal: bool = False
     eval_run_id: str | None = None
+    # The eval `model` suite: pin every model call of the turn to this alias (no fallback).
+    # Internal turns only; never set from HTTP.
+    pin_model: str | None = None
     # P5: the pack view to run on instead of the session's (the eval gate's candidate). Never
     # set from HTTP.
     runtime: Any = field(default=None, repr=False)
@@ -401,6 +404,7 @@ class Gateway:
             disabled_nodes=frozenset(req.disabled_nodes),
             providers=turn_providers,
             model_hint=req.model,
+            model_pin=req.pin_model if req.internal else None,
             budget=self.h.budgets.for_turn(tenant),
             output_schema=req.output_schema,
             byo_key=bool(req.api_key),

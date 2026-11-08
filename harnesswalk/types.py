@@ -149,6 +149,9 @@ class TurnContext:
     pii_vault: Any = field(default=None, repr=False)
     model_calls: int = 0  # completed model_layer calls this turn (the fake provider's cursor)
     model_hint: str | None = None  # a router alias hint (dev mode, http_api.md P3)
+    # The eval `model` suite: every model call of this turn answers on this alias (router.py
+    # `pinned`). Internal turns only, never from HTTP.
+    model_pin: str | None = None
     budget: Any = None  # control/budgets.py TurnBudget: the tenant's limits and usage
     detached: bool = False  # the process is shutting down and leaves this turn to recovery
     # The knowledge chunks the context builder numbered for this turn ([n] -> doc and chunk),

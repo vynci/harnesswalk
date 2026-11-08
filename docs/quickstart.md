@@ -85,6 +85,16 @@ make run PROVIDER=ollama                     # plain `make run` does the same wh
 uv run harnesswalk turn "What are your support hours?" --provider ollama
 ```
 
+An Ollama on another machine (a GPU box on your network) needs only its URL:
+`HARNESSWALK_OLLAMA_URL=http://192.168.1.20:11434` wins over `base_url` in
+`config/models.yaml` (the variable is named there as `models.providers.ollama.base_url_env`).
+Besides `local-8b` (llama3.1:8b) and `local-small` (llama3.2:3b), `config/models.yaml` has the
+model ladder of the [scorecard](scorecard.md): `local-2b`, `local-4b` and `local-9b`
+(qwen3.5:2b, 4b and 9b) and `local-e4b` (gemma4:e4b), with thinking off through the alias's
+`params: { think: false }`, which the Ollama adapter sends with every call. Pick one for a turn
+with `--model local-4b`, or score one on a pack with
+`uv run harnesswalk eval _starter --suite model --model local-4b`.
+
 ### Hosted providers and the tests
 
 Hosted providers are never used unless you select one. A key that merely sits in your shell

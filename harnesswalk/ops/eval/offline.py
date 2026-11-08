@@ -9,12 +9,15 @@ is part of the contract). Each case is a real turn through the whole
 harness (gateway to trace), in its own session, in a scratch tenant for the run
 (`evalrun-<run_id>`), so a run never reads or writes the caller's memory and every run starts
 from the same state. On the `golden` suite the case answers from its `fake` fixture; on
-`judge` it answers from the given model (or its fixture) and a judge model scores it. The
-runner decides any approval with the case's `approval` (default deny).
+`judge` it answers from the given model (or its fixture) and a judge model scores it; on
+`model` it answers from the given model alias, pinned for every call of the case turn (a `fake`
+alias answers from the case's fixture), and the deterministic scorers judge it, no LLM judge.
+The runner decides any approval with the case's `approval` (default deny).
 
 Progress is an ops stream (`eval:<run_id>`): `eval_run_started`, one `eval_case_finished` per
 case, `eval_run_finished`. The run is compared with the previous finished run of the same
-tenant, pack and suite: a case that passed then and fails now is a regression.
+tenant, pack and suite (and, on `model`, model): a case that passed then and fails now is a
+regression.
 
 P5: a run names any pack the harness can load and runs on that pack's view (or on a release
 candidate's, for the eval gate: `purpose: release_gate`); regressed cases are diagnosed before
@@ -43,7 +46,7 @@ if TYPE_CHECKING:
 register("offline_eval", __name__)
 log = logging.getLogger("harnesswalk.eval")
 
-SUITES = ("golden", "judge")
+SUITES = ("golden", "judge", "model")
 JUDGE_DETERMINISTIC = ("schema", "pii_leak")
 
 
@@ -99,6 +102,8 @@ class OfflineRunner:
             raise EvalRequestError(
                 400, "invalid_request", "the golden suite answers from fixtures (fake) only"
             )
+        if cfg.get("provider") == "fake":
+            return  # a fake alias answers from the case fixtures, on any harness
         if not self.judge.usable(cfg["provider"]):
             raise EvalRequestError(
                 422, "provider_not_configured", f"provider {cfg['provider']!r} is not configured"
@@ -121,7 +126,9 @@ class OfflineRunner:
         `runtime` (P5) is the pack view the case turns run on instead of the pack's own: the
         eval gate's candidate built from the working set."""
         if suite not in SUITES:
-            raise EvalRequestError(400, "invalid_request", "suite must be golden or judge")
+            raise EvalRequestError(400, "invalid_request", "suite must be golden, judge or model")
+        if suite == "model" and not model:
+            raise EvalRequestError(400, "invalid_request", "the model suite needs a model alias")
         if not self.h.pack_known(pack):
             raise EvalRequestError(422, "invalid_request", f"no dataset pack {pack!r}")
         try:
@@ -144,7 +151,9 @@ class OfflineRunner:
                 )
         if self.running(tenant_id):
             raise EvalRequestError(409, "eval_running", "an eval run is already running")
-        previous = self.store.previous_run(tenant_id, pack, suite)
+        previous = self.store.previous_run(
+            tenant_id, pack, suite, model=model if suite == "model" else None
+        )
         try:
             view = runtime or self.h.view(pack)
         except KeyError as exc:  # PackUnavailable
@@ -280,8 +289,15 @@ class OfflineRunner:
 
         tenant = run.get("case_tenant") or scratch_tenant(run["run_id"])
         view, candidate = self._views.get(run["run_id"], (None, False))
-        provider = fixture = model = None
-        if run["suite"] == "judge" and run["model"]:
+        provider = fixture = model = pin = None
+        if run["suite"] == "model":
+            pin = run["model"]
+            provider = self.h.settings.get(f"models.models.{pin}.provider")
+            if provider == "fake":  # a scripted alias: the case's fixture is its answer
+                if not case.fixture:
+                    return None
+                fixture = case.fixture
+        elif run["suite"] == "judge" and run["model"]:
             model = run["model"]
             provider = self.h.settings.get(f"models.models.{model}.provider")
         elif case.fixture:
@@ -296,6 +312,7 @@ class OfflineRunner:
             provider=provider,
             fixture=fixture,
             model=model,
+            pin_model=pin,
             output_schema=case.output_schema,
             internal=True,
             eval_run_id=run["run_id"],
@@ -338,10 +355,10 @@ class OfflineRunner:
             result["events_url"] = f"/v1/evals/runs/{run['run_id']}/cases/{case.id}/events"
             actual = actual_of(events)
             result["actual"] = actual
-            if run["suite"] == "judge" and run["model"] and actual.get("cost"):
+            if run["suite"] in ("judge", "model") and run["model"] and actual.get("cost"):
                 c = actual["cost"]
                 spent.add(Usage(c["input_tokens"], c["output_tokens"], 0, c["usd"]))
-            names = DETERMINISTIC if run["suite"] == "golden" else JUDGE_DETERMINISTIC
+            names = JUDGE_DETERMINISTIC if run["suite"] == "judge" else DETERMINISTIC
             view = self._views.get(run["run_id"], (self.h, False))[0]
             tenant = request.identity.tenant_id
             scores = deterministic(
