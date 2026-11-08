@@ -195,37 +195,150 @@ def not_run(pack: str, alias: str, reason: str) -> dict[str, Any]:
     return {"pack": pack, "model": alias, "status": "n/a", "reason": reason}
 
 
-def cell_of(
-    pack: str, alias: str, summary: dict[str, Any], cases: list[dict[str, Any]]
+# The `tool_calls` split of a failed case: why the calls did not grade (the page's table).
+TOOL_SPLIT = (
+    "called when none expected",
+    "none called",
+    "write tool not called",
+    "read tool not called",
+    "extra or wrong tool",
+)
+
+
+def tool_split(
+    expected: list[str] | None, actual: list[str], read_tools: frozenset[str] | set[str]
+) -> str:
+    """Why a failed `tool_calls` score failed, as one of TOOL_SPLIT."""
+    expected = list(expected or [])
+    if not expected:
+        return "called when none expected"
+    if not actual:
+        return "none called"
+    missing, at = [], 0
+    for name in expected:  # each expected call, found in order after the previous one
+        try:
+            at = actual.index(name, at) + 1
+        except ValueError:
+            missing.append(name)
+    if any(name not in read_tools for name in missing):
+        return "write tool not called"
+    if missing:
+        return "read tool not called"
+    return "extra or wrong tool"
+
+
+def reduce_case(c: dict[str, Any], read_tools: frozenset[str] | set[str]) -> dict[str, Any]:
+    """One stored case result as a scorecard case: status, failing scorers, error codes, and
+    the `tool_calls` split when that scorer failed."""
+    scores = c.get("scores") or {}
+    failing = [name for name, s in scores.items() if not s.get("pass")]
+    errors = [e.get("code") for e in (c.get("actual") or {}).get("errors") or []]
+    if c.get("error"):
+        errors.append(c["error"].get("code"))
+    out: dict[str, Any] = {
+        "case_id": c["case_id"], "status": c["status"], "failed": failing,
+        "errors": [e for e in errors if e],
+    }  # fmt: skip
+    if "tool_calls" in failing:
+        expected = (c.get("expected") or {}).get("tool_calls")
+        actual = (c.get("actual") or {}).get("tool_calls") or []
+        out["tool_split"] = tool_split(expected, actual, read_tools)
+    return out
+
+
+def sample_of(
+    summary: dict[str, Any], cases: list[dict[str, Any]], read_tools: frozenset[str] = frozenset()
 ) -> dict[str, Any]:
-    """A finished eval run reduced to a scorecard cell: totals, cost, time, and per case the
-    status, the failing scorers and the turn's error codes."""
-    reduced = []
-    for c in cases:
-        failing = [name for name, s in (c.get("scores") or {}).items() if not s.get("pass")]
-        errors = [e.get("code") for e in (c.get("actual") or {}).get("errors") or []]
-        if c.get("error"):
-            errors.append(c["error"].get("code"))
-        reduced.append({
-            "case_id": c["case_id"], "status": c["status"], "failed": failing,
-            "errors": [e for e in errors if e],
-        })  # fmt: skip
+    """One finished eval run as a scorecard sample: run id, totals, cost, time, cases."""
     seconds = None
     if summary.get("started_at") and summary.get("ended_at"):
         seconds = round(_epoch(summary["ended_at"]) - _epoch(summary["started_at"]), 1)
-    cell: dict[str, Any] = {
-        "pack": pack,
-        "model": alias,
-        "status": "ok" if summary.get("status") == "done" else "error",
-        "reason": (summary.get("error") or {}).get("message"),
+    return {
         "run_id": summary.get("run_id"),
-        "suite": summary.get("suite"),
+        "status": summary.get("status"),
+        "reason": (summary.get("error") or {}).get("message"),
         "totals": summary.get("totals"),
         "cost": summary.get("cost"),
         "seconds": seconds,
-        "cases": reduced,
+        "cases": [reduce_case(c, read_tools) for c in cases],
     }
-    return cell
+
+
+def cell_of(
+    pack: str,
+    alias: str,
+    summary: dict[str, Any] | None = None,
+    cases: list[dict[str, Any]] | None = None,
+    *,
+    samples: list[dict[str, Any]] | None = None,
+    read_tools: frozenset[str] = frozenset(),
+    **extra: Any,
+) -> dict[str, Any]:
+    """A scorecard cell: one or more samples (eval runs) of a (pack, model). `ok` when every
+    sample finished, else `error` with the first reason."""
+    if samples is None:
+        samples = [sample_of(summary or {}, cases or [], read_tools)]
+    bad = [x for x in samples if x.get("status") != "done"]
+    return {
+        "pack": pack,
+        "model": alias,
+        "status": "error" if bad else "ok",
+        "reason": bad[0].get("reason") if bad else None,
+        "suite": "model",
+        "samples": samples,
+        **extra,
+    }
+
+
+def samples_of(cell: dict[str, Any]) -> list[dict[str, Any]]:
+    """A cell's samples; a 2026-11-08 cell (one run, no `samples`) is its own sample."""
+    return cell.get("samples") or [cell]
+
+
+def regrade_case(
+    case: dict[str, Any],
+    read_tools: frozenset[str] | set[str],
+    *,
+    before_text: str | None = None,
+) -> dict[str, Any]:
+    """A stored case result graded again under model grading, offline: `tool_calls` and
+    `answer_match` from the stored expectation and actual calls and reply, and `schema` from
+    the answer before the output guardrails (`before_text`, from the trace) with the JSON
+    extraction. Every other score is kept as stored. Returns the case with new scores and
+    status."""
+    from harnesswalk.execution.output_guardrails import extract_json
+    from harnesswalk.ops.eval import scorers
+
+    out = {**case, "scores": dict(case.get("scores") or {})}
+    expected = case.get("expected") or {}
+    actual = case.get("actual") or {}
+    if case.get("status") == "error" or not actual:
+        return out
+    scores = out["scores"]
+    if "tool_calls" in scores and "tool_calls" in expected:
+        mode = scorers.tool_calls_mode(expected, "model")
+        scores["tool_calls"] = scorers.score_tool_calls(
+            expected["tool_calls"], actual.get("tool_calls") or [], mode, read_tools
+        )
+    reply = actual.get("reply")
+    if "schema" in scores and not scores["schema"]["pass"] and before_text is not None:
+        schema = expected.get("output_schema")
+        found = extract_json(before_text, schema) if schema else None
+        if found is not None:
+            reply = found
+            scores["schema"] = scorers.score_schema(schema, found)
+    if "answer_match" in scores:
+        scores["answer_match"] = scorers.score_answer(expected, reply, "model")
+    out["status"] = "passed" if all(s["pass"] for s in scores.values()) else "failed"
+    return out
+
+
+def regraded_totals(cases: list[dict[str, Any]], before: dict[str, Any]) -> dict[str, Any]:
+    totals = {"cases": int(before.get("cases", len(cases))), "passed": 0, "failed": 0}
+    totals["skipped"] = sum(c["status"] == "skipped" for c in cases)
+    totals["passed"] = sum(c["status"] == "passed" for c in cases)
+    totals["failed"] = totals["cases"] - totals["passed"] - totals["skipped"]
+    return totals
 
 
 def _epoch(stamp: str) -> float:
@@ -276,10 +389,9 @@ async def run_matrix(
                     "reason": f"{type(exc).__name__}: {exc}"[:300],
                 }  # fmt: skip
             cells.append(cell)
-            t = cell.get("totals") or {}
             took = time.monotonic() - started
             if cell["status"] == "ok":
-                log(f"{alias:<14} {pack:<12} {_ratio(t)} in {took:.0f}s")
+                log(f"{alias:<14} {pack:<12} {_cell_text(cell)} in {took:.0f}s")
             else:
                 log(f"{alias:<14} {pack:<12} {cell['status']}: {cell.get('reason')}")
         if finish is not None and not reasons.get(alias):
@@ -290,80 +402,20 @@ async def run_matrix(
     return cells
 
 
-def _ratio(totals: dict[str, Any]) -> str:
-    scored = int(totals.get("cases", 0)) - int(totals.get("skipped", 0))
-    return f"{int(totals.get('passed', 0))}/{scored}"
+def _scored(totals: dict[str, Any]) -> int:
+    return int(totals.get("cases", 0)) - int(totals.get("skipped", 0))
 
 
-def summarize(data: dict[str, Any]) -> dict[str, Any]:
-    """Per model: pass counts, failures by scorer, the most common failing cases, tokens and
-    cost. `data` is the scorecard JSON (`cells`, `models`, `packs`)."""
-    cells = data["cells"]
-    aliases = [m["alias"] for m in data["models"]]
-    # How many models fail each (pack, case): "most common" ranks a model's failing cases by it.
-    failing_models: Counter[tuple[str, str]] = Counter()
-    for cell in cells:
-        for c in cell.get("cases") or []:
-            if c["status"] in ("failed", "error"):
-                failing_models[(cell["pack"], c["case_id"])] += 1
-    out: dict[str, Any] = {}
-    for alias in aliases:
-        mine = [c for c in cells if c["model"] == alias]
-        ran = [c for c in mine if c["status"] == "ok"]
-        by_scorer: Counter[str] = Counter()
-        wording_only = 0  # failed answer_match and nothing else: the facts may be right
-        failed_cases: list[tuple[str, str, int]] = []
-        tokens_in = tokens_out = 0
-        usd = 0.0
-        seconds = 0.0
-        passed = scored = skipped = 0
-        for cell in ran:
-            t = cell.get("totals") or {}
-            passed += int(t.get("passed", 0))
-            skipped += int(t.get("skipped", 0))
-            scored += int(t.get("cases", 0)) - int(t.get("skipped", 0))
-            cost = cell.get("cost") or {}
-            tokens_in += int(cost.get("input_tokens", 0))
-            tokens_out += int(cost.get("output_tokens", 0))
-            usd += float(cost.get("usd", 0.0))
-            seconds += float(cell.get("seconds") or 0.0)
-            for position, c in enumerate(cell.get("cases") or []):
-                if c["status"] not in ("failed", "error"):
-                    continue
-                for name in c.get("failed") or []:
-                    by_scorer[name] += 1
-                if c["status"] == "error" or c.get("errors"):
-                    by_scorer["error"] += 1
-                elif (c.get("failed") or []) == ["answer_match"]:
-                    wording_only += 1
-                failed_cases.append((cell["pack"], c["case_id"], position))
-        pack_order = {p: i for i, p in enumerate(data["packs"])}
-        failed_cases.sort(
-            key=lambda f: (-failing_models[(f[0], f[1])], pack_order.get(f[0], 99), f[2])
-        )
-        out[alias] = {
-            "ran": len(ran),
-            "cells": len(mine),
-            "passed": passed,
-            "scored": scored,
-            "skipped": skipped,
-            "failed": len(failed_cases),
-            "by_scorer": {name: by_scorer.get(name, 0) for name in SCORER_COLUMNS},
-            "answer_match_only": wording_only,
-            "common_failures": [
-                {"case": f"{p}/{cid}", "models_failing": failing_models[(p, cid)]}
-                for p, cid, _ in failed_cases[:3]
-            ],
-            "input_tokens": tokens_in,
-            "output_tokens": tokens_out,
-            "usd": round(usd, 6),
-            "seconds": round(seconds, 1),
-            "reasons": sorted({c.get("reason") or "" for c in mine if c["status"] != "ok"}),
-        }
-    return out
+def _num(x: float) -> str:
+    return str(int(x)) if float(x) == int(x) else f"{x:.1f}"
 
 
-# -- Markdown ----------------------------------------------------------------------------------
+def cell_counts(cell: dict[str, Any]) -> tuple[list[int], int]:
+    """Per sample the passed count, and the scored count (the same in every sample)."""
+    samples = samples_of(cell)
+    return [int((x.get("totals") or {}).get("passed", 0)) for x in samples], _scored(
+        samples[0].get("totals") or {}
+    )
 
 
 def _cell_text(cell: dict[str, Any] | None) -> str:
@@ -373,11 +425,128 @@ def _cell_text(cell: dict[str, Any] | None) -> str:
         return "n/a"
     if cell["status"] != "ok":
         return "error"
-    return _ratio(cell.get("totals") or {})
+    passed, scored = cell_counts(cell)
+    mean = sum(passed) / len(passed)
+    text = f"{_num(mean)}/{scored}"
+    if min(passed) != max(passed):
+        text += f" ({min(passed)}-{max(passed)})"
+    return text + ("¹" if cell.get("carried") else "")
+
+
+def failing(cell: dict[str, Any]) -> set[str]:
+    """The case ids a cell fails: failed or error in at least half its samples."""
+    samples = samples_of(cell)
+    counts: Counter[str] = Counter()
+    for x in samples:
+        for c in x.get("cases") or []:
+            if c["status"] in ("failed", "error"):
+                counts[c["case_id"]] += 1
+    return {cid for cid, n in counts.items() if 2 * n >= len(samples)}
+
+
+def _scorable(cell: dict[str, Any]) -> set[str]:
+    return {
+        c["case_id"] for c in (samples_of(cell)[0].get("cases") or []) if c["status"] != "skipped"
+    }
+
+
+def summarize(data: dict[str, Any]) -> dict[str, Any]:
+    """Per model: mean, min and max pass counts over the samples, failures by scorer and the
+    `tool_calls` split (means per sample), the cases this model fails that at least half the
+    other real models pass, tokens and cost. `data` is the scorecard JSON."""
+    cells = data["cells"]
+    aliases = [m["alias"] for m in data["models"]]
+    real = {m["alias"] for m in data["models"] if m.get("provider") != "fake"}
+    by_cell = {(c["pack"], c["model"]): c for c in cells if c["status"] == "ok"}
+    out: dict[str, Any] = {}
+    for alias in aliases:
+        mine = [c for c in cells if c["model"] == alias]
+        ran = [c for c in mine if c["status"] == "ok"]
+        n_samples = max((len(samples_of(c)) for c in ran), default=1)
+        per_sample = [0] * n_samples
+        scored = skipped = 0
+        by_scorer: Counter[str] = Counter()
+        split: Counter[str] = Counter()
+        wording_only = failed = 0.0
+        tokens_in = tokens_out = 0
+        usd = seconds = 0.0
+        outliers: list[dict[str, Any]] = []
+        others = [a for a in aliases if a != alias and a in real]
+        for cell in ran:
+            samples = samples_of(cell)
+            passed, cell_scored = cell_counts(cell)
+            for i in range(n_samples):
+                per_sample[i] += passed[i] if i < len(passed) else passed[-1]
+            scored += cell_scored
+            skipped += int((samples[0].get("totals") or {}).get("skipped", 0))
+            for x in samples:
+                cost = x.get("cost") or {}
+                tokens_in += int(cost.get("input_tokens", 0))
+                tokens_out += int(cost.get("output_tokens", 0))
+                usd += float(cost.get("usd", 0.0))
+                seconds += float(x.get("seconds") or 0.0)
+                for c in x.get("cases") or []:
+                    if c["status"] not in ("failed", "error"):
+                        continue
+                    failed += 1 / len(samples)
+                    for name in c.get("failed") or []:
+                        by_scorer[name] += 1 / len(samples)
+                    if c["status"] == "error" or c.get("errors"):
+                        by_scorer["error"] += 1 / len(samples)
+                    elif (c.get("failed") or []) == ["answer_match"]:
+                        wording_only += 1 / len(samples)
+                    if c.get("tool_split"):
+                        split[c["tool_split"]] += 1 / len(samples)
+            # Cases this model fails where at least half the other real models pass.
+            peers = [by_cell[(cell["pack"], a)] for a in others if (cell["pack"], a) in by_cell]
+            for case_id in sorted(failing(cell)):
+                judged = [p for p in peers if case_id in _scorable(p)]
+                passing = [p for p in judged if case_id not in failing(p)]
+                if judged and 2 * len(passing) >= len(judged):
+                    outliers.append({
+                        "case": f"{cell['pack']}/{case_id}", "others_passing": len(passing),
+                        "others": len(judged),
+                    })  # fmt: skip
+        outliers.sort(key=lambda o: -o["others_passing"] / o["others"])
+        out[alias] = {
+            "ran": len(ran),
+            "cells": len(mine),
+            "samples": n_samples,
+            "passed": sum(per_sample) / n_samples if ran else 0,
+            "passed_min": min(per_sample) if ran else 0,
+            "passed_max": max(per_sample) if ran else 0,
+            "scored": scored,
+            "skipped": skipped,
+            "failed": round(failed, 2),
+            "by_scorer": {name: round(by_scorer.get(name, 0), 2) for name in SCORER_COLUMNS},
+            "tool_split": {name: round(split.get(name, 0), 2) for name in TOOL_SPLIT},
+            "answer_match_only": round(wording_only, 2),
+            "outliers": outliers,
+            "input_tokens": tokens_in,
+            "output_tokens": tokens_out,
+            "usd": round(usd, 6),
+            "seconds": round(seconds, 1),
+            "carried": any(c.get("carried") for c in ran),
+            "reasons": sorted({c.get("reason") or "" for c in mine if c["status"] != "ok"}),
+        }
+    return out
+
+
+# -- Markdown ----------------------------------------------------------------------------------
 
 
 def _model_name(m: dict[str, Any]) -> str:
     return m.get("name") or m["alias"]
+
+
+def _total_text(s: dict[str, Any]) -> str:
+    if not s["ran"]:
+        return "n/a"
+    pct = 100.0 * s["passed"] / s["scored"] if s["scored"] else 0.0
+    text = f"**{_num(s['passed'])}/{s['scored']}** ({pct:.0f}%)"
+    if s["passed_min"] != s["passed_max"]:
+        text += f" ({s['passed_min']}-{s['passed_max']})"
+    return text
 
 
 def render_markdown(data: dict[str, Any]) -> str:
@@ -387,11 +556,13 @@ def render_markdown(data: dict[str, Any]) -> str:
     aliases = [m["alias"] for m in models]
     lookup = {(c["pack"], c["model"]): c for c in data["cells"]}
     ollama = data.get("ollama")
+    grading = data.get("grading", "exact")
+    samples = max((stats[a]["samples"] for a in aliases if stats[a]["ran"]), default=1)
     lines = [
         "# Model ladder scorecard",
         "",
         "Which model passes which pack's golden set when the model really answers. Each cell is",
-        "one `model`-suite eval run: every golden case of the pack, answered by the model alias",
+        "a `model`-suite eval run: every golden case of the pack, answered by the model alias",
         "(pinned for every call of the case turn) and judged by the deterministic scorers only",
         "(path, tool calls, citations, answer match, checks, schema, PII leak). No LLM judge,",
         "so a cell is reproducible from the trace. `fake-small` answers from the case fixtures,",
@@ -406,53 +577,88 @@ def render_markdown(data: dict[str, Any]) -> str:
     lines += [
         f"- Tenant: `{data['tenant']}`; embeddings: {data.get('embeddings', 'fake')};"
         f" case timeout: {data.get('case_timeout_s', 60)} s",
+        f"- Grading: {'model grade' if grading == 'model' else 'exact (2026-11-08 rules)'};"
+        f" samples per cell: {samples}",
+    ]
+    profiles = data.get("pack_profiles") or {}
+    if profiles:
+        lines.append(
+            "- Profiles: each pack runs on the harness profile its `pack.yaml` names"
+            " (in brackets after the pack)"
+        )
+    if grading == "model":
+        lines += [
+            "",
+            'Model grade (`spec/contracts/evaluator.md`, "Grading modes"): `tool_calls` passes',
+            "when the expected calls appear in order, with extra calls to read tools allowed",
+            "(any other extra call, or a call when none is expected, fails); `answer_match`",
+            "compares normalized text (case, Unicode, whitespace, dates, times, amounts, numbers).",
+        ]
+    lines += [
         "",
         "## Models",
         "",
-        "| Alias | Provider | Model | Parameters | Quantization |",
-        "|---|---|---|---|---|",
+        "| Alias | Provider | Model | Parameters | Quantization | Temperature |",
+        "|---|---|---|---|---|---|",
     ]
     for m in models:
         d = m.get("details") or {}
         lines.append(
             f"| `{m['alias']}` | {m['provider']} | `{_model_name(m)}` |"
             f" {d.get('parameter_size', '')} | {d.get('quantization_level', '')} |"
+            f" {m.get('temperature') or 'provider default'} |"
         )
     lines += [
         "",
         "## Pass counts",
         "",
-        "`passed/scored` per pack (a skipped case, outside its modes, is not scored); `n/a` means",
-        "the model could not run here (the reason is under the model below).",
+        "`passed/scored` per pack (a skipped case, outside its modes, is not scored)"
+        + (", the mean over the samples with the min and max in brackets" if samples > 1 else "")
+        + "; `n/a` means the model could not run here (the reason is under the model below).",
         "",
         "| Pack | " + " | ".join(f"`{a}`" for a in aliases) + " |",
         "|---|" + "---|" * len(aliases),
     ]
     for pack in data["packs"]:
         row = [_cell_text(lookup.get((pack, a))) for a in aliases]
-        lines.append(f"| `{pack}` | " + " | ".join(row) + " |")
-    totals = []
-    for a in aliases:
-        s = stats[a]
-        if not s["ran"]:
-            totals.append("n/a")
-            continue
-        pct = 100.0 * s["passed"] / s["scored"] if s["scored"] else 0.0
-        totals.append(f"**{s['passed']}/{s['scored']}** ({pct:.0f}%)")
-    lines.append("| **All packs** | " + " | ".join(totals) + " |")
-    ran_models = sum(1 for a in aliases if stats[a]["ran"])
+        label = f"`{pack}` ({profiles[pack]})" if pack in profiles else f"`{pack}`"
+        lines.append(f"| {label} | " + " | ".join(row) + " |")
+    lines.append("| **All packs** | " + " | ".join(_total_text(stats[a]) for a in aliases) + " |")
+    carried = data.get("carried")
+    if carried:
+        lines += [
+            "",
+            f"¹ Carried forward from the {carried['from']} run ({', '.join(carried['models'])},"
+            " one sample, provider default temperature"
+            + (
+                ""
+                if carried.get("profiles")
+                else ", every pack on the 0.1 harness with every node on, before packs named a"
+                " profile"
+            )
+            + ") and "
+            + (
+                "re-graded offline under model grade from the stored case results: tool calls"
+                " and answer match from the stored calls and replies, schema from the answer"
+                " before the output guardrails (trace) with the JSON extraction; path,"
+                " citations, checks and PII as stored (their routing predates the pinned"
+                " price-cap change, so a `lookup` rule check can still fail on a priced model)."
+                if carried.get("regraded")
+                else "kept with the 2026-11-08 grading (the stored case results were not found)."
+            ),
+        ]
     lines += [
         "",
         "## Per model",
         "",
         "Failures by scorer count failed cases per scorer (a case can fail several scorers);",
-        "`error` counts cases whose turn hit an error (a provider error or a timeout). The most",
-        "common failing cases are the ones the most models in this matrix also fail.",
-        "`answer_match` checks exact substrings written for the fixture replies, so a real model",
-        'that words a right answer differently fails it; "answer_match only" counts the failed',
-        "cases where every other scorer passed (read those replies before calling them wrong).",
-        "`tool_calls` is equality with the fixture's tool sequence, so a model that also reads a",
-        "skill or looks a record up before acting fails it even when the extra call is sensible.",
+        "`error` counts cases whose turn hit an error (a provider error or a timeout)."
+        + (" Counts are means per sample." if samples > 1 else ""),
+        '"answer_match only" counts failed cases where every other scorer passed. The',
+        "`tool_calls` split says why that scorer failed: a call when none was expected, no call",
+        "at all, an expected write (non-read) tool not called, an expected read tool not called,",
+        'or the expected calls made with an extra or wrong one. "Fails where most pass" lists',
+        "the cases this model fails that at least half the other real models pass.",
     ]
     for m in models:
         a = m["alias"]
@@ -466,16 +672,27 @@ def render_markdown(data: dict[str, Any]) -> str:
         lines += [
             "| " + " | ".join(SCORER_COLUMNS) + " |",
             "|" + "---|" * len(SCORER_COLUMNS),
-            "| " + " | ".join(str(s["by_scorer"][n]) for n in SCORER_COLUMNS) + " |",
+            "| " + " | ".join(_num(s["by_scorer"][n]) for n in SCORER_COLUMNS) + " |",
             "",
         ]
-        if s["common_failures"]:
-            common = ", ".join(
-                f"`{f['case']}` ({f['models_failing']} of {ran_models} models)"
-                for f in s["common_failures"]
-            )
-            lines.append(f"- {s['failed']} failed cases; most common: {common}")
-            lines.append(f"- answer_match only: {s['answer_match_only']} of the failed cases")
+        if s["failed"]:
+            lines += [
+                "| " + " | ".join(f"tool_calls: {n}" for n in TOOL_SPLIT) + " |",
+                "|" + "---|" * len(TOOL_SPLIT),
+                "| " + " | ".join(_num(s["tool_split"][n]) for n in TOOL_SPLIT) + " |",
+                "",
+                f"- {_num(s['failed'])} failed cases; answer_match only:"
+                f" {_num(s['answer_match_only'])}",
+            ]
+            if s["outliers"]:
+                shown = ", ".join(
+                    f"`{o['case']}` ({o['others_passing']} of {o['others']})"
+                    for o in s["outliers"][:5]
+                )
+                more = f" and {len(s['outliers']) - 5} more" if len(s["outliers"]) > 5 else ""
+                lines.append(f"- Fails where most pass: {shown}{more}")
+            else:
+                lines.append("- Fails where most pass: none")
         else:
             lines.append("- No failed case")
         lines.append(

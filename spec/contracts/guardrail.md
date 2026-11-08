@@ -72,8 +72,11 @@ Action strength, weakest to strongest: `pass`, `redact` (input) or `repair` (out
   `output_guardrails.citations.required` is true, an answer with no citation is `repair`ed once
   (a notice is appended and the citation list is filled from the slices used) or `block`ed when
   `output_guardrails.citations.on_missing` is `block`.
-- Output stage, schema: when an output schema was requested, an invalid answer is `block`ed with
-  a safe message; the loop is not re-entered in v1.
+- Output stage, schema: when an output schema was requested, an answer that is not valid JSON
+  for it but holds a value that is (a fenced JSON block after prose, or JSON with a sentence
+  before or after it) is `repair`ed to the first such value (fenced blocks first, in order, then
+  each object or array in the text), with `schema: valid` and the repair kind `schema`; any
+  other invalid answer is `block`ed with a safe message; the loop is not re-entered in v1.
 - When disabled, the node still enters and exits with status `skipped` and the text is passed
   through untouched.
 
@@ -131,7 +134,7 @@ Action strength, weakest to strongest: `pass`, `redact` (input) or `repair` (out
 
 | Check | What it does | Action |
 |---|---|---|
-| `schema` | When a structured reply was requested (`output_schema` on the turn), the answer must be JSON valid against it | `block` with a safe message |
+| `schema` | When a structured reply was requested (`output_schema` on the turn), the answer must be JSON valid against it; one that wraps a valid value in prose or a code fence is repaired to that value | `repair` (extract), else `block` with a safe message |
 | `content` | Literal blocklist | `block` |
 | `length` | Longer than `max_chars` | `repair` (truncate) |
 | `citations` | When knowledge chunks were in context and the answer makes a claim from them (a sentence of six or more words that shares at least three content words, or two in five of its own, with a chunk): counts `[n]` markers, invalid markers (no such chunk), drawn claims and drawn claims with no marker. An answer that draws nothing from the chunks is not penalised. P5 integration: a sentence that shares as many content words with one of the turn's tool results, or with a fact semantic memory put in context, as with its best chunk is not drawn from the chunks; and an answer with no marker on a turn that ran tools is the tools' answer, so citations are not required (`citations.from_tools: true` when it would otherwise have been) | `repair` once, or `block` (`on_missing: block`, or `block_public: true` in public mode) |

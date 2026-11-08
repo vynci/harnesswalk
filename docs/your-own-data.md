@@ -530,8 +530,12 @@ model, so it costs money and never runs in CI.
 Between the two, the `model` suite answers each case on a real model and keeps the
 deterministic scorers, with no judge: `uv run harnesswalk eval my_support --suite model --model
 local-4b` tells you whether that model calls the tools your cases expect, cites what they
-expect and keeps to policy. `answer_match` substrings were written for the fixture replies, so
-read a reply that fails only `answer_match` before you call it wrong. `harnesswalk scorecard
+expect and keeps to policy. It grades behaviour, not the fixture's wording: the expected tool
+calls must come in order, but extra calls to read tools (a skill, a lookup) are allowed, and
+`answer_match` compares normalized text, so `$6` matches "6 dollars" and "October 14, 2026"
+matches "2026-10-14". Set `"tool_calls_mode": "exact"` in a case's `expect` when a model run
+must call exactly the listed tools. A different wording of the facts still fails, so read a
+reply that fails only `answer_match` before you call it wrong. `harnesswalk scorecard
 --packs my_support --models fake-small,local-4b,local-9b --out my_scorecard.md` runs that for a
 row of models at once ([scorecard.md](scorecard.md) is the one for the shipped packs).
 
