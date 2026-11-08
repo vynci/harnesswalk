@@ -13,6 +13,7 @@ import type {
   HarnessEvent,
   OpsEvent,
   PackSummary,
+  HarnessProfile,
   StartEvalRequest,
   TurnFeedback,
   TurnSummary,
@@ -109,6 +110,8 @@ export interface AppState {
   sessionId: string | null
   /** P5: the packs GET /v1/packs lists (null until loaded, or without features.packs). */
   packs: PackSummary[] | null
+  /** 0.2.0: the harness profiles GET /v1/profiles lists (null until loaded, or an older API). */
+  profiles: HarnessProfile[] | null
   /**
    * P5: the session's pack (from the session, its turn summaries or `turn_start`), or the pack
    * the next new session starts on. Every pack-scoped call names it.
@@ -598,6 +601,11 @@ export const useApp = create<AppState>()((set, get) => {
     } catch {
       // The picker stays empty; turns run on the configured pack.
     }
+    try {
+      set({ profiles: (await api.profiles()).profiles })
+    } catch {
+      // An API before 0.2.0: no profile chip, nothing dimmed by a profile.
+    }
     const stored = load<{ sessionId: string | null; pack: string } | null>('pack', null)
     let pack = stored && typeof stored.pack === 'string' && (stored.sessionId === sessionId || !stored.sessionId) ? stored.pack : null
     if (sessionId) {
@@ -632,6 +640,7 @@ export const useApp = create<AppState>()((set, get) => {
 
     sessionId: null,
     packs: null,
+    profiles: null,
     pack: null,
     switchingPack: false,
     turns: {},

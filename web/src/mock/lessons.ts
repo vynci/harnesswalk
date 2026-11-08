@@ -104,6 +104,7 @@ export class MockLessons {
           node_id: nodeId,
           covers,
           group: nodeId ? !covers.includes(nodeId) : false,
+          requires: Array.isArray(meta.requires) ? meta.requires.map(String) : [],
           words: words(body),
           url: `/v1/lessons/${slug}`,
           markdown: body.replace(/^\n+/, ''),
@@ -117,7 +118,7 @@ export class MockLessons {
 
   list(): { lessons: LessonListItem[]; walk_order: string[] } {
     return {
-      lessons: this.chapters.map(({ slug, n, title, hook, node_id, covers, group, words: w, url }) => ({ slug, n, title, hook, node_id, covers, group, words: w, url })),
+      lessons: this.chapters.map(({ slug, n, title, hook, node_id, covers, group, requires, words: w, url }) => ({ slug, n, title, hook, node_id, covers, group, requires, words: w, url })),
       walk_order: this.diagram.walk_order,
     }
   }

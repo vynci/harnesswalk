@@ -9,7 +9,9 @@ import { Kbd } from '@/components/ui/kbd'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
+import { useProfile } from '@/state/hooks'
 import { usePanels } from '@/state/panels'
+import { gapText, profileGap } from '@/state/profiles'
 import { useApp } from '@/state/store'
 import { GuideChapter } from './GuideChapter'
 import { stepEntry, type OutlineEntry } from './outline'
@@ -38,6 +40,9 @@ function ProgressText({ slug, written }: { slug: string; written: boolean }) {
 function Contents({ current, onGo }: { current: string | null; onGo: (entry: OutlineEntry) => void }) {
   const { outline, status } = useOutline()
   const progress = useLessonProgress((s) => s.progress)
+  // 0.2.0: a chapter whose node the pack's profile switches off is greyed, still readable.
+  const profile = useProfile()
+  const profiles = useApp((s) => s.profiles)
   const walk = outline.filter((e) => !e.group)
   const inside = outline.filter((e) => e.group)
   // After the open chapter, else the first written one not read yet.
@@ -45,7 +50,9 @@ function Contents({ current, onGo }: { current: string | null; onGo: (entry: Out
     ? stepEntry(outline, current, 1)
     : (outline.find((e) => e.written && !progress[e.slug]?.read) ?? outline.find((e) => e.written) ?? null)
 
-  const row = (e: OutlineEntry) => (
+  const row = (e: OutlineEntry) => {
+    const gap = profileGap(profile, profiles, e.requires)
+    return (
     <li key={e.slug}>
       <button
         type="button"
@@ -55,9 +62,11 @@ function Contents({ current, onGo }: { current: string | null; onGo: (entry: Out
         className={cn(
           'flex w-full cursor-pointer flex-col gap-1 rounded-md px-3 py-2.5 text-left transition-colors duration-200 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:opacity-50',
           e.slug === current && 'bg-muted',
+          gap && 'opacity-60',
         )}
         data-testid="lesson-row"
         data-slug={e.slug}
+        data-profile-off={gap ? 'true' : undefined}
       >
         <span className="flex items-baseline gap-2">
           <span className="font-mono text-xs text-muted-foreground tabular-nums">{num(e.n)}</span>
@@ -65,12 +74,18 @@ function Contents({ current, onGo }: { current: string | null; onGo: (entry: Out
           {e.group && <span className="text-xs text-muted-foreground">inside</span>}
         </span>
         {e.hook && <span className="line-clamp-2 pl-7 text-xs text-muted-foreground">{e.hook}</span>}
+        {gap && (
+          <span className="pl-7 text-xs text-muted-foreground" data-testid="lesson-row-profile">
+            {gapText(gap)}
+          </span>
+        )}
         <span className="pl-7">
           <ProgressText slug={e.slug} written={e.written} />
         </span>
       </button>
     </li>
-  )
+    )
+  }
 
   return (
     <>
