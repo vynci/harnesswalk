@@ -13,6 +13,7 @@ datasets/<id>/
   provenance.md        required: how the pack was made, licence, synthetic statement
   system_prompt.md     skill zero (procedural memory, always in context)
   skills/<name>.md     on-demand skills, front matter `name` (= file stem) and `description`
+  skills/policy.md     optional (P2): the business rules in words, for the model to read
   tools.yaml           the pack's tools (spec/contracts/tool_registry.md)
   guardrails.yaml      optional: input-guardrail overrides (`pii`), patterns per pack
   facts.jsonl          seed facts {"key", "value", "entities"?}
@@ -49,11 +50,13 @@ CLI and the validator (P5 integration; it replaced `harnesswalk/ops/pack_index.p
 | `feature` | string | The harness feature the pack demonstrates, in a few words |
 | `demonstrates` | object | `id`, `nodes` (diagram node ids it lights), `summary` (what the learner sees) |
 | `licence` | `CC0-1.0` | Content licence; no other value is accepted |
-| `provenance` | string | The provenance card's file name, normally `provenance.md` |
+| `provenance` | string or object | The provenance card's file name, normally `provenance.md`; or (P2) `{card, generator?}` with `card` that file name and `generator: {model, date, prompt_hash?}` the model that wrote the pack's synthetic content, the date (`YYYY-MM-DD`) and a hex hash of the generator's prompts. `tools/gen_pack.py` fills it |
 | `synthetic` | `true` | No real people, companies or identifiers |
 | `prompts` | list of strings | 1 to 10 prompts for the UI's suggestion row |
 
-No other keys. `domain` and `starter` packs need every key but `id`; a `profile` pack (its
+No other keys: `provenance` holds only `card` and `generator`, and `generator` only `model`,
+`date` and `prompt_hash` (P2, additive; the spec stays 0.2.0). `domain` and `starter` packs
+need every key but `id`; a `profile` pack (its
 content comes inline from a config overlay, like `spec/conformance/packs/conformance_alt`;
 the tier's name predates harness profiles) needs only `title`, `licence` and `profile`, and
 the file, tool and golden checks below do not apply to it. `GET /v1/packs` returns `id`,
@@ -68,7 +71,7 @@ the file, tool and golden checks below do not apply to it. `GET /v1/packs` retur
 | documents in `docs/` | 10 to 20, at least 2 PDFs | any |
 | words per document (markdown, or the PDF's source) | 300 to 900 | any |
 | skills | 3 to 5 | any |
-| pack tools | 2 to 4 | any |
+| pack tools | 2 to 12 (P2: was 2 to 4; a governed pack splits commands by risk) | any |
 | facts / episodes | 15 to 30 / 8 to 15 | any |
 | golden cases | 20 to 30 | any |
 | numbered prompts in `prompts.md` | 6 to 10 | any |
@@ -83,6 +86,16 @@ Every tool declares `action_class` and `timeout_ms`. A pack tool must not shadow
 (`calculator`, `read_skill`, `remember`, `read_doc`), and must be in `config/policy.yaml`
 `agent.allow_tools`, or policy denies it (rule `agent.allowlist`) and the model never sees it.
 
+## Skills: `skills/policy.md` (P2)
+
+A pack may ship its business rules as a skill named `policy` (`skills/policy.md`, front matter
+`name: policy`). The procedural store loads it like any skill, so the model sees it in the
+skills index and reads it on demand with `read_skill`. It is the human-readable version, the
+rules the model may promise and must refuse; the enforced rules stay in code, in
+`config/policy.yaml` (the `policy` node decides every tool call from them, never from the
+skill). A pack that ships one must read it in at least one golden case: a fixture turn the
+case plays calls `read_skill` with `{"name": "policy"}`.
+
 ## Golden cases: `checks`, `modes` and `after`
 
 A golden case may carry `checks`, scored by the eval runner as the `checks` scorer
@@ -94,11 +107,43 @@ A golden case may carry `checks`, scored by the eval runner as the `checks` scor
   (`semantic`, `episodic` or `knowledge`) include the substring. A recall case on the finance
   pack checks that a fact the previous case asked to `remember` reached the context.
 
+P2 adds two keys to `checks`, for long sessions:
+
+- `compacted`: `true` or `false`. Whether the context builder folded old turns into the
+  running summary (its exit summary's `compacted`) in the turn, or in any turn of a multi-turn
+  case when the check sits on the case.
+- `summary`: a substring the running session summary holds in the (last) turn's context. On
+  the fake provider the summary is the truncation summary (each folded turn's first 160
+  characters of user and reply text), so a fact the case must keep goes early in its turn; a
+  model summarises under `remembered` and up when a non-fake `summarize` model is routed.
+
 Cases run in file order in one scratch tenant, so a case may rely on what an earlier case's
 memory writer wrote; such a case names that case in `after` (the loader refuses an `after`
 that is not an earlier case). `modes` limits a case to some harness modes: the starter's
 `pii_redacted` expects the user's own email back, which only dev restores, so it is
 `"modes": ["dev"]` and the release gate can pass in private mode.
+
+## Golden cases: `turns` and `roles` (P2)
+
+A case may carry `turns` instead of `prompt`: a list of `{user, expect?, checks?}`, at least
+one. The turns run in order in one session (one session id, so turn `n` sees the earlier
+turns as history, and the context builder compacts when the session slice passes its
+threshold). `expect` and `checks` may sit on any turn and on the case: a turn's are scored on
+that turn's events as `turn<n>.<scorer>` (`turn2.tool_calls`); the case's are scored over the
+whole session (`path` and `tool_calls` are every turn's in order, `citations` every turn's,
+`answer_*` and `schema` the last turn's reply, `pii_leak` every reply against every user
+message, `checks` every turn's events, with `retrieved` and `summary` read from the last
+context). A turn has no other keys; `approval`, `modes`, `after` and `roles` stay on the case.
+A case with both `prompt` and `turns` does not load.
+
+`fixture` is then one name for every turn, whose turn `n` answers the case's turn `n` (the
+fake provider counts turns per session and fixture), or a list of names aligned with `turns`.
+The validator checks each turn's `tool_calls` against the fixture turn it reads, and the
+case's `tool_calls` against every turn's calls in order.
+
+`roles` is a list of role names the case identity runs as (default `["user"]`), so a case can
+prove what `config/policy.yaml` `roles` and role-scoped rules deny: a `viewer` asking for a
+reboot is denied by policy (rule `roles`), whatever the model does.
 
 ## Validation (`harnesswalk packs validate [<id>] [--profile <file>]`)
 
@@ -114,7 +159,9 @@ when:
 6. every golden case loads, names a fixture that exists (the pack's, or a conformance one),
    whose first turn calls exactly `expect.tool_calls`, only known tools, cites only existing
    documents, has no unresolved `[[cite:doc]]` marker, whose `checks` name known router
-   rules and stores, and whose `after` names an earlier case;
+   rules and stores, and whose `after` names an earlier case; a multi-turn case (P2) is
+   checked turn by turn against the fixture turn each reads, and its own `tool_calls` against
+   all of them in order;
 7. no personal-data pattern matches the pack's content (system prompt, skills, documents
    including PDF text, PDF sources, seeds, tool tables). The patterns are the default detector's
    (email, Luhn-valid card, phone, US SSN, Canadian SIN) plus every pack's `guardrails.yaml`
@@ -132,7 +179,10 @@ when:
    only carry tools that need no human: no `destructive` or `external` class, and none that a
    rule of `config/policy.yaml` sends to `needs_approval` in dev mode. The golden set itself
    must pass on the fake provider under the pack's profile (CI runs every pack's golden set,
-   which now runs on its profile).
+   which now runs on its profile). The node and store needs of every turn of a multi-turn
+   case count too;
+10. (P2) a `skills/policy.md`, when present, is read by at least one golden case (a fixture
+    turn the case plays calls `read_skill` with name `policy`).
 
 A pack goes on the lowest rung whose nodes its golden set needs, or higher; when a case needs a
 node the profile switches off, the pack moves up a rung rather than the case changing. The

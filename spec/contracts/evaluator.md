@@ -117,6 +117,7 @@ one case per line:
 | `checks` | P5: `{router_rules?: [rule id per model call, in order], retrieved?: {semantic \| episodic \| knowledge: substring}}`, scored by `checks` |
 | `modes` | P5 integration: the harness modes the case applies in (`dev`, `public`, `private`); absent means every mode. Outside them the case is `skipped` with a `detail`, and a skipped case does not count toward a pass rate |
 | `after` | P5 integration: the id of an earlier case whose memory writes this case reads (a remember and recall pair). Load fails when it is not an earlier case |
+| `turns`, `roles` | P2: a multi-turn case and the case identity's roles ("P2 additions: multi-turn cases" below) |
 
 The P0 keys (`input`, `path_includes`, `must_cite`, `judge.rubric`) are read as aliases of
 `prompt`, `path`, `citations: [{}]` (at least one) and `rubric`.
@@ -307,6 +308,33 @@ parameter sizes and quantization from `/api/show`), the pass-count matrix (packs
 models as columns, `passed/scored`), and per model the failed cases by scorer name, the three
 failing cases the most models also fail, and the tokens, cost and wall time. The JSON holds
 every cell's totals and, per case, its status, failing scorers and error codes.
+
+## P2 additions: multi-turn cases
+
+Additive (spec 0.2.0, `spec/packs.md` "Golden cases: `turns` and `roles`"). A case may carry
+`turns: [{user, expect?, checks?}]` in place of `prompt`; `fixture` is one name or a list
+aligned with the turns. The runner plays the turns in order, each a real turn through the
+whole harness, in one session of the case tenant (`sess_<run_id>_<case_id>`), so turn `n`
+has the earlier turns as history and compaction runs when the session slice passes its
+threshold. Each turn's approvals are decided with the case's `approval`.
+
+- **Scoring.** A turn with `expect` or `checks` is scored on that turn's events with the
+  deterministic scorers but `pii_leak`, each score named `turn<n>.<scorer>` (1-based). The
+  case's own `expect`, `checks` and `output_schema` are scored over the session: `path` and
+  `tool_calls` are the turns' in order, `citations` every turn's, `answer_match` and `schema`
+  the last turn's reply, `pii_leak` every reply against every user message, and `checks`
+  every turn's events (`router_rules` in order across the turns; `retrieved` and `summary`
+  from the last context). A case passes when every score passes, as before. On `judge`, the
+  judge reads the last user message, the last reply and the session's retrieved context.
+- **Run detail.** `actual` is the session's (the joined path, tool calls and citations, the
+  last reply) with `actual.turns`, each turn's own `actual`; `turn_id` is the last turn's and
+  `turn_ids` lists every turn's.
+- **`checks` for long sessions.** `compacted` (bool): a context build of the turn (or of any
+  turn, on the case) folded old turns into the running summary, read from the
+  `context_builder` exit summary's `compacted`. `summary` (substring): the running summary
+  the last context sent the model holds it, read from the context builder's stored detail.
+- **`roles`.** The case identity's roles (default `["user"]`), so a golden case can prove a
+  role-scoped policy decision.
 
 ## 0.2.0: eval switched off
 

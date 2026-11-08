@@ -12,7 +12,12 @@ returns `{value, pass, detail}`:
     answer_match  substring (all of them), exact, or regex
     checks        the case's `checks` (P5): the router rule of each model call, in order, and
                   a substring each named store put in context (from the context builder's
-                  stored detail)
+                  stored detail); P2: whether the context builder compacted the session, and
+                  a substring of the running summary in context
+
+A multi-turn case (P2) is scored per turn on that turn's events, and as a whole on the
+session: `session_actual` joins the turns' paths, tool calls and citations in order and keeps
+the last turn's reply.
 """
 
 from __future__ import annotations
@@ -74,6 +79,50 @@ def actual_of(events: list[Event]) -> dict[str, Any]:
             if e["type"] == "error"
         ],
     }
+
+
+def session_actual(turns: list[dict[str, Any]]) -> dict[str, Any]:
+    """A multi-turn case's `actual`: every turn's path, tool calls, citations and errors in
+    order, the last turn's reply, exit and status, the summed cost, and each turn's own."""
+    last = turns[-1]
+    cost: dict[str, Any] | None = None
+    for t in turns:
+        if t.get("cost"):
+            cost = cost or {}
+            for k, v in t["cost"].items():
+                if isinstance(v, (int, float)):
+                    cost[k] = round(cost.get(k, 0) + v, 6)
+    return {
+        "reply": last["reply"],
+        "exit": last["exit"],
+        "status": last["status"],
+        "path": [n for t in turns for n in t["path"]],
+        "citations": [c for t in turns for c in t["citations"]],
+        "tool_calls": [c for t in turns for c in t["tool_calls"]],
+        "cost": cost,
+        "errors": [e for t in turns for e in t["errors"]],
+        "turns": turns,
+    }
+
+
+SUMMARY_BLOCK = re.compile(r'<retrieved_data kind="summary">\n(.*?)\n</retrieved_data>', re.S)
+
+
+def _context_details(events: list[Event], get_detail: Callable[[str], Any]) -> list[dict]:
+    return [
+        (get_detail(e["detail_ref"]) if e.get("detail_ref") else None) or {}
+        for e in events
+        if e["type"] == "node_exit" and e.get("node_id") == "context_builder"
+    ]
+
+
+def running_summary(detail: dict[str, Any]) -> str:
+    """The running session summary a context builder detail sent the model, or ""."""
+    for m in detail.get("messages") or []:
+        found = SUMMARY_BLOCK.search(m.get("content") or "")
+        if found:
+            return found.group(1)
+    return ""
 
 
 def _result(value: float, passed: bool, detail: str) -> dict[str, Any]:
@@ -166,17 +215,28 @@ def score_checks(
         if got != list(want_rules):
             problems.append(f"router rules {got}, expected {list(want_rules)}")
     retrieved = checks.get("retrieved") or {}
+    details = _context_details(events, get_detail) if retrieved or "summary" in checks else []
     if retrieved:
-        detail: dict[str, Any] = {}
-        for e in events:
-            if e["type"] == "node_exit" and e.get("node_id") == "context_builder":
-                detail = (get_detail(e["detail_ref"]) if e.get("detail_ref") else None) or {}
+        detail: dict[str, Any] = details[-1] if details else {}
         items = detail.get("items") or {}
         for store, needle in retrieved.items():
             texts = [h.get("text", "") for h in items.get(store) or []]
             if not any(needle in t for t in texts):
                 problems.append(f"{store} context has no {needle!r} (got {texts[:3]})")
-    total = (want_rules is not None) + len(retrieved)
+    if "compacted" in checks:  # P2: any context build of these events folded old turns
+        compacted = any(
+            (e.get("summary") or {}).get("compacted")
+            for e in events
+            if e["type"] == "node_exit" and e.get("node_id") == "context_builder"
+        )
+        if compacted != checks["compacted"]:
+            problems.append(f"compacted is {compacted}, expected {checks['compacted']}")
+    if "summary" in checks:  # P2: the running summary in the last context holds a substring
+        summary = running_summary(details[-1]) if details else ""
+        if checks["summary"] not in summary:
+            problems.append(f"summary has no {checks['summary']!r} (got {summary[:200]!r})")
+    total = (want_rules is not None) + len(retrieved) + ("compacted" in checks)
+    total += "summary" in checks
     if not problems:
         return _result(1.0, True, "every check holds")
     return _result(1 - len(problems) / max(1, total), False, "; ".join(problems))

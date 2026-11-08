@@ -15,7 +15,10 @@ A pack is a directory `datasets/<id>/` with a `pack.yaml`. The validator checks,
     seeds       facts.jsonl and episodes.jsonl lines have their keys
     golden      every case loads, names a fixture that exists and loads, calls only known
                 tools (the fixture's calls equal `expect.tool_calls`), cites existing
-                documents, and its `checks` name known router rules and stores
+                documents, and its `checks` name known router rules and stores; a multi-turn
+                case (P2) is checked turn by turn against its fixture's turns
+    policy      P2: a `skills/policy.md`, when present, is read by at least one golden case
+                (a fixture turn calls `read_skill` with name `policy`)
     pii         no personal-data pattern of any pack's guardrails (nor the default ones)
                 matches the pack's content; prompts may only use reserved test values
     provenance  the provenance card exists, says CC0 and says synthetic
@@ -62,7 +65,7 @@ TIERS = {
         "docs": (10, 20),
         "pdfs": (2, 20),
         "skills": (3, 5),
-        "tools": (2, 4),
+        "tools": (2, 12),
         "facts": (15, 30),
         "episodes": (8, 15),
         "golden": (20, 30),
@@ -130,7 +133,34 @@ PACK_SCHEMA: dict[str, Any] = {
             },
         },
         "licence": {"const": "CC0-1.0"},
-        "provenance": {"type": "string", "pattern": r"^[A-Za-z0-9_.-]+\.md$"},
+        # The card's file name, or (P2) `{card, generator}`: which model wrote the content.
+        "provenance": {
+            "oneOf": [
+                {"type": "string", "pattern": r"^[A-Za-z0-9_.-]+\.md$"},
+                {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["card"],
+                    "properties": {
+                        "card": {"type": "string", "pattern": r"^[A-Za-z0-9_.-]+\.md$"},
+                        "generator": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["model", "date"],
+                            "properties": {
+                                "model": {"type": "string", "minLength": 1, "maxLength": 80},
+                                "date": {
+                                    "type": "string",
+                                    "format": "date",
+                                    "pattern": r"^\d{4}-\d{2}-\d{2}$",
+                                },
+                                "prompt_hash": {"type": "string", "pattern": r"^[0-9a-f]{8,64}$"},
+                            },
+                        },
+                    },
+                },
+            ]
+        },
         "synthetic": {"const": True},
         "prompts": {
             "type": "array",
@@ -198,6 +228,21 @@ class Pack:
         from harnesswalk.profiles import DEFAULT_PROFILE
 
         return self._text("profile") or DEFAULT_PROFILE
+
+    @property
+    def provenance_card(self) -> str:
+        """The provenance card's file name: the card's `provenance` string, or its `card`."""
+        value = self.meta.get("provenance")
+        if isinstance(value, dict):
+            value = value.get("card")
+        return str(value) if isinstance(value, str) and value else "provenance.md"
+
+    @property
+    def generator(self) -> dict[str, Any] | None:
+        """`provenance.generator` (P2): the model, date and prompt hash behind the content."""
+        value = self.meta.get("provenance")
+        gen = value.get("generator") if isinstance(value, dict) else None
+        return dict(gen) if isinstance(gen, dict) else None
 
     @property
     def demonstrates(self) -> dict[str, Any]:
@@ -551,7 +596,7 @@ def validate(
     for name in REQUIRED_FILES:
         if not (pack.path / name).is_file():
             add("files", f"{name} is missing")
-    provenance = str(pack.meta.get("provenance") or "provenance.md")
+    provenance = pack.provenance_card
     if not (pack.path / provenance).is_file():
         add("provenance", f"{provenance} is missing")
     else:
@@ -599,6 +644,7 @@ def validate(
     issues += _check_seeds(pack)
     issues += _check_guardrails(pack)
     issues += _check_golden(pack, config_root)
+    issues += _check_policy_skill(pack, config_root)
     issues += _check_pii(pack, packs)
     return issues
 
@@ -632,11 +678,13 @@ def _check_profile(pack: Pack, config_root: Path) -> list[Issue]:
         cases = []  # reported by the golden check
     for case in cases:
         needs: set[str] = set()
-        for node_id in case.expect.get("path") or []:
-            needs.update(PATH_NEEDS.get(node_id, ()))
-        if case.expect.get("citations"):
-            needs.add("knowledge")
-        needs.update((case.checks or {}).get("retrieved") or {})
+        blocks = [(case.expect, case.checks)] + [(t.expect, t.checks) for t in case.turns]
+        for expect, checks in blocks:
+            for node_id in expect.get("path") or []:
+                needs.update(PATH_NEEDS.get(node_id, ()))
+            if expect.get("citations"):
+                needs.add("knowledge")
+            needs.update((checks or {}).get("retrieved") or {})
         for node_id in sorted(needs & off):
             add(f"{case.id}: needs {node_id!r}, which profile {profile.id} switches off "
                 "(move the pack up the ladder)", "golden.jsonl")  # fmt: skip
@@ -759,12 +807,31 @@ def _check_guardrails(pack: Pack) -> list[Issue]:
     return []
 
 
-def _fixture_calls(fixture: dict[str, Any]) -> list[str]:
-    """The tool names the fixture's first turn calls, in order."""
+def _fixture_calls(fixture: dict[str, Any], turn: int = 0) -> list[str]:
+    """The tool names turn `turn` of the fixture calls (its first by default), in order."""
     turns = fixture.get("turns") or []
-    if not turns:
+    if turn >= len(turns):
         return []
-    return [c["name"] for r in turns[0]["responses"] for c in r.get("tool_calls", [])]
+    return [c["name"] for r in turns[turn]["responses"] for c in r.get("tool_calls", [])]
+
+
+def case_turns(case: Any) -> list[tuple[str | None, int, dict[str, Any], dict[str, Any] | None]]:
+    """Each turn of a golden case as (fixture name, the fixture turn it reads, expect, checks).
+
+    A one-prompt case is one turn that reads its fixture's first turn. A multi-turn case (P2)
+    with one fixture reads its turn `n` on turn `n`; with a list, turn `n` reads the next unread
+    turn of the list's item `n` (the fake provider counts turns per session and fixture)."""
+    if not case.turns:
+        return [(case.fixture, 0, case.expect, case.checks)]
+    out = []
+    seen: dict[str, int] = {}
+    for n, turn in enumerate(case.turns):
+        name = case.fixture_for(n)
+        index = seen.get(name, 0) if isinstance(name, str) else 0
+        if isinstance(name, str):
+            seen[name] = index + 1
+        out.append((name, index, turn.expect, turn.checks))
+    return out
 
 
 def _check_golden(pack: Pack, config_root: Path) -> list[Issue]:
@@ -792,31 +859,91 @@ def _check_golden(pack: Pack, config_root: Path) -> list[Issue]:
         if not case.fixture:
             add("names no fixture, so the golden suite would skip it")
             continue
-        try:
-            fixture_path = find_fixture(case.fixture, dirs)
-            fixture = load_fixture(fixture_path)
-        except ConfigError as exc:
-            add(str(exc))
-            continue
-        text = fixture_path.read_text(encoding="utf-8")
-        if "[[cite:" in text:
-            add(f"fixture {case.fixture} has unresolved [[cite:]] markers (run finalize)")
-        called = _fixture_calls(fixture)
-        for name in set(called) - tools:
-            add(f"fixture {case.fixture} calls unknown tool {name!r}")
-        expected = case.expect.get("tool_calls")
-        if expected is not None:
-            for name in set(expected) - tools:
-                add(f"expects unknown tool {name!r}")
-            if list(expected) != called:
-                add(f"expects tool calls {expected} but fixture {case.fixture} calls {called}")
-        for cite in case.expect.get("citations") or []:
-            if cite.get("doc") and cite["doc"] not in docs:
-                add(f"cites unknown document {cite['doc']!r}")
-        for rule in (case.checks or {}).get("router_rules") or []:
-            if rule not in rules:
-                add(f"checks names unknown router rule {rule!r}")
+        session_calls: list[str] = []
+        for n, (name, index, expect, checks) in enumerate(case_turns(case)):
+            where = f"turn {n + 1}: " if case.turns else ""
+            try:
+                fixture_path = find_fixture(str(name), dirs)
+                fixture = load_fixture(fixture_path)
+            except ConfigError as exc:
+                add(where + str(exc))
+                session_calls = []
+                break
+            if "[[cite:" in fixture_path.read_text(encoding="utf-8"):
+                add(f"fixture {name} has unresolved [[cite:]] markers (run finalize)")
+            if index >= len(fixture.get("turns") or []):
+                add(f"{where}fixture {name} has no turn {index + 1}")
+            called = _fixture_calls(fixture, index)
+            session_calls += called
+            for tool in set(called) - tools:
+                add(f"{where}fixture {name} calls unknown tool {tool!r}")
+            expected = expect.get("tool_calls")
+            if expected is not None:
+                for tool in set(expected) - tools:
+                    add(f"{where}expects unknown tool {tool!r}")
+                if list(expected) != called:
+                    add(f"{where}expects tool calls {expected} but fixture {name} calls {called}")
+            _check_cites_and_rules(expect, checks, docs, rules, lambda m, w=where: add(w + m))
+        if case.turns:
+            expected = case.expect.get("tool_calls")
+            if expected is not None and list(expected) != session_calls:
+                add(f"expects session tool calls {expected} but the fixtures call {session_calls}")
+            _check_cites_and_rules(case.expect, case.checks, docs, rules, add)
     return out
+
+
+def _check_cites_and_rules(
+    expect: dict[str, Any], checks: dict[str, Any] | None, docs: set[str], rules: set[str], add
+) -> None:
+    for cite in expect.get("citations") or []:
+        if cite.get("doc") and cite["doc"] not in docs:
+            add(f"cites unknown document {cite['doc']!r}")
+    for rule in (checks or {}).get("router_rules") or []:
+        if rule not in rules:
+            add(f"checks names unknown router rule {rule!r}")
+
+
+POLICY_SKILL = "policy"  # skills/policy.md: the pack's business rules, in words (P2)
+
+
+def _check_policy_skill(pack: Pack, config_root: Path) -> list[Issue]:
+    """A `skills/policy.md` must be read by a golden case: a fixture turn the case plays calls
+    `read_skill` with name `policy`. The enforced rules stay in config/policy.yaml."""
+    from harnesswalk.execution.providers.fake import find_fixture, load_fixture
+    from harnesswalk.ops.eval.golden import GoldenError, load_golden
+    from harnesswalk.types import ConfigError
+
+    if not (pack.path / "skills" / f"{POLICY_SKILL}.md").is_file():
+        return []
+    try:
+        cases = load_golden(pack.path / "golden.jsonl")
+    except GoldenError:
+        return []  # reported by the golden check
+    dirs = [pack.path / "fixtures" / "fake", config_root / "spec" / "conformance" / "fixtures"]
+    for case in cases:
+        for name, index, _expect, _checks in case_turns(case):
+            try:
+                fixture = load_fixture(find_fixture(str(name), dirs))
+            except ConfigError:
+                continue
+            turns = fixture.get("turns") or []
+            responses = turns[index]["responses"] if index < len(turns) else []
+            for r in responses:
+                for call in r.get("tool_calls", []):
+                    if (
+                        call["name"] == "read_skill"
+                        and (call.get("arguments") or {}).get("name") == POLICY_SKILL
+                    ):
+                        return []
+    return [
+        Issue(
+            pack.id,
+            "policy",
+            "skills/policy.md is read by no golden case (a fixture turn "
+            "calling read_skill with name policy)",
+            "skills/policy.md",
+        )  # fmt: skip
+    ]
 
 
 def _findings(scanners: list[Any], text: str) -> list[Any]:

@@ -78,6 +78,18 @@ pack) and `retrieved` (a remembered fact that must reach the context; the financ
 recall case reads what that case wrote); and `modes`, the harness modes a case applies in (a
 case that expects a typed value restored in the reply is `["dev"]`, since only dev restores).
 
+A case can also script a whole conversation (P2): `turns: [{user, expect?, checks?}]` in
+place of `prompt`, played in one session so the later turns see the earlier ones and long
+sessions compact. Expectations may sit on any turn (scored as `turn2.tool_calls` and so on)
+and on the case (scored over the session). `fixture` is then one fixture whose line `n`
+answers turn `n`, or a list with one fixture per turn. `roles` runs a case as a role (a
+`viewer`, say) so a role-scoped policy rule can be proved; `checks.compacted` and
+`checks.summary` check what survives compaction.
+
+A pack may ship `skills/policy.md`: its business rules in words, for the model to read with
+`read_skill`. The rules the harness enforces stay in `config/policy.yaml`; the validator asks
+that at least one golden case reads the policy skill.
+
 Fake fixtures are JSON Lines: one line per chat turn of a session, each line
 `{"responses": [...]}` with responses shaped as in `spec/conformance/fixture.schema.json`.
 The file stem is the fixture name, so `harnesswalk turn "..." --provider fake --fixture

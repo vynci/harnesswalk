@@ -1,17 +1,23 @@
 """Generate one synthetic dataset pack with a hosted model, then finish it locally.
 
     uv run python tools/gen_pack.py <pack> [--stage core|docs|golden|finalize|all] [--force]
+        [--model sonnet|haiku] [--only <doc id>,...]
 
 The hosted stages (`core`, `docs`, `golden`) send `tools/packs/_common.prompt.md` and
-`tools/packs/<pack>.prompt.md` to `claude-sonnet-5-5` over the Messages API (plain httpx,
-streamed) and write the files the model returns into `datasets/<pack>/`. The key is read from
+`tools/packs/<pack>.prompt.md` to `claude-sonnet-5-5` (or, with `--model haiku`,
+`claude-haiku-5-5` for bulk text) over the Messages API (plain httpx, streamed) and write the
+files the model returns into `datasets/<pack>/`. `--only` limits the docs stage to some
+documents of the plan, so one pack can mix models. The key is read from
 the `ANTHROPIC_API_KEY` environment variable only; nothing here prints or stores it. Each call
 appends its token usage to `tools/packs/<pack>.usage.jsonl`, which the provenance card sums.
 
 `finalize` needs no network: it adds the pack's fixed fields and guardrails, removes
 em-dashes, renders the PDF documents (`fpdf2`, a dev dependency), turns `[[cite:<doc>]]`
 markers in the fake fixtures into the passage numbers the harness retrieves for each golden
-case, and writes `provenance.md`. A stage whose outputs exist is skipped unless `--force`.
+case (turn by turn for a multi-turn case), and writes `provenance.md`. P2: the card's
+`provenance` becomes `{card, generator: {model, date, prompt_hash}}`, the model that wrote
+most of the pack's output tokens (spec/packs.md). A stage whose outputs exist is skipped
+unless `--force`.
 
 Generated packs are reviewed and edited by hand after this script; the provenance card says
 so. The content is synthetic and dedicated to the public domain (CC0 1.0).
@@ -38,8 +44,13 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 PROMPTS = ROOT / "tools" / "packs"
 DATASETS = ROOT / "datasets"
-MODEL = "claude-sonnet-5-5"
-PRICE_IN, PRICE_OUT = 2.0, 10.0  # dollars per million tokens (config/models.yaml hosted-sonnet)
+# The generator models: id, dollars per million tokens in and out (config/models.yaml), and the
+# thinking mode that needs no replay.
+MODELS = {
+    "sonnet": ("claude-sonnet-5-5", 2.0, 10.0, {"type": "between_tools"}),
+    "haiku": ("claude-haiku-5-5", 0.10, 0.50, {"type": "disabled"}),
+}
+MODEL, PRICE_IN, PRICE_OUT, THINKING = MODELS["sonnet"]
 API = "https://api.anthropic.com/v1/messages"
 STAGES = ("core", "docs", "golden", "finalize")
 DOCS_PER_CALL = 4
@@ -93,6 +104,10 @@ FEATURES = {
     "logistics": "multi_step_tools",
     "sports": "router",
     "finance": "citations_and_memory",
+    "device_fleet": "governed_commands",
+    "gov_services": "bilingual_grounding",
+    "long_session": "compaction_and_memory",
+    "helpdesk_lite": "small_model_lookups",
 }
 # The harness profile each pack runs with (spec/packs.md `profile`, spec/harness.md section 10):
 # the lowest rung whose nodes its golden set needs, or higher (P1 measured the ladder).
@@ -102,10 +117,20 @@ PROFILES = {
     "logistics": "governed",
     "sports": "grounded",
     "finance": "operated",
+    "device_fleet": "governed",
+    "gov_services": "grounded",
+    "long_session": "remembered",
+    "helpdesk_lite": "minimal",
 }
 
 
 # -- the hosted model -------------------------------------------------------------------------
+
+
+def use_model(name: str) -> None:
+    """Pick the generator model for the hosted stages of this run."""
+    global MODEL, PRICE_IN, PRICE_OUT, THINKING
+    MODEL, PRICE_IN, PRICE_OUT, THINKING = MODELS[name]
 
 
 def call_model(system: str, user: str, max_tokens: int) -> tuple[str, dict[str, int]]:
@@ -118,7 +143,7 @@ def call_model(system: str, user: str, max_tokens: int) -> tuple[str, dict[str, 
         "max_tokens": max_tokens,
         "system": system,
         "messages": [{"role": "user", "content": user}],
-        "thinking": {"type": "between_tools"},  # Sonnet 5.5's thinking-off mode
+        "thinking": THINKING,  # the model's thinking-off mode
         "stream": True,
     }
     headers = {"x-api-key": key, "anthropic-version": "2023-06-01"}
@@ -219,9 +244,11 @@ def stage_core(pack: str, pack_dir: Path) -> None:
     write_files(pack_dir, files)
 
 
-def stage_docs(pack: str, pack_dir: Path, force: bool) -> None:
+def stage_docs(pack: str, pack_dir: Path, force: bool, only: set[str] | None = None) -> None:
     plan = json.loads((PROMPTS / f"{pack}.plan.json").read_text(encoding="utf-8"))
     todo = [d for d in plan if force or not doc_exists(pack_dir, d["id"])]
+    if only:
+        todo = [d for d in todo if d["id"] in only]
     ctx = context_files(pack_dir, CORE_FILES)
     for i in range(0, len(todo), DOCS_PER_CALL):
         batch = todo[i : i + DOCS_PER_CALL]
@@ -232,7 +259,7 @@ def stage_docs(pack: str, pack_dir: Path, force: bool) -> None:
             f"\n\nRun the stage: docs. Write these documents now:\n{listing}"
         )
         text, usage = call_model(common(), user, 16000)
-        record_usage(pack, f"docs[{i // DOCS_PER_CALL}]", usage)
+        record_usage(pack, f"docs[{','.join(d['id'] for d in batch)}]", usage)
         write_files(pack_dir, parse_files(text))
 
 
@@ -287,11 +314,26 @@ def finish_pack_yaml(pack: str, pack_dir: Path, profile: str | None = None) -> N
         "demonstrates": {"id": FEATURES[pack], "nodes": shown.get("nodes"),
                          "summary": str(shown.get("summary") or "").strip()},
         "licence": "CC0-1.0",
-        "provenance": "provenance.md",
+        "provenance": {"card": "provenance.md", "generator": generator(pack)},
         "synthetic": True,
         "prompts": data.get("prompts") or data.get("suggested_prompts") or [],
     }  # fmt: skip
     path.write_text(yaml.safe_dump(ordered, sort_keys=False, allow_unicode=True, width=100))
+
+
+def generator(pack: str) -> dict[str, str]:
+    """`provenance.generator`: the model that wrote most output tokens, the last generation
+    date and a hash of both prompt files (spec/packs.md)."""
+    rows = usage_rows(pack)
+    by_model: dict[str, int] = {}
+    for r in rows:
+        by_model[r["model"]] = by_model.get(r["model"], 0) + r["output_tokens"]
+    model = max(by_model, key=by_model.__getitem__) if by_model else "hand-written"
+    dates = sorted(r["date"] for r in rows) or [dt.date.today().isoformat()]
+    digest = hashlib.sha256()
+    for name in ("_common.prompt.md", f"{pack}.prompt.md"):
+        digest.update((PROMPTS / name).read_bytes())
+    return {"model": model, "date": dates[-1], "prompt_hash": digest.hexdigest()[:16]}
 
 
 def write_guardrails(pack: str, pack_dir: Path) -> None:
@@ -362,39 +404,50 @@ def resolve_citations(pack: str) -> list[str]:
     """Replace `[[cite:<doc>]]` in each case's fixture with the number that doc's best passage
     gets in that case's context (fake provider, hash embeddings: the same on every machine)."""
     from harnesswalk.ops.eval.golden import load_golden
+    from harnesswalk.packs import case_turns
 
     pack_dir = DATASETS / pack
     cases = load_golden(pack_dir / "golden.jsonl")
     pending = []
     for case in cases:
-        path = pack_dir / "fixtures" / "fake" / f"{case.fixture}.jsonl"
-        if case.fixture and path.exists() and CITE.search(path.read_text(encoding="utf-8")):
-            pending.append((case, path))
+        names = {str(name) for name, _i, _e, _c in case_turns(case) if name}
+        paths = [pack_dir / "fixtures" / "fake" / f"{n}.jsonl" for n in sorted(names)]
+        if any(p.exists() and CITE.search(p.read_text(encoding="utf-8")) for p in paths):
+            pending.append(case)
     if not pending:
         return []
     problems = []
-    numbering = asyncio.run(_numbering(pack, [c for c, _ in pending]))
-    for case, path in pending:
-        numbers = numbering.get(case.id, {})
+    numbering = asyncio.run(_numbering(pack, pending))
+    for case in pending:
+        for n, (name, index, _e, _c) in enumerate(case_turns(case)):
+            path = pack_dir / "fixtures" / "fake" / f"{name}.jsonl"
+            if not path.exists():
+                continue
+            numbers = numbering.get(case.id, [{}])[n] if n < len(numbering.get(case.id, [])) else {}
 
-        def put(m: re.Match[str], numbers: dict[str, int] = numbers, case: Any = case) -> str:
-            n = numbers.get(m.group(1))
-            if n is None:
-                problems.append(f"{case.id}: {m.group(1)} is not retrieved for this prompt")
-                return m.group(0)
-            return f"[{n}]"
+            def put(m: re.Match[str], numbers: dict[str, int] = numbers, case: Any = case) -> str:
+                got = numbers.get(m.group(1))
+                if got is None:
+                    problems.append(f"{case.id}: {m.group(1)} is not retrieved for this prompt")
+                    return m.group(0)
+                return f"[{got}]"
 
-        path.write_text(CITE.sub(put, path.read_text(encoding="utf-8")), encoding="utf-8")
+            lines = path.read_text(encoding="utf-8").splitlines()
+            if index < len(lines):
+                lines[index] = CITE.sub(put, lines[index])
+                path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return problems
 
 
-async def _numbering(pack: str, cases: list[Any]) -> dict[str, dict[str, int]]:
+async def _numbering(pack: str, cases: list[Any]) -> dict[str, list[dict[str, int]]]:
+    """Per case, per turn: the passage number each cited document gets in that context."""
     from harnesswalk.config.loader import load_settings
     from harnesswalk.control.gateway import TurnRequest
+    from harnesswalk.packs import case_turns
     from harnesswalk.runtime import Harness
     from harnesswalk.types import Identity
 
-    out: dict[str, dict[str, int]] = {}
+    out: dict[str, list[dict[str, int]]] = {}
     with tempfile.TemporaryDirectory() as tmp:
         settings = load_settings(
             ROOT,
@@ -407,38 +460,46 @@ async def _numbering(pack: str, cases: list[Any]) -> dict[str, dict[str, int]]:
         h = Harness(settings)
         try:
             for case in cases:
-                req = TurnRequest(
-                    message=case.prompt,
-                    identity=Identity("gen", None, ["user"], anonymous=False),
-                    session_id=f"sess_gen_{case.id}"[:120],
-                    channel="cli",
-                    provider="fake",
-                    fixture=case.fixture,
-                )
-                state = await h.gateway.start_turn(req)
-
-                def deny(event: dict[str, Any], turn: str = state.ctx.turn_id) -> None:
-                    if event["type"] == "approval_requested" and event.get("turn_id") == turn:
-                        approval_id = event["summary"]["approval_id"]
-                        h.approvals.decide(approval_id, "gen", "gen", "deny", "")
-
-                unsubscribe = h.bus.subscribe(deny)
-                try:
-                    await h.gateway.wait(state.ctx.turn_id, timeout=30)
-                finally:
-                    unsubscribe()
-                events = h.tracer.get_turn("gen", state.ctx.turn_id)
-                numbers: dict[str, int] = {}
-                for e in events:
-                    if e["type"] == "node_exit" and e.get("node_id") == "context_builder":
-                        ref = e.get("detail_ref")
-                        detail = h.tracer.get_detail("gen", ref) if ref else {}
-                        for c in (detail or {}).get("citations") or []:
-                            numbers.setdefault(c["doc"], c["n"])
-                out[case.id] = numbers
+                users = [t.user for t in case.turns] or [case.prompt]
+                out[case.id] = []
+                for n, ((name, _i, _e, _c), message) in enumerate(
+                    zip(case_turns(case), users, strict=True)
+                ):
+                    req = TurnRequest(
+                        message=message,
+                        identity=Identity("gen", None, list(case.roles or ["user"]), False),
+                        session_id=f"sess_gen_{case.id}"[:120],
+                        channel="cli",
+                        provider="fake",
+                        fixture=name,
+                    )
+                    out[case.id].append(await _turn_numbers(h, req, case.approval, n))
         finally:
             await h.aclose()
     return out
+
+
+async def _turn_numbers(h: Any, req: Any, decision: str, _n: int) -> dict[str, int]:
+    """Play one turn (approvals decided as the case says) and number its cited documents."""
+    state = await h.gateway.start_turn(req)
+
+    def decide(event: dict[str, Any], turn: str = state.ctx.turn_id) -> None:
+        if event["type"] == "approval_requested" and event.get("turn_id") == turn:
+            h.approvals.decide(event["summary"]["approval_id"], "gen", "gen", decision, "")
+
+    unsubscribe = h.bus.subscribe(decide)
+    try:
+        await h.gateway.wait(state.ctx.turn_id, timeout=30)
+    finally:
+        unsubscribe()
+    numbers: dict[str, int] = {}
+    for e in h.tracer.get_turn("gen", state.ctx.turn_id):
+        if e["type"] == "node_exit" and e.get("node_id") == "context_builder":
+            ref = e.get("detail_ref")
+            detail = h.tracer.get_detail("gen", ref) if ref else {}
+            for c in (detail or {}).get("citations") or []:
+                numbers.setdefault(c["doc"], c["n"])
+    return numbers
 
 
 def prompt_hashes(pack: str) -> dict[str, str]:
@@ -463,8 +524,15 @@ def write_provenance(pack: str, pack_dir: Path, pdfs: list[str]) -> None:
     dates = sorted({r["date"] for r in rows}) or [dt.date.today().isoformat()]
     hashes = "\n".join(f"| `{k}` | `{v}` |" for k, v in prompt_hashes(pack).items())
     calls = "\n".join(
-        f"| {r['stage']} | {r['input_tokens']} | {r['output_tokens']} | ${r['usd']:.4f} |"
+        f"| {r['stage']} | `{r['model']}` | {r['input_tokens']} | {r['output_tokens']} |"
+        f" ${r['usd']:.4f} |"
         for r in rows
+    )
+    models = ", ".join(f"`{m}`" for m in sorted({r["model"] for r in rows})) or "none (by hand)"
+    prices = "; ".join(
+        f"`{mid}` ${pin:.2f} in and ${pout:.2f} out"
+        for mid, pin, pout, _t in MODELS.values()
+        if mid in {r["model"] for r in rows}
     )
     title = (yaml.safe_load((pack_dir / "pack.yaml").read_text()) or {}).get("title", pack)
     notes = PROMPTS / f"{pack}.review.md"
@@ -485,7 +553,7 @@ or identifiers: every business, product, place, person, id and number in it is i
 |---|---|
 | Licence | CC0 1.0 Universal (public domain dedication) |
 | Generator | `tools/gen_pack.py` (stages core, docs, golden, then finalize) |
-| Model | `{MODEL}` (Anthropic Messages API), thinking off |
+| Model | {models} (Anthropic Messages API), thinking off |
 | Generated on | {", ".join(dates)} |
 | Prompts | `tools/packs/_common.prompt.md`, `tools/packs/{pack}.prompt.md` |
 | Document plan | `tools/packs/{pack}.plan.json` |
@@ -497,13 +565,12 @@ Prompt file hashes (sha256, first 16 hex):
 |---|---|
 {hashes}
 
-Token usage and cost (prices from `config/models.yaml`, ${PRICE_IN:.2f} in and
-${PRICE_OUT:.2f} out per million tokens):
+Token usage and cost (prices from `config/models.yaml`, per million tokens: {prices or "none"}):
 
-| Call | Input tokens | Output tokens | Cost |
-|---|---|---|---|
+| Call | Model | Input tokens | Output tokens | Cost |
+|---|---|---|---|---|
 {calls}
-| **Total** | **{tin}** | **{tout}** | **${usd:.4f}** |
+| **Total** | | **{tin}** | **{tout}** | **${usd:.4f}** |
 
 Local steps (no model): `guardrails.yaml` and the fixed `pack.yaml` fields come from the
 script; em-dashes are replaced; the PDFs are rendered from their markdown sources with
@@ -540,7 +607,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("pack", choices=sorted(FEATURES))
     parser.add_argument("--stage", choices=[*STAGES, "all"], default="all")
     parser.add_argument("--force", action="store_true", help="run a stage whose outputs exist")
+    parser.add_argument("--model", choices=sorted(MODELS), default="sonnet",
+                        help="the generator model for the hosted stages")  # fmt: skip
+    parser.add_argument("--only", help="docs stage: comma-separated document ids of the plan")
     args = parser.parse_args(argv)
+    use_model(args.model)
     pack_dir = DATASETS / args.pack
     pack_dir.mkdir(parents=True, exist_ok=True)
     stages = STAGES if args.stage == "all" else (args.stage,)
@@ -549,7 +620,8 @@ def main(argv: list[str] | None = None) -> int:
         if stage == "core" and (args.force or not (pack_dir / "tools.yaml").exists()):
             stage_core(args.pack, pack_dir)
         elif stage == "docs":
-            stage_docs(args.pack, pack_dir, args.force)
+            only = set(args.only.split(",")) if args.only else None
+            stage_docs(args.pack, pack_dir, args.force, only)
         elif stage == "golden" and (args.force or not (pack_dir / "golden.jsonl").exists()):
             stage_golden(args.pack, pack_dir)
         elif stage == "finalize":

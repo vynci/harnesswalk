@@ -12,6 +12,13 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 
 ### Added
 
+- **Multi-turn golden cases and pack format additions (P2).** A golden case may script a
+  whole conversation (`turns`), run in one session so memory and compaction are testable,
+  with expectations on any turn and on the case; `roles` runs a case as a given role;
+  `checks.compacted` and `checks.summary` check what survives compaction; a pack may ship
+  `skills/policy.md`, its business rules in words; `pack.yaml` `provenance` may name the
+  generator model. `tools/gen_pack.py` gains `--model haiku` and `--only`, writes the
+  generator block and resolves citations turn by turn.
 - **The model ladder scorecard.** `harnesswalk scorecard` runs every pack's golden set on each
   model alias you list (one `model`-suite eval run per cell, one model at a time) and writes a
   pack x model pass matrix with a failure breakdown by scorer to `docs/scorecard.md`, plus the
