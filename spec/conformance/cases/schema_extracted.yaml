@@ -1,0 +1,21 @@
+id: schema_extracted
+title: A structured reply wrapped in prose and a code fence is repaired to its valid JSON value
+spec_version: 0.2.0
+fixture: schema_extracted
+turns:
+  - send:
+      message: What is the status of order A-1001? Answer as JSON.
+      options:
+        output_schema:
+          type: object
+          required: [order_id, status]
+          properties:
+            order_id: { type: string }
+            status: { type: string }
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, tools, policy, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: node_exit, node_id: output_guardrails, summary: { action: repair, schema: valid } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      reply_contains: ['"order_id": "A-1001"', '"status": "shipped"']

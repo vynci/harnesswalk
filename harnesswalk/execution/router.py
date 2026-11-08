@@ -19,9 +19,10 @@ each call to the aliases of `public.models` that can answer now (site key or BYO
 shared daily budget for priced aliases, control/public.py).
 
 Model suite (evaluator.md, "Model suite"): a router may be `pinned` to one alias for an eval
-case turn. Rules still match by their `when` (so a case's `router_rules` keep their meaning)
-and a rule's `max_price_out_per_mtok` still applies to the pinned alias, but the rule's own
-`use` list is not consulted: every call answers on the pinned alias, with no fallback.
+case turn (`model` runs, and `judge` runs with a model). Rules still match by their `when` (so
+a case's `router_rules` keep their meaning), but neither the rule's `use` list nor its
+`max_price_out_per_mtok` is consulted: every call answers on the pinned alias, with no
+fallback; the route reports the first rule whose `when` matches.
 """
 
 from __future__ import annotations
@@ -117,7 +118,9 @@ class Router:
         return any(self._usable(alias, req, uncapped) for alias in rule.get("use", []))
 
     def _route_pinned(self, req: RouteRequest, alias: str) -> Route:
-        """The first matching rule whose price cap the pinned alias fits; the alias answers."""
+        """The first rule whose `when` matches; the pinned alias answers. A price cap does not
+        apply: the run chose the alias on purpose, and a cap that pushed a priced alias to the
+        next rule would misreport the step (a hosted model's after-tool call as `default`)."""
         model = self._models.get(alias)
         if model is None or model.get("embedding"):
             raise ProviderError("provider_error", f"unknown model alias {alias!r}", retryable=False)
@@ -129,14 +132,9 @@ class Router:
                 f"the pinned model {alias} has no configured provider for this request",
                 retryable=False,
             )
-        price_out = float(model.get("price_out_per_mtok") or 0)
         for rule in self._rules:
-            if not self.matches(rule.get("when") or {}, req):
-                continue
-            cap = rule.get("max_price_out_per_mtok")
-            if cap is not None and price_out > float(cap):
-                continue  # as an unpinned rule whose models are all priced out
-            return Route(rule=rule["id"], model=alias, alternatives=[])
+            if self.matches(rule.get("when") or {}, req):
+                return Route(rule=rule["id"], model=alias, alternatives=[])
         raise ProviderError("provider_error", "no router rule matched", retryable=False)
 
     def route(self, req: RouteRequest) -> Route:

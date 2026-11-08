@@ -126,7 +126,7 @@ whose JSON is longer than the cap come as `arguments: null` with `arguments_text
 | `model_layer` | enter | `step`, `request: Request` |
 | `model_layer` | exit | `step`, `provider`, `model`, `request: Request`, `reply: {...Text, tool_calls: [ToolCall], finish_reason}` |
 | `output_guardrails` | enter | `before: Text` (the loop's answer) |
-| `output_guardrails` | exit | `before: Text`, `after: Text` (the reply that goes on), `action`, `repairs` (the repair kinds: `length`, `citations`, `pii`), `reasons`, `checks: [Verdict]`, `restored` (placeholders put back), `restore_mode`, `disabled` (when skipped) |
+| `output_guardrails` | exit | `before: Text`, `after: Text` (the reply that goes on), `action`, `repairs` (the repair kinds: `schema`, `length`, `citations`, `pii`), `reasons`, `checks: [Verdict]`, `restored` (placeholders put back), `restore_mode`, `schema_extracted: true` (when the JSON reply was taken out of prose or a fence), `disabled` (when skipped) |
 
 ```
 Check    = { check, verdict: "pass" | "redact" | "warn" | "block", looked_at: {stage, chars},

@@ -612,6 +612,17 @@ def _release(args: argparse.Namespace) -> int:
 LADDER = "fake-small,local-2b,local-4b,local-9b,local-e4b,local-8b"
 
 
+def _guardrail_before(harness: Any, tenant: str, turn_id: str | None) -> str | None:
+    """The answer a case turn's output guardrails received (their exit payload), or None."""
+    if not turn_id:
+        return None
+    for event in reversed(harness.tracer.get_turn(tenant, turn_id) or []):
+        if event.get("node_id") == "output_guardrails" and event["type"] == "node_exit":
+            detail = harness.tracer.get_detail(tenant, event.get("detail_ref") or "") or {}
+            return ((detail.get("payload") or {}).get("before") or {}).get("text")
+    return None
+
+
 def _scorecard(args: argparse.Namespace) -> int:
     """`harnesswalk scorecard`: one `model`-suite eval run per (pack, model), sequentially,
     rendered as docs/scorecard.md (and JSON). Exit 2 on an unknown pack or model alias."""
@@ -619,6 +630,7 @@ def _scorecard(args: argparse.Namespace) -> int:
 
     from harnesswalk import packs as packs_mod
     from harnesswalk.ops.eval import scorecard as sc
+    from harnesswalk.ops.eval.offline import read_tools_of
     from harnesswalk.runtime import Harness
 
     base = _settings(args)
@@ -645,9 +657,29 @@ def _scorecard(args: argparse.Namespace) -> int:
         "evals.case_timeout_s": args.case_timeout,
     }
     spent = {"usd": 0.0}
+    samples = max(1, int(args.samples))
+    carry_models = [a.strip() for a in (args.carry_models or "").split(",") if a.strip()]
+    if carry_models and not args.carry:
+        print("harnesswalk scorecard: --carry-models needs --carry", file=sys.stderr)
+        return 2
 
     def say(line: str) -> None:
         print(line, file=sys.stderr, flush=True)
+
+    def temperature(alias: str) -> tuple[dict[str, Any], str]:
+        """Temperature 0 where the provider takes it: the overrides and what the page says."""
+        cfg = configured[alias]
+        provider = cfg.get("provider")
+        if provider == "ollama":
+            return {f"models.models.{alias}.params.options.temperature": 0}, "0"
+        if provider == "anthropic":
+            thinking = ((cfg.get("params") or {}).get("thinking") or {}).get("type", "disabled")
+            if thinking == "disabled":
+                return {f"models.models.{alias}.params.temperature": 0}, "0"
+            return {}, "provider default (thinking on)"
+        if provider == "fake":
+            return {}, "n/a (scripted)"
+        return {}, "provider default"
 
     async def run() -> dict[str, Any]:
         ollama = await sc.probe_ollama(ollama_url, ollama_names) if ollama_names else None
@@ -678,24 +710,75 @@ def _scorecard(args: argparse.Namespace) -> int:
             if priced and spent["usd"] >= args.max_usd:
                 return sc.not_run(pack, alias, f"spend cap ${args.max_usd:.2f} reached")
             cell_args = argparse.Namespace(**{**vars(args), "provider": cfg["provider"]})
-            settings = _settings(cell_args, **{"dataset": pack, **overrides})
+            extra, _ = temperature(alias)
+            settings = _settings(cell_args, **{"dataset": pack, **overrides, **extra})
             harness = Harness(settings)
+            runs = []
             try:
-                start = harness.evals.offline.start(
-                    args.tenant, pack, "model", model=alias, by="cli:scorecard"
-                )
-                await harness.evals.offline.wait(start["run_id"])
-                summary = harness.evals.store.run(args.tenant, start["run_id"]) or {}
-                cases = harness.evals.store.cases(start["run_id"])
+                read_tools = read_tools_of(harness.view(pack))
+                for _ in range(samples):
+                    start = harness.evals.offline.start(
+                        args.tenant, pack, "model", model=alias, by="cli:scorecard"
+                    )
+                    await harness.evals.offline.wait(start["run_id"])
+                    summary = harness.evals.store.run(args.tenant, start["run_id"]) or {}
+                    cases = harness.evals.store.cases(start["run_id"])
+                    runs.append(sc.sample_of(summary, cases, read_tools))
+                    spent["usd"] += float((summary.get("cost") or {}).get("usd", 0.0))
             finally:
                 await harness.aclose()
-            cell = sc.cell_of(pack, alias, summary, cases)
-            spent["usd"] += float((cell.get("cost") or {}).get("usd", 0.0))
-            return cell
+            return sc.cell_of(pack, alias, samples=runs)
+
+        async def carried() -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict]:
+            """The --carry-models cells of an earlier scorecard JSON, re-graded under model
+            grade from the stored case results (this data directory's eval store and trace)."""
+            old = json.loads(Path(args.carry).read_text(encoding="utf-8"))
+            old_models = {m["alias"]: m for m in old.get("models") or []}
+            harness = Harness(_settings(args, **{"stores.ingest_on_start": False}))
+            cells, regraded_all = [], True
+            try:
+                for alias in carry_models:
+                    for cell in [c for c in old["cells"] if c["model"] == alias]:
+                        if cell["pack"] not in wanted:
+                            continue
+                        if cell["status"] != "ok":
+                            cells.append({**cell, "carried": True})
+                            continue
+                        run_id = cell.get("run_id") or sc.samples_of(cell)[0].get("run_id")
+                        stored = harness.evals.store.run_of(run_id) if run_id else None
+                        if stored is None:
+                            regraded_all = False
+                            cells.append({**cell, "carried": True})
+                            continue
+                        read_tools = read_tools_of(harness.view(cell["pack"]))
+                        tenant = stored.get("case_tenant") or f"evalrun-{run_id}"
+                        cases = [
+                            sc.regrade_case(c, read_tools, before_text=_guardrail_before(
+                                harness, tenant, c.get("turn_id")
+                            ))
+                            for c in harness.evals.store.cases(run_id)
+                        ]  # fmt: skip
+                        totals = sc.regraded_totals(cases, stored.get("totals") or {})
+                        summary = {**stored, "totals": totals}
+                        cells.append(sc.cell_of(
+                            cell["pack"], alias,
+                            samples=[sc.sample_of(summary, cases, read_tools)], carried=True,
+                        ))  # fmt: skip
+            finally:
+                await harness.aclose()
+            models = [old_models[a] for a in carry_models if a in old_models]
+            note = {"from": old.get("generated_at", "?")[:10], "models": carry_models,
+                    "regraded": regraded_all, "path": args.carry}  # fmt: skip
+            return cells, models, note
 
         cells = await sc.run_matrix(
             wanted, aliases, run_cell, reasons, prepare=prepare, finish=finish, log=say
         )
+        carry_note = None
+        carry_meta: list[dict[str, Any]] = []
+        if carry_models:
+            extra_cells, carry_meta, carry_note = await carried()
+            cells += extra_cells
         models = []
         for a in aliases:
             cfg = configured[a]
@@ -706,7 +789,10 @@ def _scorecard(args: argparse.Namespace) -> int:
                 "digest": info.get("digest"), "params": cfg.get("params"),
                 "price_in_per_mtok": cfg.get("price_in_per_mtok", 0),
                 "price_out_per_mtok": cfg.get("price_out_per_mtok", 0),
+                "temperature": temperature(a)[1],
             })  # fmt: skip
+        models += carry_meta
+        temps = sorted({m["temperature"] for m in models if m.get("temperature")})
         command = " ".join([
             *(["HARNESSWALK_OLLAMA_URL=" + ollama_url] if ollama_names else []),
             *(["ANTHROPIC_API_KEY=<your key>"]
@@ -714,12 +800,17 @@ def _scorecard(args: argparse.Namespace) -> int:
             "uv run harnesswalk scorecard", f"--models {','.join(aliases)}",
             f"--packs {args.packs}", f"--out {args.out}",
             *([f"--json {args.json}"] if args.json else []),
+            *([f"--samples {samples}"] if samples > 1 else []),
+            *([f"--carry {args.carry} --carry-models {','.join(carry_models)}"]
+              if carry_models else []),
         ])  # fmt: skip
         return sc.scorecard_data(
             cells=cells, models=models, packs=wanted, tenant=args.tenant,
             harness_version=__version__, spec_version=SPEC_VERSION, ollama=ollama,
             embeddings="fake (hash vectors, the same for every model)",
             case_timeout_s=args.case_timeout, command=command, json_path=args.json,
+            grading="model", samples=samples, carried=carry_note,
+            temperature="; ".join(temps) if len(temps) > 1 else (temps[0] if temps else "n/a"),
         )  # fmt: skip
 
     data = asyncio.run(run())
@@ -731,9 +822,9 @@ def _scorecard(args: argparse.Namespace) -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     stats = sc.summarize(data)
-    for a in aliases:
+    for a in [m["alias"] for m in data["models"]]:
         s = stats[a]
-        state = f"{s['passed']}/{s['scored']}" if s["ran"] else "n/a"
+        state = f"{s['passed']:g}/{s['scored']}" if s["ran"] else "n/a"
         print(f"{a:<14} {state:<9} ${s['usd']:.4f}  {s['seconds']:.0f}s")
     print(f"wrote {out}" + (f" and {args.json}" if args.json else ""))
     return 0
@@ -789,6 +880,14 @@ def build_parser() -> argparse.ArgumentParser:
     sc.add_argument("--json", metavar="PATH", help="also write the scorecard data as JSON")
     sc.add_argument("--tenant", default="scorecard", help="the tenant that owns the runs")
     sc.add_argument("--case-timeout", type=float, default=120.0, help="seconds per case turn")
+    sc.add_argument("--samples", type=int, default=1, help="eval runs per cell (mean, min, max)")
+    sc.add_argument(
+        "--carry", metavar="JSON", help="an earlier scorecard JSON to carry columns from"
+    )
+    sc.add_argument(
+        "--carry-models",
+        help="the aliases to carry from --carry, re-graded from the stored case results",
+    )
     sc.add_argument(
         "--max-usd", type=float, default=5.0, help="stop priced cells once the runs spent this"
     )

@@ -104,7 +104,7 @@ own fixture in `options` keeps it). Each run appends a random suffix to the tena
 not see each other's audit records or memory. Cases that need a server of their own are
 reported as `SKIP` with the reason: another `mode`, `config` overrides, a restart, or requests
 to `/v1/artifacts` and `/v1/releases`, which change state the whole server shares. Today that
-leaves 10 of the 28 cases (a case pinned to a profile also needs its own server, unless `--profile` names it); use `--command` for the rest.
+leaves 11 of the 29 cases (a case pinned to a profile also needs its own server, unless `--profile` names it); use `--command` for the rest.
 
 For the reference harness:
 

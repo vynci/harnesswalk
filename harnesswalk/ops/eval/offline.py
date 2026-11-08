@@ -11,7 +11,9 @@ harness (gateway to trace), in its own session, in a scratch tenant for the run
 from the same state. On the `golden` suite the case answers from its `fake` fixture; on
 `judge` it answers from the given model (or its fixture) and a judge model scores it; on
 `model` it answers from the given model alias, pinned for every call of the case turn (a `fake`
-alias answers from the case's fixture), and the deterministic scorers judge it, no LLM judge.
+alias answers from the case's fixture), and the deterministic scorers judge it under model
+grading (ordered tool calls with read calls allowed, normalized answer matching), no LLM judge.
+A `judge` run with a model pins it the same way.
 The runner decides any approval with the case's `approval` (default deny).
 
 Progress is an ops stream (`eval:<run_id>`): `eval_run_started`, one `eval_case_finished` per
@@ -56,6 +58,11 @@ class EvalRequestError(Exception):
     def __init__(self, status: int, code: str, message: str) -> None:
         super().__init__(message)
         self.status, self.code, self.message = status, code, message
+
+
+def read_tools_of(view: Any) -> frozenset[str]:
+    """The tools of action class `read` in a pack view: the extra calls model grading allows."""
+    return frozenset(spec.name for spec in view.registry.all() if spec.action_class == "read")
 
 
 def scratch_tenant(run_id: str) -> str:
@@ -308,7 +315,9 @@ class OfflineRunner:
                     return None
                 fixture = case.fixture
         elif run["suite"] == "judge" and run["model"]:
-            model = run["model"]
+            # Pinned as on `model` (a hint alone only picks among the matched rule's aliases,
+            # so `--model local-4b` answered on local-8b before).
+            model = pin = run["model"]
             provider = self.h.settings.get(f"models.models.{model}.provider")
         elif case.fixture:
             provider, fixture = "fake", case.fixture
@@ -371,6 +380,7 @@ class OfflineRunner:
             names = JUDGE_DETERMINISTIC if run["suite"] == "judge" else DETERMINISTIC
             view = self._views.get(run["run_id"], (self.h, False))[0]
             tenant = request.identity.tenant_id
+            model_grade = run["suite"] == "model"
             scores = deterministic(
                 case,
                 actual,
@@ -378,6 +388,8 @@ class OfflineRunner:
                 names,
                 events=events,
                 get_detail=lambda ref: self.h.tracer.get_detail(tenant, ref),
+                grading="model" if model_grade else "exact",
+                read_tools=read_tools_of(view) if model_grade else frozenset(),
             )
             if run["suite"] == "judge":
                 verdict = await self.judge.judge(

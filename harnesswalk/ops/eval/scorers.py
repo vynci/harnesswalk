@@ -13,6 +13,12 @@ returns `{value, pass, detail}`:
     checks        the case's `checks` (P5): the router rule of each model call, in order, and
                   a substring each named store put in context (from the context builder's
                   stored detail)
+
+Grading modes (evaluator.md, "Grading modes"): `exact` (the `golden` and `judge` suites)
+compares as above; `model` (the `model` suite) grades a real model's behaviour, not the
+fixture's phrasing: `tool_calls` is `ordered` (the expected calls in order as a subsequence,
+extra calls to read tools allowed; a case may ask for `expect.tool_calls_mode: exact`), and
+`answer_match` compares normalized text (ops/eval/normalize.py).
 """
 
 from __future__ import annotations
@@ -26,6 +32,7 @@ import jsonschema
 
 from harnesswalk import diagram
 from harnesswalk.events import Event
+from harnesswalk.ops.eval import normalize as norm
 from harnesswalk.ops.eval.golden import GoldenCase
 
 DETERMINISTIC = (
@@ -38,6 +45,7 @@ DETERMINISTIC = (
     "checks",
 )
 JUDGED = ("faithfulness", "relevance")
+GRADING = ("exact", "model")
 
 
 def simple_path(events: list[Event]) -> list[str]:
@@ -108,10 +116,42 @@ def score_citations(expected: list[dict[str, Any]], actual: list[dict[str, Any]]
     )
 
 
-def score_tool_calls(expected: list[str], actual: list[str]) -> dict[str, Any]:
-    if list(expected) == list(actual):
-        return _result(1.0, True, f"called {actual or 'no tool'}")
-    return _result(0.0, False, f"expected {expected}, called {actual}")
+def score_tool_calls(
+    expected: list[str],
+    actual: list[str],
+    mode: str = "exact",
+    read_tools: frozenset[str] | set[str] = frozenset(),
+) -> dict[str, Any]:
+    """`exact`: the calls equal the expected list. `ordered`: the expected calls appear in
+    order as a subsequence and every other call is to a read tool; no call when none is
+    expected. An `ordered` detail starts with the rule that decided (`none expected`,
+    `ordered`); the model grading prefixes an `exact` one with `exact:`."""
+    expected, actual = list(expected), list(actual)
+    if mode != "ordered":
+        if expected == actual:
+            return _result(1.0, True, f"called {actual or 'no tool'}")
+        return _result(0.0, False, f"expected {expected}, called {actual}")
+    if not expected:
+        if not actual:
+            return _result(1.0, True, "none expected: called no tool")
+        return _result(0.0, False, f"none expected: called {actual}")
+    matched, extras = 0, []
+    for name in actual:
+        if matched < len(expected) and name == expected[matched]:
+            matched += 1
+        else:
+            extras.append(name)
+    if matched < len(expected):
+        return _result(
+            matched / len(expected),
+            False,
+            f"ordered: missing {expected[matched]!r} after {expected[:matched]}, called {actual}",
+        )
+    writes = [name for name in extras if name not in read_tools]
+    if writes:
+        return _result(0.0, False, f"ordered: extra non-read call(s) {writes}; expected {expected}")
+    allowed = f"; extra read calls {extras} allowed" if extras else ""
+    return _result(1.0, True, f"ordered: called {expected} in order{allowed}")
 
 
 def score_schema(schema: dict[str, Any], reply: str | None) -> dict[str, Any]:
@@ -136,7 +176,12 @@ def score_pii(detector: Any, prompt: str, reply: str | None) -> dict[str, Any]:
     return _result(len(leaks), False, f"{len(leaks)} leak(s): {sorted(set(leaks))}")
 
 
-def score_answer(expect: dict[str, Any], reply: str | None) -> dict[str, Any]:
+def score_answer(
+    expect: dict[str, Any], reply: str | None, grading: str = "exact"
+) -> dict[str, Any]:
+    if grading == "model":
+        ok, value, detail = norm.answer_match(expect, reply)
+        return _result(value, ok, detail)
     text = reply or ""
     if "answer_exact" in expect:
         ok = text.strip() == str(expect["answer_exact"]).strip()
@@ -190,9 +235,12 @@ def deterministic(
     *,
     events: list[Event] | None = None,
     get_detail: Callable[[str], Any] | None = None,
+    grading: str = "exact",
+    read_tools: frozenset[str] | set[str] = frozenset(),
 ) -> dict[str, dict[str, Any]]:
     """The applicable deterministic scorers among `names`, by name. `checks` needs the case
-    turn's `events` and a `get_detail` for its stored details."""
+    turn's `events` and a `get_detail` for its stored details. `grading` is `exact` or `model`
+    (the `model` suite); `read_tools` are the tools of action class `read` (model grading)."""
     e = case.expect
     out: dict[str, dict[str, Any]] = {}
     if "path" in names and e.get("path"):
@@ -200,13 +248,25 @@ def deterministic(
     if "citations" in names and "citations" in e:
         out["citations"] = score_citations(e["citations"], actual["citations"])
     if "tool_calls" in names and "tool_calls" in e:
-        out["tool_calls"] = score_tool_calls(e["tool_calls"], actual["tool_calls"])
+        mode = tool_calls_mode(e, grading)
+        calls = actual["tool_calls"]
+        out["tool_calls"] = score_tool_calls(e["tool_calls"], calls, mode, read_tools)
+        if grading == "model" and mode == "exact":
+            out["tool_calls"]["detail"] = "exact: " + out["tool_calls"]["detail"]
     if "schema" in names and case.output_schema is not None:
         out["schema"] = score_schema(case.output_schema, actual["reply"])
     if "pii_leak" in names:
         out["pii_leak"] = score_pii(detector, case.prompt, actual["reply"])
     if "answer_match" in names and {"answer_contains", "answer_exact", "answer_regex"} & set(e):
-        out["answer_match"] = score_answer(e, actual["reply"])
+        out["answer_match"] = score_answer(e, actual["reply"], grading)
     if "checks" in names and case.checks and events is not None:
         out["checks"] = score_checks(case.checks, events, get_detail or (lambda _ref: None))
     return out
+
+
+def tool_calls_mode(expect: dict[str, Any], grading: str) -> str:
+    """`exact` under exact grading; under model grading `ordered`, unless the case asks for
+    `expect.tool_calls_mode: exact`."""
+    if grading != "model":
+        return "exact"
+    return "exact" if expect.get("tool_calls_mode") == "exact" else "ordered"

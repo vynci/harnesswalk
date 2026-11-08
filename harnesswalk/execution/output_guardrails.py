@@ -5,8 +5,10 @@ Contract: spec/contracts/guardrail.md. Node: `output_guardrails` (execution plan
 Checks, in configured order:
 
 - `schema`: when the turn asked for a structured reply (`output_schema`), the answer must be
-  JSON that validates against it; otherwise it is blocked with a safe message (the loop is not
-  re-entered).
+  JSON that validates against it. An answer that wraps it (prose and a fenced JSON block, or
+  JSON with a sentence before or after, as a real model often writes after a tool call) is
+  repaired to the first JSON value in it that validates (`schema_extracted` in the exit
+  payload). Otherwise it is blocked with a safe message (the loop is not re-entered).
 - `content`: literal blocklist patterns block the answer.
 - `length`: an answer over `output_guardrails.max_chars` is repaired by truncation.
 - `citations`: when knowledge chunks were in context (`ctx.citations`, numbered by the context
@@ -41,6 +43,7 @@ from harnesswalk.types import TurnContext
 register("output_guardrails", __name__)
 
 SAFE_SCHEMA_MESSAGE = "I could not produce a reply in the required format."
+FENCE = re.compile(r"```[ \t]*(?:json|JSON)?[ \t]*\n(.*?)```", re.S)
 SAFE_CONTENT_MESSAGE = "I cannot share that reply."
 SAFE_CITATION_MESSAGE = "I could not back this answer with a cited source, so I will not give it."
 SAFE_PII_MESSAGE = "I cannot share that reply because it contains personal data."
@@ -196,6 +199,7 @@ class OutputResult:
     schema: str = "none"
     leaks: dict[str, int] = field(default_factory=dict)
     restored: int = 0
+    schema_extracted: bool = False  # the JSON reply was taken out of prose or a code fence
     # Per check, in order: {check, verdict (pass, repair, block, skipped), note}. Payloads only.
     verdicts: list[dict[str, Any]] = field(default_factory=list)
 
@@ -232,6 +236,7 @@ class OutputGuardrails:
         action, reasons = "pass", []
         result_citations: dict[str, Any] = {"required": False, "present": citations or 0}
         schema_state, leaks = "none", {}
+        extracted = False
         ran: list[str] = []
         verdicts: list[dict[str, Any]] = []
 
@@ -254,6 +259,13 @@ class OutputGuardrails:
                     schema_state = "valid"
                     said("schema", "pass", "valid JSON for the requested schema")
                 except (json.JSONDecodeError, jsonschema.ValidationError):
+                    found = extract_json(text, output_schema)
+                    if found is not None:
+                        text, schema_state, extracted = found, "valid", True
+                        said("schema", "repair", "the valid JSON value taken out of the reply")
+                        action = max(action, "repair", key=STRENGTH.__getitem__)
+                        reasons.append("schema")
+                        continue
                     return blocked(
                         OutputResult(
                             "block", SAFE_SCHEMA_MESSAGE, ran, ["schema"], schema="invalid"
@@ -350,6 +362,7 @@ class OutputGuardrails:
                     said("pii", "pass", "no personal data beyond this turn's placeholders")
         result = OutputResult(action, text, ran, reasons, result_citations, schema_state, leaks)
         result.verdicts = verdicts
+        result.schema_extracted = extracted
         return result
 
     async def run(
@@ -424,6 +437,8 @@ class OutputGuardrails:
         )
         if disabled:
             out["disabled"] = True
+        if result.schema_extracted:
+            out["schema_extracted"] = True
         return {"payload": out}
 
     def _restore(self, ctx: TurnContext, text: str) -> tuple[str, int]:
@@ -431,3 +446,26 @@ class OutputGuardrails:
         if vault is None or not len(vault) or ctx.mode not in self.restore_modes:
             return text, 0
         return vault.restore(text)
+
+
+def extract_json(text: str, schema: dict[str, Any]) -> str | None:
+    """The first JSON value in `text` that validates against `schema`, as JSON text: the
+    fenced blocks first (in order), then every object or array that starts in the text. None
+    when nothing validates."""
+    candidates = [m.group(1).strip() for m in FENCE.finditer(text or "")]
+    decoder = json.JSONDecoder()
+    for start, char in enumerate(text or ""):
+        if char in "{[":
+            try:
+                _, end = decoder.raw_decode(text, start)
+            except json.JSONDecodeError:
+                continue
+            candidates.append(text[start:end])
+    for candidate in candidates:
+        try:
+            value = json.loads(candidate)
+            jsonschema.validate(value, schema)
+        except (json.JSONDecodeError, jsonschema.ValidationError):
+            continue
+        return candidate
+    return None

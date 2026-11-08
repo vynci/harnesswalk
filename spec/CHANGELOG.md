@@ -46,6 +46,15 @@ conforms when it runs every pack on `operated`, the default profile.
   (`contracts/router.md`, "Model suite: the pinned router"), and the deterministic scorers
   judge them, with no LLM judge. A `model` run is compared with the previous run of the same
   model. Additive: no new event type, no version change.
+- Grading modes (`contracts/evaluator.md`): the `model` suite grades `tool_calls` as ordered
+  (the expected calls in order, extra calls to read tools allowed; `expect.tool_calls_mode:
+  exact` keeps a case strict) and `answer_match` on normalized text (case, Unicode, dates,
+  times, amounts, numbers); `golden` stays exact. A `judge` run that names a model pins it, and
+  a pinned alias ignores `max_price_out_per_mtok` (`contracts/router.md`).
+- Structured replies (`contracts/guardrail.md`, `contracts/tracer.md`): a reply that wraps a
+  schema-valid JSON value in prose or a code fence is repaired to that value (`repair`, kind
+  `schema`, payload `schema_extracted: true`) instead of blocked. New conformance case
+  `schema_extracted`.
 
 ### Changed
 

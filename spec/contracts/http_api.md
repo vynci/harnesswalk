@@ -612,7 +612,7 @@ Additive. Every existing endpoint keeps its shape; new fields are listed where t
 |---|---|---|
 | `pack` | yes | The loaded dataset pack; another pack is `422 invalid_request` |
 | `suite` | yes | `golden` (every case on the `fake` provider with its fixture; deterministic scorers), `judge` (judged scorers) or `model` (every case answered by `model`, pinned for every call; deterministic scorers, no judge; `evaluator.md`, "Model suite and the scorecard") |
-| `model` | `model` suite: yes | `judge` and `model`: a model alias from `config/models.yaml` whose provider is configured, used to answer the cases. On `judge` it is optional: without it the cases answer from their fixtures and only the scoring is judged. On `golden` it must be absent or a `fake` alias. On `model` it is required (`400 invalid_request` without it) and a `fake` alias answers from the case fixtures |
+| `model` | `model` suite: yes | `judge` and `model`: a model alias from `config/models.yaml` whose provider is configured, used to answer the cases. On `judge` it is optional: without it the cases answer from their fixtures and only the scoring is judged; with it every call is pinned to it. On `golden` it must be absent or a `fake` alias. On `model` it is required (`400 invalid_request` without it) and a `fake` alias answers from the case fixtures |
 | `cases` | no | Case ids to run; default every case. An unknown id is `400 invalid_request` |
 
 `202` `{ "run_id": "run_0003", "events_url": "/v1/evals/runs/run_0003/events" }`. A `judge` run
@@ -658,7 +658,8 @@ exact or regex, when the case gives one), `faithfulness` and `relevance` (judge,
 at `evals.judge.threshold`, default 0.7). A scorer is applicable when the case gives what it
 checks (`pii_leak` always applies). `golden` applies `path`, `citations`, `tool_calls`,
 `schema`, `pii_leak`, `answer_match` (and `checks`); `model` applies the same deterministic
-ones; `judge` applies `schema`, `pii_leak`, `faithfulness`, `relevance`, so deterministic and
+ones under model grading (`evaluator.md`, "Grading modes": ordered tool calls with read calls
+allowed, normalized answer matching); `judge` applies `schema`, `pii_leak`, `faithfulness`, `relevance`, so deterministic and
 judged results stay apart (`evaluator.md`). A case passes
 when every applicable scorer passes; a case with no fixture is `skipped` on `golden`.
 `regression` is true when the case is `failed` or `error` now and was `passed` in
