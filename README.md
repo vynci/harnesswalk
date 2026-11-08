@@ -106,6 +106,10 @@ card, and its golden set passes on the fake provider (`uv run harnesswalk packs 
 | `logistics` | Tallowgate Freight | Multi-step tool use: track, hub capacity, reroute (approved), ETA |
 | `sports` | Copperline Community League | Cheap model routing: the call after a read-only lookup takes the `lookup` rule |
 | `finance` | Hollowmere Capital Partners | Citations and the memory writer: cited fund answers, and a preference remembered in one session and recalled in the next |
+| `device_fleet` | Kestrelway Field Services | Governed device commands: a power-off, an SMS clear or a purge waits for a human, and a viewer's reboot is denied by policy |
+| `gov_services` | Aldervale Services Desk | Bilingual grounded answers: cited programme rules in English and French, and a SIN or an address in a sentence becomes a placeholder |
+| `helpdesk_lite` | Pebblebrook IT Helpdesk | The lowest rung: one read-only lookup per question, light enough for a small local model |
+| `long_session` | Fernhollow Journeys | Long sessions: old turns fold into a running summary, and a preference is remembered for the next session |
 
 ### Use your own data
 

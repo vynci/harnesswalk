@@ -1,0 +1,1 @@
+{"responses": [{"text": "Une activit\u00e9 sportive, artistique ou d'apprentissage inscrite d'au moins 8 semaines, ou un camp de jour d'au moins 5 jours cons\u00e9cutifs [1].", "usage": {"input_tokens": 420, "output_tokens": 54}, "expect": {"last_message_role": "user"}}]}

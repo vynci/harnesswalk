@@ -59,9 +59,10 @@ chapters take away what the node depends on instead (a store, a budget, a file, 
 what changes.
 
 Every demonstration runs on the `_starter` pack, so the walk tells one story. The five switch
-chapters also show the same failure on the domain pack whose feature it is (`also` below):
-healthcare for input and output guardrails, ecommerce for policy and approval, finance for the
-memory writer. The Guide chapter gives each its own button.
+chapters also show the same failure on the domain packs whose feature it is (`also` below):
+healthcare and gov_services for input guardrails, healthcare for output guardrails, ecommerce
+and device_fleet for policy and approval, finance and long_session for the memory writer. The
+Guide chapter gives each its own button.
 
 ## Chapter format
 

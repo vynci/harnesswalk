@@ -1,0 +1,62 @@
+[
+  {
+    "id": "carrow_island_guide",
+    "title": "Isle of Carrow Visitor Guide",
+    "brief": "The island: getting there by ferry from Mirelake or Port Ellery, the harbour bus that meets every daytime ferry, walks, the harbour festival on 12 December 2026, where to eat, the Carrow Harbour Inn (HT-12, no parking).",
+    "pdf": false
+  },
+  {
+    "id": "mirelake_town_guide",
+    "title": "Mirelake Town Guide",
+    "brief": "The lakeside town: the ferry harbour, the rail station, the Mirelake Quay Hotel (HT-15, 4 accessible rooms, nut-free breakfast area), the Saturday winter market in December, walks round the lake. Write at least 450 words: add a worked example and a short questions-and-answers section.",
+    "pdf": false
+  },
+  {
+    "id": "brannock_highlands_guide",
+    "title": "Brannock Highlands Guide",
+    "brief": "The hills: rail from Mirelake, Brannock Lodge (HT-21, no accessible rooms, breakfast not included, non-refundable), trails closing above the snow line from 1 December, what to pack in winter. Write at least 450 words: add a worked example and a short questions-and-answers section.",
+    "pdf": false
+  },
+  {
+    "id": "port_ellery_guide",
+    "title": "Port Ellery Guide",
+    "brief": "The coastal town: rail from Mirelake, the Ellery Sands Guesthouse (HT-30), beach huts closed 1 November to 31 March, the winter ferry to Carrow on Friday to Monday only. Write at least 450 words: add a worked example and a short questions-and-answers section.",
+    "pdf": false
+  },
+  {
+    "id": "ferry_fare_rules",
+    "title": "Carrow Ferry Fares and Ticket Rules",
+    "brief": "Every route's fares, children's fares (under 5 free, 5 to 15 half), the overnight cabin supplement of 30.00, free changes up to 2 hours before departure and the 5.00 change fee after. Write at least 450 words: add a worked example and a short questions-and-answers section.",
+    "pdf": false
+  },
+  {
+    "id": "luggage_policy",
+    "title": "Ferry Luggage, Bicycles and Pets",
+    "brief": "Two bags of up to 23 kg per foot passenger free, bicycles 6.00 and booked ahead, dogs on deck or in cars but not in cabins, no limit in a car. Write at least 450 words: add a worked example and a short questions-and-answers section.",
+    "pdf": false
+  },
+  {
+    "id": "booking_terms",
+    "title": "Fernhollow Journeys Booking Terms",
+    "brief": "Deposit 20 percent, balance 14 days before departure, the three cancellation bands (over 30 days, 30 to 14 days at 50 percent, under 14 days nothing), hotel terms on top, changes within one working day. Write at least 450 words: add a worked example and a short questions-and-answers section.",
+    "pdf": true
+  },
+  {
+    "id": "seasonal_calendar",
+    "title": "Winter Season Calendar 2026-2027",
+    "brief": "The winter timetable dates, no ferries on 25 December 2026, the harbour festival extra 19:00 sailing on 12 December, trail and beach hut closures, the Mirelake winter market. Write at least 450 words: add a worked example and a short questions-and-answers section.",
+    "pdf": true
+  },
+  {
+    "id": "accessibility_guide",
+    "title": "Accessible Travel Guide",
+    "brief": "Accessible rooms per partner hotel, the ferry lift and two wheelchair spaces per sailing booked 48 hours ahead, the low-floor harbour bus, what to tell the desk when booking.",
+    "pdf": false
+  },
+  {
+    "id": "travel_documents_checklist",
+    "title": "Travel Documents Checklist",
+    "brief": "Photo ID for every adult on the ferry, what children need (no birth certificates), booking confirmations, the traveller's own choice of travel insurance that the desk only notes.",
+    "pdf": false
+  }
+]

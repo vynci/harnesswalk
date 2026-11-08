@@ -1,0 +1,8 @@
+{"id": "ep-hd-01", "ts": "2026-11-07T08:20:00Z", "kind": "outage", "text": "The VPN went down for the planned gateway replacement.", "outcome": "open"}
+{"id": "ep-hd-02", "ts": "2026-11-06T10:05:00Z", "kind": "fault", "text": "Printer HB-PRN-2 at the harbour office stopped feeding paper.", "outcome": "open"}
+{"id": "ep-hd-03", "ts": "2026-11-04T15:30:00Z", "kind": "ticket", "text": "Ticket HD-1055 for shared drive access was resolved.", "outcome": "resolved", "entities": ["HD-1055"]}
+{"id": "ep-hd-04", "ts": "2026-11-05T09:00:00Z", "kind": "ticket", "text": "A replacement battery was ordered for ticket HD-1042.", "outcome": "ordered", "entities": ["HD-1042"]}
+{"id": "ep-hd-05", "ts": "2026-11-07T09:10:00Z", "kind": "fault", "text": "Echo reported on video calls in two meeting rooms.", "outcome": "open"}
+{"id": "ep-hd-06", "ts": "2026-11-03T07:00:00Z", "kind": "maintenance", "text": "The file share moved to a new storage array overnight.", "outcome": "done"}
+{"id": "ep-hd-07", "ts": "2026-10-28T12:00:00Z", "kind": "maintenance", "text": "The office wifi access points were updated.", "outcome": "done"}
+{"id": "ep-hd-08", "ts": "2026-11-07T11:30:00Z", "kind": "ticket", "text": "Ticket HD-1083 for a new starter laptop moved to in progress.", "outcome": "in_progress", "entities": ["HD-1083"]}

@@ -12,6 +12,11 @@ also:
     fixture: refund_approved_qf20388
     prompt: "The lantern in order QF-20388 arrived with a cracked lens. I want my money back."
     note: "issue_refund runs at once: no approval card, nobody asked, and the audit shows rule=disabled."
+  - pack: device_fleet
+    disable: [policy]
+    fixture: clear_sms_approved
+    prompt: "Clear the SMS inbox on Route Van 8 (KW-0008)."
+    note: "clear_sms runs at once: six messages deleted for good, nobody asked, and the audit shows rule=disabled."
 ---
 
 # Approval

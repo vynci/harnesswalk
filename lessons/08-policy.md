@@ -12,6 +12,11 @@ also:
     fixture: cancel_approved_qf20430
     prompt: "Please cancel order QF-20430, I ordered the wrong size."
     note: "cancel_order runs with no approval card (rule=disabled in the audit), and the scripted reply still says an approval came through."
+  - pack: device_fleet
+    disable: [policy]
+    fixture: power_off_approved
+    prompt: "Power off Shop Pickup 2 (KW-0002), the workshop needs it fully down for a wiring job."
+    note: "power_off_device runs at once with no approval card, and only the tool's own warning says it is not remotely recoverable. With policy on, a viewer's reboot is denied by rule roles before anyone is asked."
 ---
 
 # Policy

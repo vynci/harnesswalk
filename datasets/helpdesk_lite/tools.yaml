@@ -1,0 +1,60 @@
+# Bundled data for the Pebblebrook IT Helpdesk pack: every table below is fictional.
+# Each table maps a lookup key to the row a tool returns; `missing` is the row for an unknown key.
+- name: ticket_status
+  description: Look up a helpdesk ticket by id. Returns its status, the team on it, the last update and the next step.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [ticket_id]
+    properties:
+      ticket_id: { type: string, pattern: "^HD-[0-9]{4}$", description: "Ticket id, for example HD-1042." }
+  table:
+    HD-1042: { ticket_id: HD-1042, subject: laptop battery swells, status: in_progress, team: hardware, last_update: "2026-11-05", next_step: "replacement battery arrives on 2026-11-10" }
+    HD-1055: { ticket_id: HD-1055, subject: shared drive access, status: resolved, team: accounts, last_update: "2026-11-04", next_step: none }
+    HD-1061: { ticket_id: HD-1061, subject: second monitor, status: open, team: hardware, last_update: "2026-11-06", next_step: "waiting for a technician" }
+    HD-1077: { ticket_id: HD-1077, subject: video call echo, status: waiting_on_you, team: av, last_update: "2026-11-06", next_step: "please reply with the meeting room name" }
+    HD-1083: { ticket_id: HD-1083, subject: new starter laptop, status: in_progress, team: hardware, last_update: "2026-11-07", next_step: "ready for pickup on 2026-11-09" }
+  missing: { error: not_found }
+
+- name: service_status
+  description: Get the current status of one IT service (ok, degraded or outage), since when, and any workaround.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [service]
+    properties:
+      service: { type: string, enum: [email, vpn, printers, wifi, file_share, video_calls] }
+  table:
+    email: { service: email, status: ok, since: "2026-11-01", note: none }
+    vpn: { service: vpn, status: outage, since: "2026-11-07 at 08:20", note: "the VPN gateway is being replaced", workaround: "use the office network or the web apps until 12:00" }
+    printers: { service: printers, status: degraded, since: "2026-11-06", note: "the harbour office printer HB-PRN-2 is offline", workaround: "print to HB-PRN-1" }
+    wifi: { service: wifi, status: ok, since: "2026-10-28", note: none }
+    file_share: { service: file_share, status: ok, since: "2026-11-03", note: "nightly backup runs 01:00 to 02:00" }
+    video_calls: { service: video_calls, status: degraded, since: "2026-11-07 at 09:10", note: "some calls have echo in meeting rooms", workaround: "use a headset" }
+  missing: { error: not_found }
+
+- name: office_info
+  description: Get one office's IT details (the IT desk's hours there, printers, guest wifi network name, meeting rooms).
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [office]
+    properties:
+      office: { type: string, enum: [north, harbour, east] }
+  table:
+    north: { office: north, it_desk: "08:00-18:00 Monday to Friday", printers: [NO-PRN-1, NO-PRN-2], guest_wifi: Pebble-Guest-North, meeting_rooms: [Granite, Slate] }
+    harbour: { office: harbour, it_desk: "09:00-17:00 Monday to Thursday", printers: [HB-PRN-1, HB-PRN-2], guest_wifi: Pebble-Guest-Harbour, meeting_rooms: [Tide, Jetty, Lighthouse] }
+    east: { office: east, it_desk: "visiting technician on Wednesdays", printers: [EA-PRN-1], guest_wifi: Pebble-Guest-East, meeting_rooms: [Orchard] }
+  missing: { error: not_found }

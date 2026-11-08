@@ -16,7 +16,10 @@ from tests.unit.support import settings, write_fixture
 from tests.unit.test_http_api import client
 
 ALT = "conformance_alt"
-DOMAIN_PACKS = ("ecommerce", "finance", "healthcare", "logistics", "sports")
+DOMAIN_PACKS = (
+    "device_fleet", "ecommerce", "finance", "gov_services", "healthcare", "helpdesk_lite",
+    "logistics", "long_session", "sports",
+)  # fmt: skip
 
 
 def remember_fixtures(tmp_path: Path) -> Path:

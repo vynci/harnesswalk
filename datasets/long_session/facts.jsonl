@@ -1,0 +1,15 @@
+{"key": "destinations", "value": "Fernhollow Journeys plans trips to the Isle of Carrow, Mirelake, the Brannock Highlands and Port Ellery."}
+{"key": "ferry operator", "value": "Crossings to the Isle of Carrow are run by the Carrow Ferry Company from Mirelake harbour and, in winter from Friday to Monday, from Port Ellery."}
+{"key": "TR-4471 travellers", "value": "Trip TR-4471 is for two adults staying at the Carrow Harbour Inn.", "entities": ["TR-4471"]}
+{"key": "TR-4588 family", "value": "Trip TR-4588 is a family of four with two children aged 6 and 9.", "entities": ["TR-4588"]}
+{"key": "TR-4390 feedback", "value": "After trip TR-4390 the traveller said the Brannock Lodge was cold and asked for a warmer hotel next time.", "entities": ["TR-4390"]}
+{"key": "insurance note", "value": "Travel insurance is the traveller's own choice; the desk notes on the trip file whether the traveller has a policy but never sells one."}
+{"key": "desk hours", "value": "The planning desk is staffed 08:00 to 18:00, Monday to Friday."}
+{"key": "booking changes", "value": "The assistant can only read bookings; the desk makes changes within one working day."}
+{"key": "rail line", "value": "Regional trains link Mirelake, the Brannock Highlands and Port Ellery; there is no rail on the Isle of Carrow."}
+{"key": "winter timetable", "value": "The winter ferry timetable runs from 1 November 2026 to 31 March 2027."}
+{"key": "Carrow buses", "value": "On the Isle of Carrow a local bus meets every daytime ferry at the harbour."}
+{"key": "HT-12 parking", "value": "The Carrow Harbour Inn has no parking; car travellers park at the harbour car park.", "entities": ["HT-12"]}
+{"key": "December closure", "value": "No ferries run on 25 December 2026."}
+{"key": "payment", "value": "A trip is confirmed once the deposit of 20 percent is paid; the balance is due 14 days before departure."}
+{"key": "TR-4602 occasion", "value": "Trip TR-4602 is an anniversary trip; the traveller asked for a sea-view room.", "entities": ["TR-4602"]}

@@ -1,0 +1,1 @@
+{"responses": [{"text": "Non, jamais: le Bureau ne demande pas de num\u00e9ro d'assurance sociale dans le clavardage, et un num\u00e9ro tap\u00e9 par erreur est remplac\u00e9 avant d'\u00eatre conserv\u00e9 [1]. Un num\u00e9ro de r\u00e9f\u00e9rence suffit pour trouver une demande.", "usage": {"input_tokens": 420, "output_tokens": 68}, "expect": {"last_message_role": "user"}}]}

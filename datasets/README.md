@@ -1,7 +1,7 @@
 # Dataset packs
 
 A pack is a small, fictional business the harness can run as: its system prompt and skills,
-its tools, its documents, its seed memory and a golden set that proves it works. Five domain
+its tools, its documents, its seed memory and a golden set that proves it works. Nine domain
 packs each show off one harness feature on purpose, and the hand-written `_starter` pack
 touches every node once. Everything here is synthetic and CC0.
 
@@ -18,10 +18,14 @@ The format is fixed in [`spec/packs.md`](../spec/packs.md); the code that reads 
 | `logistics` | Tallowgate Freight, six hubs | Multi-step tool use: `track`, then `hub_capacity`, then `reroute` (a write a policy rule sends to a human), then `eta`, one tool per loop step | `loop`, `tools`, `policy` |
 | `sports` | The Copperline Community League, two divisions | Cheap model routing for lookups: the call after a read-only lookup routes on the `lookup` rule to the cheapest configured model | `model_layer`, `router` |
 | `finance` | Hollowmere Capital Partners, four private funds | Citations and the memory writer: cited answers from fund documents, and preferences proposed with `remember`, written after the reply and recalled in a later session | `knowledge`, `output_guardrails`, `memory_writer` |
+| `device_fleet` | Kestrelway Field Services, five telematics-equipped vehicles | Governed device commands: reads run freely, a power-off, an SMS clear or a purge waits for a human, a viewer's or operator's reboot is a policy deny (case `roles`), and the business rules live in `skills/policy.md` | `policy`, `approval`, `audit` |
+| `gov_services` | Aldervale Services Desk, a bilingual provincial desk | Grounded answers in English and French: every programme rule is cited in the language of the question, and a social insurance number or street address typed into a sentence becomes a placeholder | `input_guardrails`, `knowledge`, `output_guardrails` |
+| `helpdesk_lite` | Pebblebrook IT Helpdesk, a small office IT desk | The lowest rung: one read-only lookup per question, light enough for a 4B local model, every other node dimmed | `loop`, `tools`, `model_layer` |
+| `long_session` | Fernhollow Journeys, a travel planning desk | Compaction and durable memory: long multi-turn chats cross the session budget, old turns fold into a running summary (`checks.summary`), and a remembered preference is recalled in a later session | `context_builder`, `memory`, `memory_writer` |
 
-Each pack runs on a harness profile (spec 0.2.0, `profile` in `pack.yaml`): `healthcare` and
-`sports` on `grounded`, `ecommerce` and `logistics` on `governed`, `finance` and `_starter` on
-`operated`. The profile is the lowest rung of the ladder the pack's golden set passes on, or
+Each pack runs on a harness profile (spec 0.2.0, `profile` in `pack.yaml`): `helpdesk_lite` on `minimal`, `healthcare`,
+`sports` and `gov_services` on `grounded`, `long_session` on `remembered`, `ecommerce`,
+`logistics` and `device_fleet` on `governed`, `finance` and `_starter` on `operated`. The profile is the lowest rung of the ladder the pack's golden set passes on, or
 higher; the nodes it switches off are dimmed in the diagram. `docs/architecture.md` has the
 ladder and the measurements.
 
@@ -46,7 +50,7 @@ datasets/<pack>/
   provenance.md        how it was made: generator, model, prompts and hashes, tokens and cost
   system_prompt.md     skill zero
   skills/*.md          3 to 5 on-demand skills
-  tools.yaml           2 to 4 tools: pure lookups over the bundled tables in this file
+  tools.yaml           2 to 12 tools: pure lookups over the bundled tables in this file
   guardrails.yaml      PII patterns for the pack (healthcare: health numbers; finance: accounts)
   facts.jsonl          about 20 seed facts for semantic memory
   episodes.jsonl       about 10 seed events for episodic memory

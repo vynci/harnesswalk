@@ -1,0 +1,1 @@
+{"responses": [{"text": "Chat transcripts are kept for 90 days and then deleted, and social insurance numbers, dates of birth and street addresses typed into chat are replaced by placeholders before anything is stored [1].", "usage": {"input_tokens": 420, "output_tokens": 64}, "expect": {"last_message_role": "user"}}]}
