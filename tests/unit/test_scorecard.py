@@ -416,7 +416,7 @@ def test_the_markdown_has_the_matrix_and_the_per_model_breakdown() -> None:
     md = sc.render_markdown(fixture_data())
     assert md.startswith("# Model ladder scorecard\n")
     assert "Ollama: http://gpu:11434 (version 0.34.1)" in md
-    assert "| `local-4b` | ollama | `qwen3.5:4b` | 4.2B | Q4_K_M |" in md
+    assert "| `local-4b` | ollama | `qwen3.5:4b` | 4.2B | Q4_K_M | provider default |" in md
     assert "| Pack | `fake-small` | `local-4b` | `local-2b` | `hosted-haiku` |" in md
     assert "| `_starter` | 3/3 | 1/3 | n/a | 2/3 |" in md
     assert "| `sports` | 1/1 | 0/1 | n/a | n/a |" in md
@@ -475,7 +475,7 @@ def test_the_scorecard_cli_writes_markdown_and_json(tmp_path: Path, monkeypatch,
     argv = ["scorecard", "--packs", "_starter", "--models", "fake-small,hosted-haiku"]
     assert main([*argv, "--out", str(out), "--json", str(data)]) == 0
     md = out.read_text(encoding="utf-8")
-    assert "| `_starter` | 16/16 | n/a |" in md
+    assert "| `_starter` (operated) | 16/16 | n/a |" in md
     saved = json.loads(data.read_text(encoding="utf-8"))
     assert saved["tenant"] == "scorecard" and saved["ollama"] is None
     fake = next(c for c in saved["cells"] if c["model"] == "fake-small")
@@ -506,7 +506,7 @@ def test_samples_report_the_mean_and_the_range() -> None:
     assert (four["passed"], four["passed_min"], four["passed_max"]) == (1.5, 1, 2)
     assert four["by_scorer"]["path"] == 0.5 and four["samples"] == 2
     md = sc.render_markdown(data)
-    assert "| `_starter` | 2/2 (2-2) | 1.5/2 (1-2) |" in md
+    assert "| `_starter` | 2/2 | 1.5/2 (1-2) |" in md
     assert "**1.5/2** (75%) (1-2)" in md
     # Failed in one of two samples is "failing" (at least half).
     assert sc.failing(data["cells"][0]) == {"b"}
@@ -755,7 +755,7 @@ def test_the_scorecard_carries_columns_regraded(tmp_path: Path, monkeypatch, cap
     carry = ["--carry", str(first), "--carry-models", "hosted-x", "--samples", "2"]
     assert main([*argv, "--out", str(out), "--json", str(data), *carry]) == 0
     md = out.read_text(encoding="utf-8")
-    assert "| `_starter` | 16/16 (16-16) | 16/16\u00b9 |" in md
+    assert "| `_starter` (operated) | 16/16 | 16/16\u00b9 |" in md
     assert "re-graded offline under model grade" in md
     saved = json.loads(data.read_text(encoding="utf-8"))
     assert saved["carried"]["regraded"] is True and saved["carried"]["models"] == ["hosted-x"]

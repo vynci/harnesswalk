@@ -2,6 +2,7 @@ id: schema_extracted
 title: A structured reply wrapped in prose and a code fence is repaired to its valid JSON value
 spec_version: 0.2.0
 fixture: schema_extracted
+requires: [input_guardrails, output_guardrails, policy]
 turns:
   - send:
       message: What is the status of order A-1001? Answer as JSON.

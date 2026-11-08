@@ -734,7 +734,12 @@ def _scorecard(args: argparse.Namespace) -> int:
             grade from the stored case results (this data directory's eval store and trace)."""
             old = json.loads(Path(args.carry).read_text(encoding="utf-8"))
             old_models = {m["alias"]: m for m in old.get("models") or []}
-            harness = Harness(_settings(args, **{"stores.ingest_on_start": False}))
+            harness = Harness(
+                _settings(
+                    args,
+                    **{"stores.ingest_on_start": False, "stores.embeddings.provider": "fake"},
+                )
+            )
             cells, regraded_all = [], True
             try:
                 for alias in carry_models:
@@ -768,7 +773,8 @@ def _scorecard(args: argparse.Namespace) -> int:
                 await harness.aclose()
             models = [old_models[a] for a in carry_models if a in old_models]
             note = {"from": old.get("generated_at", "?")[:10], "models": carry_models,
-                    "regraded": regraded_all, "path": args.carry}  # fmt: skip
+                    "regraded": regraded_all, "path": args.carry,
+                    "profiles": old.get("pack_profiles")}  # fmt: skip
             return cells, models, note
 
         cells = await sc.run_matrix(
@@ -810,6 +816,7 @@ def _scorecard(args: argparse.Namespace) -> int:
             embeddings="fake (hash vectors, the same for every model)",
             case_timeout_s=args.case_timeout, command=command, json_path=args.json,
             grading="model", samples=samples, carried=carry_note,
+            pack_profiles={p: packs_mod.get_pack(p, roots=roots).profile for p in wanted},
             temperature="; ".join(temps) if len(temps) > 1 else (temps[0] if temps else "n/a"),
         )  # fmt: skip
 
