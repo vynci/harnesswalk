@@ -20,7 +20,14 @@ def domain(tmp_path: Path, pack: str = "_starter", **overrides) -> Harness:
         ROOT,
         provider="fake",
         fixture="plain_answer",
-        overrides={"dataset": pack, "sandbox.level": "inprocess", **overrides},
+        # The full harness on every pack (0.2.0): the gate and the diagnoser are what these
+        # tests exercise, and a pack's own profile may switch them off.
+        overrides={
+            "dataset": pack,
+            "sandbox.level": "inprocess",
+            "profile": "operated",
+            **overrides,
+        },
         data_dir=tmp_path / "data",
         env={},
     )

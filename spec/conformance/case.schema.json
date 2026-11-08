@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://harnesswalk.vynci.dev/spec/0.1/conformance/case.schema.json",
+  "$id": "https://harnesswalk.vynci.dev/spec/0.2/conformance/case.schema.json",
   "title": "harnesswalk conformance case",
   "type": "object",
   "additionalProperties": false,
@@ -18,6 +18,17 @@
     "two_process": {
       "description": "P3: the runner runs the harness as an OS process so a `restart` action can kill it and start a new one on the same data directory.",
       "type": "boolean"
+    },
+    "requires": {
+      "description": "0.2.0: node ids the case needs switched on. Under a harness profile that switches one of them off, the runner reports the case SKIP, not FAIL (spec/conformance/README.md, Profiles).",
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+      "uniqueItems": true
+    },
+    "profile": {
+      "description": "0.2.0: the harness profile this case runs under, and the only one: the default run uses it, and a run under another profile skips the case.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,31}$"
     },
     "config": {
       "description": "Overrides of profile keys. Only keys listed in profile.yaml `overridable` are allowed.",

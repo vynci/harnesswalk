@@ -752,7 +752,9 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--provider", choices=["fake", "ollama", "anthropic", "openai_compatible"])
         p.add_argument("--fixture", help="fake provider fixture name")
         p.add_argument(
-            "--profile", help="a profile file, for example spec/conformance/profile.yaml"
+            "--profile",
+            help="a harness profile by name (minimal ... operated) or path, or a config overlay"
+            " such as spec/conformance/profile.yaml",
         )
         p.add_argument("--mode", choices=["dev", "public", "private"])
         p.add_argument(

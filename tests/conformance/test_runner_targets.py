@@ -16,7 +16,8 @@ from tests.conformance.runner import (
 )
 
 SHARED_SERVER_CASES = {
-    "approval_approve", "approval_deny", "audit_chain", "cancel_running", "pii_redacted",
+    "approval_approve", "approval_deny", "approval_off", "audit_chain", "cancel_running",
+    "pii_redacted",
     "plain_answer", "step_mode", "step_over", "tool_call",
 }  # fmt: skip
 

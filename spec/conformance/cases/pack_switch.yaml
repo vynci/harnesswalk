@@ -2,6 +2,7 @@ id: pack_switch
 title: Two sessions of one tenant on two packs do not share facts; each turn and summary names its pack
 spec_version: 0.1.0
 fixture: pack_switch
+requires: [input_guardrails, output_guardrails, policy, audit, memory_writer, semantic]
 config:
   context.stores: [procedural, session, semantic]
 turns:

@@ -4,6 +4,7 @@ domain: ecommerce
 summary: An online outdoor and home goods shop where cancelling an order or issuing a refund pauses for
   a human approval before anything changes.
 tier: domain
+profile: governed
 feature: Destructive action behind approval
 demonstrates:
   id: approval

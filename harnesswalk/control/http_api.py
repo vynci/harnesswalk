@@ -698,10 +698,30 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
         )
 
     @app.get("/v1/diagram")
-    async def get_diagram(request: Request, view: str | None = None) -> JSONResponse:
+    async def get_diagram(
+        request: Request, view: str | None = None, pack: str | None = None
+    ) -> JSONResponse:
         if view not in (None, "simple", "expert"):
             raise GatewayError(400, "invalid_request", "view must be simple or expert")
-        return JSONResponse(generated_diagram(view))
+        if pack is None:
+            return JSONResponse(generated_diagram(view))
+        # 0.2.0: the diagram as the pack's profile runs it. Every node is still served; the
+        # ones the profile switches off say `disabled: true` (dimmed, never hidden).
+        if not harness.pack_known(pack):
+            raise GatewayError(422, "invalid_request", f"no dataset pack {pack!r}")
+        try:
+            profile = harness.profile_of(pack)
+        except ConfigError as exc:
+            raise GatewayError(422, "invalid_request", str(exc)) from exc
+        mode = harness.settings.mode
+        doc = generated_diagram(view, profile.off(mode))
+        doc["profile"] = {**profile.stamp(mode), "title": profile.title, "pack": pack}
+        return JSONResponse(doc)
+
+    @app.get("/v1/profiles")
+    async def get_profiles() -> JSONResponse:
+        # 0.2.0: the ladder, so the UI never hard-codes it. Tenant-free like the diagram.
+        return JSONResponse(harness.profile_list())
 
     @app.get("/v1/nodes/{node_id}")
     async def get_node(

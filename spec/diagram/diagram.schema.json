@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://harnesswalk.vynci.dev/spec/0.1/diagram.schema.json",
+  "$id": "https://harnesswalk.vynci.dev/spec/0.2/diagram.schema.json",
   "title": "harnesswalk canonical diagram",
   "description": "The canonical diagram of the harness. Implementations derive the served diagram from their registered nodes and MUST NOT introduce node or edge ids that are absent here. Referential rules that JSON Schema cannot express (parents exist, edge endpoints exist, walk_order covers every simple node) are listed in spec/harness.md and checked by tests/spec/test_diagram.py.",
   "type": "object",
@@ -96,7 +96,7 @@
           "type": "string"
         },
         "can_disable": {
-          "description": "True when the UI may switch the node off to demonstrate the failure it prevents. Only honoured in dev and private modes.",
+          "description": "True when the node can be switched off: for one turn by the UI or the CLI, to demonstrate the failure it prevents (dev and private modes only), or by a harness profile (spec/harness.md section 10; public mode keeps the controls on).",
           "type": "boolean"
         },
         "layout": {

@@ -27,7 +27,9 @@ The nodes were designed, not grown. Each has a "what breaks without it" demonstr
 Guide, built so a learner can watch the failure. In a real system the advice from people who run
 agents in production is the opposite order: add a control when the model fails without it, tie
 it to the failure it fixes, and remove it when the model no longer needs it. Treat the full
-diagram as a map of what can exist, not a list of what you must build.
+diagram as a map of what can exist, not a list of what you must build. Since spec 0.2.0 the
+[profiles](#profiles-and-the-ladder) let you walk it in that order: six harness shapes from a
+bare loop to the full diagram, each pack on one of them.
 
 ## Planes and nodes
 
@@ -103,6 +105,48 @@ flowchart LR
 
 Solid arrows carry requests and data. Dotted arrows carry control and telemetry. Thick arrows
 carry releases.
+
+## Profiles and the ladder
+
+A profile is a named harness shape: which nodes are switched off, and the config that goes with
+that. Six ship in [config/profiles/](../config/profiles/), and each rung adds to the one below
+it. The normative text is section 10 of [spec/harness.md](../spec/harness.md).
+
+| Rung | Profile | Adds | The failure that motivates the next rung |
+|---|---|---|---|
+| 1 | `minimal` | Gateway, context builder (system prompt and session), loop, model layer and router, tools, trace | Personal data reaches the model and the trace; an injected instruction has the user's authority |
+| 2 | `guarded` | Input and output guardrails | The model invents a policy the documents state |
+| 3 | `grounded` | Knowledge retrieval and the citation check | The user has to repeat what they said last session |
+| 4 | `remembered` | Memory writer, semantic and episodic memory, a model that summarises old turns | A cancel runs with no human in the loop, and nobody can say who allowed it |
+| 5 | `governed` | Policy, approval and audit | A change ships without anyone checking it against the golden set |
+| 6 | `operated` | Online judging, automatic diagnosis, the release gate: every node on | |
+
+Each pack names its profile in `pack.yaml`; `HARNESSWALK_PROFILE` (a name or a path) runs every
+pack on one profile instead. A switched-off node is **dimmed, never hidden**: the diagram keeps
+every node in the same place, the node still enters and exits its span where it would have run
+(status `skipped`, `summary.disabled: true`), and `turn_start.summary.profile` names the shape.
+Some nodes never switch off (the gateway, the loop, the model layer and the router, the tools,
+the context builder, the trace, offline eval, the release store); the spec says why for each.
+Approval switched off is fail-closed: an action that needs a human is denied, never run, and a
+pack may sit below `governed` only when none of its tools needs one. A public server never
+switches off the guardrails, policy, approval or audit, whatever the profile says.
+
+Where each pack sits was measured, not guessed: its golden set on the fake provider, on every
+rung. A pack goes on the lowest rung that passes, or higher.
+
+| Pack | `minimal` | `guarded` | `grounded` | `remembered` | `governed` | `operated` | Profile |
+|---|---|---|---|---|---|---|---|
+| `_starter` | 10/16 | 12/16 | 15/16 | 15/16 | 16/16 | 16/16 | `operated` (the tour, and the public site's default) |
+| `healthcare` | 10/25 | 18/25 | 25/25 | 25/25 | 25/25 | 25/25 | `grounded` |
+| `sports` | 16/22 | 16/22 | 22/22 | 22/22 | 22/22 | 22/22 | `grounded` |
+| `ecommerce` | 7/24 | 7/24 | 13/24 | 13/24 | 24/24 | 24/24 | `governed` |
+| `logistics` | 12/24 | 12/24 | 20/24 | 20/24 | 24/24 | 24/24 | `governed` |
+| `finance` | 7/25 | 9/25 | 22/25 | 25/25 | 25/25 | 25/25 | `operated` |
+
+Run it yourself: `HARNESSWALK_PROFILE=minimal uv run harnesswalk eval healthcare --suite golden
+--provider fake`. The conformance suite runs under every profile too
+(`make conformance`); a case that needs a switched-off node is skipped, not failed. Every profile
+uses the same layout today; a layout per profile is a later addition.
 
 ## The event stream
 

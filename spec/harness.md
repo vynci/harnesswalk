@@ -1,6 +1,6 @@
 # Harnesswalk harness specification
 
-Spec version: **0.1.0** (draft, P0). Status: normative for P1 onward.
+Spec version: **0.2.0**. Status: normative. 0.2.0 adds harness profiles (section 10).
 
 This document describes what a Harnesswalk harness is, independent of language. The reference
 implementation lives in `harnesswalk/` (Python). Any other implementation that passes the
@@ -22,6 +22,7 @@ when they appear in capitals.
 | `spec/examples/*.jsonl` | Three normative example streams |
 | `spec/contracts/*.md` | One interface per component, plus the HTTP API |
 | `spec/conformance/` | Black-box protocol, cases, fake-provider fixtures |
+| `spec/packs.md` | The dataset pack format, including the pack's `profile` (0.2.0) |
 
 When two files disagree, the order of precedence is: `events.schema.json`, `diagram.json`,
 this file, `events.md`, the contracts, the examples.
@@ -39,6 +40,8 @@ this file, `events.md`, the contracts, the examples.
 - **Event**: one record in the stream, shaped by `events.schema.json`.
 - **Tenant**: the isolation boundary for data, memory, documents, credentials, budgets and traces.
 - **Mode**: `dev`, `public` or `private`. Section 7.
+- **Profile** (0.2.0): a named harness shape, the nodes it switches off and the config it sets.
+  A pack names one. Section 10.
 
 ## 3. Planes
 
@@ -90,7 +93,7 @@ invocation; the "Events" line lists only what they add. Per-node `summary` shape
 - **Events**: `turn_start`, `turn_end`. Entered twice per chat turn: `phase: receive` first,
   `phase: reply` last.
 
-#### `input_guardrails` (code, can be disabled in dev and private)
+#### `input_guardrails` (code, can be switched off in dev and private, and by a profile)
 
 - **Responsibility**: deterministic checks before the model sees the input: size limits, PII
   redaction, prompt-injection heuristics.
@@ -107,7 +110,7 @@ invocation; the "Events" line lists only what they add. Per-node `summary` shape
   arrive with the same authority as the user.
 - **Events**: none beyond enter and exit.
 
-#### `policy` (config, can be disabled in dev and private)
+#### `policy` (config, can be switched off in dev and private, and by a profile)
 
 - **Responsibility**: decide whether a tool call may run, given mode, tenant, user and agent
   permissions, and the tool's action class.
@@ -119,13 +122,15 @@ invocation; the "Events" line lists only what they add. Per-node `summary` shape
   - The effective permission MUST be the intersection of user permissions and agent permissions.
   - MUST default to `deny` when no rule matches.
   - MUST send to `audit` every `deny` and `needs_approval`, and every `allow` of a non-`read`
-    action class. `read` allows SHOULD NOT be audited (they are in the trace).
+    action class. `read` allows SHOULD NOT be audited (they are in the trace). When `audit` is
+    switched off (section 10) the record is sent and not kept: the `audit` span exits
+    `skipped`.
   - Prompt text MUST NOT be able to change a decision.
 - **Without it**: the model's judgment is the only thing between a request and a destructive
   action.
 - **Events**: none beyond enter and exit.
 
-#### `approval` (queue)
+#### `approval` (queue, can be switched off since 0.2.0)
 
 - **Responsibility**: hold a high-risk action until a human approves or denies it, then resume.
 - **Inputs**: a `needs_approval` decision with the exact tool call.
@@ -137,10 +142,13 @@ invocation; the "Events" line lists only what they add. Per-node `summary` shape
   - The loop MUST checkpoint before pausing so a restart can resume the same turn.
   - An approval MUST be decided at most once. A second decision MUST be rejected.
   - `expired` MUST be treated as `deny`.
+  - When `approval` is switched off (section 10), a `needs_approval` decision MUST be treated as
+    `deny`: nobody is asked, nothing pauses, the call never executes, and the `approval` span
+    exits `skipped` with `disabled: true` and `decision: deny`.
 - **Without it**: there is no safe middle ground between "never allowed" and "always allowed".
 - **Events**: `approval_requested`, `node_paused`, `approval_decided`, `node_resumed`.
 
-#### `audit` (store)
+#### `audit` (store, can be switched off since 0.2.0)
 
 - **Responsibility**: append-only record of decisions with consequences: who asked, what ran,
   which rule decided, who approved, when.
@@ -193,11 +201,15 @@ invocation; the "Events" line lists only what they add. Per-node `summary` shape
   - Every call MUST carry `tenant_id`; a store MUST NOT return records of another tenant.
   - Retrieval MUST respect the budget the context builder passes in.
   - `semantic` and `episodic` MUST NOT be written by any path other than `memory_writer`.
+  - Since 0.2.0 `semantic`, `episodic` and `knowledge` can be switched off (section 10). A store
+    that is off is not retrieved (its span exits `skipped` with `disabled: true`), takes no
+    write, and `read_doc` is neither offered nor run while `knowledge` is off. `procedural` and
+    `session` are always on.
 - **Without it**: one undifferentiated memory where facts, chat and documents compete with the
   same ranking rule and nobody controls what gets written.
 - **Events**: none beyond enter and exit.
 
-#### `memory_writer` (code, can be disabled in dev and private)
+#### `memory_writer` (code, can be switched off in dev and private, and by a profile)
 
 - **Responsibility**: the single gated write path into `semantic` and `episodic`.
 - **Inputs**: `MemoryProposal`s from the loop and from eval diagnosis.
@@ -265,7 +277,7 @@ invocation; the "Events" line lists only what they add. Per-node `summary` shape
 - **Without it**: the model's tool call string is the program.
 - **Events**: none beyond enter and exit.
 
-#### `output_guardrails` (code, can be disabled in dev and private)
+#### `output_guardrails` (code, can be switched off in dev and private, and by a profile)
 
 - **Responsibility**: check the answer before it leaves: schema validation, content checks,
   citations when the answer draws on `knowledge`.
@@ -307,6 +319,11 @@ invocation; the "Events" line lists only what they add. Per-node `summary` shape
     separately.
   - Offline eval MUST be runnable with the `fake` provider in CI.
   - Online eval MUST run on a sample, never on every turn by default.
+  - Since 0.2.0 `eval`, `online_eval` and `diagnose` can be switched off (section 10): no turn
+    of that pack is sampled or judged, and failed cases are not diagnosed on their own.
+    `offline_eval` is never switched off: the golden set is how every rung is measured, and
+    `POST /v1/evals/runs` and `POST /v1/diagnose` still answer, since they are asked for from
+    outside the harness.
 - **Without it**: every change is a guess.
 - **Events**: none beyond enter and exit (eval runs are their own turns).
 
@@ -321,6 +338,9 @@ invocation; the "Events" line lists only what they add. Per-node `summary` shape
   - Every version MUST be diffable against its predecessor and restorable by version id.
   - MUST emit `artifact_released` for each released artifact. Since P4 this is one ops event per
     release (or rollback) listing every artifact in it (`events.md` section 10).
+  - Since 0.2.0 `release` can be switched off (section 10). Off means ungated: a release still
+    versions every artifact and still loads through the release store (`artifacts` is never
+    switched off), but the eval gate is `skipped` with `reason: profile`.
 - **Without it**: a prompt edit in production is untracked and cannot be undone.
 - **Events**: `artifact_released`.
 
@@ -364,7 +384,7 @@ The diagram is data, and it is derived from the harness, not drawn beside it.
 | Purpose | Local learning and building | Anonymous, short-lived sandbox | Signed-in, persistent tenant |
 | Tenant | Default `dev` tenant; tenant header allowed | One tenant per anonymous session | One tenant per account |
 | Persistence | Local volumes | Hard delete after the session TTL | Persistent, export and delete-my-data |
-| Disable nodes (`can_disable`) | Allowed | Forbidden | Allowed |
+| Disable nodes (`can_disable`) | Allowed | Forbidden for a request; a profile switches off only nodes outside the controls (section 10) | Allowed |
 | Edit prompts and skills | Allowed (new artifact version) | Session-scoped only, discarded at TTL | Allowed (new artifact version) |
 | Memory writer auto-approve | Allowed | Forbidden | Allowed when the tenant enables it |
 | Tools | All registered tools, subject to policy | Dataset pure functions and knowledge search only; no shell, no network, no file writes | Registered tools, subject to policy; no shell |
@@ -398,7 +418,120 @@ Normative rules:
 
 ## 9. Versioning
 
-- The spec, the event schema and the diagram share one version (`0.1.0`).
+- The spec, the event schema and the diagram share one version (`0.2.0`). Since 0.2.0 the
+  schema accepts any `0.x.y` `schema_version`, so 0.1.0 streams still validate.
 - Adding an optional field, a node summary key or an expert node is a minor change. Removing or
   renaming a node id, edge id, event type, field or status is a major change.
 - Events carry `schema_version`. A consumer MUST reject events with an unknown major version.
+
+## 10. Profiles (0.2.0)
+
+A **profile** is a named harness shape: which nodes are switched off, and which configuration
+goes with that. A pack names the profile it runs with (`spec/packs.md`, `profile`), so each
+pack shows a rung of the same diagram. The diagram does not change: a node a profile switches
+off is **dimmed, never hidden**, and the rule of section 6 holds for every profile.
+
+### 10.1 The profile file
+
+| Key | Type | Meaning |
+|---|---|---|
+| `id` | string `^[a-z][a-z0-9_]{0,31}$` | The profile id; the file name when loaded by name |
+| `title` | string | A short name for the UI |
+| `summary` | string | One sentence: what this shape is for |
+| `rung` | integer 1 to 6 | Its place on the ladder (10.4) |
+| `disable` | node ids | The nodes switched off. Each MUST have `can_disable: true` in `diagram.json` |
+| `stores` | store ids | The context stores that exist: the five of section 4.2 minus the disabled store nodes |
+| `overrides` | map of dotted keys | Configuration set on top of the config files, only under `context.`, `loop.`, `input_guardrails.`, `output_guardrails.`, `memory_writer.` and `approval.timeout_s`. Never the router, the models or the policy rules |
+
+No other keys. Loading a profile MUST fail (the harness refuses to start) when a key is unknown,
+a `disable` id is not a diagram node or has no `can_disable`, a disabled node has a child with
+`can_disable` that is not disabled too, `policy`, `approval` and `audit` are not all on or all
+off, `stores` is not exactly the stores that are not disabled, or an override key is outside the
+allowed prefixes.
+
+### 10.2 Which profile a turn runs with
+
+The harness profile of a pack is, first found: a server-wide choice (the dotted override
+`profile`, or `HARNESSWALK_PROFILE` / `--profile` when it names a harness profile, by name or by
+path; a file with a `rung` is a harness profile, a file without one is a config overlay such as
+`spec/conformance/profile.yaml`), the pack's `pack.yaml` `profile`, then `operated`. A switch of
+pack is a new session (P5), so a profile never changes inside a session.
+
+For each turn the set of switched-off nodes is the union of the profile's (as the mode allows,
+10.5) and the request's `disable` (dev and private). `turn_start.summary.profile` records the
+shape: `{ id, rung, off }`, with `off` the profile's switched-off nodes in this mode
+(`events.md` section 6). A turn restored after a restart keeps it.
+
+### 10.3 What "off" means, node by node
+
+Every node a turn would have entered is still entered when it is off: its span opens where it
+would run and exits with status `skipped` and `summary.disabled: true`, so the walk keeps its
+shape and the diagram shows the node faded. Nodes that run outside a turn (the ops plane)
+simply do nothing for that pack. No event type is added.
+
+| Node | Off means | Invariants that still hold |
+|---|---|---|
+| `input_guardrails` | The message passes unchanged; no redaction, no block | Deterministic; it still runs before `context_builder` |
+| `output_guardrails` | The answer passes unchanged; no repair, no citation check | It still runs before the gateway reply |
+| `knowledge` | Not retrieved, no documents index in context, `read_doc` not offered or run | Tenant scoping; the store is still ingested |
+| `semantic`, `episodic` | Not retrieved; the memory writer drops proposals to it | Only `memory_writer` writes them |
+| `memory_writer` | Every proposal is dropped (counted rejected); the turn's episode is still proposed when `episodic` is configured, so the span shows | Nothing else writes `semantic` or `episodic` |
+| `policy` | Every call is allowed with rule `disabled`; non-`read` calls are still sent to audit | Prompt text still cannot change a decision; `approval` is never reached |
+| `approval` | A `needs_approval` decision is a `deny`: nobody is asked, nothing pauses, the call never runs | Nothing that needs a human runs without one (fail closed) |
+| `audit` | Records a turn would make are not kept; the span exits skipped | Append-only and tenant-partitioned for what is kept; out-of-turn records (memory review decisions, forced releases) are still kept |
+| `eval`, `online_eval`, `diagnose` | No sampling, no online judging, no automatic diagnosis for the pack | Offline eval stays runnable with the fake provider |
+| `release` | The eval gate is skipped (`reason: profile`) | Artifacts still load only through release, versioned and restorable |
+
+`policy`, `approval` and `audit` are on or off together in a profile: approval without audit
+cannot answer "who approved this", and policy without audit loses its denials. From `governed`
+up all three are on. A profile below `governed` has no human in the loop, so a pack MAY run on
+it only when none of its tools needs one: no tool of class `destructive` or `external`, and none
+a policy rule sends to `needs_approval` (the pack validator checks this, `spec/packs.md`).
+
+Nodes that are never switched off, and why:
+
+| Node | Why it stays on |
+|---|---|
+| `gateway`, `trace`, `cost` | No turn, no stream, no diagram without them |
+| `context_builder`, `memory`, `procedural`, `session` | The model always needs the system prompt and the session; a profile reduces what the context builder retrieves, not whether it runs |
+| `loop`, `model_layer`, `providers` | There is no harness without the model call |
+| `router` | `model_layer` MUST route by rules first; one model is a router rule, not a missing router, and the rules are not a profile's to change |
+| `tools`, `registry`, `sandbox` | Every rung keeps the tool loop; a chat-only shape is a later addition |
+| `offline_eval` | The golden set is how every rung is measured |
+| `artifacts` | The harness MUST load its artifacts only through release |
+
+### 10.4 The ladder
+
+Six profiles ship in `config/profiles/`. Each rung adds to the one below it.
+
+| Node | `minimal` 1 | `guarded` 2 | `grounded` 3 | `remembered` 4 | `governed` 5 | `operated` 6 |
+|---|---|---|---|---|---|---|
+| `input_guardrails`, `output_guardrails` | off | on | on | on | on | on |
+| `knowledge` | off | off | on | on | on | on |
+| `memory_writer`, `semantic`, `episodic` | off | off | off | on | on | on |
+| `policy`, `approval`, `audit` | off | off | off | off | on | on |
+| `eval`, `online_eval`, `diagnose`, `release` | off | off | off | off | off | on |
+| every other node | on | on | on | on | on | on |
+
+Overrides: the three lowest rungs set `context.compaction.summarize: false` (an old session is
+truncated, never summarised by a model). `operated` is the harness of 0.1.0, and the default.
+
+### 10.5 Public mode
+
+A public server never switches off `input_guardrails`, `output_guardrails`, `policy`,
+`approval` or `audit`, whatever the profile says; the other nodes of a profile are off as
+anywhere else. The served diagram, `GET /v1/profiles` (`off`) and `turn_start.summary.profile`
+report what the server actually switches off. A request's `disable` stays forbidden in public
+mode (section 7).
+
+### 10.6 What implementations serve
+
+- `GET /v1/profiles` lists the profiles with their `disable` sets and what is `off` in this mode;
+  `GET /v1/packs` gives each pack's `profile`; `GET /v1/diagram?pack=<id>` serves every node with
+  `disabled: true` for the ones that pack's profile switches off (`contracts/http_api.md`).
+- The conformance suite runs under every profile (`spec/conformance/README.md`, Profiles): a
+  case declares the nodes it `requires` and is skipped, not failed, under a profile that
+  switches one of them off.
+- A per-profile layout of the diagram is out of scope for 0.2.0: every profile uses the same
+  layout, dimmed.
+

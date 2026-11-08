@@ -188,7 +188,7 @@ async def test_list_and_read_a_lesson(tmp_path: Path) -> None:
         assert body["walk_order"] == diagram()["walk_order"]
         first = body["lessons"][0]
         assert set(first) == {
-            "slug", "n", "title", "hook", "node_id", "covers", "group", "words", "url"
+            "slug", "n", "title", "hook", "node_id", "covers", "group", "requires", "words", "url"
         }  # fmt: skip
         assert "markdown" not in first
 

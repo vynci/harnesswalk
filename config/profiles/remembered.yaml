@@ -1,0 +1,11 @@
+# Rung 4: grounded plus durable memory: the memory writer, the semantic and episodic stores,
+# and a model that summarises an old session. The failure that motivates it: the user has to
+# repeat what they said in the last session.
+id: remembered
+title: Remembered
+summary: >-
+  Grounded plus durable memory: facts and events written through the gated memory writer and
+  retrieved in later sessions, and old turns summarised by a model.
+rung: 4
+disable: [policy, approval, audit, eval, online_eval, diagnose, release]
+stores: [procedural, session, semantic, episodic, knowledge]

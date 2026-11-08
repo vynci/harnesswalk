@@ -268,7 +268,7 @@ tenant held the case turns either way.
 
 ## Model suite and the scorecard
 
-Additive (spec 0.1.0, no version change). A third offline suite, `model`, answers every case
+Additive (released in spec 0.2.0). A third offline suite, `model`, answers every case
 from a real model and judges it with the deterministic scorers only, so "does this model pass
 the golden set" has an answer that needs no judge model and is reproducible from the trace.
 
@@ -308,3 +308,10 @@ models as columns, `passed/scored`), and per model the failed cases by scorer na
 failing cases the most models also fail, and the tokens, cost and wall time. The JSON holds
 every cell's totals and, per case, its status, failing scorers and error codes.
 
+## 0.2.0: eval switched off
+
+`eval`, `online_eval` and `diagnose` have `can_disable`. Under a profile that switches
+`online_eval` off, no turn of the pack is sampled for the online judge; with `diagnose` off, a
+run's regressed cases are not diagnosed on their own (`diagnoses` stays empty). `offline_eval`
+is never off: golden runs, `POST /v1/evals/runs` and `POST /v1/diagnose` work under every
+profile, because the golden set is how each rung is measured.

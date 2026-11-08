@@ -2,6 +2,7 @@ id: release_gate
 title: With the eval gate on, a release whose golden case fails is refused with the case; a forced release records the skipped gate
 spec_version: 0.1.0
 fixture: release_gate
+requires: [input_guardrails, output_guardrails, release]
 config:
   release.gate.enabled: true
 turns:

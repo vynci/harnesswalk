@@ -1,5 +1,6 @@
 ---
 node: release
+requires: [release]
 try:
   pack: _starter
   fixture: golden_returns_window

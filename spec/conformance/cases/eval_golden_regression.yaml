@@ -2,6 +2,7 @@ id: eval_golden_regression
 title: A golden run passes, a skill edit makes the next run fail the case that pinned it, and the run lists the regression
 spec_version: 0.1.0
 fixture: eval_golden_regression
+requires: [input_guardrails, output_guardrails]
 turns:
   - before:
       - method: PUT

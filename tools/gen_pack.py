@@ -94,6 +94,15 @@ FEATURES = {
     "sports": "router",
     "finance": "citations_and_memory",
 }
+# The harness profile each pack runs with (spec/packs.md `profile`, spec/harness.md section 10):
+# the lowest rung whose nodes its golden set needs, or higher (P1 measured the ladder).
+PROFILES = {
+    "healthcare": "grounded",
+    "ecommerce": "governed",
+    "logistics": "governed",
+    "sports": "grounded",
+    "finance": "operated",
+}
 
 
 # -- the hosted model -------------------------------------------------------------------------
@@ -256,7 +265,7 @@ def no_em_dashes(pack_dir: Path) -> None:
                 path.write_text(fixed, encoding="utf-8")
 
 
-def finish_pack_yaml(pack: str, pack_dir: Path) -> None:
+def finish_pack_yaml(pack: str, pack_dir: Path, profile: str | None = None) -> None:
     """The card in the shape spec/packs.md fixes. The model writes `feature` as a mapping
     (name, nodes, summary) and `suggested_prompts`; the card keeps the name as `feature`, the
     rest under `demonstrates`, and the prompts as `prompts` (the fields the ops index reads)."""
@@ -273,6 +282,7 @@ def finish_pack_yaml(pack: str, pack_dir: Path) -> None:
         "domain": data.get("domain", pack),
         "summary": data.get("summary"),
         "tier": "domain",
+        "profile": profile or data.get("profile") or PROFILES.get(pack, "operated"),
         "feature": feature,
         "demonstrates": {"id": FEATURES[pack], "nodes": shown.get("nodes"),
                          "summary": str(shown.get("summary") or "").strip()},

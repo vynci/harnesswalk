@@ -53,6 +53,8 @@ class OnlineEval:
         ctx, req = state.ctx, state.request
         if ctx.detached or req.channel == "eval" or state.byo_key or state.exit != "answered":
             return False
+        if ctx.is_disabled("online_eval"):  # the pack's profile does not judge its traffic
+            return False
         if self.sample_rate <= 0 or self.random.random() >= self.sample_rate:
             return False
         if not self.judge.available:

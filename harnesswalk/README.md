@@ -55,6 +55,7 @@ Modules that are not nodes:
 | (root) | `inspectors.py` | What `GET /v1/nodes/{id}` shows per node kind, and the code peek of `GET /v1/nodes/{id}/source` |
 | (root) | `turns.py` | Turn summaries read off the stored events: `GET /v1/turns/{id}` and `GET /v1/sessions/{id}/turns` |
 | (root) | `paths.py` | Where `config/`, `spec/` and `datasets/` live (`HARNESSWALK_ROOT`) |
+| (root) | `profiles.py` | 0.2.0: harness profiles (`config/profiles/*.yaml`): parse and validate, what a profile switches off in each mode, the ladder |
 | (root) | `__main__.py` | The `harnesswalk` command: `serve`, `turn`, `events`, `turns`, `ingest`, `eval`, `release`, `sweep` |
 | `config` | `loader.py` | Loads `config/*.yaml` and profiles through release, applies env and overrides |
 | `control` | `http_api.py` | The FastAPI app for `spec/contracts/http_api.md`, plus the built web app (`web/dist`) and dev-mode CORS |

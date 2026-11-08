@@ -28,6 +28,8 @@ jobs:
           uv run ruff format --check .
       - name: Test
         run: uv run pytest
+      - name: Conformance under each of the six harness profiles
+        run: uv run python -m tests.conformance.runner --all-profiles
       - name: Golden suite (fake provider; the judge is never configured in CI)
         run: uv run harnesswalk eval _starter --suite golden
         env:

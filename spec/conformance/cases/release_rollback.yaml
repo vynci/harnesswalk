@@ -2,6 +2,7 @@ id: release_rollback
 title: An edited prompt is released and reaches the model; after a rollback to the first release the model sees the old prompt
 spec_version: 0.1.0
 fixture: release_rollback
+requires: [input_guardrails, output_guardrails]
 turns:
   - before:
       - method: GET

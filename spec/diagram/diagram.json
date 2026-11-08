@@ -1,6 +1,6 @@
 {
   "$schema": "./diagram.schema.json",
-  "spec_version": "0.1.0",
+  "spec_version": "0.2.0",
   "title": "harnesswalk reference harness",
   "groups": [
     {
@@ -78,6 +78,7 @@
       "lesson_url": "lessons/09-approval.md",
       "lesson_summary": "A human in the loop: the turn pauses, the exact action is shown, nothing runs until someone decides.",
       "source_hint": "harnesswalk/control/approval.py",
+      "can_disable": true,
       "layout": {"x": 90, "y": 336}
     },
     {
@@ -90,6 +91,7 @@
       "lesson_url": "lessons/10-audit.md",
       "lesson_summary": "The append-only record of consequential decisions, and why it is not the trace.",
       "source_hint": "harnesswalk/control/audit.py",
+      "can_disable": true,
       "layout": {"x": 0, "y": 448}
     },
     {
@@ -156,6 +158,7 @@
       "lesson_url": "lessons/16-memory-inside.md#semantic",
       "lesson_summary": "Durable facts matched by key first and similarity second, versioned, written only by the memory writer.",
       "source_hint": "harnesswalk/context/stores/semantic.py",
+      "can_disable": true,
       "artifact_hint": "datasets/<pack>/facts.jsonl"
     },
     {
@@ -170,6 +173,7 @@
       "lesson_url": "lessons/16-memory-inside.md#episodic",
       "lesson_summary": "Dated events ranked by relevance and recency, one written for every finished turn.",
       "source_hint": "harnesswalk/context/stores/episodic.py",
+      "can_disable": true,
       "artifact_hint": "datasets/<pack>/episodes.jsonl"
     },
     {
@@ -184,6 +188,7 @@
       "lesson_url": "lessons/16-memory-inside.md#knowledge",
       "lesson_summary": "Documents cut into chunks, keyword and vector search fused by rank, numbered for the model to cite.",
       "source_hint": "harnesswalk/context/stores/knowledge.py",
+      "can_disable": true,
       "artifact_hint": "datasets/<pack>/docs/"
     },
     {
@@ -333,6 +338,7 @@
       "lesson_url": "lessons/14-eval.md",
       "lesson_summary": "Golden sets offline, judges and thumbs online, and diagnosis of what failed where.",
       "source_hint": "harnesswalk/ops/eval/__init__.py",
+      "can_disable": true,
       "layout": {"x": 232, "y": 646, "expert": {"x": 244, "y": 880}}
     },
     {
@@ -346,7 +352,8 @@
       "lesson": "A judge model scores a sample of live turns, alongside user thumbs and task-success signals. It catches drift that no golden set anticipated.",
       "lesson_url": "lessons/20-eval-inside.md#online-eval",
       "lesson_summary": "Thumbs and notes on live turns, and a sampled judge whose scores land on the nodes they judge.",
-      "source_hint": "harnesswalk/ops/eval/online.py"
+      "source_hint": "harnesswalk/ops/eval/online.py",
+      "can_disable": true
     },
     {
       "id": "offline_eval",
@@ -373,7 +380,8 @@
       "lesson": "Walks a failed trace and names the layer at fault: context, prompt, memory, tool or model. Its output is a regression case for the golden set and, where it fits, a proposed fact or skill for the memory writer.",
       "lesson_url": "lessons/20-eval-inside.md#diagnose",
       "lesson_summary": "Mapping a failed case or a bad turn to the layer that caused it, so the fix goes to the right place.",
-      "source_hint": "harnesswalk/ops/eval/diagnose.py"
+      "source_hint": "harnesswalk/ops/eval/diagnose.py",
+      "can_disable": true
     },
     {
       "id": "release",
@@ -385,6 +393,7 @@
       "lesson_url": "lessons/15-release.md",
       "lesson_summary": "Prompts, skills, policy and config as versioned artifacts with an eval gate and rollback.",
       "source_hint": "harnesswalk/ops/release.py",
+      "can_disable": true,
       "layout": {"x": 464, "y": 646, "expert": {"x": 700, "y": 920}}
     },
     {

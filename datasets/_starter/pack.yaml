@@ -3,6 +3,7 @@ title: Sample Shop
 domain: ecommerce
 summary: The small hand-written pack the harness runs with by default, a fictional shop with orders, returns and three documents.
 tier: starter
+profile: operated
 feature: A tour of every node
 demonstrates:
   id: tour

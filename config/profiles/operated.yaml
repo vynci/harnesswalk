@@ -1,0 +1,10 @@
+# Rung 6: everything on, today's default harness. Governed plus the ops plane's runtime side:
+# online judging of sampled turns, automatic diagnosis, and the eval gate on every release.
+id: operated
+title: Operated
+summary: >-
+  Every node on: governed plus online judging of sampled turns, automatic diagnosis of
+  failures, and a release that must pass the golden set before it ships.
+rung: 6
+disable: []
+stores: [procedural, session, semantic, episodic, knowledge]

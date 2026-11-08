@@ -34,7 +34,9 @@ The runner is plain Python in this repository. Clone it and install it once (`ma
 which is `uv sync`); the runner imports the reference harness only in the default mode.
 
 ```sh
-make conformance                       # the reference harness, started in-process per case
+make conformance                       # the reference harness: the default run, then every profile
+uv run python -m tests.conformance.runner --all-profiles    # 0.2.0: the suite under each profile
+uv run python -m tests.conformance.runner --profile minimal # one profile (repeat for more)
 uv run python -m tests.conformance.runner --list            # the case ids
 uv run python -m tests.conformance.runner --case tool_call  # one case (repeat --case for more)
 ```
@@ -72,6 +74,7 @@ literal brace):
 | `{profile}` | `HARNESSWALK_PROFILE` | The absolute path of `spec/conformance/profile.yaml` |
 | `{config_json}` | `HARNESSWALK_CONFORMANCE_CONFIG` | The case's `config` overrides as a JSON object of dotted keys (`{}` for most cases) |
 | `{set_args}` | | The same overrides as `--set=key=<json>` arguments, the reference CLI's spelling |
+| | | 0.2.0: in a per-profile run both carry the harness profile as the dotted key `profile` (`{"profile": "minimal"}`, `--set=profile="minimal"`), so start your harness on that profile |
 | `{root}`, `{python}` | | The repository root, and the Python running the runner |
 | | `HARNESSWALK_PROVIDER` | Always `fake` |
 | | `HARNESSWALK_SECRET` | `conformance-secret` unless your environment sets it: the reference harness refuses public mode without a cookie secret (P6) |
@@ -101,7 +104,7 @@ own fixture in `options` keeps it). Each run appends a random suffix to the tena
 not see each other's audit records or memory. Cases that need a server of their own are
 reported as `SKIP` with the reason: another `mode`, `config` overrides, a restart, or requests
 to `/v1/artifacts` and `/v1/releases`, which change state the whole server shares. Today that
-leaves 9 of the 23 cases; use `--command` for the rest.
+leaves 10 of the 28 cases (a case pinned to a profile also needs its own server, unless `--profile` names it); use `--command` for the rest.
 
 For the reference harness:
 
@@ -223,10 +226,36 @@ model would say. The fake provider fixes what the model says.
 | `diagnose_skill_change` | `diagnose_skill_change` | P5: a skill edit regresses the golden case; the run diagnoses it on its own (`diagnoses: {skill_index: prompt_or_skill}`), `POST /v1/diagnose` names the same layer against the passing run as baseline, a passed case has nothing to diagnose, and a chat turn with bad feedback is diagnosed and carries its `diagnosis` |
 | `release_gate` | `release_gate` | P5, with `release.gate.enabled: true`: a release on a passing golden set records `gate: passed`; after an edit that breaks the case `POST /v1/releases` is `409 gate_failed` with the failing case and the active release stays; `force: true` releases with `gate: skipped, forced: true` |
 | `public_model_allowlist` | `public_model_allowlist` | P6, public mode: `GET /v1/capabilities` carries `public`; a turn naming a model outside `public.models` is `400 "model not available in public mode"`; `model: fake-small` runs on it through the router's `public` rule |
+| `profile_minimal` | `plain_answer` | 0.2.0, under `minimal` only: a plain answer walks the same path, with `input_guardrails` and `output_guardrails` exiting `skipped` with `disabled: true` and `turn_start.summary.profile` naming `minimal` |
+| `profile_minimal_tool` | `tool_call` | 0.2.0, under `minimal` only: a read tool runs with `policy` exiting `skipped` (rule `disabled`, allow) and nothing audited |
+| `approval_off` | `approval_deny` | 0.2.0: with `approval` disabled for the turn, a destructive call that needs approval is denied without asking anyone: the `approval` span exits `skipped` (`decision: deny`), audit records the deny, the tool never runs |
 | `public_budget_fall_through` | `public_budget_fall_through` | P6, public mode with a priced fake alias (`fake-priced`, profile) first: the first call spends the day's whole budget (`public.hosted_budget_usd_per_day: 0.01`), the second call of the same turn runs on `fake-small` with `notice: budget_exhausted`, `turn_end.summary.notices` says so, capabilities show `budget.status: exhausted`, and a turn naming the priced alias is `409 budget_exhausted` |
 
 The knowledge and memory cases need the expert children `knowledge` and `semantic`: an
 implementation that implements those stores emits their spans, so these cases assert them.
+
+## Profiles (0.2.0)
+
+A harness runs with a profile (`spec/harness.md` section 10). The default run is the suite as
+before: each pack runs with the profile its card names (the conformance packs name
+`operated`, so every node is on). A per-profile run forces one profile for every case:
+
+- The runner starts the harness with the dotted override `profile: <id>` (in-process and
+  `--command`: part of the case's overrides; `--base-url`: start the server with
+  `HARNESSWALK_PROFILE=<id>` and pass `--profile <id>`, the runner trusts it).
+- A case lists the nodes it needs switched on in `requires`. Under a profile whose `off` set
+  (for the case's mode: public mode keeps the controls on) contains one of them, the case is
+  `SKIP` with the reason, never `FAIL`. Most cases assert `statuses: done` on the guardrails,
+  so they require them; the `requires` lists were measured by switching each node group off
+  in turn.
+- A case with its own `profile` runs only under it: in the default run with that profile, and
+  skipped in a run under another one (`profile_minimal`, `profile_minimal_tool`).
+- The runner prints one total per profile, then a `per profile:` line. The suite passes when
+  every case that ran passed under every profile.
+
+The reference passes every profile: on `minimal` 5 cases run (the two `profile_minimal` cases
+and the three public-mode cases, since public mode keeps the controls on), on `operated` all
+but the two minimal-only cases.
 
 ## The fixture protocol
 

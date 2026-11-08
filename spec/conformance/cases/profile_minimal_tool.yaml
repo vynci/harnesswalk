@@ -1,0 +1,23 @@
+id: profile_minimal_tool
+title: Under the minimal profile a tool call runs with policy switched off, shown skipped
+spec_version: 0.2.0
+fixture: tool_call
+profile: minimal
+turns:
+  - send:
+      message: Where is order A-1001?
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, tools, policy, model_layer, output_guardrails, gateway, trace]
+      statuses: [done, skipped, done, done, done, done, done, skipped, done, skipped, done, done]
+      events:
+        - { type: turn_start, status: active, summary: { profile: { id: minimal, rung: 1 } } }
+        - { type: node_enter, node_id: tools, summary: { tool: lookup_order } }
+        - { type: node_exit, node_id: policy, status: skipped, summary: { disabled: true, decision: allow, rule: disabled } }
+        - { type: node_exit, node_id: tools, summary: { tool: lookup_order, outcome: ok, executed: true } }
+        - { type: node_exit, node_id: loop, summary: { exit_reason: answer, steps: 2, tool_calls: 1 } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      absent:
+        - { type: node_enter, node_id: audit }
+        - { type: node_enter, node_id: approval }
+        - { type: node_enter, node_id: memory_writer }
+      reply_contains: [A-1001, 30 October]

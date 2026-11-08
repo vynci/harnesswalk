@@ -91,17 +91,19 @@ contract other implementations must meet.
 A pack is a fictional business: system prompt, skills, tools, documents, seed facts and
 events, a golden set with a fake fixture per case, and a provenance card. Start from
 `datasets/_starter/` and the layout in `datasets/README.md` and `spec/packs.md`. Content is
-synthetic and CC0 1.0: no real people, brands or places, and no copied text. Run
-`uv run harnesswalk packs validate <pack>` and `uv run harnesswalk eval <pack>` until both
-pass. The CI `packs` job runs every pack's golden set. A worked example of a pack, from an empty
+synthetic and CC0 1.0: no real people, brands or places, and no copied text. Name the harness
+profile it runs with in `pack.yaml` (`profile`): the lowest rung of the ladder its golden set
+passes on, found with `uv run harnesswalk eval <pack> --profile <rung>` (spec/harness.md
+section 10). Run `uv run harnesswalk packs validate <pack>` and `uv run harnesswalk eval <pack>`
+until both pass. The CI `packs` job runs every pack's golden set. A worked example of a pack, from an empty
 folder to a gated release, is [docs/your-own-data.md](docs/your-own-data.md) (it uses your own
 documents, which stay out of the repository, but every step is the same for a contributed pack).
 
 ### A lesson
 
 Chapters live in `lessons/`, one per simple-view node in walk order and one per expert group,
-indexed in `lessons/README.md`. Each has the front matter (`node`, and a `try` block naming a
-pack, fixture and prompt), then the six sections in order: What it does, What breaks without
+indexed in `lessons/README.md`. Each has the front matter (`node`, `requires` when the chapter
+needs a node a profile can switch off, and a `try` block naming a pack, fixture and prompt), then the six sections in order: What it does, What breaks without
 it, The code walk, Try this, Check yourself, Further reading. `tests/unit/test_http_lessons.py`
 checks the sections, a length of 600 to 1200 words, three questions with one right answer each,
 code links that resolve to a file and symbol, real fixtures, and two or three primary sources.
@@ -111,8 +113,10 @@ Verify every "what breaks" demonstration on the fake provider before you describ
 
 Write the fixture first, then the case, then run
 `uv run python -m tests.conformance.runner --case <id>`. The steps and the rules are in
-[spec/conformance/README.md](spec/conformance/README.md#adding-a-case). A case that asserts new
-behaviour is a spec change and lands with the spec text it tests.
+[spec/conformance/README.md](spec/conformance/README.md#adding-a-case). List the nodes the case
+needs switched on in `requires`, and check it with `--all-profiles`: under a profile that
+switches one off it must be skipped, never failed. A case that asserts new behaviour is a spec
+change and lands with the spec text it tests.
 
 ## Tests and lint
 

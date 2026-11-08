@@ -242,6 +242,16 @@ class OfflineRunner:
         finally:
             self._finish(run, results, previous, cost)
 
+    def _diagnose_on(self, run: dict[str, Any]) -> bool:
+        """Automatic diagnosis runs unless the pack's profile switches `diagnose` off (0.2.0)."""
+        from harnesswalk.config.loader import profile_for
+
+        try:
+            profile = profile_for(self.h.settings, run["pack"])
+        except Exception:  # an unreadable profile never stops a run
+            return True
+        return profile.enabled("diagnose", self.h.settings.mode)
+
     def _finish(
         self, run: dict[str, Any], results: list[dict], previous: dict[str, str], cost: Usage
     ) -> None:
@@ -250,7 +260,7 @@ class OfflineRunner:
             key = {"passed": "passed", "skipped": "skipped"}.get(r["status"], "failed")
             totals[key] += 1
         regressed = [r["case_id"] for r in results if r["regression"]]
-        if regressed and self.diagnoser is not None:  # P5: automatic on regression
+        if regressed and self.diagnoser is not None and self._diagnose_on(run):  # P5
             try:
                 run["diagnoses"] = self.diagnoser.after_run(run, regressed)
             except Exception:  # a diagnosis never fails the run

@@ -1,6 +1,7 @@
 ---
 node: eval
 covers: [offline_eval, online_eval, diagnose]
+requires: [eval, online_eval, diagnose]
 try:
   pack: _starter
   fixture: tool_call

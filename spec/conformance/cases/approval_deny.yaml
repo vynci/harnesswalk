@@ -2,6 +2,7 @@ id: approval_deny
 title: A destructive tool call pauses for approval, is denied, and never executes
 spec_version: 0.1.0
 fixture: approval_deny
+requires: [input_guardrails, output_guardrails, policy, approval, audit]
 turns:
   - send:
       message: Please cancel order A-1002.

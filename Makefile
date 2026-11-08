@@ -7,8 +7,9 @@ setup: ## Create .venv and install the package with dev tools
 test: ## Unit tests, spec checks and the conformance suite (fake provider, offline)
 	uv run pytest
 
-conformance: ## Every spec/conformance case against the reference, then the spec checks; make conformance BASE_URL=http://127.0.0.1:8000 for a running implementation
+conformance: ## Every spec/conformance case against the reference (the default run, then under each of the six profiles), then the spec checks; make conformance BASE_URL=http://127.0.0.1:8000 for a running implementation
 	uv run python -m tests.conformance.runner $(if $(BASE_URL),--base-url $(BASE_URL))
+	$(if $(BASE_URL),,uv run python -m tests.conformance.runner --all-profiles)
 	uv run pytest tests/spec -q
 
 eval: ## The starter golden set on the fake provider, scored and diffed against the last run: make eval PACK=_starter
