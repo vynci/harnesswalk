@@ -1,7 +1,7 @@
 # Conformance profile: the configuration every implementation runs the suite with.
 # Keys follow spec/contracts/*.md. A case may override only the keys listed in
 # `overridable` below, through its own `config` map.
-spec_version: 0.1.0
+spec_version: 0.2.0
 mode: dev
 tenant_prefix: conformance-          # runner sends X-Harnesswalk-Tenant: conformance-<case id>
 

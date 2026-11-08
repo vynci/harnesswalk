@@ -321,7 +321,12 @@ async def run_semantic(
 ) -> list[Hit]:
     async with node(ctx, "semantic") as span:
         if store is None or query is None:
-            span.skip(hits=0, tokens=0, enabled=False)
+            span.skip(
+                hits=0,
+                tokens=0,
+                enabled=False,
+                **({"disabled": True} if ctx.is_disabled("semantic") else {}),
+            )
             return []
         try:
             hits = await asyncio.to_thread(store.retrieve, ctx, query)

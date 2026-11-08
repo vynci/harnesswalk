@@ -1,5 +1,6 @@
 ---
 node: memory_writer
+requires: [memory_writer]
 try:
   pack: _starter
   disable: [memory_writer]

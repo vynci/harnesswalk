@@ -2,6 +2,7 @@ id: guardrail_block
 title: Input guardrails block an oversized message before any model call
 spec_version: 0.1.0
 fixture: guardrail_block
+requires: [input_guardrails]
 config:
   input_guardrails.size.max_chars: 200
 turns:

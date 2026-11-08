@@ -117,3 +117,11 @@ Edges: `memory_to_context_builder` and its expert refinements `<kind>_to_context
 | `stores.knowledge.reranker` | `none` | `none`, or a reranker registered by name (`cross_encoder` and `model` are reserved names; none ships) |
 | `stores.knowledge.min_vector_score` | `0.45` | A chunk found only by vector search needs this cosine |
 | `stores.knowledge.min_keyword_coverage` | `0.25` | A keyword hit needs this share of the query's words, and at least two of them |
+
+## 0.2.0: stores switched off
+
+`semantic`, `episodic` and `knowledge` have `can_disable`. A store that is off for the turn (a
+profile, or the request's `disable`) is not queried: its span exits `skipped` with `hits: 0`,
+`enabled: false` and `disabled: true`. A profile also leaves it out of `context.stores`, and
+while `knowledge` is off the documents index is not in context and `read_doc` is neither
+offered nor run. `procedural` and `session` are always on.

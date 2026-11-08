@@ -1,0 +1,13 @@
+# Rung 3: guarded plus the knowledge store, its retrieval and the citation check. The failure
+# that motivates it: the model invents a return window the documents state.
+id: grounded
+title: Grounded
+summary: >-
+  Guarded plus retrieval from the pack's documents, numbered passages in context and answers
+  that must cite them.
+rung: 3
+disable: [memory_writer, semantic, episodic, policy, approval, audit, eval, online_eval,
+          diagnose, release]
+stores: [procedural, session, knowledge]
+overrides:
+  context.compaction.summarize: false

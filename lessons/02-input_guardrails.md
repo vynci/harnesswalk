@@ -1,5 +1,6 @@
 ---
 node: input_guardrails
+requires: [input_guardrails]
 try:
   pack: _starter
   disable: [input_guardrails]

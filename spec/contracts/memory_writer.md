@@ -1,6 +1,6 @@
 # Contract: Memory writer
 
-Node: `memory_writer` (context plane, kind `code`, can be disabled in dev and private modes).
+Node: `memory_writer` (context plane, kind `code`, can be disabled in dev and private modes, and switched off by a profile below `remembered`).
 
 ## Purpose
 
@@ -125,3 +125,10 @@ is no open turn to carry them); the write is in the proposal record and the stor
 | `memory_writer.auto_episodes` | `true` | One `turn` event per finished turn (only when `episodic` is among `context.stores`) |
 | `memory_writer.injection.block_threshold` | `0.8` | P4: a proposal whose injection score reaches this is rejected |
 | `memory_writer.injection.review_threshold` | `0.45` | P4: at this score an `auto` or `eval` gate becomes `review` |
+
+## 0.2.0: switched off, and stores that are off
+
+A writer switched off by the profile behaves as a disabled one. The turn's episode is still
+proposed when `episodic` is in the configured `context.stores`, so the span shows, skipped, on
+every chat turn of a pack that has episodic memory. A writer that is on drops, before the gate,
+every proposal to a store that is off for the turn (`harness.md` section 10.3).

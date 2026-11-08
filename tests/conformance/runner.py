@@ -23,6 +23,13 @@ running in dev mode with the conformance profile, sends each turn's fixture in t
 body, and skips the cases that need their own server (another mode, config overrides, a
 restart, or server-wide artifact and release state).
 
+0.2.0 (harness profiles, spec/harness.md section 10): `--profile <id>` (repeatable) or
+`--all-profiles` runs the suite again under each named profile, passed to the harness as the
+dotted override `profile`. A case declares `requires` (node ids): under a profile that
+switches one of them off it is reported `SKIP`, not failed. A case that names its own
+`profile` runs only under that profile (and under it in the default run). The default run
+(no `--profile`) is the suite as before: each pack runs with the profile its card names.
+
 No network beyond 127.0.0.1, no Docker, no model. Run the whole suite and print one line per
 case with:
 
@@ -89,6 +96,7 @@ class Target:
     base_url: str | None = None
     command: str | None = None
     tenant_suffix: str = ""
+    profile: str | None = None  # 0.2.0: the harness profile this run forces, or None
 
     @property
     def remote(self) -> bool:
@@ -117,10 +125,43 @@ class CaseResult:
         return head + "".join(f"\n  warning: {w}" for w in self.warnings)
 
 
+def run_profile(case: dict[str, Any], target: Target) -> str | None:
+    """The harness profile a case runs under in this run: the run's, else the case's own."""
+    return target.profile or case.get("profile")
+
+
+def profile_skip(case: dict[str, Any], target: Target) -> str | None:
+    """Why a case does not run under this run's profile (0.2.0), or None."""
+    from harnesswalk import profiles
+
+    pinned = case.get("profile")
+    if pinned and target.profile and pinned != target.profile:
+        return f"runs under profile {pinned} only"
+    name = run_profile(case, target)
+    if name is None:
+        return None
+    profile = profiles.load(ROOT, name)
+    off = sorted(set(case.get("requires") or []) & profile.off(case.get("mode", "dev")))
+    if off:
+        return f"needs {', '.join(off)}, off in profile {profile.id}"
+    return None
+
+
+def case_config(case: dict[str, Any], target: Target) -> dict[str, Any]:
+    """The case's overrides plus the run's harness profile (the dotted key `profile`)."""
+    config = dict(case.get("config", {}))
+    name = run_profile(case, target)
+    if name is not None:
+        config["profile"] = name
+    return config
+
+
 def needs_own_server(case: dict[str, Any]) -> str | None:
     """Why a case cannot run against a shared, already running server, or None."""
     if case.get("two_process"):
         return "restarts the harness (use --command)"
+    if case.get("profile"):
+        return f"runs under profile {case['profile']} (use --command, or --profile)"
     if case.get("mode", "dev") != "dev":
         return f"runs in {case['mode']} mode (use --command)"
     if case.get("config"):
@@ -135,7 +176,9 @@ def needs_own_server(case: dict[str, Any]) -> str | None:
 class LiveHarness:
     """The reference harness behind a real HTTP server on a free loopback port."""
 
-    def __init__(self, case: dict[str, Any], data_dir: Path) -> None:
+    def __init__(
+        self, case: dict[str, Any], data_dir: Path, config: dict[str, Any] | None = None
+    ) -> None:
         from harnesswalk.config.loader import load_settings
         from harnesswalk.control.http_api import create_app
         from harnesswalk.runtime import Harness
@@ -150,7 +193,7 @@ class LiveHarness:
             provider="fake",
             fixture=case["fixture"],
             profile=PROFILE,
-            overrides=case.get("config", {}),
+            overrides=case.get("config", {}) if config is None else config,
             data_dir=data_dir,
             env={"HARNESSWALK_SECRET": "conformance-secret"},  # public mode's cookie secret
         )
@@ -187,12 +230,19 @@ class LiveProcess:
     """The harness as its own OS process: the reference for `two_process` cases (P3), or, with a
     command template (P7), any implementation, for every case."""
 
-    def __init__(self, case: dict[str, Any], data_dir: Path, command: str | None = None) -> None:
+    def __init__(
+        self,
+        case: dict[str, Any],
+        data_dir: Path,
+        command: str | None = None,
+        config: dict[str, Any] | None = None,
+    ) -> None:
         overridable = set(load_yaml(PROFILE)["overridable"])
         extra = set(case.get("config", {})) - overridable
         if extra:
             raise ValueError(f"case overrides keys outside the profile: {sorted(extra)}")
         self.case = case
+        self.config = dict(case.get("config", {})) if config is None else config
         self.data_dir = data_dir
         self.command = command
         self.proc: subprocess.Popen | None = None
@@ -201,7 +251,7 @@ class LiveProcess:
 
     def _external(self, port: int) -> tuple[list[str], dict[str, str]]:
         """The command template filled in, and the variables it runs with (README, P7)."""
-        config = self.case.get("config", {})
+        config = self.config
         fields = {
             "port": str(port),
             "data_dir": str(self.data_dir),
@@ -256,7 +306,7 @@ class LiveProcess:
             "--log-level",
             "warning",
         ]
-        for key, value in self.case.get("config", {}).items():
+        for key, value in self.config.items():
             cmd += ["--set", f"{key}={json.dumps(value)}"]
         env = {
             "PATH": os.environ.get("PATH", ""),
@@ -535,16 +585,23 @@ async def _drive(
 def _live(case: dict[str, Any], data_dir: Path, target: Target) -> Any:
     if target.base_url is not None:
         return Remote(target.base_url)
+    config = case_config(case, target)
     if target.command:
-        return LiveProcess(case, data_dir, target.command)
-    return LiveProcess(case, data_dir) if case.get("two_process") else LiveHarness(case, data_dir)
+        return LiveProcess(case, data_dir, target.command, config)
+    if case.get("two_process"):
+        return LiveProcess(case, data_dir, config=config)
+    return LiveHarness(case, data_dir, config)
 
 
 def run_case(path: Path, target: Target | None = None) -> CaseResult:
     target = target or Target()
     case = load_yaml(path)
     result = CaseResult(case["id"])
-    if target.remote and (reason := needs_own_server(case)):
+    if reason := profile_skip(case, target):
+        result.skipped = reason
+        return result
+    pinned_here = case.get("profile") and case.get("profile") == target.profile
+    if target.remote and not pinned_here and (reason := needs_own_server(case)):
         result.skipped = reason
         return result
     with tempfile.TemporaryDirectory(prefix="harnesswalk-conf-") as tmp:
@@ -604,6 +661,15 @@ def main(argv: list[str] | None = None) -> int:
         help="appended to each case's tenant (default with --base-url: a random one per run)",
     )
     ap.add_argument("--list", action="store_true", help="print the case ids and exit")
+    ap.add_argument(
+        "--profile",
+        action="append",
+        default=[],
+        help="run under this harness profile (repeat); with --base-url, the one it runs",
+    )
+    ap.add_argument(
+        "--all-profiles", action="store_true", help="run under each of the six profiles in turn"
+    )
     args = ap.parse_args(argv)
 
     paths = case_paths()
@@ -619,20 +685,36 @@ def main(argv: list[str] | None = None) -> int:
     suffix = args.tenant_suffix
     if suffix is None:
         suffix = f"-{secrets.token_hex(3)}" if args.base_url else ""
-    target = Target(base_url=args.base_url, command=args.command, tenant_suffix=suffix)
-    if target.base_url is not None and (problem := check_remote(target.base_url)):
+    if args.base_url is not None and (problem := check_remote(args.base_url)):
         print(f"FAIL {problem}")
         return 1
+    names: list[str | None] = list(args.profile)
+    if args.all_profiles:
+        from harnesswalk import profiles
 
-    results = [run_case(p, target) for p in paths]
-    for r in results:
-        print(r.line())
-    passed = sum(r.passed for r in results)
-    skipped = sum(r.skipped is not None for r in results)
-    ran = len(results) - skipped
-    tail = f", {skipped} skipped" if skipped else ""
-    print(f"{passed}/{ran} cases passed{tail}")
-    return 0 if passed == ran else 1
+        names = [p.id for p in profiles.all_profiles(ROOT)]
+    ok = True
+    totals: list[str] = []
+    for name in names or [None]:
+        target = Target(
+            base_url=args.base_url, command=args.command, tenant_suffix=suffix, profile=name
+        )
+        if name is not None:
+            print(f"== profile {name}")
+        results = [run_case(p, target) for p in paths]
+        for r in results:
+            print(r.line())
+        passed = sum(r.passed for r in results)
+        skipped = sum(r.skipped is not None for r in results)
+        ran = len(results) - skipped
+        tail = f", {skipped} skipped" if skipped else ""
+        line = f"{passed}/{ran} cases passed{tail}"
+        print(line if name is None else f"{line} under profile {name}")
+        totals.append(f"{name or 'default'}: {line}")
+        ok = ok and passed == ran
+    if len(totals) > 1:
+        print("per profile: " + "; ".join(totals))
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":

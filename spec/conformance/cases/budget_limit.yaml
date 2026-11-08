@@ -2,6 +2,7 @@ id: budget_limit
 title: A tool-call budget of two per turn denies the third call and ends the turn on a limit
 spec_version: 0.1.0
 fixture: budget_limit
+requires: [input_guardrails, output_guardrails, policy, audit]
 config:
   policy.budgets.default.tool_calls_per_turn: 2
 turns:

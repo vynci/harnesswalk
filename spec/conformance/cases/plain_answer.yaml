@@ -2,6 +2,7 @@ id: plain_answer
 title: A plain question is answered without tools
 spec_version: 0.1.0
 fixture: plain_answer
+requires: [input_guardrails, output_guardrails]
 turns:
   - send:
       message: What are your support hours?

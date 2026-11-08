@@ -30,8 +30,9 @@ import yaml
 
 from harnesswalk import SPEC_VERSION, __version__
 from harnesswalk import packs as packs_mod
+from harnesswalk import profiles as profiles_mod
 from harnesswalk.adapters.storage.vectors import build_vectors
-from harnesswalk.config.loader import Settings, deep_merge, load_settings
+from harnesswalk.config.loader import Settings, deep_merge, load_settings, profile_for
 from harnesswalk.context.builder import ContextBuilder
 from harnesswalk.context.embeddings import build_embedder
 from harnesswalk.context.memory_writer import MemoryWriter, remember_tool
@@ -165,7 +166,9 @@ class PackParts:
             self.semantic,
             self.episodic,
             policy,
-            episodes_enabled="episodic" in enabled,
+            # The turn's episode is proposed when episodic is configured, even when the
+            # profile has it off: a writer that is off then shows on the walk, skipped.
+            episodes_enabled="episodic" in (s.configured_stores or enabled),
             pii=self.input_guardrails.pii,
             audit=self.audit,
         )
@@ -417,6 +420,25 @@ class Harness(PackParts):
             return view
         return PackRuntime(self, view.pack, working_set=True)
 
+    def profile_of(self, pack: str | None = None) -> Any:
+        """The harness profile a pack runs with here (0.2.0), without building the pack."""
+        pack = pack or self.pack
+        if pack == self.pack:
+            return self.settings.profile
+        runtime = self.packs.get(pack)
+        if runtime is not None:
+            return runtime.settings.profile
+        return profile_for(self.settings, pack)
+
+    def profile_list(self) -> dict[str, Any]:
+        """GET /v1/profiles: the ladder, each profile with what it switches off in this mode."""
+        mode = self.settings.mode
+        return {
+            "default": profiles_mod.DEFAULT_PROFILE,
+            "override": self.settings.profile_override,
+            "profiles": [p.describe(mode) for p in profiles_mod.all_profiles(self.settings.root)],
+        }
+
     def pack_list(self) -> dict[str, Any]:
         """GET /v1/packs."""
         loaded = {self.pack, *self.packs}
@@ -425,6 +447,7 @@ class Harness(PackParts):
         items = [
             {
                 **info.summary(self.pack, info.id in loaded),
+                "profile": self._profile_id(info.id),
                 # The fixtures the pack ships (dev only, like capabilities.fixtures), so the
                 # UI's fixture menu can show the pack's own first.
                 "fixtures": list_fixtures([info.path / "fixtures" / "fake"]) if dev else [],
@@ -435,8 +458,15 @@ class Harness(PackParts):
             items.insert(0, {
                 "id": self.pack, "title": self.pack, "domain": None, "feature": None,
                 "prompts": [], "counts": {}, "default": True, "loaded": True, "fixtures": [],
+                "profile": self.settings.profile.id,
             })  # fmt: skip
         return {"default": self.pack, "packs": items}
+
+    def _profile_id(self, pack: str) -> str | None:
+        try:
+            return self.profile_of(pack).id
+        except ConfigError:  # a card naming an unknown profile: the validator reports it
+            return None
 
     async def start(self) -> dict[str, list[str]]:
         """Server start-up: recover unfinished turns, then the sweeper and health probes."""

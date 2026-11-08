@@ -264,15 +264,15 @@ test('a chapter with its Try buttons, in the Guide beside the inspector', async 
 test('the release gate refuses a regressed pack', async ({ page, request }) => {
   test.setTimeout(240_000)
   await settleTurns(request)
-  await onPack(page, 'ecommerce')
-  const base = ((await (await request.get('/v1/releases?pack=ecommerce')).json()) as { active_release_id: string }).active_release_id
+  await onPack(page, '_starter') // 0.2.0: the gate runs on an operated pack
+  const base = ((await (await request.get('/v1/releases?pack=_starter')).json()) as { active_release_id: string }).active_release_id
   const inspector = page.getByTestId('inspector')
   // A passing run first, so the gate's run regresses and is diagnosed.
   await page.getByTestId('node-eval').click()
   await inspector.getByTestId('eval-run-button').click()
   await expect(inspector.getByTestId('eval-run-detail')).toHaveAttribute('data-status', 'done', { timeout: 90_000 })
-  const skill = (await (await request.get('/v1/artifacts/skill/order_status?pack=ecommerce')).json()) as { body: string }
-  await request.put('/v1/artifacts/skill/order_status?pack=ecommerce', { data: { body: skill.body.replace('Report the status', 'Describe the state'), note: 'order status: reworded' } })
+  const skill = (await (await request.get('/v1/artifacts/skill/order_status?pack=_starter')).json()) as { body: string }
+  await request.put('/v1/artifacts/skill/order_status?pack=_starter', { data: { body: skill.body.replace('Look the order up with', 'Find the order with'), note: 'order status: reworded' } })
   await page.getByTestId('node-release').click()
   await inspector.getByTestId('release-note').fill('reworded order status')
   await inspector.getByTestId('release-create').click()
@@ -283,6 +283,6 @@ test('the release gate refuses a regressed pack', async ({ page, request }) => {
   await expect(page.locator('[data-sonner-toast]')).toHaveCount(0, { timeout: 10_000 })
   await settle(page)
   await page.screenshot({ path: out('release-gate') })
-  await request.put('/v1/artifacts/skill/order_status?pack=ecommerce', { data: { body: skill.body, note: 'restore' } })
+  await request.put('/v1/artifacts/skill/order_status?pack=_starter', { data: { body: skill.body, note: 'restore' } })
   await request.post(`/v1/releases/${base}/rollback`, { data: {} })
 })

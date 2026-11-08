@@ -71,6 +71,7 @@ Each chapter is `NN-<name>.md` with YAML front matter, then markdown:
 ---
 node: input_guardrails            # the node the chapter is about (the parent, for a group)
 covers: [procedural, session]     # group chapters only: the expert nodes, one ### section each
+requires: [input_guardrails]      # 0.2.0: nodes that must be on; the Guide greys the chapter under a profile without them
 try:                              # optional: what the "try it" button sets up in the web app
   pack: _starter                  # the pack it runs on (a new session when it is not the current)
   disable: [input_guardrails]     # nodes with can_disable, switched off for the next turn

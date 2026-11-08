@@ -45,6 +45,7 @@ CLI and the validator (P5 integration; it replaced `harnesswalk/ops/pack_index.p
 | `domain` | string | healthcare, ecommerce, logistics, sports, finance, ... |
 | `summary` | string | One sentence |
 | `tier` | `domain`, `starter` or `profile` | Which counts apply (below). Default: `domain` when the directory has a `system_prompt.md`, else `profile` |
+| `profile` | string | 0.2.0: the harness profile the pack runs with (`harness.md` section 10), a file under `config/profiles/`: `minimal`, `guarded`, `grounded`, `remembered`, `governed` or `operated`. Required |
 | `feature` | string | The harness feature the pack demonstrates, in a few words |
 | `demonstrates` | object | `id`, `nodes` (diagram node ids it lights), `summary` (what the learner sees) |
 | `licence` | `CC0-1.0` | Content licence; no other value is accepted |
@@ -53,10 +54,11 @@ CLI and the validator (P5 integration; it replaced `harnesswalk/ops/pack_index.p
 | `prompts` | list of strings | 1 to 10 prompts for the UI's suggestion row |
 
 No other keys. `domain` and `starter` packs need every key but `id`; a `profile` pack (its
-content comes inline from a profile, like `spec/conformance/packs/conformance_alt`) needs
-only `title` and `licence`, and the file, tool and golden checks below do not apply to it.
-`GET /v1/packs` returns `id`, `title`, `domain`, `feature`, `prompts` and `counts` from this
-card; `packs list --json` returns the same fields plus `summary`, `tier`, `demonstrates`,
+content comes inline from a config overlay, like `spec/conformance/packs/conformance_alt`;
+the tier's name predates harness profiles) needs only `title`, `licence` and `profile`, and
+the file, tool and golden checks below do not apply to it. `GET /v1/packs` returns `id`,
+`title`, `domain`, `feature`, `profile` (the one the server runs it with), `prompts` and
+`counts` from this card; `packs list --json` returns the same fields plus `summary`, `tier`, `demonstrates`,
 `licence`, `tools`, `size_bytes` and `path`.
 
 ## Tiers and counts
@@ -122,7 +124,28 @@ when:
    Prompts (golden prompts, fixtures, `prompts.md`, the card's `prompts`) may carry synthetic
    ids on purpose, since they exercise the guardrails, but their emails and phones must be
    reserved values;
-8. the provenance card exists, states CC0 and says the content is synthetic.
+8. the provenance card exists, states CC0 and says the content is synthetic;
+9. (0.2.0) the card's `profile` exists and loads, every node of `demonstrates.nodes` is on
+   under it, and every golden case is reachable under it: a case whose `expect.path` names
+   `approval` needs `policy` and `approval` on, a case that expects `citations` needs
+   `knowledge`, and a `checks.retrieved` store must be on. A profile with `approval` off may
+   only carry tools that need no human: no `destructive` or `external` class, and none that a
+   rule of `config/policy.yaml` sends to `needs_approval` in dev mode. The golden set itself
+   must pass on the fake provider under the pack's profile (CI runs every pack's golden set,
+   which now runs on its profile).
+
+A pack goes on the lowest rung whose nodes its golden set needs, or higher; when a case needs a
+node the profile switches off, the pack moves up a rung rather than the case changing. The
+shipped packs, with the golden set measured on every rung of the fake provider:
+
+| Pack | Profile | Why that rung |
+|---|---|---|
+| `_starter` | `operated` | The tour of every node and the default pack of the public site: today's node set. Its golden set needs `governed` (an approval) |
+| `healthcare` | `grounded` | Its knowledge cases cite documents; it passes on `grounded` and up |
+| `sports` | `grounded` | Rules questions cite documents; the router's `lookup` rule needs no more |
+| `ecommerce` | `governed` | Cancels and refunds pause for approval |
+| `logistics` | `governed` | A reroute is a `write` that a policy rule sends to approval |
+| `finance` | `operated` | Its recall cases need `remembered`; it stays on the full harness, as proposed |
 
 The exit code is 0 when every pack checked is valid, 1 otherwise, 2 for an unknown pack.
 

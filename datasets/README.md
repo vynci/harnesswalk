@@ -19,6 +19,12 @@ The format is fixed in [`spec/packs.md`](../spec/packs.md); the code that reads 
 | `sports` | The Copperline Community League, two divisions | Cheap model routing for lookups: the call after a read-only lookup routes on the `lookup` rule to the cheapest configured model | `model_layer`, `router` |
 | `finance` | Hollowmere Capital Partners, four private funds | Citations and the memory writer: cited answers from fund documents, and preferences proposed with `remember`, written after the reply and recalled in a later session | `knowledge`, `output_guardrails`, `memory_writer` |
 
+Each pack runs on a harness profile (spec 0.2.0, `profile` in `pack.yaml`): `healthcare` and
+`sports` on `grounded`, `ecommerce` and `logistics` on `governed`, `finance` and `_starter` on
+`operated`. The profile is the lowest rung of the ladder the pack's golden set passes on, or
+higher; the nodes it switches off are dimmed in the diagram. `docs/architecture.md` has the
+ladder and the measurements.
+
 Run one:
 
 ```bash
@@ -36,7 +42,7 @@ Each pack's `prompts.md` lists prompts to try and what each one lights up; `pack
 
 ```
 datasets/<pack>/
-  pack.yaml            the card: title, domain, feature, demonstrates, licence, provenance, prompts
+  pack.yaml            the card: title, domain, profile, feature, demonstrates, licence, provenance, prompts
   provenance.md        how it was made: generator, model, prompts and hashes, tokens and cost
   system_prompt.md     skill zero
   skills/*.md          3 to 5 on-demand skills

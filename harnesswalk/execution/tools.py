@@ -28,7 +28,7 @@ from typing import Any
 
 import jsonschema
 
-from harnesswalk.control.approval import ApprovalDecision, ApprovalQueue
+from harnesswalk.control.approval import ApprovalDecision, ApprovalQueue, skip_approval
 from harnesswalk.control.audit import AuditEntry, AuditLog, args_digest, record
 from harnesswalk.control.pii import PiiDetector
 from harnesswalk.control.policy import Decision, Policy
@@ -41,6 +41,7 @@ from harnesswalk.types import HarnessError, Observation, ToolCall, TurnContext
 register("tools", __name__)
 
 NOT_RUN_NOTE = "approved, not run: the turn was cancelled"
+APPROVAL_OFF_NOTE = "denied: approval is off, so nobody could approve"
 SNAPSHOT_CHARS = 1024
 _scrubber = PiiDetector()
 
@@ -58,6 +59,14 @@ def snapshot(content: str | None, scrubber: PiiDetector | None = None) -> Any:
     if len(text) > SNAPSHOT_CHARS:
         return {"truncated": text[: SNAPSHOT_CHARS - 40]}
     return value
+
+
+# Tools that read a node's store: when the node is off they are neither offered nor run.
+TOOL_NODES = {"read_doc": "knowledge"}
+
+
+def _off_with(tool: str, disabled: frozenset[str]) -> bool:
+    return TOOL_NODES.get(tool) in disabled
 
 
 class Tools:
@@ -81,8 +90,12 @@ class Tools:
         # detector here, so pack patterns (national ids, names) apply too (P3 review).
         self.scrubber: PiiDetector | None = None
 
-    def schemas(self, mode: str):
-        return [s.schema() for s in self.registry.list(mode, self.policy.allow_tools)]
+    def schemas(self, mode: str, disabled: frozenset[str] = frozenset()):
+        return [
+            s.schema()
+            for s in self.registry.list(mode, self.policy.allow_tools)
+            if not _off_with(s.name, disabled)
+        ]
 
     def action_class(self, name: str) -> str | None:
         spec = self.registry.get(name)
@@ -113,6 +126,9 @@ class Tools:
         spec = await run_registry(ctx, self.registry, call.name)
         if spec is None:
             return Observation(call.call_id, "error", f"Unknown tool {call.name!r}.")
+        if _off_with(spec.name, ctx.disabled_nodes):
+            # The node behind the tool is off (read_doc reads the knowledge store).
+            return Observation(call.call_id, "error", f"Tool {call.name!r} is not offered here.")
         if spec.action_class != "memory.write" and spec not in self.registry.list(ctx.mode, None):
             # A model can name a tool it was never offered; this mode does not run it. The one
             # exception is `remember`, which only proposes: the memory writer gates it by mode.
@@ -152,6 +168,37 @@ class Tools:
                 limit=decision.limit,
             )
 
+        if decision.decision == "needs_approval" and ctx.is_disabled("approval"):
+            # Approval is off (a profile or the request): nobody can approve, so the call is
+            # denied, never run (fail closed). The approval span still shows, skipped.
+            ctx.emit.edge("policy_to_approval")
+            await skip_approval(ctx, spec.name)
+            ctx.emit.edge("approval_to_audit")
+            await record(
+                ctx,
+                self.audit,
+                AuditEntry(
+                    action="approval_decision",
+                    actor="system",
+                    turn_id=ctx.turn_id,
+                    trace_id=ctx.trace_id,
+                    tool=spec.name,
+                    action_class=spec.action_class,
+                    decision="deny",
+                    rule=decision.rule,
+                    args_digest=args_digest(call.arguments),
+                    executed=False,
+                    extra={"note": APPROVAL_OFF_NOTE},
+                ),
+            )
+            ctx.emit.edge("approval_to_tools")
+            await skip_sandbox(ctx, spec, call, "approval is off")
+            return Observation(
+                call.call_id,
+                "denied",
+                f"Not run: this action needs a human approval ({decision.rule}), and approval"
+                " is off in this harness.",
+            )
         if decision.decision == "needs_approval":
             ctx.emit.edge("policy_to_approval")
             decided = await self.approvals.request(

@@ -7,10 +7,29 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-Spec 0.1.0 is still the draft below until the first package release (`v0.1.0`).
+Spec **0.2.0**, the first minor release after 0.1.0. Everything that conformed to 0.1.0 still
+conforms when it runs every pack on `operated`, the default profile.
 
 ### Added
 
+- Harness profiles (`harness.md` section 10): a named harness shape, a file with `id`,
+  `title`, `summary`, `rung`, `disable`, `stores` and `overrides`, validated on load. Six ship as
+  the ladder `minimal`, `guarded`, `grounded`, `remembered`, `governed`, `operated` (everything
+  on, the 0.1.0 harness). A switched-off node is dimmed, never hidden: it still enters and exits
+  its span where it would run, `skipped` with `summary.disabled: true`. Public mode never
+  switches off the controls.
+- `can_disable` widened from 4 to 13 nodes (`diagram/diagram.json`): `approval`, `audit`,
+  `knowledge`, `semantic`, `episodic`, `eval`, `online_eval`, `diagnose` and `release` join the
+  guardrails, `policy` and `memory_writer`. `harness.md` 10.3 says what "off" means for each and
+  which invariants hold; 10.3 also lists the nodes that never switch off and why.
+- `turn_start.summary.profile` `{id, rung, off}` (`events.md` section 6, `events.schema.json`).
+- `pack.yaml` `profile`, required (`packs.md`), and validator rule 9: demonstrated nodes on,
+  golden cases reachable, no tool that needs a human under a profile without approval.
+- `GET /v1/profiles`, `GET /v1/diagram?pack=`, `profile` on pack items, `requires` on lessons,
+  gate reason `profile` (`contracts/http_api.md`, "0.2.0 additions").
+- Conformance: case keys `requires` and `profile` (`conformance/case.schema.json`), per-profile
+  runs (`conformance/README.md`, Profiles), and three cases: `profile_minimal`,
+  `profile_minimal_tool`, `approval_off`.
 - Payloads (`contracts/tracer.md`, "Payloads"): the gateway, the input guardrails, the context
   builder, the model layer and the output guardrails record what each hop carried as a typed
   detail record on their `node_enter` and `node_exit` (texts capped at 32 000 characters with a
@@ -27,6 +46,14 @@ Spec 0.1.0 is still the draft below until the first package release (`v0.1.0`).
   (`contracts/router.md`, "Model suite: the pinned router"), and the deterministic scorers
   judge them, with no LLM judge. A `model` run is compared with the previous run of the same
   model. Additive: no new event type, no version change.
+
+### Changed
+
+- `schema_version` is the pattern `^0\.[0-9]+\.[0-9]+$` instead of the constant `0.1.0`; the
+  schema `$id` paths move to `/spec/0.2/`. `SPEC_VERSION`, `diagram.json` and the conformance
+  profile say `0.2.0`; `examples/` are re-recorded at 0.2.0 with `turn_start.summary.profile`.
+- `policy` MUST still send to audit what it did; with `audit` off the record is not kept.
+  `approval` off turns `needs_approval` into a deny (fail closed).
 
 ## [0.1.0] - draft, frozen at the v0.1.0 release
 

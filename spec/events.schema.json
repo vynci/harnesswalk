@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://harnesswalk.vynci.dev/spec/0.1/events.schema.json",
+  "$id": "https://harnesswalk.vynci.dev/spec/0.2/events.schema.json",
   "title": "harnesswalk harness event",
   "description": "One event in the harness event stream. The stream is the single source for the UI, the trace store, step mode and replay. Ordering and pairing rules that span several events are normative in spec/events.md and are checked by the conformance suite, not by this schema.",
   "type": "object",
@@ -19,8 +19,9 @@
   ],
   "properties": {
     "schema_version": {
-      "description": "Version of this schema the event conforms to.",
-      "const": "0.1.0"
+      "description": "Version of the spec the producer implements. Since 0.2.0 any 0.x.y validates, so streams recorded by an older producer of the same major still do (spec/VERSIONING.md).",
+      "type": "string",
+      "pattern": "^0\\.[0-9]+\\.[0-9]+$"
     },
     "event_id": {
       "description": "Unique within the trace. SHOULD be a UUIDv7 or ULID so ids sort by time.",
@@ -151,7 +152,25 @@
     {
       "if": { "properties": { "type": { "const": "turn_start" } } },
       "then": {
-        "properties": { "status": { "const": "active" }, "seq": { "const": 0 } },
+        "properties": {
+          "status": { "const": "active" },
+          "seq": { "const": 0 },
+          "summary": {
+            "description": "0.2.0: `profile`, the harness profile the turn runs with and the nodes it switches off in this mode (spec/harness.md section 10). Optional, so 0.1.0 streams still validate.",
+            "properties": {
+              "profile": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "rung", "off"],
+                "properties": {
+                  "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$" },
+                  "rung": { "type": "integer", "minimum": 1, "maximum": 6 },
+                  "off": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/node_id" } }
+                }
+              }
+            }
+          }
+        },
         "not": { "anyOf": [{ "required": ["node_id"] }, { "required": ["edge_id"] }] }
       }
     },

@@ -25,6 +25,30 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
   `local-e4b` (gemma4:e4b), with thinking off. The Ollama adapter sends an alias's `params`
   (for example `think: false`), and `models.providers.ollama.base_url_env` names the variable
   that overrides `base_url` (`HARNESSWALK_OLLAMA_URL`, as before).
+- **Harness profiles and spec 0.2.0.** A profile is a named harness shape: the nodes it
+  switches off and the config that goes with it. Six ship in `config/profiles/` as a ladder,
+  `minimal`, `guarded`, `grounded`, `remembered`, `governed` and `operated` (every node on, the
+  0.1 harness and the default). Each pack names its profile in `pack.yaml` (`profile`, now
+  required): `healthcare` and `sports` run on `grounded`, `ecommerce` and `logistics` on
+  `governed`, `finance` and `_starter` on `operated`, each measured as the lowest rung its golden
+  set passes on (or higher). `HARNESSWALK_PROFILE` or `--profile` (a name or a path) runs every
+  pack on one profile. Spec 0.2.0 is the first minor release of the spec: see
+  `spec/CHANGELOG.md`.
+- Switched-off nodes are dimmed, never hidden: the diagram keeps every node in place, faded with
+  a dashed border and an "off" chip, the edges to them fade too, and the tooltip names the
+  profile. The profile chip beside the pack picker shows the id and the rung; the pack menu
+  names each pack's profile. A turn still enters a switched-off node where it would run and
+  shows it `skipped`.
+- 13 nodes can be switched off, up from 4: approval (fail closed, a needed approval is a
+  deny), audit, the knowledge, semantic and episodic stores, eval, online eval, diagnose and
+  release (ungated) join the guardrails, policy and the memory writer.
+- `GET /v1/profiles`, `GET /v1/diagram?pack=`, `profile` on `GET /v1/packs` items and
+  `turn_start.summary.profile`. Guide chapters declare `requires`, and a chapter whose node is
+  off under the current pack's profile is greyed with the rung that has it.
+- The pack validator checks a pack against its profile (demonstrated nodes on, golden cases
+  reachable, no tool that needs a human without approval), and the conformance runner runs the
+  suite under each profile (`--profile`, `--all-profiles`; cases declare `requires` and are
+  skipped, not failed). `make conformance` and CI run every profile.
 
 ### Fixed
 

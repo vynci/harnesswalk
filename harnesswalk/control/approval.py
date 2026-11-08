@@ -312,3 +312,11 @@ class ApprovalQueue:
             (tenant_id, turn_id),
         )
         return [self.get(r["approval_id"], tenant_id) for r in rows]
+
+
+async def skip_approval(ctx: TurnContext, tool: str) -> None:
+    """The `approval` span when approval is off (a profile or the request, harness.md section
+    10): it opens and exits skipped with `disabled: true`, and the call is denied. Nobody is
+    asked, nothing pauses, and no approval record is made."""
+    async with node(ctx, "approval") as span:
+        span.skip(disabled=True, tool=tool, decision="deny")

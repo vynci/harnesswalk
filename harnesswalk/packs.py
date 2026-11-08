@@ -19,6 +19,11 @@ A pack is a directory `datasets/<id>/` with a `pack.yaml`. The validator checks,
     pii         no personal-data pattern of any pack's guardrails (nor the default ones)
                 matches the pack's content; prompts may only use reserved test values
     provenance  the provenance card exists, says CC0 and says synthetic
+    profile     0.2.0: the harness profile the card names exists; `demonstrates.nodes` are on
+                under it; every golden case is reachable under it (a path through `approval`
+                needs policy and approval on, cited documents need knowledge, `checks.retrieved`
+                needs its store); and a profile with approval off carries no tool that needs a
+                human (destructive, external, or one a policy rule sends to approval)
 
 A case's `checks` (router rules, retrieved memory) are scored by the eval runner itself, as
 the `checks` scorer (harnesswalk/ops/eval/scorers.py); the validator only checks that they
@@ -70,12 +75,16 @@ TIERS = {
 # The pack.yaml keys each tier must have. `id` is optional everywhere (the directory name is
 # the id).
 TIER_REQUIRED = {
-    "domain": ("title", "domain", "summary", "tier", "feature", "demonstrates", "licence",
-               "provenance", "synthetic", "prompts"),
-    "starter": ("title", "domain", "summary", "tier", "feature", "demonstrates", "licence",
-                "provenance", "synthetic", "prompts"),
-    "profile": ("title", "licence"),
+    "domain": ("title", "domain", "summary", "tier", "profile", "feature", "demonstrates",
+               "licence", "provenance", "synthetic", "prompts"),
+    "starter": ("title", "domain", "summary", "tier", "profile", "feature", "demonstrates",
+                "licence", "provenance", "synthetic", "prompts"),
+    "profile": ("title", "licence", "profile"),
 }  # fmt: skip
+# A golden path through these nodes needs them on (and the ones they depend on): approval is
+# entered only when policy is on and returns needs_approval, and decides only when it is on.
+PATH_NEEDS = {"approval": ("policy", "approval")}
+NEEDS_A_HUMAN = ("destructive", "external")
 REQUIRED_FILES = (
     "pack.yaml",
     "system_prompt.md",
@@ -108,6 +117,7 @@ PACK_SCHEMA: dict[str, Any] = {
         "domain": {"type": "string", "minLength": 1, "maxLength": 40},
         "summary": {"type": "string", "minLength": 1, "maxLength": 400},
         "tier": {"enum": sorted(TIERS)},
+        "profile": {"type": "string", "pattern": r"^[a-z][a-z0-9_]{0,31}$"},
         "feature": {"type": "string", "minLength": 1, "maxLength": 120},
         "demonstrates": {
             "type": "object",
@@ -181,6 +191,13 @@ class Pack:
     @property
     def feature(self) -> str | None:
         return self._text("feature")
+
+    @property
+    def profile(self) -> str:
+        """The harness profile the card names (spec/packs.md), else the default."""
+        from harnesswalk.profiles import DEFAULT_PROFILE
+
+        return self._text("profile") or DEFAULT_PROFILE
 
     @property
     def demonstrates(self) -> dict[str, Any]:
@@ -270,6 +287,7 @@ class Pack:
             "title": self.title,
             "domain": self._text("domain"),
             "feature": self.feature,
+            "profile": self.profile,
             "prompts": self.prompts,
             "counts": self.counts(),
             "default": self.id == default,
@@ -525,6 +543,7 @@ def validate(
     for node_id in pack.demonstrates.get("nodes") or []:
         if known_nodes and node_id not in known_nodes:
             add("schema", f"node {node_id!r} in demonstrates is not a diagram node", "pack.yaml")
+    issues += _check_profile(pack, config_root)
     if tier == "profile":
         return issues + _check_pii(pack, packs)
 
@@ -582,6 +601,74 @@ def validate(
     issues += _check_golden(pack, config_root)
     issues += _check_pii(pack, packs)
     return issues
+
+
+def _check_profile(pack: Pack, config_root: Path) -> list[Issue]:
+    """The card's harness profile exists and the pack works under it (0.2.0)."""
+    from harnesswalk import profiles as profiles_mod
+    from harnesswalk.ops.eval.golden import GoldenError, load_golden
+    from harnesswalk.types import ConfigError
+
+    out: list[Issue] = []
+
+    def add(message: str, path: str = "pack.yaml") -> None:
+        out.append(Issue(pack.id, "profile", message, path))
+
+    if "profile" not in pack.meta:
+        return out  # reported by the schema check as a missing key
+    try:
+        profile = profiles_mod.load(config_root, pack.profile)
+    except ConfigError as exc:
+        add(str(exc))
+        return out
+    off = profile.off("dev")
+    for node_id in pack.demonstrates.get("nodes") or []:
+        if node_id in off:
+            add(f"demonstrates node {node_id!r}, which profile {profile.id} switches off")
+    path = pack.path / "golden.jsonl"
+    try:
+        cases = load_golden(path) if path.is_file() else []
+    except GoldenError:
+        cases = []  # reported by the golden check
+    for case in cases:
+        needs: set[str] = set()
+        for node_id in case.expect.get("path") or []:
+            needs.update(PATH_NEEDS.get(node_id, ()))
+        if case.expect.get("citations"):
+            needs.add("knowledge")
+        needs.update((case.checks or {}).get("retrieved") or {})
+        for node_id in sorted(needs & off):
+            add(f"{case.id}: needs {node_id!r}, which profile {profile.id} switches off "
+                "(move the pack up the ladder)", "golden.jsonl")  # fmt: skip
+    if "approval" in off:
+        for name, cls in _tool_classes(pack).items():
+            if cls in NEEDS_A_HUMAN or _needs_approval(config_root, name, cls):
+                add(f"tool {name} ({cls}) needs a human approval, which profile {profile.id}"
+                    " switches off", "tools.yaml")  # fmt: skip
+    return out
+
+
+def _tool_classes(pack: Pack) -> dict[str, str]:
+    try:
+        entries = yaml.safe_load((pack.path / "tools.yaml").read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return {}
+    return {
+        e["name"]: str(e.get("action_class"))
+        for e in entries if isinstance(entries, list) and isinstance(e, dict) and "name" in e
+    } if isinstance(entries, list) else {}  # fmt: skip
+
+
+def _needs_approval(config_root: Path, name: str, action_class: str) -> bool:
+    """Whether config/policy.yaml, in dev mode, sends this tool to a human."""
+    from harnesswalk.control.policy import Policy
+
+    try:
+        cfg = yaml.safe_load((config_root / "config" / "policy.yaml").read_text()) or {}
+        decision = Policy(cfg, "dev").decide_class(["user"], name, action_class)
+    except Exception:
+        return False
+    return decision.decision == "needs_approval"
 
 
 def _try_these(path: Path) -> int:

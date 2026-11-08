@@ -1,5 +1,6 @@
 ---
 node: approval
+requires: [policy, approval]
 try:
   pack: _starter
   disable: [policy]

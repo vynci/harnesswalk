@@ -190,11 +190,13 @@ test('every pack’s golden suite passes from the Eval inspector, all in one ser
   await pickPack(page, '_starter')
 })
 
-test('the release gate refuses a regressed domain pack, shows the case and its diagnosis, and Release anyway is audited', async ({ page, request }) => {
+// 0.2.0: the gate runs on a pack whose profile has the ops plane on (`operated`): the starter
+// pack. A pack on a lower rung releases ungated (the next test).
+test('the release gate refuses a regressed pack, shows the case and its diagnosis, and Release anyway is audited', async ({ page, request }) => {
   test.setTimeout(240_000)
-  await pickPack(page, 'ecommerce')
+  await pickPack(page, '_starter')
   const started = new Date(Date.now() - 1000).toISOString()
-  const base = ((await (await request.get('/v1/releases?pack=ecommerce')).json()) as { active_release_id: string }).active_release_id
+  const base = ((await (await request.get('/v1/releases?pack=_starter')).json()) as { active_release_id: string }).active_release_id
   // A passing run first, so the gate's run is a regression and is diagnosed on its own.
   await runGolden(page)
   await quiet(request)
@@ -208,7 +210,7 @@ test('the release gate refuses a regressed domain pack, shows the case and its d
   const editor = inspector.getByTestId('pack-file').getByTestId('artifact-editor')
   await editor.getByTestId('artifact-edit').click()
   const textarea = editor.getByTestId('artifact-textarea')
-  await textarea.fill((await textarea.inputValue()).replace('Report the status', 'Describe the state'))
+  await textarea.fill((await textarea.inputValue()).replace('Look the order up with', 'Find the order with'))
   await editor.getByTestId('artifact-note').fill('order status: reworded')
   await editor.getByTestId('artifact-save').click()
   await expect(editor.getByTestId('artifact-saved')).toBeVisible()
@@ -219,29 +221,39 @@ test('the release gate refuses a regressed domain pack, shows the case and its d
   await inspector.getByTestId('release-create').click()
   const refused = inspector.getByTestId('gate-failed')
   await expect(refused).toBeVisible({ timeout: 90_000 })
-  const kase = refused.locator('[data-testid="gate-case"][data-case="skill_order_status_qf20430"]')
+  const kase = refused.locator('[data-testid="gate-case"][data-case="order_status_skill"]')
   await expect(kase).toBeVisible()
   await expect(kase.getByTestId('diagnosis-chip')).toHaveAttribute('data-layer', 'prompt_or_skill')
   await expect(kase.getByTestId('diagnosis-suggestion')).toContainText('order_status')
-  expect(((await (await request.get('/v1/releases?pack=ecommerce')).json()) as { active_release_id: string }).active_release_id).toBe(base)
+  expect(((await (await request.get('/v1/releases?pack=_starter')).json()) as { active_release_id: string }).active_release_id).toBe(base)
 
   // The failing case replays from its events_url.
   await kase.getByTestId('gate-case-replay').click()
-  await expect(page.getByTestId('replay-label')).toHaveText('Replaying Eval case skill_order_status_qf20430 on the diagram')
+  await expect(page.getByTestId('replay-label')).toHaveText('Replaying Eval case order_status_skill on the diagram')
   await page.getByRole('button', { name: 'Leave replay and return to live' }).click()
 
   await refused.getByTestId('release-force').click()
   await expect(inspector.getByTestId('release-forced-note')).toContainText('The audit log records it as release_forced')
-  const after = (await (await request.get('/v1/releases?pack=ecommerce')).json()) as { active_release_id: string; releases: { release_id: string; gate: { forced: boolean } }[] }
+  const after = (await (await request.get('/v1/releases?pack=_starter')).json()) as { active_release_id: string; releases: { release_id: string; gate: { forced: boolean } }[] }
   expect(after.active_release_id).not.toBe(base)
   expect(after.releases[0]!.gate.forced).toBe(true)
   await expect(inspector.locator(`[data-testid="release-row"][data-release="${after.active_release_id}"]`).getByTestId('release-gate')).toHaveAttribute('data-status', 'forced')
   const audit = (await (await request.get(`/v1/audit?since=${encodeURIComponent(started)}`)).json()) as { records: { entry: { action: string; extra?: { pack?: string; release_id?: string } } }[] }
-  expect(audit.records.find((r) => r.entry.action === 'release_forced' && r.entry.extra?.release_id === after.active_release_id)?.entry.extra?.pack).toBe('ecommerce')
+  expect(audit.records.find((r) => r.entry.action === 'release_forced' && r.entry.extra?.release_id === after.active_release_id)?.entry.extra?.pack).toBe('_starter')
 
-  // Leave ecommerce as it was for the tests after this one.
+  // Leave the starter pack as it was for the tests after this one.
   expect((await request.post(`/v1/releases/${base}/rollback`, { data: {} })).ok()).toBe(true)
   await pickPack(page, '_starter')
+})
+
+test('a pack on a rung below operated releases ungated: the gate is skipped with reason profile', async ({ request }) => {
+  const packs = ((await (await request.get('/v1/packs')).json()) as { packs: { id: string; profile: string }[] }).packs
+  expect(packs.find((p) => p.id === 'ecommerce')?.profile).toBe('governed')
+  const base = ((await (await request.get('/v1/releases?pack=ecommerce')).json()) as { active_release_id: string }).active_release_id
+  const made = await request.post('/v1/releases', { data: { pack: 'ecommerce', note: 'ungated on governed' } })
+  expect(made.status()).toBe(201)
+  expect(((await made.json()) as { gate: { status: string; reason: string } }).gate).toMatchObject({ status: 'skipped', reason: 'profile' })
+  expect((await request.post(`/v1/releases/${base}/rollback`, { data: {} })).ok()).toBe(true)
 })
 
 interface Demo {

@@ -2,6 +2,7 @@ id: step_mode
 title: Step mode pauses on every node and the turn advances one resume at a time
 spec_version: 0.1.0
 fixture: step_mode
+requires: [input_guardrails, output_guardrails]
 turns:
   - send:
       message: What are your support hours?

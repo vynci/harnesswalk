@@ -1,0 +1,21 @@
+id: profile_minimal
+title: Under the minimal profile the switched-off nodes still show on the walk, skipped
+spec_version: 0.2.0
+fixture: plain_answer
+profile: minimal
+turns:
+  - send:
+      message: What are your support hours?
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: [done, skipped, done, done, done, done, skipped, done, done]
+      events:
+        - { type: turn_start, status: active, summary: { profile: { id: minimal, rung: 1 } } }
+        - { type: node_exit, node_id: input_guardrails, status: skipped, summary: { disabled: true, action: pass } }
+        - { type: node_exit, node_id: model_layer, summary: { finish_reason: stop } }
+        - { type: node_exit, node_id: output_guardrails, status: skipped, summary: { disabled: true } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      absent:
+        - { type: node_enter, node_id: tools }
+        - { type: node_enter, node_id: memory_writer }
+      reply_contains: [9am to 5pm]

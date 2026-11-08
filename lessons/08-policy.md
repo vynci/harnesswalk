@@ -1,5 +1,6 @@
 ---
 node: policy
+requires: [policy]
 try:
   pack: _starter
   disable: [policy]

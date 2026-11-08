@@ -2,6 +2,7 @@ id: approval_resume_after_restart
 title: The harness restarts while a turn waits on an approval, and the same turn resumes
 spec_version: 0.1.0
 fixture: approval_resume_after_restart
+requires: [input_guardrails, output_guardrails, policy, approval, audit]
 two_process: true
 turns:
   - send:

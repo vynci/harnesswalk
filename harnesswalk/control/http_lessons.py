@@ -10,7 +10,9 @@ every tenant), and every mode serves them.
 A chapter is `lessons/NN-<name>.md`: YAML front matter, then markdown that starts with
 `# Title` and a one-line `> hook`. The front matter names the node the chapter is about
 (`node`), the nodes it covers when that is not just `node` (`covers`, for the expert groups),
-and an optional `try` (`pack`, `fixture`, `prompt`, `disable`) the UI offers as a button, plus
+the nodes it needs switched on to be tried (`requires`, 0.2.0: the Guide greys a chapter out
+under a profile that switches one of them off), and an optional `try` (`pack`, `fixture`,
+`prompt`, `disable`) the UI offers as a button, plus
 `also`, the same demonstration on a domain pack (a list of `try`s with a one-line `note`;
 P5 integration). A `try` without `pack` runs on `_starter`. Code walk
 links are relative markdown links into the package, `[text](../harnesswalk/<path>#<Symbol>)`,
@@ -158,6 +160,7 @@ def _read(path: Path, mtime: float) -> dict[str, Any]:
         "node_id": node_id,
         "covers": list(covers),
         "group": node_id not in covers if node_id else False,
+        "requires": [str(n) for n in meta.get("requires") or []],
         "words": _words(body),
         "url": f"/v1/lessons/{path.stem}",
         "markdown": body.lstrip("\n"),
@@ -176,7 +179,9 @@ def chapters(root: Path) -> list[dict[str, Any]]:
     return [_read(p, p.stat().st_mtime) for p in files]
 
 
-LIST_KEYS = ("slug", "n", "title", "hook", "node_id", "covers", "group", "words", "url")
+LIST_KEYS = (
+    "slug", "n", "title", "hook", "node_id", "covers", "group", "requires", "words", "url",
+)  # fmt: skip
 
 
 def read_source(root: Path, rel: str) -> dict[str, Any] | None:

@@ -1,6 +1,7 @@
 # Harness event contract
 
-Schema: `spec/events.schema.json` (JSON Schema 2020-12), version **0.1.0**.
+Schema: `spec/events.schema.json` (JSON Schema 2020-12), version **0.2.0**. Since 0.2.0
+`schema_version` is any `0.x.y`, so 0.1.0 streams still validate.
 Examples: `spec/examples/*.jsonl`.
 
 The event stream is the product. Every node reports its work as typed events, and the same
@@ -58,7 +59,7 @@ events correctly and any UI built on Harnesswalk can draw your harness.
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
-| `schema_version` | string | always | `0.1.0` |
+| `schema_version` | string | always | `0.2.0` from this producer; any `0.x.y` validates |
 | `event_id` | string | always | Unique within the trace. SHOULD be UUIDv7 or ULID |
 | `seq` | integer | always | Position in the turn, from 0, gapless |
 | `ts` | string | always | RFC 3339 with offset, SHOULD be UTC `Z` |
@@ -84,7 +85,7 @@ events correctly and any UI built on Harnesswalk can draw your harness.
 | `turn_start` | absent | `active` | Turn accepted. `seq` 0 |
 | `turn_end` | absent | `done` or `error` | Turn finished. Carries total `cost` and the reply |
 | `node_enter` | required | `active` | Node started work |
-| `node_exit` | required | `done` or `skipped` | Node finished. `skipped` means it ran but chose to do nothing (disabled, nothing to retrieve, tool not executed) |
+| `node_exit` | required | `done` or `skipped` | Node finished. `skipped` means it ran but chose to do nothing (disabled by the request or switched off by the profile, with `summary.disabled: true`; nothing to retrieve; tool not executed) |
 | `node_paused` | required | `waiting` | Node waits on a breakpoint or an approval |
 | `node_resumed` | required | `active` | Node continues |
 | `edge` | absent | `done` | Data or control moved along a diagram edge |
@@ -164,7 +165,7 @@ Values are small: counts, ids, enums, short previews. Implementations MAY add ke
 
 | Node | Summary keys |
 |---|---|
-| `turn_start` | `kind` (`chat`, `release`, `eval`, `replay`), `channel`, `mode`, `step_mode`, `message_chars`, `disabled` (node ids, P3, so a restart can restore them), `release` (P4: `{release_id, working_set, artifacts_hash}` the turn runs on), `eval_run_id` (P4, on a case turn), `output_schema` (P4: `true` when the turn asked for a structured reply) |
+| `turn_start` | `kind` (`chat`, `release`, `eval`, `replay`), `channel`, `mode`, `step_mode`, `message_chars`, `disabled` (node ids, P3, so a restart can restore them), `release` (P4: `{release_id, working_set, artifacts_hash}` the turn runs on), `eval_run_id` (P4, on a case turn), `output_schema` (P4: `true` when the turn asked for a structured reply), `profile` (0.2.0: `{id, rung, off}`, the harness profile the turn runs with and the nodes it switches off in this mode, `harness.md` section 10; `disabled` stays the request's own list) |
 | `turn_end` | `exit` (`answered`, `blocked`, `limit`, `error`, `cancelled`), `steps`, `reply`, `citations` (when the reply cites knowledge: `[{n, doc, chunk, citation}]` in first-cited order), `byo_key_dropped` (P4: the turn had a BYO key and resumed after a restart on the configured provider) |
 | `gateway` | `phase` (`receive`, `reply`), `channel`, `authenticated`, `rate_limit_remaining`, `reply_chars` |
 | `input_guardrails` | `action` (`pass`, `redact`, `block`), `checks`, `redactions` (counts by kind), `injection_score`, `injection_signals` (counts by category), `warnings`, `classifier_score`, `reason` |

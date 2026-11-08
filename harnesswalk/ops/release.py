@@ -805,6 +805,9 @@ async def run_gate(view: Any, tenant_id: str) -> tuple[dict[str, Any], list[dict
     pack = view.pack
     if not cfg["enabled"]:
         return _gate(cfg, "skipped", "disabled"), []
+    profile = getattr(view.settings, "profile", None)
+    if profile is not None and not profile.enabled("release", view.settings.mode):
+        return _gate(cfg, "skipped", "profile"), []
     if cfg["packs"] != "all" and pack not in cfg["packs"]:
         return _gate(cfg, "skipped", "pack_not_gated"), []
     if cfg["suite"] != "golden":

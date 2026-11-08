@@ -15,6 +15,9 @@ first, `phase: reply` last.
 
 When input guardrails block, the walk is gateway, input_guardrails, gateway, trace.
 
+0.2.0: the pack's harness profile (spec/harness.md section 10) switches nodes off for the turn
+on top of the request's `disable`; `turn_start.summary.profile` says which shape it ran on.
+
 P5: the session's dataset pack picks what the turn runs on. `start_turn` resolves the pack's
 view of the harness (`Harness.view`: the harness itself for the configured pack, a
 `PackRuntime` for another), keeps it on the turn's state, and every per-pack component the walk
@@ -374,6 +377,7 @@ class Gateway:
                 409, "turn_in_progress", f"Session {session_id} already has a running turn."
             )
 
+        profile = view.settings.profile  # the harness shape this pack runs with
         turn_id = "turn_" + uuid7().replace("-", "")[:24]
         trace_id = new_trace_id()
         capture = bool(self.h.settings.get("trace.capture_content", True))
@@ -401,7 +405,8 @@ class Gateway:
             emit=emitter,
             turn_index=self.h.session.next_turn_index(tenant, session_id),
             identity=req.identity,
-            disabled_nodes=frozenset(req.disabled_nodes),
+            # 0.2.0: the pack's profile switches nodes off too (harness.md section 10).
+            disabled_nodes=frozenset(req.disabled_nodes) | profile.off(self.h.settings.mode),
             providers=turn_providers,
             model_hint=req.model,
             model_pin=req.pin_model if req.internal else None,
@@ -433,6 +438,7 @@ class Gateway:
             start["fixture"] = req.fixture
         if req.disabled_nodes:
             start["disabled"] = list(req.disabled_nodes)
+        start["profile"] = profile.stamp(ctx.mode)
         if req.model is not None:
             start["model_hint"] = req.model
         start["release"] = view.release.stamp()
@@ -504,7 +510,7 @@ class Gateway:
                 result = await h.loop.run(
                     ctx,
                     assembled.messages,
-                    h.tools.schemas(ctx.mode),
+                    h.tools.schemas(ctx.mode, ctx.disabled_nodes),
                     Limits.from_config(h.settings.get("loop", {}), ctx.budget),
                     api_key=req.api_key,
                 )
@@ -762,7 +768,8 @@ class Gateway:
             emit=emitter,
             turn_index=int(summary.get("turn_index") or 0),
             identity=identity,
-            disabled_nodes=frozenset(summary.get("disabled") or []),
+            disabled_nodes=frozenset(summary.get("disabled") or [])
+            | frozenset((summary.get("profile") or {}).get("off") or []),
             model_hint=summary.get("model_hint"),
         )
         model_exits = [
@@ -871,7 +878,12 @@ class Gateway:
                 ctx.emit.edge("tools_to_loop")
                 limits = Limits.from_config(h.settings.get("loop", {}), ctx.budget)
                 result = await h.loop.resume(
-                    ctx, loop_span, checkpoint, observation, h.tools.schemas(ctx.mode), limits
+                    ctx,
+                    loop_span,
+                    checkpoint,
+                    observation,
+                    h.tools.schemas(ctx.mode, ctx.disabled_nodes),
+                    limits,
                 )
                 answer, steps = result.answer.text, result.steps
                 state.proposals = list(result.proposals)

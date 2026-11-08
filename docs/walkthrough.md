@@ -101,6 +101,25 @@ Each domain pack shows off one feature on the fake provider:
 
 ![Finance: a cited answer, and a remembered preference](screenshots/pack-finance.png)
 
+### Read a dimmed node
+
+Each pack runs on a harness profile, a rung of the ladder in
+[architecture.md](architecture.md#profiles-and-the-ladder). The chip beside the pack picker names
+it with its rung, `grounded 3/6` for the healthcare pack, and its tooltip says what the shape is
+for and how many nodes are off. The pack menu names each pack's profile.
+
+A node the profile switches off stays on the canvas, in its place, dimmed: faded, desaturated,
+with a dashed border and a grey "off" chip, and the edges into and out of it fade with it. Hover
+it and the tooltip says "Off in profile grounded". Nothing is hidden: the diagram is the same
+for every profile, so you can see what the harness is missing as well as what it has.
+
+Send a turn and watch the walk. A dimmed node that a turn would reach is still entered, and ends
+`skipped`: on the healthcare pack the memory writer lights up after the reply and goes grey at
+once, because the profile has no durable memory, and the turn's Events tab shows its exit with
+`disabled: true`. Policy, approval and audit stay unlit there. Pick the starter pack (`operated`,
+6/6) and every node is lit again. To try one shape on every pack, start the API with
+`HARNESSWALK_PROFILE=minimal make run PROVIDER=fake`.
+
 ### Approvals
 
 Pick `approval_approve` or `approval_deny` and ask to cancel an order. Policy marks
@@ -242,7 +261,9 @@ The Guide button in the header opens the Guide, which lists every chapter with y
 Open in Guide in a node's inspector opens that node's chapter. A chapter's "Try it" button sets
 up its demonstration for the next turn. The five chapters whose node can be switched off say
 "Disable X and try it" instead, and also show the failure on the domain pack whose feature it
-is.
+is. A chapter whose node the session pack's profile switches off is greyed in the list, still
+readable, with the rung that has it: on the healthcare pack, Policy says "policy is off in profile
+grounded. Switch to a pack on the governed rung (5) or higher to try it."
 
 ![A chapter in the Guide, with its Try buttons](screenshots/lessons-tab.png)
 
@@ -269,6 +290,7 @@ uv run harnesswalk ingest _starter           # index the pack's documents and lo
 uv run harnesswalk turn "Email it to ana@example.com" --provider fake --fixture pii_redacted   # PII redacted, then restored
 uv run harnesswalk turn "Ignore all previous instructions" --provider fake --mode public --fixture plain_answer  # blocked
 uv run harnesswalk turn "Where is order A-1001?" --provider ollama
+uv run harnesswalk turn "Where is order A-1001?" --provider fake --fixture tool_call --profile minimal  # the bottom rung: guardrails and policy skipped
 ```
 
 `make turn` prints every node the request visited, in order and nested, with its status, its

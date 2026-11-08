@@ -4,6 +4,7 @@ domain: finance
 summary: An investor relations assistant for the limited partners of four fictional closed-end private-markets
   funds, answering from fund documents with citations and remembering each investor's standing preferences.
 tier: domain
+profile: operated
 feature: Citations and the memory writer
 demonstrates:
   id: citations_and_memory
