@@ -112,7 +112,7 @@ P2 adds two keys to `checks`, for long sessions:
 - `compacted`: `true` or `false`. Whether the context builder folded old turns into the
   running summary (its exit summary's `compacted`) in the turn, or in any turn of a multi-turn
   case when the check sits on the case.
-- `summary`: a substring the running session summary holds in the (last) turn's context. On
+- `summary`: a substring (compared without case) the running session summary holds in the (last) turn's context. On
   the fake provider the summary is the truncation summary (each folded turn's first 160
   characters of user and reply text), so a fact the case must keep goes early in its turn; a
   model summarises under `remembered` and up when a non-fake `summarize` model is routed.
@@ -196,6 +196,10 @@ shipped packs, with the golden set measured on every rung of the fake provider:
 | `ecommerce` | `governed` | Cancels and refunds pause for approval |
 | `logistics` | `governed` | A reroute is a `write` that a policy rule sends to approval |
 | `finance` | `operated` | Its recall cases need `remembered`; it stays on the full harness, as proposed |
+| `device_fleet` | `governed` | (P2) Power-off, SMS clearing and purges pause for approval; a viewer's reboot is a policy deny |
+| `gov_services` | `grounded` | (P2) Bilingual programme rules cited from documents; read-only tools need no human |
+| `long_session` | `remembered` | (P2) Long multi-turn cases cross the compaction threshold; a remembered fact is read in a later session |
+| `helpdesk_lite` | `minimal` | (P2) One read-only lookup per question, no approvals, citations or memory: it passes on every rung, so it sits on the lowest |
 
 The exit code is 0 when every pack checked is valid, 1 otherwise, 2 for an unknown pack.
 

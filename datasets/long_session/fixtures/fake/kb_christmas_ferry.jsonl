@@ -1,0 +1,1 @@
+{"responses": [{"text": "No ferries run on 25 December 2026 [1]. The winter timetable runs from 1 November 2026 to 31 March 2027, with an extra 19:00 sailing for the harbour festival on 12 December.", "usage": {"input_tokens": 420, "output_tokens": 59}, "expect": {"last_message_role": "user"}}]}

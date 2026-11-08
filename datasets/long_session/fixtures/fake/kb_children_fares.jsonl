@@ -1,0 +1,1 @@
+{"responses": [{"text": "Children under 5 travel free and children aged 5 to 15 pay half the foot fare [1].", "usage": {"input_tokens": 420, "output_tokens": 40}, "expect": {"last_message_role": "user"}}]}

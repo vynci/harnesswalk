@@ -142,6 +142,10 @@ rung. A pack goes on the lowest rung that passes, or higher.
 | `ecommerce` | 7/24 | 7/24 | 13/24 | 13/24 | 24/24 | 24/24 | `governed` |
 | `logistics` | 12/24 | 12/24 | 20/24 | 20/24 | 24/24 | 24/24 | `governed` |
 | `finance` | 7/25 | 9/25 | 22/25 | 25/25 | 25/25 | 25/25 | `operated` |
+| `device_fleet` | 14/28 | 14/28 | 21/28 | 21/28 | 28/28 | 28/28 | `governed` |
+| `gov_services` | 8/27 | 10/27 | 27/27 | 27/27 | 27/27 | 27/27 | `grounded` |
+| `long_session` | 12/20 | 12/20 | 17/20 | 20/20 | 20/20 | 20/20 | `remembered` |
+| `helpdesk_lite` | 21/21 | 21/21 | 21/21 | 21/21 | 21/21 | 21/21 | `minimal` |
 
 Run it yourself: `HARNESSWALK_PROFILE=minimal uv run harnesswalk eval healthcare --suite golden
 --provider fake`. The conformance suite runs under every profile too

@@ -12,6 +12,11 @@ also:
     fixture: mem_reporting_currency_set
     prompt: "Please note that I want all my reports in euro from now on."
     note: "Nothing is written. In a new session ask \"Which reporting currency did I ask you to use?\" with fixture mem_reporting_currency_recall: Semantic reports hits 0."
+  - pack: long_session
+    disable: [memory_writer]
+    fixture: remember_aisle_seat
+    prompt: "Please remember that I always want an aisle seat on trains."
+    note: "Nothing is written. In a new session ask \"Which seat do I like on trains?\" with fixture recall_aisle_seat: Semantic reports hits 0."
 ---
 
 # Memory writer

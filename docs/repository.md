@@ -8,7 +8,8 @@ spec/         the language-agnostic contract: harness, diagram, events, contract
 harnesswalk/  the reference implementation (Python): control, context, execution and ops planes
 config/       harness.yaml, policy.yaml, context.yaml, models.yaml, and built-in fixtures
 web/          the chat and diagram UI (React, TypeScript)
-datasets/     the packs: _starter and five domain packs (healthcare, ecommerce, logistics, sports, finance)
+datasets/     the packs: _starter and nine domain packs (healthcare, ecommerce, logistics, sports, finance,
+              device_fleet, gov_services, long_session, helpdesk_lite)
 lessons/      the course: one chapter per node in walk order, then one per expert group
 deploy/       docker compose (dev, homelab and prod profiles), the api image, the AWS stack, load tests
 docs/         these pages, releasing, brand assets and screenshots

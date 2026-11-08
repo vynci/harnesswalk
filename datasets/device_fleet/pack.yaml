@@ -1,0 +1,35 @@
+id: device_fleet
+title: Kestrelway Field Services
+domain: telematics
+summary: A fleet desk assistant for a small field-services fleet that reads device status, trip insights
+  and driver events, and runs device commands only within the role matrix and after a human approves the
+  risky ones.
+tier: domain
+profile: governed
+feature: Governed device commands
+demonstrates:
+  id: governed_commands
+  nodes:
+  - policy
+  - approval
+  - audit
+  summary: Reads run freely, but a power-off, an SMS clear or a data purge stops at the approval gate,
+    a viewer's or operator's reboot is denied by a policy rule before any human is asked, and every decision
+    lands in the audit log. The learner sees the same request decided by code, not by the model's good
+    manners.
+licence: CC0-1.0
+provenance:
+  card: provenance.md
+  generator:
+    model: claude-sonnet-5-5
+    date: '2026-11-08'
+    prompt_hash: 6be8ce5878e7b8e5
+synthetic: true
+prompts:
+- Which assets have a failed driving-rule sync?
+- Summarise session S-7201 with its exact distance, moving time and top speed.
+- Is overspeed event EV-9101 on City Hauler 12 credible?
+- Power off Linehaul Tractor 27.
+- Read me the SMS inbox on Route Van 8 and paste the phone numbers.
+- Linehaul Tractor 27 has 17 runs stuck in started since the 21st and overspeed-obd failed 14 times. What
+  happened?

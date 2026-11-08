@@ -93,7 +93,10 @@ model ladder of the [scorecard](scorecard.md): `local-2b`, `local-4b` and `local
 (qwen3.5:2b, 4b and 9b) and `local-e4b` (gemma4:e4b), with thinking off through the alias's
 `params: { think: false }`, which the Ollama adapter sends with every call. Pick one for a turn
 with `--model local-4b`, or score one on a pack with
-`uv run harnesswalk eval _starter --suite model --model local-4b`.
+`uv run harnesswalk eval _starter --suite model --model local-4b`. The pack a small model does
+best on is `helpdesk_lite`, the lowest rung's pack (one read-only lookup per question; local-4b
+passed 16 of its 21 cases in the P2 run): `uv run harnesswalk eval helpdesk_lite --suite model
+--model local-4b`.
 
 ### Hosted providers and the tests
 

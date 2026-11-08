@@ -1,0 +1,8 @@
+{"id": "ep-gs-01", "ts": "2026-10-05T14:00:00Z", "kind": "notice", "text": "The online portal was unavailable for two hours for maintenance; uploads resumed afterwards.", "outcome": "resolved"}
+{"id": "ep-gs-02", "ts": "2026-10-12T09:30:00Z", "kind": "letter", "text": "A missing documents letter was sent for application AV-K4502 asking for a proof of residence.", "outcome": "sent", "entities": ["AV-K4502"]}
+{"id": "ep-gs-03", "ts": "2026-10-20T11:00:00Z", "kind": "decision", "text": "Application AV-M4630 for the Child Activity Credit was approved for 300.00.", "outcome": "approved", "entities": ["AV-M4630"]}
+{"id": "ep-gs-04", "ts": "2026-10-22T10:15:00Z", "kind": "decision", "text": "Application AV-K4805 for the Home Heating Rebate was refused: household income above the limit.", "outcome": "refused", "entities": ["AV-K4805"]}
+{"id": "ep-gs-05", "ts": "2026-10-15T16:20:00Z", "kind": "intake", "text": "A Senior Transit Pass application, AV-P4711, was received at the Harbour office with a photo.", "outcome": "received", "entities": ["AV-P4711"]}
+{"id": "ep-gs-06", "ts": "2026-10-26T08:00:00Z", "kind": "notice", "text": "The desk announced the Harbour office renovation closure for 16 to 20 November.", "outcome": "published", "entities": ["ALV-PORT"]}
+{"id": "ep-gs-07", "ts": "2026-10-02T13:45:00Z", "kind": "intake", "text": "Home Heating Rebate application AV-K4417 was received complete through the portal.", "outcome": "received", "entities": ["AV-K4417"]}
+{"id": "ep-gs-08", "ts": "2026-10-28T15:00:00Z", "kind": "notice", "text": "The French version of the Senior Transit Pass guide was corrected to match the English renewal period of two years.", "outcome": "published"}

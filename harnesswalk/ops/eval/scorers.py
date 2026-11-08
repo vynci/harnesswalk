@@ -278,7 +278,7 @@ def score_checks(
             problems.append(f"compacted is {compacted}, expected {checks['compacted']}")
     if "summary" in checks:  # P2: the running summary in the last context holds a substring
         summary = running_summary(details[-1]) if details else ""
-        if checks["summary"] not in summary:
+        if checks["summary"].casefold() not in summary.casefold():  # a model may recase it
             problems.append(f"summary has no {checks['summary']!r} (got {summary[:200]!r})")
     total = (want_rules is not None) + len(retrieved) + ("compacted" in checks)
     total += "summary" in checks

@@ -85,7 +85,7 @@ A pack is the content a session runs with: a fictional business's prompt, skills
 documents, seed memory and golden set. Pick one in the header's pack picker, or in the dropdown
 of an empty chat. Picking another pack starts a new session on it. The suggested prompts, the
 fixtures, the inspectors' file trees and the Eval inspector's golden set all follow the pack.
-The [README](../README.md#packs) lists the six packs and what each one shows.
+The [README](../README.md#packs) lists the ten packs and what each one shows.
 
 ![The pack picker open in the header, one feature per pack](screenshots/pack-picker.png)
 

@@ -1,0 +1,15 @@
+{"key": "offices", "value": "Pebblebrook Studio has three offices: north, harbour and east."}
+{"key": "desk hours", "value": "The IT desk is open 08:00 to 18:00, Monday to Friday."}
+{"key": "on call", "value": "Urgent outages outside desk hours go to the on-call technician through the support form."}
+{"key": "password portal", "value": "Passwords are reset on the self-service account portal in about 5 minutes."}
+{"key": "lockout", "value": "A locked account unlocks by itself after 15 minutes."}
+{"key": "response time", "value": "The desk answers a new ticket within 4 working hours."}
+{"key": "VPN gateway", "value": "The VPN gateway replacement was scheduled for the morning of 2026-11-07."}
+{"key": "harbour printer", "value": "The harbour office's second printer, HB-PRN-2, has a paper feed fault."}
+{"key": "east office", "value": "The east office has no resident IT staff; a technician visits on Wednesdays."}
+{"key": "guest wifi", "value": "Guest wifi networks are named Pebble-Guest followed by the office name; the code is on the reception card."}
+{"key": "loans", "value": "Spare laptops and headsets can be borrowed from the north office for up to two weeks."}
+{"key": "backups", "value": "The file share is backed up every night from 01:00 to 02:00."}
+{"key": "new starters", "value": "A new starter's laptop is ready two working days after the manager opens a ticket."}
+{"key": "video rooms", "value": "Meeting rooms with video call kits: Granite, Slate, Tide, Jetty and Orchard."}
+{"key": "security", "value": "The desk never asks for a password by chat, email or phone."}

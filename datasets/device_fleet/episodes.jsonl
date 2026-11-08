@@ -1,0 +1,10 @@
+{"id": "ep-df-01", "ts": "2026-10-19T16:30:00Z", "kind": "support", "text": "Reefer 41 went offline at the Quellby depot after under-voltage warnings; the depot confirmed the battery was disconnected for the compressor repair.", "outcome": "resolved", "entities": ["KW-0041"]}
+{"id": "ep-df-02", "ts": "2026-10-21T08:12:00Z", "kind": "change", "text": "The webhook signing secret was rotated in the platform console during the quarterly key rotation.", "outcome": "done", "entities": ["KW-0027"]}
+{"id": "ep-df-03", "ts": "2026-10-21T09:05:00Z", "kind": "alert", "text": "The overspeed-obd rule on Linehaul Tractor 27 switched to sync status error.", "outcome": "open", "entities": ["KW-0027"]}
+{"id": "ep-df-04", "ts": "2026-10-22T15:10:00Z", "kind": "support", "text": "The fleet lead flagged two overspeed events on City Hauler 12 for review, EV-9101 and EV-9102.", "outcome": "open", "entities": ["KW-0012"]}
+{"id": "ep-df-05", "ts": "2026-10-22T16:00:00Z", "kind": "support", "text": "The workshop reported that Shop Pickup 2 logs harsh brakes on gentle stops and suspected its 1 Hz sampling.", "outcome": "open", "entities": ["KW-0002"]}
+{"id": "ep-df-06", "ts": "2026-10-23T08:40:00Z", "kind": "change", "text": "Route Van 8's driving rules were resynced after a template update.", "outcome": "done", "entities": ["KW-0008"]}
+{"id": "ep-df-07", "ts": "2026-10-20T10:20:00Z", "kind": "command", "text": "An operator's request to reboot City Hauler 12 was refused by the role check; an admin rebooted it ten minutes later.", "outcome": "resolved", "entities": ["KW-0012"]}
+{"id": "ep-df-08", "ts": "2026-10-18T07:45:00Z", "kind": "command", "text": "Route Van 8's SMS inbox was cleared after the fleet lead approved it; 4 messages were deleted.", "outcome": "done", "entities": ["KW-0008"]}
+{"id": "ep-df-09", "ts": "2026-10-22T05:05:00Z", "kind": "command", "text": "An OBD scan on Linehaul Tractor 27 before departure came back with no fault codes.", "outcome": "done", "entities": ["KW-0027"]}
+{"id": "ep-df-10", "ts": "2026-10-17T13:30:00Z", "kind": "support", "text": "A purge of an old trial device was approved and finished in 11 minutes.", "outcome": "done"}

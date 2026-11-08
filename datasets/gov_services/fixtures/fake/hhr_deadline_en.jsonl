@@ -1,0 +1,1 @@
+{"responses": [{"text": "Applications for the 2026-2027 season are open from 15 September 2026 to 15 December 2026, and late applications are not accepted [2].", "usage": {"input_tokens": 420, "output_tokens": 51}, "expect": {"last_message_role": "user"}}]}

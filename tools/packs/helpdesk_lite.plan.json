@@ -1,0 +1,12 @@
+[
+  {"id": "it_policy", "title": "Pebblebrook IT Policy", "brief": "Desk hours per office, the on-call route for urgent outages, tickets through the support form, the 4 working hour answer, ticket statuses and the 5 day close rule. Write at least 400 words.", "pdf": true},
+  {"id": "password_policy", "title": "Passwords and Account Lockouts", "brief": "The self-service account portal, 14 characters, yearly change, the 15 minute lockout, never sharing a password with the desk. Write at least 400 words.", "pdf": false},
+  {"id": "vpn_guide", "title": "VPN Guide", "brief": "When the VPN is needed, reconnecting, what to do in an outage (the office network or the web apps), the gateway replacement on 2026-11-07. Write at least 400 words.", "pdf": false},
+  {"id": "printer_guide", "title": "Printer Guide", "brief": "The printers in each office by name, clearing a stuck job, toner, what to do when a printer is offline. Write at least 400 words.", "pdf": false},
+  {"id": "wifi_guide", "title": "Office Wifi Guide", "brief": "The staff network, the three guest networks, the guest code on the reception card changing every Monday, what to try when wifi drops. Write at least 400 words.", "pdf": false},
+  {"id": "file_share_guide", "title": "File Share Guide", "brief": "Reaching the file share in the office and from home over the VPN, the nightly backup 01:00 to 02:00, restoring deleted files for 30 days. Write at least 400 words.", "pdf": false},
+  {"id": "video_calls_guide", "title": "Video Calls in Meeting Rooms", "brief": "The five rooms with kits, starting a call, fixing echo with a headset or by muting the room speaker. Write at least 400 words.", "pdf": false},
+  {"id": "equipment_loans", "title": "Equipment Loans", "brief": "Borrowing spare laptops and headsets from the north office for up to two weeks, returns, damage. Write at least 400 words.", "pdf": false},
+  {"id": "new_starter_checklist", "title": "New Starter IT Checklist", "brief": "The manager's ticket, accounts the day before, the laptop two working days after the ticket, first-day steps. Write at least 400 words.", "pdf": false},
+  {"id": "security_basics", "title": "Security Basics", "brief": "Locking the screen, reporting suspicious messages, unknown USB sticks, never sharing passwords. Write at least 400 words.", "pdf": true}
+]

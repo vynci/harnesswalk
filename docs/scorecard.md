@@ -172,3 +172,22 @@ HARNESSWALK_OLLAMA_URL=http://192.168.8.107:11434 uv run harnesswalk scorecard -
 ```
 
 The run detail of every cell is in the scorecard JSON (`docs/scorecard/2026-11-08-local.json`); `harnesswalk eval <pack> --suite model --model <alias>` replays one cell.
+
+## The P2 packs (attached run)
+
+The four packs P2 added were scored in a run of their own, with the same model grading, two
+samples and temperature 0, on `fake-small` and three local models; the full page and JSON are
+[docs/scorecard/2026-11-08-p2.md](scorecard/2026-11-08-p2.md) and
+[2026-11-08-p2.json](scorecard/2026-11-08-p2.json). The next full scorecard run covers every
+pack and replaces this section.
+
+| Pack | `fake-small` | `local-4b` | `local-e4b` | `local-9b` |
+|---|---|---|---|---|
+| `device_fleet` (governed) | 28/28 | 5/28 | 4/28 | 6/28 (5-7) |
+| `gov_services` (grounded) | 27/27 | 10/27 | 10.5/27 (10-11) | 14/27 |
+| `long_session` (remembered) | 20/20 | 9/20 | 8/20 | 5/20 (0-10)* |
+| `helpdesk_lite` (minimal) | 21/21 | 16/21 | 19/21 | 14.5/21 (13-16) |
+
+\* One sample lost every call after a 60 s timeout to `provider_error`; the other sample is
+10/20. The long cases need the per-tenant token budgets lifted for eval runs (the attached
+page says how).
