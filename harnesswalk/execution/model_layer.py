@@ -128,7 +128,9 @@ class ModelLayer:
         ledger: Any = None,
         budget_notice: str = "",
         turn_keys: dict[str, str] | None = None,
+        pack: str | None = None,
     ) -> None:
+        self.pack = pack  # 0.2.0: the pack this model layer serves (`when.pack`, the canary)
         self.providers = providers
         self.router = router
         self.models = models
@@ -205,6 +207,9 @@ class ModelLayer:
                 mode=ctx.mode,
                 cost=request.cost,
                 hint=ctx.model_hint,
+                pack=self.pack,
+                turn_id=ctx.turn_id,
+                internal=ctx.internal,
             )
             api_key = self.key_for(ctx, api_key)
             byo = bool(api_key)

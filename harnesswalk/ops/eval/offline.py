@@ -104,10 +104,10 @@ class OfflineRunner:
             settings = self.h.packs[pack].settings
         return load_golden(golden_path(settings, pack))
 
-    def _check_model(self, suite: str, model: str | None) -> None:
+    def _check_model(self, suite: str, model: str | None, settings: Any = None) -> None:
         if model is None:
             return
-        models = self.h.settings.get("models.models", {})
+        models = (settings or self.h.settings).get("models.models", {})
         cfg = models.get(model)
         if cfg is None or cfg.get("embedding"):
             raise EvalRequestError(400, "invalid_request", f"unknown model alias {model!r}")
@@ -133,11 +133,13 @@ class OfflineRunner:
         by: str = "user",
         purpose: str | None = None,
         runtime: Any = None,
+        cases: list[GoldenCase] | None = None,
     ) -> dict[str, Any]:
         """Validate, store the run, emit `eval_run_started` and schedule it. Returns the run.
 
         `runtime` (P5) is the pack view the case turns run on instead of the pack's own: the
-        eval gate's candidate built from the working set."""
+        eval gate's candidate built from the working set, or (0.2.0) a tuning candidate view.
+        `cases` (0.2.0, internal: curation's rewrites) replaces the pack's golden set."""
         if suite not in SUITES:
             raise EvalRequestError(400, "invalid_request", "suite must be golden, judge or model")
         if suite == "model" and not model:
@@ -145,7 +147,7 @@ class OfflineRunner:
         if not self.h.pack_known(pack):
             raise EvalRequestError(422, "invalid_request", f"no dataset pack {pack!r}")
         try:
-            cases = self.golden(pack)
+            cases = list(cases) if cases is not None else self.golden(pack)
         except GoldenError as exc:
             raise EvalRequestError(422, "golden_unavailable", str(exc)) from exc
         if case_ids:
@@ -154,7 +156,7 @@ class OfflineRunner:
             if unknown:
                 raise EvalRequestError(400, "invalid_request", f"unknown case ids {unknown}")
             cases = [c for c in cases if c.id in set(case_ids)]
-        self._check_model(suite, model)
+        self._check_model(suite, model, runtime.settings if runtime is not None else None)
         judge_model = None
         if suite == "judge":
             judge_model = self.judge.resolve()
@@ -315,9 +317,10 @@ class OfflineRunner:
         view, candidate = self._views.get(run["run_id"], (None, False))
         provider = fixture = model = pin = None
         case_fixture = case.fixture_for(n)
+        settings = view.settings if view is not None else self.h.settings
         if run["suite"] == "model":
             pin = run["model"]
-            provider = self.h.settings.get(f"models.models.{pin}.provider")
+            provider = settings.get(f"models.models.{pin}.provider")
             if provider == "fake":  # a scripted alias: the case's fixture is its answer
                 if not case_fixture:
                     return None
@@ -326,7 +329,7 @@ class OfflineRunner:
             # Pinned as on `model` (a hint alone only picks among the matched rule's aliases,
             # so `--model local-4b` answered on local-8b before).
             model = pin = run["model"]
-            provider = self.h.settings.get(f"models.models.{model}.provider")
+            provider = settings.get(f"models.models.{model}.provider")
         elif case_fixture:
             provider, fixture = "fake", case_fixture
         else:

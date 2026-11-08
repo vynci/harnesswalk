@@ -343,6 +343,9 @@ class ReleaseManager:
                 self.pack, by="disk", note=f"imported at start-up: {names}", gate=STARTUP_GATE
             )
         self._recorded: set[str] = set()
+        # 0.2.0: a tuning candidate view serves the working set with these bodies in place of
+        # the stored ones ({(kind, name): body}); nothing is written to the store.
+        self.overrides: dict[tuple[str, str], str] = {}
         self.seen_generation = self.store.generation()
         self.served = self._compute_served()
 
@@ -358,10 +361,23 @@ class ReleaseManager:
 
     def served_versions(self) -> list[Version]:
         if self.use_working_set:
-            return self.store.working_set(self.pack)
-        active = self.store.active_release_id(self.pack)
-        rel = self.store.release(active) if active else None
-        return self._release_versions(rel) if rel else self.store.working_set(self.pack)
+            versions = self.store.working_set(self.pack)
+        else:
+            active = self.store.active_release_id(self.pack)
+            rel = self.store.release(active) if active else None
+            versions = self._release_versions(rel) if rel else self.store.working_set(self.pack)
+        if not self.overrides:
+            return versions
+        kept = [v for v in versions if (v.kind, v.name) not in self.overrides]
+        extra = [
+            Version(k, n, 0, sha256(b), b, "", "candidate") for (k, n), b in self.overrides.items()
+        ]
+        return kept + extra
+
+    def override(self, changes: dict[tuple[str, str], str]) -> None:
+        """Serve these bodies over the stored ones (a tuning candidate view, 0.2.0)."""
+        self.overrides = dict(changes)
+        self.served = self._compute_served()
 
     def _compute_served(self) -> Served:
         return Served.of(self.pack, self.served_versions())

@@ -201,7 +201,7 @@ def decide(evidence: list[dict[str, Any]]) -> str:
     changed = [e for e in evidence if e["kind"] == "artifact_changed"]
     if changed:
         return KIND_LAYER[changed[0]["artifact_kind"]]
-    if "model_error" in kinds:
+    if "model_error" in kinds or "tool_choice" in kinds:  # 0.2.0: tool_choice, the tune lever
         return "model"
     if "retrieval_empty" in kinds or "citation_missing" in kinds:
         return "retrieval"
@@ -233,9 +233,23 @@ def suggest(layer: str, evidence: list[dict[str, Any]], baseline: dict | None) -
         return f"{first['fact']}. Raise the loop limits or narrow the task."
     if layer == "tool":
         return f"{first['fact']}. Open the tools span in the trace for the call and its result."
+    if layer == "model" and first["kind"] == "tool_choice":
+        return (
+            f"{first['fact']}. Two levers, cheaper first: say it in the prompt or a skill, or"
+            " curate a stronger model's passing turns and tune this one; `harnesswalk tune"
+            " compare` measures both (tune curate, tune run)."
+        )
     if layer == "model":
         return f"{first['fact']}. Check the provider (or the fixture) and the router's choice."
     return f"{first['fact']}. Check the pack's documents and facts, or the retrieval settings."
+
+
+def levers_of(layer: str) -> list[str]:
+    """0.2.0: what can fix a failure of this layer, cheaper first. A `model` failure has two:
+    the prompt or a skill (the control arm), then tuning the model (contracts/tuning.md)."""
+    if layer == "model":
+        return ["prompt_or_skill", "tune"]
+    return [] if layer == "unknown" else [layer]
 
 
 KIND_FOR_LAYER = {
@@ -243,6 +257,7 @@ KIND_FOR_LAYER = {
     "budget_exit": "budget",
     "tool_error": "tool",
     "model_error": "model",
+    "tool_choice": "model",
     "retrieval_empty": "retrieval",
     "citation_missing": "retrieval",
 }
@@ -293,6 +308,7 @@ class Diagnoser:
                 self._refs(baseline["artifacts_hash"]),
                 baseline["run_id"],
             )
+        evidence += self._tool_choice(run, case)
         for name, score in (case.get("scores") or {}).items():
             if not score.get("pass"):
                 evidence.append({
@@ -318,6 +334,32 @@ class Diagnoser:
             baseline,
             automatic,
         )
+
+    def _tool_choice(self, run: dict[str, Any], case: dict[str, Any]) -> list[dict[str, Any]]:
+        """0.2.0: on a `model`-suite case, the model chose its tools wrong (a write tool not
+        called, or a tool when none was expected): the `tune` lever's evidence."""
+        from harnesswalk.ops.eval.offline import read_tools_of
+        from harnesswalk.ops.eval.scorecard import tool_split
+
+        score = (case.get("scores") or {}).get("tool_calls") or {}
+        if run.get("suite") != "model" or score.get("pass", True):
+            return []
+        expected = (case.get("expected") or {}).get("tool_calls")
+        actual = (case.get("actual") or {}).get("tool_calls") or []
+        try:
+            read_tools = read_tools_of(self.h.view(run["pack"]))
+        except Exception:  # a pack that no longer loads: no split, no evidence
+            return []
+        split = tool_split(expected, actual, read_tools)
+        missed_write = any(name not in actual and name not in read_tools for name in expected or [])
+        if split != "called when none expected" and not missed_write:
+            return []
+        return [{
+            "kind": "tool_choice", "split": split, "expected": expected, "actual": actual,
+            "model": run.get("model"),
+            "fact": f"{run.get('model')} {split} (expected {expected or 'no tool'}, called"
+            f" {actual or 'none'})",
+        }]  # fmt: skip
 
     def _baseline(self, run: dict[str, Any], case_id: str | None) -> dict[str, Any]:
         digest = run.get("artifacts_hash")
@@ -455,6 +497,7 @@ class Diagnoser:
             "layer": layer,
             "evidence": evidence,
             "suggestion": suggest(layer, evidence, baseline),
+            "levers": levers_of(layer),  # 0.2.0
             "baseline": baseline,
             "automatic": automatic,
             "created_at": iso(time.time()),

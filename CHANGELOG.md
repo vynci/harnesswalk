@@ -12,6 +12,17 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 
 ### Added
 
+- **Groundwork for the tuning loop (P3).** The router's canary rule: `router.canary`, a rule
+  with `split: {base_alias, candidate_alias, fraction}` instead of `use`, evaluated right after
+  `public`, sends a share of a pack's turns (`when.pack`) to a candidate alias by the hash of
+  the turn id; eval case turns and pinned runs are never split, and the `router` span reports
+  `arm` and `bucket`. Scripted students for the fake provider (`params.fake_style`: `ask_first`
+  asks for approval in prose instead of calling a write tool, `over_call` calls a tool when
+  none is needed) and the alias `fake-student`; the teacher alias `local-27b` (qwen3.5:27b,
+  thinking off, in no router rule). Candidate views (`Harness.candidate_view`: a pack's
+  working set with artifact bodies replaced, nothing stored) that internal eval runs can use,
+  with their own case list. `evals.golden_paths`. Diagnose's `tool_choice` evidence and
+  `levers` (`["prompt_or_skill", "tune"]` for a `model` failure).
 - **Multi-turn golden cases and pack format additions (P2).** A golden case may script a
   whole conversation (`turns`), run in one session so memory and compaction are testable,
   with expectations on any turn and on the case; `roles` runs a case as a given role;

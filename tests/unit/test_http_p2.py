@@ -359,8 +359,9 @@ async def test_capabilities_per_mode(tmp_path: Path) -> None:
     by_name = {p["name"]: p for p in caps["providers"]}
     assert list(by_name) == ["fake", "ollama", "anthropic", "openai_compatible"]
     assert by_name["fake"]["configured"] and by_name["fake"]["default"]
-    # P6: the conformance profile adds a priced fake alias for the budget case.
-    assert by_name["fake"]["models"] == ["fake-small", "fake-priced"]
+    # P6: the conformance profile adds a priced fake alias for the budget case; 0.2.0 the
+    # tuning loop's scripted student (config/models.yaml).
+    assert by_name["fake"]["models"] == ["fake-small", "fake-student", "fake-priced"]
     assert "local-embed" not in by_name["ollama"]["models"]  # embedding models are not chat
     assert not by_name["anthropic"]["configured"]  # hosted needs enabled: true and a key
     assert {"plain_answer", "cancel_running", "two_turns"} <= set(caps["fixtures"])

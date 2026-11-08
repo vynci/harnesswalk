@@ -410,6 +410,7 @@ class Gateway:
             providers=turn_providers,
             model_hint=req.model,
             model_pin=req.pin_model if req.internal else None,
+            internal=req.internal,
             budget=self.h.budgets.for_turn(tenant),
             output_schema=req.output_schema,
             byo_key=bool(req.api_key),
@@ -771,6 +772,7 @@ class Gateway:
             disabled_nodes=frozenset(summary.get("disabled") or [])
             | frozenset((summary.get("profile") or {}).get("off") or []),
             model_hint=summary.get("model_hint"),
+            internal=summary.get("channel") == "eval",
         )
         model_exits = [
             e for e in events if e["type"] == "node_exit" and e.get("node_id") == "model_layer"
