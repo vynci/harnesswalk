@@ -7,11 +7,12 @@ a `model`-suite eval run: every golden case of the pack, answered by the model a
 so a cell is reproducible from the trace. `fake-small` answers from the case fixtures,
 so its column is the golden suite itself and every pack should be green there.
 
-- Generated: 2026-11-08 20:30 (UTC) by `harnesswalk scorecard`
-- Harness: Harnesswalk 0.1.1, spec 0.1.0
+- Generated: 2026-11-08 20:58 (UTC) by `harnesswalk scorecard`
+- Harness: Harnesswalk 0.1.1, spec 0.2.0
 - Ollama: http://192.168.8.107:11434 (version 0.34.1)
 - Tenant: `scorecard`; embeddings: fake (hash vectors, the same for every model); case timeout: 120.0 s
-- Grading: model grade; samples per cell: 2; temperature: 0; n/a (scripted)
+- Grading: model grade; samples per cell: 2
+- Profiles: each pack runs on the harness profile its `pack.yaml` names (in brackets after the pack)
 
 Model grade (`spec/contracts/evaluator.md`, "Grading modes"): `tool_calls` passes
 when the expected calls appear in order, with extra calls to read tools allowed
@@ -20,16 +21,16 @@ compares normalized text (case, Unicode, whitespace, dates, times, amounts, numb
 
 ## Models
 
-| Alias | Provider | Model | Parameters | Quantization |
-|---|---|---|---|---|
-| `fake-small` | fake | `fake-small` |  |  |
-| `local-2b` | ollama | `qwen3.5:2b` | 1.9B | Q8_0 |
-| `local-4b` | ollama | `qwen3.5:4b` | 4.2B | Q4_K_M |
-| `local-9b` | ollama | `qwen3.5:9b` | 9.0B | Q4_K_M |
-| `local-e4b` | ollama | `gemma4:e4b` | 7.5B | Q4_K_M |
-| `local-8b` | ollama | `llama3.1:8b` | 8.0B | Q4_K_M |
-| `hosted-haiku` | anthropic | `claude-haiku-5-5` |  |  |
-| `hosted-sonnet` | anthropic | `claude-sonnet-5-5` |  |  |
+| Alias | Provider | Model | Parameters | Quantization | Temperature |
+|---|---|---|---|---|---|
+| `fake-small` | fake | `fake-small` |  |  | n/a (scripted) |
+| `local-2b` | ollama | `qwen3.5:2b` | 1.9B | Q8_0 | 0 |
+| `local-4b` | ollama | `qwen3.5:4b` | 4.2B | Q4_K_M | 0 |
+| `local-9b` | ollama | `qwen3.5:9b` | 9.0B | Q4_K_M | 0 |
+| `local-e4b` | ollama | `gemma4:e4b` | 7.5B | Q4_K_M | 0 |
+| `local-8b` | ollama | `llama3.1:8b` | 8.0B | Q4_K_M | 0 |
+| `hosted-haiku` | anthropic | `claude-haiku-5-5` |  |  | provider default |
+| `hosted-sonnet` | anthropic | `claude-sonnet-5-5` |  |  | provider default |
 
 ## Pass counts
 
@@ -37,15 +38,15 @@ compares normalized text (case, Unicode, whitespace, dates, times, amounts, numb
 
 | Pack | `fake-small` | `local-2b` | `local-4b` | `local-9b` | `local-e4b` | `local-8b` | `hosted-haiku` | `hosted-sonnet` |
 |---|---|---|---|---|---|---|---|---|
-| `_starter` | 16/16 (16-16) | 7/16 (7-7) | 8/16 (8-8) | 6.5/16 (6-7) | 5/16 (5-5) | 4.5/16 (4-5) | 9/16¹ | 10/16¹ |
-| `ecommerce` | 24/24 (24-24) | 3/24 (2-4) | 4/24 (4-4) | 7/24 (7-7) | 7/24 (6-8) | 3/24 (3-3) | 15/24¹ | 10/24¹ |
-| `finance` | 25/25 (25-25) | 6.5/25 (6-7) | 6/25 (6-6) | 13/25 (13-13) | 7/25 (7-7) | 4/25 (4-4) | 17/25¹ | 18/25¹ |
-| `healthcare` | 25/25 (25-25) | 3/25 (3-3) | 2/25 (2-2) | 8/25 (8-8) | 7.5/25 (7-8) | 3/25 (3-3) | 10/25¹ | 12/25¹ |
-| `logistics` | 24/24 (24-24) | 2/24 (2-2) | 4.5/24 (4-5) | 8.5/24 (8-9) | 8.5/24 (8-9) | 0/24 (0-0) | 2/24¹ | 5/24¹ |
-| `sports` | 22/22 (22-22) | 7.5/22 (7-8) | 8/22 (8-8) | 8/22 (8-8) | 14.5/22 (14-15) | 7/22 (7-7) | 14/22¹ | 6/22¹ |
-| **All packs** | **136/136** (100%) (136-136) | **29/136** (21%) (27-31) | **32.5/136** (24%) (32-33) | **51/136** (38%) (50-52) | **49.5/136** (36%) (49-50) | **21.5/136** (16%) (21-22) | **67/136** (49%) | **61/136** (45%) |
+| `_starter` (operated) | 16/16 | 7/16 | 8/16 | 6.5/16 (6-7) | 5/16 | 4.5/16 (4-5) | 9/16¹ | 10/16¹ |
+| `ecommerce` (governed) | 24/24 | 3/24 (2-4) | 4/24 | 7/24 | 7/24 (6-8) | 3/24 | 15/24¹ | 10/24¹ |
+| `finance` (operated) | 25/25 | 6.5/25 (6-7) | 6/25 | 13/25 | 7/25 | 4/25 | 17/25¹ | 18/25¹ |
+| `healthcare` (grounded) | 25/25 | 2/25 | 7/25 | 7.5/25 (7-8) | 8/25 | 2/25 | 10/25¹ | 12/25¹ |
+| `logistics` (governed) | 24/24 | 2/24 | 4.5/24 (4-5) | 8.5/24 (8-9) | 8.5/24 (8-9) | 0/24 | 2/24¹ | 5/24¹ |
+| `sports` (grounded) | 22/22 | 6.5/22 (6-7) | 12/22 | 11/22 | 15/22 (14-16) | 6/22 | 14/22¹ | 6/22¹ |
+| **All packs** | **136/136** (100%) | **27/136** (20%) (25-29) | **41.5/136** (31%) (41-42) | **53.5/136** (39%) (53-54) | **50.5/136** (37%) (50-51) | **19.5/136** (14%) (19-20) | **67/136** (49%) | **61/136** (45%) |
 
-¹ Carried forward from the 2026-11-08 run (hosted-haiku, hosted-sonnet, one sample, provider default temperature) and re-graded offline under model grade from the stored case results: tool calls and answer match from the stored calls and replies, schema from the answer before the output guardrails (trace) with the JSON extraction; path, citations, checks and PII as stored (their routing predates the pinned price-cap change, so a `lookup` rule check can still fail on a priced model).
+¹ Carried forward from the 2026-11-08 run (hosted-haiku, hosted-sonnet, one sample, provider default temperature, every pack on the 0.1 harness with every node on, before packs named a profile) and re-graded offline under model grade from the stored case results: tool calls and answer match from the stored calls and replies, schema from the answer before the output guardrails (trace) with the JSON extraction; path, citations, checks and PII as stored (their routing predates the pinned price-cap change, so a `lookup` rule check can still fail on a priced model).
 
 ## Per model
 
@@ -64,77 +65,77 @@ the cases this model fails that at least half the other real models pass.
 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 - No failed case
-- Tokens: 299,328 in, 16,088 out; cost $0.0000; wall time 9 s
+- Tokens: 299,328 in, 16,088 out; cost $0.0000; wall time 7 s
 
 ### `local-2b`
 
 | path | tool_calls | citations | answer_match | checks | schema | pii_leak | error |
 |---|---|---|---|---|---|---|---|
-| 20.5 | 59.5 | 21.5 | 70.5 | 7.5 | 0 | 0 | 0 |
+| 20.5 | 63 | 22.5 | 70 | 9 | 0 | 0 | 0 |
 
 | tool_calls: called when none expected | tool_calls: none called | tool_calls: write tool not called | tool_calls: read tool not called | tool_calls: extra or wrong tool |
 |---|---|---|---|---|
-| 36.5 | 3.5 | 9 | 9.5 | 1 |
+| 41 | 3 | 9 | 9 | 1 |
 
-- 107 failed cases; answer_match only: 35
-- Fails where most pass: `ecommerce/track_qt58120394` (6 of 6), `ecommerce/order_lookup_qf20402` (5 of 6), `finance/mem_notice_delivery_set` (5 of 6), `healthcare/kb_records_timing` (5 of 6), `ecommerce/kb_tent_warranty` (4 of 6) and 27 more
-- Tokens: 1,656,600 in, 32,051 out; cost $0.0000; wall time 221 s
+- 109 failed cases; answer_match only: 36.5
+- Fails where most pass: `ecommerce/track_qt58120394` (6 of 6), `ecommerce/order_lookup_qf20402` (5 of 6), `finance/mem_notice_delivery_set` (5 of 6), `healthcare/kb_prescription_renewal` (5 of 6), `healthcare/kb_records_timing` (5 of 6) and 30 more
+- Tokens: 1,658,125 in, 32,454 out; cost $0.0000; wall time 228 s
 
 ### `local-4b`
 
 | path | tool_calls | citations | answer_match | checks | schema | pii_leak | error |
 |---|---|---|---|---|---|---|---|
-| 24.5 | 53.5 | 24.5 | 64 | 8 | 0 | 0 | 0 |
+| 24 | 47.5 | 20.5 | 63.5 | 6 | 0 | 0 | 0 |
 
 | tool_calls: called when none expected | tool_calls: none called | tool_calls: write tool not called | tool_calls: read tool not called | tool_calls: extra or wrong tool |
 |---|---|---|---|---|
-| 27 | 3.5 | 13.5 | 9.5 | 0 |
+| 22 | 2.5 | 13.5 | 9.5 | 0 |
 
-- 103.5 failed cases; answer_match only: 32.5
-- Fails where most pass: `healthcare/tool_find_appointment` (6 of 6), `healthcare/kb_prescription_renewal` (5 of 6), `sports/rules_postponement_deadline` (5 of 6), `finance/cite_mgmt_fee_hcp01` (4 of 6), `finance/cite_return_of_capital_share` (4 of 6) and 19 more
-- Tokens: 1,311,439 in, 24,238 out; cost $0.0000; wall time 269 s
+- 94.5 failed cases; answer_match only: 31
+- Fails where most pass: `finance/cite_mgmt_fee_hcp01` (4 of 6), `finance/cite_return_of_capital_share` (4 of 6), `finance/cite_transfer_consent` (4 of 6), `sports/rules_postponement_deadline` (4 of 6), `_starter/trailhead_cited` (3 of 6) and 12 more
+- Tokens: 1,247,259 in, 23,845 out; cost $0.0000; wall time 255 s
 
 ### `local-9b`
 
 | path | tool_calls | citations | answer_match | checks | schema | pii_leak | error |
 |---|---|---|---|---|---|---|---|
-| 33 | 36 | 12.5 | 65.5 | 7 | 0 | 0 | 0 |
+| 31 | 33 | 10.5 | 65 | 5 | 0 | 0 | 0 |
 
 | tool_calls: called when none expected | tool_calls: none called | tool_calls: write tool not called | tool_calls: read tool not called | tool_calls: extra or wrong tool |
 |---|---|---|---|---|
-| 1 | 15 | 11.5 | 8.5 | 0 |
+| 1 | 13 | 11.5 | 7.5 | 0 |
 
-- 85 failed cases; answer_match only: 33.5
-- Fails where most pass: `_starter/pii_leak_repaired` (5 of 6), `sports/stats_pl114` (5 of 6), `sports/stats_pl142` (5 of 6), `sports/rules_match_length` (4 of 6), `_starter/trailhead_cited` (3 of 6) and 6 more
-- Tokens: 1,077,242 in, 24,220 out; cost $0.0000; wall time 342 s
+- 82.5 failed cases; answer_match only: 35
+- Fails where most pass: `_starter/pii_leak_repaired` (5 of 6), `sports/rules_red_card` (4 of 6), `_starter/trailhead_cited` (3 of 6), `ecommerce/cancel_approved_qf20430` (3 of 6), `ecommerce/refund_approved_qf20402` (3 of 6) and 5 more
+- Tokens: 1,064,306 in, 24,114 out; cost $0.0000; wall time 329 s
 
 ### `local-e4b`
 
 | path | tool_calls | citations | answer_match | checks | schema | pii_leak | error |
 |---|---|---|---|---|---|---|---|
-| 36 | 40 | 7.5 | 67.5 | 7 | 0 | 0 | 0 |
+| 36 | 38 | 7.5 | 66 | 7 | 0 | 0 | 0 |
 
 | tool_calls: called when none expected | tool_calls: none called | tool_calls: write tool not called | tool_calls: read tool not called | tool_calls: extra or wrong tool |
 |---|---|---|---|---|
-| 0 | 25 | 8 | 7 | 0 |
+| 0 | 23.5 | 8 | 6.5 | 0 |
 
-- 86.5 failed cases; answer_match only: 37
-- Fails where most pass: `finance/mem_reporting_currency_set` (6 of 6), `finance/mem_statement_format_set` (6 of 6), `finance/tool_calls_hcp02` (6 of 6), `_starter/cancel_needs_approval` (5 of 6), `_starter/pii_leak_repaired` (5 of 6) and 11 more
-- Tokens: 915,508 in, 17,594 out; cost $0.0000; wall time 183 s
+- 85.5 failed cases; answer_match only: 36
+- Fails where most pass: `finance/mem_reporting_currency_set` (6 of 6), `finance/mem_statement_format_set` (6 of 6), `finance/tool_calls_hcp02` (6 of 6), `_starter/cancel_needs_approval` (5 of 6), `_starter/pii_leak_repaired` (5 of 6) and 12 more
+- Tokens: 902,179 in, 17,786 out; cost $0.0000; wall time 170 s
 
 ### `local-8b`
 
 | path | tool_calls | citations | answer_match | checks | schema | pii_leak | error |
 |---|---|---|---|---|---|---|---|
-| 28.5 | 73.5 | 30.5 | 73.5 | 9.5 | 1 | 0 | 0 |
+| 28.5 | 75 | 27.5 | 78 | 9 | 1 | 0 | 0 |
 
 | tool_calls: called when none expected | tool_calls: none called | tool_calls: write tool not called | tool_calls: read tool not called | tool_calls: extra or wrong tool |
 |---|---|---|---|---|
-| 43 | 3 | 9 | 18.5 | 0 |
+| 44.5 | 3 | 9 | 18.5 | 0 |
 
-- 114.5 failed cases; answer_match only: 28
-- Fails where most pass: `_starter/structured_status` (6 of 6), `_starter/support_hours` (6 of 6), `_starter/cancel_needs_approval` (5 of 6), `_starter/remember_name` (5 of 6), `ecommerce/order_lookup_qf20402` (5 of 6) and 32 more
-- Tokens: 981,128 in, 15,448 out; cost $0.0000; wall time 254 s
+- 116.5 failed cases; answer_match only: 32
+- Fails where most pass: `_starter/structured_status` (6 of 6), `_starter/support_hours` (6 of 6), `_starter/cancel_needs_approval` (5 of 6), `_starter/remember_name` (5 of 6), `ecommerce/order_lookup_qf20402` (5 of 6) and 34 more
+- Tokens: 960,848 in, 16,255 out; cost $0.0000; wall time 255 s
 
 ### `hosted-haiku`
 
@@ -147,7 +148,7 @@ the cases this model fails that at least half the other real models pass.
 | 2 | 10 | 4 | 6 | 0 |
 
 - 69 failed cases; answer_match only: 29
-- Fails where most pass: `finance/tool_nav_hcp02` (5 of 6), `logistics/track_then_eta_in_transit` (5 of 6), `logistics/eta_single` (3 of 6), `logistics/kb_escalation_time` (3 of 6)
+- Fails where most pass: `finance/tool_nav_hcp02` (5 of 6), `logistics/track_then_eta_in_transit` (5 of 6), `logistics/eta_single` (3 of 6), `logistics/kb_escalation_time` (3 of 6), `sports/stats_pl203` (3 of 6)
 - Tokens: 844,171 in, 25,791 out; cost $0.0973; wall time 246 s
 
 ### `hosted-sonnet`
@@ -161,7 +162,7 @@ the cases this model fails that at least half the other real models pass.
 | 5 | 9 | 1 | 1 | 0 |
 
 - 75 failed cases; answer_match only: 24
-- Fails where most pass: `sports/fixtures_nor` (6 of 6), `sports/stats_pl121` (6 of 6), `sports/stats_pl137` (6 of 6), `sports/stats_pl114` (5 of 6), `sports/stats_pl142` (5 of 6) and 10 more
+- Fails where most pass: `sports/fixtures_nor` (6 of 6), `sports/stats_pl114` (6 of 6), `sports/stats_pl121` (6 of 6), `sports/stats_pl137` (6 of 6), `sports/fixtures_ash` (5 of 6) and 11 more
 - Tokens: 882,251 in, 27,671 out; cost $2.0412; wall time 468 s
 
 ## Regenerate
