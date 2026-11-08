@@ -428,7 +428,7 @@ def _cell_text(cell: dict[str, Any] | None) -> str:
     passed, scored = cell_counts(cell)
     mean = sum(passed) / len(passed)
     text = f"{_num(mean)}/{scored}"
-    if len(passed) > 1:
+    if min(passed) != max(passed):
         text += f" ({min(passed)}-{max(passed)})"
     return text + ("¹" if cell.get("carried") else "")
 
@@ -544,7 +544,7 @@ def _total_text(s: dict[str, Any]) -> str:
         return "n/a"
     pct = 100.0 * s["passed"] / s["scored"] if s["scored"] else 0.0
     text = f"**{_num(s['passed'])}/{s['scored']}** ({pct:.0f}%)"
-    if s["samples"] > 1:
+    if s["passed_min"] != s["passed_max"]:
         text += f" ({s['passed_min']}-{s['passed_max']})"
     return text
 
@@ -578,8 +578,14 @@ def render_markdown(data: dict[str, Any]) -> str:
         f"- Tenant: `{data['tenant']}`; embeddings: {data.get('embeddings', 'fake')};"
         f" case timeout: {data.get('case_timeout_s', 60)} s",
         f"- Grading: {'model grade' if grading == 'model' else 'exact (2026-11-08 rules)'};"
-        f" samples per cell: {samples}; temperature: {data.get('temperature', 'provider default')}",
+        f" samples per cell: {samples}",
     ]
+    profiles = data.get("pack_profiles") or {}
+    if profiles:
+        lines.append(
+            "- Profiles: each pack runs on the harness profile its `pack.yaml` names"
+            " (in brackets after the pack)"
+        )
     if grading == "model":
         lines += [
             "",
@@ -592,14 +598,15 @@ def render_markdown(data: dict[str, Any]) -> str:
         "",
         "## Models",
         "",
-        "| Alias | Provider | Model | Parameters | Quantization |",
-        "|---|---|---|---|---|",
+        "| Alias | Provider | Model | Parameters | Quantization | Temperature |",
+        "|---|---|---|---|---|---|",
     ]
     for m in models:
         d = m.get("details") or {}
         lines.append(
             f"| `{m['alias']}` | {m['provider']} | `{_model_name(m)}` |"
             f" {d.get('parameter_size', '')} | {d.get('quantization_level', '')} |"
+            f" {m.get('temperature') or 'provider default'} |"
         )
     lines += [
         "",
@@ -614,14 +621,22 @@ def render_markdown(data: dict[str, Any]) -> str:
     ]
     for pack in data["packs"]:
         row = [_cell_text(lookup.get((pack, a))) for a in aliases]
-        lines.append(f"| `{pack}` | " + " | ".join(row) + " |")
+        label = f"`{pack}` ({profiles[pack]})" if pack in profiles else f"`{pack}`"
+        lines.append(f"| {label} | " + " | ".join(row) + " |")
     lines.append("| **All packs** | " + " | ".join(_total_text(stats[a]) for a in aliases) + " |")
     carried = data.get("carried")
     if carried:
         lines += [
             "",
             f"¹ Carried forward from the {carried['from']} run ({', '.join(carried['models'])},"
-            " one sample, provider default temperature) and "
+            " one sample, provider default temperature"
+            + (
+                ""
+                if carried.get("profiles")
+                else ", every pack on the 0.1 harness with every node on, before packs named a"
+                " profile"
+            )
+            + ") and "
             + (
                 "re-graded offline under model grade from the stored case results: tool calls"
                 " and answer match from the stored calls and replies, schema from the answer"
