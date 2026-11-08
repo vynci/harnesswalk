@@ -127,7 +127,7 @@ router:
 
 ## Model suite: the pinned router
 
-Additive (spec 0.1.0). An eval case turn of the `model` suite, or of a `judge` run that names
+Additive (released in spec 0.2.0). An eval case turn of the `model` suite, or of a `judge` run that names
 a model (`evaluator.md`, "Model suite and the scorecard"), pins every model call to one alias.
 Rules are still evaluated in order and matched by `when`, and the first matching rule's id is
 what the `router` span reports, so rule checks stay meaningful. A rule's
