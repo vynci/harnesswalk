@@ -155,7 +155,9 @@ def _cases(tmp: Path) -> Path:
     return tmp
 
 
-async def _run(tmp: Path, cases: Path) -> tuple[dict, dict[str, dict]]:
+async def _run(
+    tmp: Path, cases: Path, suite: str = "golden", model: str | None = None
+) -> tuple[dict, dict[str, dict]]:
     settings = load_settings(
         ROOT,
         provider="fake",
@@ -172,7 +174,7 @@ async def _run(tmp: Path, cases: Path) -> tuple[dict, dict[str, dict]]:
     )
     h = Harness(settings)
     try:
-        run = h.evals.offline.start("dev", "_starter", "golden", by="test")
+        run = h.evals.offline.start("dev", "_starter", suite, model=model, by="test")
         await h.evals.offline.wait(run["run_id"])
         done = h.evals.store.run("dev", run["run_id"])
         return done, {c["case_id"]: c for c in h.evals.store.cases(run["run_id"])}
@@ -287,3 +289,14 @@ def test_the_golden_loader_reads_every_shipped_case() -> None:
     for p in ALL:
         if (p.path / "golden.jsonl").is_file():
             assert load_golden(p.path / "golden.jsonl")
+
+
+def test_multi_turn_cases_are_model_graded_on_the_model_suite(tmp_path: Path) -> None:
+    """P0b: per-turn and session scores of a multi-turn case use model grading too."""
+    done, cases = asyncio.run(
+        _run(tmp_path, _cases(tmp_path / "cases"), suite="model", model="fake-small")
+    )
+    assert done["suite"] == "model" and done["totals"]["passed"] == 3
+    three = cases["three_turns"]
+    assert three["scores"]["turn1.tool_calls"]["detail"].startswith("ordered:")
+    assert three["scores"]["answer_match"]["detail"].endswith("(normalized)")
