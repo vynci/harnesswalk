@@ -19,7 +19,8 @@ The [README](../README.md) is the front door. These pages hold the detail.
 scorers only (no LLM judge) under model grading (tool calls in order with extra read calls
 allowed, answers compared as normalized text; `spec/contracts/evaluator.md`, "Grading
 modes"), with a failure breakdown by scorer and a `tool_calls` split per model. Each cell is
-`model`-suite eval runs at temperature 0; the cell data is in [scorecard/](scorecard/) as JSON.
+`model`-suite eval runs at temperature 0, each pack on the harness profile its `pack.yaml`
+names; the cell data is in [scorecard/](scorecard/) as JSON.
 To regenerate it against your own Ollama (each model pulled first, for example
 `ollama pull qwen3.5:4b`):
 
