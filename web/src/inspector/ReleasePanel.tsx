@@ -464,7 +464,7 @@ export function ReleaseArea({ tuneFirst = false }: { tuneFirst?: boolean }) {
     <Tabs value={tab} onValueChange={setTab} className="gap-3" data-testid="release-area">
       <TabsList className="self-start">
         <TabsTrigger value="releases" data-testid="release-area-releases">
-          Releases
+          Versions
         </TabsTrigger>
         <TabsTrigger value="tuning" data-testid="release-area-tune">
           Tune
