@@ -26,6 +26,21 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
   that asks for approval in prose). Diagnose names the `tune` lever on a `model` failure.
   Public mode replays a recorded run (`config/fixtures/tune_replay.json`) and refuses every
   tuning action.
+- **The generator (P4a): `harnesswalk init`.** The third verb: from a profile (the node set),
+  a pack (the content) and a generator manifest (`--provider ollama|fake`, `--transport
+  http|cli`, `--storage sqlite|files`, the file release door), `init` writes a repository you own
+  with no runtime dependency on Harnesswalk: plain Python (the standard library plus `pyyaml`),
+  one file per node in `harness/core/`, the pack's prompt, skills, policy and tools in folders
+  you own, its golden set and a CI job, the conformance suite vendored with its runner, a
+  compose file and Modelfile for a local model, `harness.lock`, pristine copies and
+  `GENERATION_NOTES.md`. Template-first: `harnesswalk/gen/templates/python/` (a TypeScript set
+  would sit beside it), with `#%` directives and one `off_node` seam for every switched-off
+  node, so the walk keeps its shape. This first set covers the `minimal` rung: a generated
+  helpdesk_lite repo (about 2,300 lines in `harness/`) passes 2 of 2 applicable conformance
+  cases (the rest need switched-off nodes or public mode, never generated) through the vendored
+  runner and this repository's `--command` runner, and 21 of 21 golden cases, on the fake
+  provider. Drift tests tie the template set to the spec version, the diagram's nodes and the
+  event schema. `docs/generator.md`.
 - **Groundwork for the tuning loop (P3).** The router's canary rule: `router.canary`, a rule
   with `split: {base_alias, candidate_alias, fraction}` instead of `use`, evaluated right after
   `public`, sends a share of a pack's turns (`when.pack`) to a candidate alias by the hash of
