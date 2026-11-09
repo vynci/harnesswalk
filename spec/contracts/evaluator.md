@@ -406,7 +406,8 @@ Additive, groundwork for the tuning loop (`tuning.md`).
   tool of a class other than `read` was not called, or a tool was called when none was expected;
   `split` is the scorecard bucket, `expected` and `actual` the calls) points at layer `model`.
   Every diagnosis gains `levers`: for `model` it is `["prompt_or_skill", "tune"]` (try the
-  prompt or a skill first, then curate and tune), for the other layers the layer itself.
+  prompt or a skill first, then curate and tune), for the other layers the layer itself. The
+  suggestion names both commands.
 - **Internal runs** (not reachable from `POST /v1/evals/runs`): an eval run may carry its own
   list of cases and a candidate view (the pack's working set with some artifact bodies
   replaced, nothing stored), and its `model` may be an alias only that view defines.
@@ -417,3 +418,20 @@ Additive, groundwork for the tuning loop (`tuning.md`).
   case turn may take `evals.model_timeout_s` (default 180) instead of `model_layer.timeout_s`.
   A pinned run needs its alias's provider to be configured, not healthy (`router.md`), so one
   timed-out call fails that case, not the rest of the run.
+
+## 0.2.0: tuning (curate, the model gate)
+
+Additive. Contract: `tuning.md`.
+
+- **`curate`** (expert child of `eval`, kind `code`, never switched off: it runs only when asked
+  for). It runs `model`-suite runs pinned to a teacher over a pack's golden cases and teacher
+  rewrites of them, keeps the case turns every deterministic scorer passed, and exports them as
+  a `dataset/<name>` (`artifacts.md`). An internal run may carry its own list of cases (the
+  rewrites) and a candidate view (the teacher with the control arm's addition); neither is
+  reachable from `POST /v1/evals/runs`. Those runs record `purpose: curate`.
+- **The model gate** (`tuning.md`, Compare) is the eval gate of a `model` artifact: model-suite
+  runs of three arms (base, candidate, prompt arm) on the target and canary packs, `purpose:
+  tune_gate` on each run. Its numbers are mean pass counts over the samples, so a gate of "beat
+  the base by 2 cases, lose at most 1 on a canary pack" reads directly off the scorecard shape.
+  A run's `model` may be an alias only the candidate view defines (the tuned alias before it is
+  promoted).

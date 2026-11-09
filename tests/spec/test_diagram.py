@@ -14,9 +14,9 @@ EXPERT = {
     "memory": {"procedural", "session", "semantic", "episodic", "knowledge"},
     "model_layer": {"router", "providers"},
     "tools": {"registry", "sandbox"},
-    "eval": {"online_eval", "offline_eval", "diagnose"},
+    "eval": {"online_eval", "offline_eval", "diagnose", "curate"},
     "trace": {"cost"},
-    "release": {"artifacts"},
+    "release": {"artifacts", "tune"},
 }
 
 

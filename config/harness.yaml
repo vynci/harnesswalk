@@ -131,6 +131,20 @@ release:
     min_pass_rate: 1.0
     packs: all                  # all, or a list of pack ids whose releases are gated
 
+# 0.2.0: the tuning loop (spec/contracts/tuning.md): curate a dataset from teacher traffic,
+# train an adapter on a trainer (config/trainers.yaml), gate the served model against the base
+# beside the prompt arm, then canary it through the router. Explicit actions only; a public
+# server never tunes and replays `replay_fixture` instead.
+tune:
+  sqlite_path: data/tune.db
+  artifacts_dir: data/tune      # dataset files and anything a trainer brings back; never in git
+  teacher: local-27b
+  prompt_arm: config/tune/prompt_arm.md
+  replay_fixture: config/fixtures/tune_replay.json
+  curate: { variants: 6, seed: 7, val_fraction: 0.1, teacher_prompt_arm: true, chunk: 24 }
+  gate: { samples: 2, min_gain_cases: 2, canary_tolerance_cases: 1 }
+  canary: { fraction: 0.1, min_turns: 5, max_failure_increase: 0.1 }
+
 # 0.2.0: eval case turns (golden, judge and model runs, the release gate, the tuning loop's
 # runs). A run plays many long turns in one scratch tenant, so its turns get a budget of their
 # own over the tenant's (`policy.budgets`; the `_per_turn` keys here replace the loop's own

@@ -384,6 +384,20 @@
       "can_disable": true
     },
     {
+      "id": "curate",
+      "group": "ops",
+      "label": "Curate",
+      "kind": "code",
+      "view": "expert",
+      "parent": "eval",
+      "layout": {"x": 109, "y": 206},
+      "lesson": "Turns traces into training data. A teacher model answers the pack's golden prompts and rewrites of them through the whole harness; only the turns every deterministic scorer passed are kept, exported as chat examples with the exact context the harness built, and versioned as a dataset with its counts, filters and hashes.",
+      "lesson_url": "lessons/22-curate.md",
+      "lesson_summary": "Where training data comes from: teacher traffic through the harness, kept only when it passes.",
+      "source_hint": "harnesswalk/ops/tune/curate.py",
+      "artifact_hint": "dataset/<name>"
+    },
+    {
       "id": "release",
       "group": "ops",
       "label": "Release",
@@ -407,6 +421,19 @@
       "lesson_url": "lessons/21-release-inside.md#artifacts",
       "lesson_summary": "Append-only versions of every prompt, skill and config file, and the hash chain over releases.",
       "source_hint": "harnesswalk/ops/artifacts.py"
+    },
+    {
+      "id": "tune",
+      "group": "ops",
+      "label": "Tune",
+      "kind": "code",
+      "view": "expert",
+      "parent": "release",
+      "lesson": "Trains an adapter on a curated dataset with a trainer behind one interface (a fake one in CI, a GPU worker over ssh), turns it into the model the harness will actually serve, and records both as artifacts. The model reaches traffic only through the eval gate (beat the base, no forgetting) and a canary router rule that promote widens and rollback closes.",
+      "lesson_url": "lessons/23-tune.md",
+      "lesson_summary": "A dataset in, an adapter and a served model out, gated like any release, canaried through the router.",
+      "source_hint": "harnesswalk/ops/tune/__init__.py",
+      "artifact_hint": "adapter/<name>, model/<name>"
     }
   ],
   "edges": [
@@ -780,6 +807,40 @@
       "view": "expert",
       "refines": "release_to_memory",
       "layout": {"handles": {"source": "left", "target": "left"}}
+    },
+    {
+      "id": "trace_to_curate",
+      "from": "trace",
+      "to": "curate",
+      "label": "teacher turns",
+      "kind": "telemetry",
+      "view": "expert",
+      "refines": "trace_to_eval"
+    },
+    {
+      "id": "diagnose_to_curate",
+      "from": "diagnose",
+      "to": "curate",
+      "label": "tune lever",
+      "kind": "data",
+      "view": "expert"
+    },
+    {
+      "id": "curate_to_tune",
+      "from": "curate",
+      "to": "tune",
+      "label": "dataset",
+      "kind": "data",
+      "view": "expert",
+      "refines": "eval_to_release"
+    },
+    {
+      "id": "tune_to_artifacts",
+      "from": "tune",
+      "to": "artifacts",
+      "label": "adapter + served model",
+      "kind": "data",
+      "view": "expert"
     }
   ],
   "walk_order": [

@@ -187,7 +187,7 @@ describe('advanced view routes', () => {
       const t = byId.get(e.target)!
       return (s.parentId && s.parentId === t.parentId) || t.parentId === s.id
     })
-    expect(inner.map((e) => e.id).sort()).toEqual(['diagnose_to_offline_eval', 'online_eval_to_diagnose', 'registry_to_sandbox', 'router_to_providers', 'trace_to_cost'])
+    expect(inner.map((e) => e.id).sort()).toEqual(['diagnose_to_curate', 'diagnose_to_offline_eval', 'online_eval_to_diagnose', 'registry_to_sandbox', 'router_to_providers', 'trace_to_cost', 'tune_to_artifacts'])
     for (const e of inner) {
       const g = byId.get(byId.get(e.target)!.parentId!)!
       for (const [x, y] of e.points) {

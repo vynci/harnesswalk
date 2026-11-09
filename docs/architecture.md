@@ -152,6 +152,38 @@ Run it yourself: `HARNESSWALK_PROFILE=minimal uv run harnesswalk eval healthcare
 (`make conformance`); a case that needs a switched-off node is skipped, not failed. Every profile
 uses the same layout today; a layout per profile is a later addition.
 
+## The tuning loop
+
+Fine-tuning is the fourth lever beside memory, procedural text (prompt and skills) and
+configuration, and the diagram draws it as two expert nodes ([spec/contracts/tuning.md](../spec/contracts/tuning.md)):
+
+```
+trace + model-suite results -> Curate (eval) -> dataset/<name>
+  -> Tune (release, a trainer) -> adapter/<name> + model/<name> (what Ollama serves)
+  -> compare: beat the base, no forgetting, beside the prompt-only control arm
+  -> promote: router.canary splits a share of the pack's turns by turn id -> full, or rollback
+```
+
+- **Curate** runs a teacher model (`local-27b`, qwen3.5:27b on the homelab) through the whole
+  harness on a pack's golden prompts and rewrites of them, keeps the turns every deterministic
+  scorer passed, and exports each as a chat example with the exact context the harness built.
+  Only dataset packs are sources; no tenant's real turns are read.
+- **Tune** hands the dataset to a trainer behind one interface (`config/trainers.yaml`): `fake`
+  for CI and the Guide, `homelab-trl` for a GPU worker over ssh (LoRA, merge, GGUF Q4_K_M,
+  `ollama create`, [deploy/homelab/README.md](../deploy/homelab/README.md)), `local-mlx` as a
+  stub. Weights stay outside git; the `adapter` and `model` manifests name them by hash.
+- **The gate** for a model is the `model` suite on the target and canary packs for three arms:
+  the base, the served candidate and the base with the control arm's text in its system
+  prompt, the same day and the same grading. The candidate must gain N cases on the target
+  packs and lose at most M on each canary pack.
+- **Promote** puts the model's alias and `router.canary` into `models/models` and releases the
+  packs; the split is by the hash of the turn id, eval turns are never split, and the canary
+  gate reads live signals (errors, bad feedback) per arm before `--full`. Rollback sets the
+  fraction to 0.
+
+The public sandbox never trains: its `/v1/tune` routes replay a recorded run. The measured run
+on a local 4B model is in [tuning.md](tuning.md).
+
 ## The event stream
 
 Every node emits typed events, and the event stream is the product. The contract is

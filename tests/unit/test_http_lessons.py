@@ -30,6 +30,9 @@ GROUP_CHAPTERS = {
     "eval": "20-eval-inside",
     "release": "21-release-inside",
 }
+# 0.2.0: the tuning loop's chapters, after the groups. Curate and tune link a chapter of their
+# own (no anchor); the canary chapter is linked by no node.
+TUNING_CHAPTERS = ["22-curate", "23-tune", "24-canary"]
 
 
 def github_slug(heading: str) -> str:
@@ -70,6 +73,7 @@ def test_one_chapter_per_walk_node_then_one_per_expert_group() -> None:
     d = diagram()
     expected = [f"{i:02d}-{node}" for i, node in enumerate(d["walk_order"], 1)]
     expected += [GROUP_CHAPTERS[p] for p in d["walk_order"] if p in GROUP_CHAPTERS]
+    expected += TUNING_CHAPTERS
     assert [c["slug"] for c in all_chapters()] == expected
     assert [c["n"] for c in all_chapters()] == list(range(1, len(expected) + 1))
 
@@ -91,7 +95,10 @@ def test_every_node_links_its_chapter_and_section() -> None:
             headings = {
                 github_slug(h) for h in re.findall(r"^### (.+)$", chapter["markdown"], re.M)
             }
-            assert anchor in headings, (node["id"], anchor)
+            if anchor:
+                assert anchor in headings, (node["id"], anchor)
+            else:  # 0.2.0: an expert node with a chapter of its own (curate, tune)
+                assert node["lesson_summary"] == chapter["hook"], node["id"]
 
 
 def test_every_chapter_has_the_six_sections_in_order() -> None:

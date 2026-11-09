@@ -13,6 +13,9 @@ models:
     # P6: a fake alias with a price (one cent per input token), so the shared hosted budget
     # can run out without a hosted model (public_budget_fall_through).
     fake-priced: { provider: fake, context_tokens: 32000, price_in_per_mtok: 10000, price_out_per_mtok: 0, tools: true }
+    # 0.2.0: the tuning loop's scripted student (model_provider.md, "Fake styles"): it asks for
+    # approval in prose instead of calling a write tool.
+    fake-student: { provider: fake, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { fake_style: ask_first } }
   router:
     rules:
       # P6: public turns route over `public.models` (default first), as in config/models.yaml.
@@ -62,7 +65,20 @@ output_guardrails: { enabled: true, checks: [schema, content, citations] }
 tools: spec/conformance/tools.yaml
 
 # P4: the golden set eval runs read (spec/contracts/evaluator.md), the same for any pack.
-evals: { golden_path: spec/conformance/golden.jsonl }
+evals:
+  golden_path: spec/conformance/golden.jsonl
+  # 0.2.0: the tuning cases' two packs have golden sets of their own (evaluator.md).
+  golden_paths:
+    conformance_tune: spec/conformance/packs/conformance_tune/golden.jsonl
+    conformance_canary: spec/conformance/packs/conformance_canary/golden.jsonl
+
+# 0.2.0: the tuning loop (spec/contracts/tuning.md) on the fake trainer, with gate numbers that
+# fit two-case packs: one sample, beat the base by one case, lose nothing on the canary.
+tune:
+  trainers:
+    fake: { kind: fake, step_delay_s: 0, outcome: good }
+  gate: { samples: 1, min_gain_cases: 1, canary_tolerance_cases: 0 }
+  canary: { fraction: 0.1, min_turns: 1, max_failure_increase: 0 }
 
 # P5: a second pack for the pack cases (spec/conformance/packs/conformance_alt). The profile's
 # inline prompt, tools, documents and golden set apply to every pack, so the packs differ only

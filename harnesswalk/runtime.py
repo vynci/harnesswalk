@@ -375,6 +375,9 @@ class Harness(PackParts):
                 self.ingest_report = {"error": f"{type(exc).__name__}: {exc}"}
         self.packs: dict[str, PackRuntime] = {}  # P5: other packs, built when first named
         self.evals = Evals(self)
+        from harnesswalk.ops.tune import Tuning
+
+        self.tune = Tuning(self)  # 0.2.0: curate, tune, compare, canary (contracts/tuning.md)
         self.otel = build_exporter(s, self.bus, self.ops)
         self._background: list[asyncio.Task] = []
         # Set when the server is shutting down (request_stop): every open event stream ends on
@@ -485,6 +488,7 @@ class Harness(PackParts):
         self.stopping = asyncio.Event()
         recovered = self.gateway.recover()
         self.evals.offline.recover()  # runs a stopped process left `running` become `error`
+        self.tune.recover()  # and curations, tune runs and comparisons (0.2.0)
         self.approvals.sweep_expired()
         sweep_s = float(self.settings.get("approval.sweep_s", 30))
 
@@ -757,6 +761,7 @@ class Harness(PackParts):
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await task
+        await self.tune.aclose()
         await self.evals.aclose()
         await self.gateway.shutdown()
         if self.otel is not None:

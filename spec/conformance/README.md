@@ -103,8 +103,8 @@ own fixture in `options` keeps it). Each run appends a random suffix to the tena
 (`conformance-<case id>-<suffix>`, or `--tenant-suffix`), so reruns against the same server do
 not see each other's audit records or memory. Cases that need a server of their own are
 reported as `SKIP` with the reason: another `mode`, `config` overrides, a restart, or requests
-to `/v1/artifacts` and `/v1/releases`, which change state the whole server shares. Today that
-leaves 11 of the 29 cases (a case pinned to a profile also needs its own server, unless `--profile` names it); use `--command` for the rest.
+to `/v1/artifacts`, `/v1/releases` and (0.2.0) `/v1/tune`, which change state the whole server
+shares. Today that leaves 11 of the 32 cases (a case pinned to a profile also needs its own server, unless `--profile` names it); use `--command` for the rest.
 
 For the reference harness:
 
@@ -230,6 +230,9 @@ model would say. The fake provider fixes what the model says.
 | `profile_minimal_tool` | `tool_call` | 0.2.0, under `minimal` only: a read tool runs with `policy` exiting `skipped` (rule `disabled`, allow) and nothing audited |
 | `approval_off` | `approval_deny` | 0.2.0: with `approval` disabled for the turn, a destructive call that needs approval is denied without asking anyone: the `approval` span exits `skipped` (`decision: deny`), audit records the deny, the tool never runs |
 | `public_budget_fall_through` | `public_budget_fall_through` | P6, public mode with a priced fake alias (`fake-priced`, profile) first: the first call spends the day's whole budget (`public.hosted_budget_usd_per_day: 0.01`), the second call of the same turn runs on `fake-small` with `notice: budget_exhausted`, `turn_end.summary.notices` says so, capabilities show `budget.status: exhausted`, and a turn naming the priced alias is `409 budget_exhausted` |
+| `tune_run_lifecycle` | `tune_run_lifecycle` | 0.2.0, the tuning loop on the fake trainer: `POST /v1/tune/datasets` curates `conformance_tune` with the fake teacher (4 scenarios kept, 3 train and 1 validation example, the curation stream has `eval_run_started`, 4 `eval_case_finished`, `eval_run_finished`); `POST /v1/tune/runs` trains it (stream: `tune_run_started`, 2 `tune_step`, `tune_run_finished`) into `adapter/approvals@v1` and `model/approvals@v1` (alias `tuned-approvals`, no gate yet); `GET /v1/tune/verify` is ok; the `local-mlx` stub is `422 trainer_unavailable` |
+| `tune_gate_refuse` | `tune_gate_refuse` | 0.2.0: a model trained with `outcome: forgets` (it calls a tool when none is needed) gains nothing over the scripted student `fake-student` and loses the canary pack's case: the comparison's verdict is `failed` (`below_min_gain`), the model artifact's next version records the gate, and `POST /v1/tune/promote` is `409 gate_failed` with no canary set |
+| `tune_canary_rollback` | `tune_canary_rollback` | 0.2.0: a gated model promoted at `fraction: 1.0` puts `router.canary` in the served models; a turn on `conformance_tune` routes by the `canary` rule to the candidate arm (`arm: candidate`); bad feedback on it fails the canary gate, so `stage: full` is `409 canary_failed`; `POST /v1/tune/rollback` sets the fraction to 0 and the next turn routes to the base arm |
 
 The knowledge and memory cases need the expert children `knowledge` and `semantic`: an
 implementation that implements those stores emits their spans, so these cases assert them.

@@ -206,3 +206,12 @@ gate line, or `gate failed` with the failing cases and exits 1.
 releases still version, diff and restore every artifact, and the harness still loads its
 artifacts only through the release store, but the eval gate records `status: skipped`, `reason:
 profile`.
+
+## 0.2.0: tune artifacts
+
+Three artifact kinds, `dataset/<name>`, `adapter/<name>` and `model/<name>`, live in the same
+store with the same append-only versions and hashes, in a scope of their own that is not part
+of any pack's working set or releases (`artifacts.md`). A tuned model reaches turns only
+through a `models/models` edit (promote adds its alias and the router's `canary` rule,
+`tuning.md`), which is an ordinary artifact change released per pack with its gate, and is
+rolled back like any release. `GET /v1/tune/verify` checks the tune artifacts' references.

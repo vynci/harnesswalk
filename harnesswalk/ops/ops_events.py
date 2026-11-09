@@ -45,6 +45,9 @@ OPS_TYPES = frozenset(
         "artifact_released",
         "release_gated",  # P5
         "diagnose_finished",  # P5
+        "tune_run_started",  # 0.2.0: the tuning loop (events.md section 14)
+        "tune_step",
+        "tune_run_finished",
     }
 )
 OPS_STREAM = "ops"

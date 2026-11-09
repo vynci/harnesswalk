@@ -1,0 +1,29 @@
+# Trainers for the tuning loop (spec/contracts/tuning.md). Like `providers` in models.yaml, this
+# says where data goes (an ssh host), so it is process configuration: not an artifact, not
+# editable over HTTP. A run names a trainer alias and a student model alias.
+trainers:
+  # Deterministic and instant: a fixed loss curve and a fake-provider model. CI, the Guide and
+  # the public replay run on it. `outcome: forgets` makes a model the gate refuses.
+  fake: { kind: fake, step_delay_s: 0, outcome: good }
+  # The homelab worker (deploy/homelab/README.md): LoRA with TRL on one RTX 3090, merge, GGUF
+  # Q4_K_M, `ollama create`. The harness copies the dataset and deploy/homelab/trainer/ over ssh
+  # and polls the run's status file.
+  homelab-trl:
+    kind: ssh
+    host: ai@192.168.8.107
+    lab_dir: ~/harnesswalk-lab
+    scripts: deploy/homelab/trainer
+    cuda_visible_devices: "1"
+    ollama_container: ollama
+    tag_prefix: hw
+    poll_s: 15
+    timeout_s: 21600
+    defaults: { method: lora, rank: 16, alpha: 32, dropout: 0.05, epochs: 2, learning_rate: 0.0002, max_seq_len: 4096, batch_size: 1, grad_accum: 8 }
+  # Documented, not implemented: mlx-lm on Apple silicon would train the same LoRA in minutes.
+  local-mlx: { kind: stub, note: "mlx-lm on Apple silicon; not implemented in 0.2.0 (see docs/tuning.md)" }
+
+# Students: the base weights a trainer starts from for a model alias, and how Ollama serves
+# the result (the base's own renderer and parser, as `ollama show --modelfile` prints them).
+students:
+  local-4b: { repo: Qwen/Qwen3.5-4B, revision: main, ollama_base: "qwen3.5:4b", renderer: qwen3.5, parser: qwen3.5 }
+  local-e4b: { repo: google/gemma-4-E4B-it, revision: main, ollama_base: "gemma4:e4b", renderer: gemma4, parser: gemma4 }

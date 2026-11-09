@@ -1,0 +1,2 @@
+{"id": "cancel_a1002", "title": "Cancel a processing order, approver says yes", "prompt": "Please cancel order A-1002.", "fixture": "tune_cancel", "approval": "approve", "expect": {"tool_calls": ["cancel_order"], "answer_contains": ["cancelled"]}}
+{"id": "support_hours", "title": "Support hours, no tool", "prompt": "What are your support hours?", "fixture": "tune_hours", "expect": {"tool_calls": [], "answer_contains": ["9am to 5pm"]}}
