@@ -397,6 +397,23 @@ def validate_public(settings: Settings) -> None:
         raise ConfigError("public.cookie_secure must be auto, always or never")
 
 
+def validate_split(rule: dict[str, Any], models: dict[str, Any]) -> None:
+    """A canary rule: `split` instead of `use`, both aliases known, a fraction in [0, 1]."""
+    rid = rule.get("id")
+    split = rule.get("split")
+    if "use" in rule:
+        raise ConfigError(f"router rule {rid} has both `use` and `split`")
+    if not isinstance(split, dict):
+        raise ConfigError(f"router rule {rid}: `split` must be a mapping")
+    for key in ("base_alias", "candidate_alias"):
+        if split.get(key) not in models:
+            raise ConfigError(f"router rule {rid}: split.{key} names unknown model {split[key]!r}")
+    fraction = split.get("fraction", 0)
+    number = isinstance(fraction, (int, float)) and not isinstance(fraction, bool)
+    if not number or not 0 <= fraction <= 1:
+        raise ConfigError(f"router rule {rid}: split.fraction must be a number from 0 to 1")
+
+
 def validate(settings: Settings) -> None:
     """Refuse to start on a configuration the spec forbids. Mode rules live in policy.py."""
     if settings.mode not in MODES:
@@ -410,11 +427,19 @@ def validate(settings: Settings) -> None:
         raise ConfigError("router.rules must end with a default rule whose `when` is empty")
     models = settings.get("models.models", {})
     for rule in rules:
+        if rule.get("split") is not None:  # 0.2.0: the canary rule (router.md)
+            validate_split(rule, models)
+            continue
         if not isinstance(rule.get("use", []), list):
             raise ConfigError(f"router rule {rule.get('id')} needs a list in `use`")
         for alias in rule.get("use", []):
             if alias not in models:
                 raise ConfigError(f"router rule {rule.get('id')} uses unknown model {alias}")
+    canary = settings.get("models.router.canary", None)
+    if canary is not None:  # 0.2.0: the canary rule the tuning loop manages (router.md)
+        if not isinstance(canary, dict) or canary.get("split") is None:
+            raise ConfigError("router.canary must be a rule with `split`")
+        validate_split(canary, models)
     for rule in settings.get("policy.rules", []):
         if rule.get("decision") not in ("allow", "deny", "needs_approval"):
             raise ConfigError(f"policy rule {rule.get('id')} has an invalid decision")

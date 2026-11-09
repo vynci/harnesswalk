@@ -232,7 +232,11 @@ def normalize(raw: dict[str, Any], where: str) -> GoldenCase:
 
 
 def golden_path(settings: Any, pack: str) -> Path:
-    """`evals.golden_path` with `{pack}` replaced; by default the pack's own `golden.jsonl`."""
+    """`evals.golden_path` with `{pack}` replaced; by default the pack's own `golden.jsonl`.
+    0.2.0: `evals.golden_paths` (pack id to path) names one pack's set over that."""
+    per_pack = settings.get("evals.golden_paths", None) or {}
+    if pack in per_pack:
+        return settings.resolve(str(per_pack[pack]))
     rel = settings.get("evals.golden_path", None)
     if rel is None:
         from harnesswalk.packs import pack_dir

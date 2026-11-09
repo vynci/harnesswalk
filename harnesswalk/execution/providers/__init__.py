@@ -26,6 +26,9 @@ class ToolSchema:
     name: str
     description: str
     parameters: dict[str, Any]
+    # The tool's action class (0.2.0). Adapters never send it; only the fake provider's
+    # scripted students (`fake_style`, model_provider.md) read it.
+    action_class: str = "read"
 
 
 @dataclass

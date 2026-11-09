@@ -12,6 +12,11 @@ conforms when it runs every pack on `operated`, the default profile.
 
 ### Added
 
+- Canary routing and scripted students (P3 groundwork, additive, still 0.2.0):
+  `router.canary`, a rule with `split` instead of `use` and the `when.pack` key
+  (`contracts/router.md`, "0.2.0: the canary rule"); fake styles `ask_first` and `over_call`
+  and `ToolSchema.action_class` (`contracts/model_provider.md`); `evals.golden_paths`, the
+  `tool_choice` evidence and `levers` of a diagnosis (`contracts/evaluator.md`).
 - Pack format (P2, additive, still 0.2.0; `packs.md`, `contracts/evaluator.md` "P2
   additions"): multi-turn golden cases (`turns: [{user, expect?, checks?}]` in place of
   `prompt`, played in one session, scored per turn as `turn<n>.<scorer>` and over the

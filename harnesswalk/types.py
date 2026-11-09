@@ -152,6 +152,9 @@ class TurnContext:
     # The eval `model` suite: every model call of this turn answers on this alias (router.py
     # `pinned`). Internal turns only, never from HTTP.
     model_pin: str | None = None
+    # An eval case turn (the harness's own, `TurnRequest.internal`): never split by a canary
+    # rule (0.2.0, router.md).
+    internal: bool = False
     budget: Any = None  # control/budgets.py TurnBudget: the tenant's limits and usage
     detached: bool = False  # the process is shutting down and leaves this turn to recovery
     # The knowledge chunks the context builder numbered for this turn ([n] -> doc and chunk),

@@ -130,3 +130,11 @@ release:
     suite: golden
     min_pass_rate: 1.0
     packs: all                  # all, or a list of pack ids whose releases are gated
+
+# 0.2.0: eval case turns (golden, judge and model runs, the release gate, the tuning loop's
+# runs). A run plays many long turns in one scratch tenant, so its turns get a budget of their
+# own over the tenant's (`policy.budgets`; the `_per_turn` keys here replace the loop's own
+# budget too), and a model call may take longer than a chat turn's (a cold local model).
+evals:
+  case_budget: { tokens_per_turn: 200000, tokens_per_hour: 5000000, tool_calls_per_hour: 5000 }
+  model_timeout_s: 180

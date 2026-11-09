@@ -138,3 +138,41 @@ consulted: the route's `model` is the pinned alias and `alternatives` is empty (
 whose provider is not configured or not healthy fails the call with `provider_error`. Pins are
 set only by the harness for its own eval turns, never from HTTP.
 
+
+## 0.2.0: the canary rule
+
+Additive (`tuning.md`, "Promote, canary, rollback"). A rule MAY carry `split` instead of `use`.
+The one the harness manages lives in `router.canary`, beside the ordered `rules`, not in them:
+
+```yaml
+router:
+  canary: { id: canary, when: { pack: [ecommerce, logistics] },
+            split: { base_alias: local-4b, candidate_alias: tuned-approvals_4b, fraction: 0.1 } }
+```
+
+The router evaluates `router.canary` right after the rule `public` (first when there is none),
+so promote and rollback never edit the ordered list and an overlay that replaces `rules` (the
+conformance profile) keeps the canary.
+
+- **`when.pack`** (a pack id or a list of them) matches the turn's pack. Any rule may use it.
+- **The split.** The turn's bucket is the first 8 hex digits of sha256(`turn_id`) read as an
+  integer over 2^32, so every call of a turn (summarize and classify too) lands on the same arm
+  and the split is reproducible from the trace. The arm is `candidate` when the bucket is below
+  `fraction`, else `base`; `fraction: 0` sends nothing to the candidate, `1` everything. The
+  route's `model` is the arm's alias, and `alternatives` is the other arm's alias, so a failing
+  candidate falls back to the base (visible as `fallback: true`). When the arm's alias is not
+  usable (provider not configured or unhealthy, outside the alias filter) the other arm answers;
+  when neither is, the rule does not apply and the next matching rule routes the call (a fake
+  server with an Ollama canary keeps working).
+- A hint never moves a turn across arms. Eval case turns (every suite, the release gate
+  included) and a **pinned** router (the `model` suite, `judge` with a model) skip every rule
+  with `split`: a gate measures the served set, never a share of it, and the scorecard is never
+  split.
+- The `router` span summary gains `arm` (`base` or `candidate`) and `bucket` (rounded to 4
+  digits) on a call the canary routed. `promote` and `rollback` change only `fraction`.
+- Validation: a rule has `use` or `split`, not both; both aliases exist; `fraction` is in [0, 1].
+
+A pinned router (above) asks only whether the alias's provider is configured: the passive
+health signal (a retryable failure marks a provider unhealthy until the next probe) does not
+apply to it, so a single timeout in an eval run does not make every later case answer
+`provider_error` (0.2.0).

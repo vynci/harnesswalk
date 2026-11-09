@@ -128,7 +128,13 @@ class ModelLayer:
         ledger: Any = None,
         budget_notice: str = "",
         turn_keys: dict[str, str] | None = None,
+        pack: str | None = None,
+        eval_timeout_s: float | None = None,
     ) -> None:
+        # 0.2.0: an eval case turn waits this long per call instead (`evals.model_timeout_s`):
+        # a cold local model on a long prompt can take more than a chat turn's limit.
+        self.eval_timeout_s = eval_timeout_s
+        self.pack = pack  # 0.2.0: the pack this model layer serves (`when.pack`, the canary)
         self.providers = providers
         self.router = router
         self.models = models
@@ -162,7 +168,9 @@ class ModelLayer:
             router = router.pinned(ctx.model_pin)
         if ctx.providers is not None:
             chosen, health = ctx.providers, self.health
-            router = router.restricted(lambda p: p in chosen and (health is None or health.ok(p)))
+            router = router.restricted(
+                lambda p: p in chosen and (health is None or health.ok(p)), lambda p: p in chosen
+            )
         if self.public is not None and ctx.mode == "public":
             if byo is None:
                 byo = bool(self.key_for(ctx))
@@ -205,6 +213,9 @@ class ModelLayer:
                 mode=ctx.mode,
                 cost=request.cost,
                 hint=ctx.model_hint,
+                pack=self.pack,
+                turn_id=ctx.turn_id,
+                internal=ctx.internal,
             )
             api_key = self.key_for(ctx, api_key)
             byo = bool(api_key)
@@ -327,10 +338,13 @@ class ModelLayer:
                 async with node(ctx, "providers") as pspan:
                     pspan.set(provider=provider.name, model=alias, attempt=attempt)
                     try:
-                        result = await asyncio.wait_for(provider.complete(preq), self.timeout_s)
+                        limit = self.timeout_s
+                        if ctx.internal and self.eval_timeout_s:
+                            limit = max(limit, self.eval_timeout_s)
+                        result = await asyncio.wait_for(provider.complete(preq), limit)
                     except TimeoutError as exc:
                         raise ProviderError(
-                            "provider_timeout", f"{alias} timed out after {self.timeout_s}s"
+                            "provider_timeout", f"{alias} timed out after {limit}s"
                         ) from exc
             except BaseException as exc:
                 if self.ledger is not None:

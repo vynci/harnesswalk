@@ -394,3 +394,26 @@ threshold. Each turn's approvals are decided with the case's `approval`.
 run's regressed cases are not diagnosed on their own (`diagnoses` stays empty). `offline_eval`
 is never off: golden runs, `POST /v1/evals/runs` and `POST /v1/diagnose` work under every
 profile, because the golden set is how each rung is measured.
+
+## 0.2.0: golden sets per pack, the tune lever
+
+Additive, groundwork for the tuning loop (`tuning.md`).
+
+- **`evals.golden_paths`** (a map of pack id to path) names a pack's golden set over
+  `evals.golden_path`, so a conformance profile can give one pack a set of its own.
+- **Diagnose, the tune lever.** A new evidence kind and rule between rules 5 and 6 of the table
+  above: `tool_choice` (read from a failed `tool_calls` score of a `model`-suite case: an expected
+  tool of a class other than `read` was not called, or a tool was called when none was expected;
+  `split` is the scorecard bucket, `expected` and `actual` the calls) points at layer `model`.
+  Every diagnosis gains `levers`: for `model` it is `["prompt_or_skill", "tune"]` (try the
+  prompt or a skill first, then curate and tune), for the other layers the layer itself.
+- **Internal runs** (not reachable from `POST /v1/evals/runs`): an eval run may carry its own
+  list of cases and a candidate view (the pack's working set with some artifact bodies
+  replaced, nothing stored), and its `model` may be an alias only that view defines.
+- **Eval case turns' budget and timeout.** A case turn (every suite, the release gate, the
+  tuning loop's runs) runs under `evals.case_budget` over the tenant's `policy.budgets` (default
+  200,000 tokens per turn, 5,000,000 per hour, 5,000 tool calls per hour; its `_per_turn` keys
+  replace the loop's own `loop.budget_*`, dollar limits still bind), and a model call of a
+  case turn may take `evals.model_timeout_s` (default 180) instead of `model_layer.timeout_s`.
+  A pinned run needs its alias's provider to be configured, not healthy (`router.md`), so one
+  timed-out call fails that case, not the rest of the run.

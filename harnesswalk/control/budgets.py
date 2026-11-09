@@ -59,6 +59,9 @@ class TurnBudget:
     limits: dict[str, float]
     hour: HourUsage = field(default_factory=HourUsage)
     tool_calls: int = 0
+    # 0.2.0: an eval case turn's own budget (`evals.case_budget`) replaces the loop's per-turn
+    # budget for the kinds it sets, instead of only narrowing it.
+    replaces_loop: frozenset[str] = frozenset()
 
     def tool_call_limit(self) -> tuple[str, float, int] | None:
         """The tool-call budget this turn has spent, as (name, limit, used), or None."""
@@ -77,7 +80,7 @@ class TurnBudget:
         `kind` is `tokens` or `usd`. Returns the limit (None for none) and where it came from.
         """
         candidates: list[tuple[float, str]] = []
-        if configured is not None:
+        if configured is not None and kind not in self.replaces_loop:
             candidates.append((configured, f"loop.budget_{kind}"))
         per_turn = self.limits.get(f"{kind}_per_turn")
         if per_turn is not None:
@@ -93,8 +96,11 @@ class TurnBudget:
 
 
 class Budgets:
-    def __init__(self, cfg: dict[str, Any] | None, path: str) -> None:
+    def __init__(
+        self, cfg: dict[str, Any] | None, path: str, eval_case: dict[str, Any] | None = None
+    ) -> None:
         self.configure(cfg)
+        self.eval_case = self._clean(eval_case or {})
         self.db = Database(path, SCHEMA)
 
     def configure(self, cfg: dict[str, Any] | None) -> None:
@@ -130,12 +136,21 @@ class Budgets:
         )
         return HourUsage(int(row["t"]), float(row["u"]), int(row["c"])) if row else HourUsage()
 
-    def for_turn(self, tenant_id: str) -> TurnBudget:
+    def for_turn(self, tenant_id: str, *, internal: bool = False) -> TurnBudget:
+        """The turn's budget. An eval case turn (`internal`) runs under `evals.case_budget`
+        over the tenant's limits (0.2.0): a golden set or a curation plays many long turns in
+        one scratch tenant, which a chat tenant's hourly budget is not sized for."""
         try:
             hour = self.hour_usage(tenant_id)
         except Exception:  # the ledger is down: limits still apply per turn
             hour = HourUsage()
-        return TurnBudget(self.limits(tenant_id), hour)
+        limits = self.limits(tenant_id)
+        if not internal or not self.eval_case:
+            return TurnBudget(limits, hour)
+        replaces = frozenset(
+            k[: -len("_per_turn")] for k in self.eval_case if k.endswith("_per_turn")
+        )
+        return TurnBudget({**limits, **self.eval_case}, hour, replaces_loop=replaces)
 
     def record(
         self, tenant_id: str, turn_id: str, tokens: int, usd: float, tool_calls: int

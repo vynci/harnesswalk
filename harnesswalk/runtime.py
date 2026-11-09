@@ -71,7 +71,7 @@ from harnesswalk.execution.providers.fake import (
 )
 from harnesswalk.execution.providers.health import ProviderHealth
 from harnesswalk.execution.registry import ToolRegistry
-from harnesswalk.execution.router import Router, RouteRequest
+from harnesswalk.execution.router import Router, RouteRequest, with_canary
 from harnesswalk.execution.sandbox import Sandbox
 from harnesswalk.execution.tools import Tools
 from harnesswalk.nodes import load_components
@@ -130,9 +130,10 @@ class PackParts:
                 raise ConfigError(f"model {alias} has an unknown provider {cfg.get('provider')!r}")
         health = self.provider_health
         out["router"] = router = Router(
-            s.get("models.router.rules", []),
+            with_canary(s.get("models.router.rules", []), s.get("models.router.canary", None)),
             models,
             lambda p: p in self.providers and health.ok(p),
+            configured=lambda p: p in self.providers,
         )
         out["model_layer"] = model_layer = ModelLayer(
             self.providers,
@@ -148,6 +149,8 @@ class PackParts:
             ledger=self.hosted_budget,
             budget_notice=str(s.get("loop.notices.budget_exhausted", "")),
             turn_keys=self.turn_keys,
+            pack=s.get("dataset", "_starter"),
+            eval_timeout_s=float(s.get("evals.model_timeout_s", 180)),
         )
         estimator = s.get("context.token_estimator", "chars_div_4")
         enabled = set(s.get("context.stores", ["procedural", "session"]))
@@ -323,6 +326,7 @@ class Harness(PackParts):
         self.budgets = Budgets(
             s.get("policy.budgets", {}),
             str(s.resolve(s.get("policy.budgets_sqlite_path", "data/budgets.db"))),
+            eval_case=s.get("evals.case_budget", None),
         )
         # P6: the shared daily hosted budget (next to the per-tenant ledger), the public
         # allowlist, and when each anonymous public tenant expires.
@@ -419,6 +423,13 @@ class Harness(PackParts):
         if view.release.use_working_set:
             return view
         return PackRuntime(self, view.pack, working_set=True)
+
+    def candidate_view(self, pack: str, changes: dict[tuple[str, str], str]) -> Any:
+        """A throwaway view of a pack that serves its working set with `changes` in place
+        (0.2.0: the tuning loop's candidate model and prompt arm). Nothing is stored; the caller
+        closes it (`close()`)."""
+        self.view(pack)  # the pack exists and is seeded
+        return PackRuntime(self, pack, working_set=True, changes=changes)
 
     def profile_of(self, pack: str | None = None) -> Any:
         """The harness profile a pack runs with here (0.2.0), without building the pack."""
@@ -789,12 +800,21 @@ class PackRuntime(PackParts):
     the mode, for the eval gate where the pack serves its active release.
     """
 
-    def __init__(self, harness: Harness, pack: str, *, working_set: bool = False) -> None:
+    def __init__(
+        self,
+        harness: Harness,
+        pack: str,
+        *,
+        working_set: bool = False,
+        changes: dict[tuple[str, str], str] | None = None,
+    ) -> None:
         self.harness = harness
         self.pack = pack
-        extra = {"release.use_working_set": True} if working_set else {}
+        extra = {"release.use_working_set": True} if working_set or changes else {}
         base = pack_settings(harness.settings, pack, **extra)
         self.release = ReleaseManager(base)
+        if changes:  # 0.2.0: a tuning candidate view (tuning.md, Compare)
+            self.release.override(changes)
         self.settings = s = base.reload(self.release.served)
         estimator = s.get("context.token_estimator", "chars_div_4")
         args = (harness.memory_db, harness.vectors, harness.embedder, pack)

@@ -12,6 +12,25 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 
 ### Added
 
+- **Groundwork for the tuning loop (P3).** The router's canary rule: `router.canary`, a rule
+  with `split: {base_alias, candidate_alias, fraction}` instead of `use`, evaluated right after
+  `public`, sends a share of a pack's turns (`when.pack`) to a candidate alias by the hash of
+  the turn id; eval case turns and pinned runs are never split, and the `router` span reports
+  `arm` and `bucket`. Scripted students for the fake provider (`params.fake_style`: `ask_first`
+  asks for approval in prose instead of calling a write tool, `over_call` calls a tool when
+  none is needed) and the alias `fake-student`; the teacher alias `local-27b` (qwen3.5:27b,
+  thinking off, in no router rule). Candidate views (`Harness.candidate_view`: a pack's
+  working set with artifact bodies replaced, nothing stored) that internal eval runs can use,
+  with their own case list. `evals.golden_paths`. Diagnose's `tool_choice` evidence and
+  `levers` (`["prompt_or_skill", "tune"]` for a `model` failure).
+
+### Fixed
+
+- Eval case turns no longer end on a chat tenant's budget or a chat turn's timeout: they run
+  under `evals.case_budget` (200,000 tokens per turn, 5,000,000 per hour by default) and
+  `evals.model_timeout_s` (180 s), and a pinned run keeps its alias after one timed-out call
+  (it used to answer "the pinned model has no configured provider" for the rest of the run).
+  The Ollama provider's own timeout is 300 s.
 - **Four packs on the empty rungs (P2).** `device_fleet` (Kestrelway Field Services,
   `governed`): a telematics fleet desk on a real platform's API shapes, twelve tools split by
   risk, approvals on power-off, SMS clear and purge, a viewer's and an operator's reboot denied
