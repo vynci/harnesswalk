@@ -430,6 +430,51 @@ def test_the_markdown_has_the_matrix_and_the_per_model_breakdown() -> None:
     assert "—" not in md  # house style: no em-dashes
 
 
+def test_temperature_overrides_per_provider() -> None:
+    """Anthropic's 5.5 models answer HTTP 400 to any `temperature` (hosted-haiku scored 0/232
+    on 2026-11-09), so the scorecard sends none; Ollama still runs at 0."""
+    models = load_settings(ROOT, env={}).get("models.models")
+    assert sc.temperature_of("local-4b", models["local-4b"]) == (
+        {"models.models.local-4b.params.options.temperature": 0},
+        "0",
+    )
+    for alias in ("hosted-haiku", "hosted-sonnet"):
+        extra, shown = sc.temperature_of(alias, models[alias])
+        assert extra == {} and "rejects temperature" in shown
+        assert "temperature" not in (models[alias].get("params") or {})
+    thinking_off = {"provider": "anthropic", "params": {"thinking": {"type": "disabled"}}}
+    assert sc.temperature_of("x", thinking_off)[0] == {}  # no exception for thinking off
+    assert sc.temperature_of("fake-small", models["fake-small"]) == ({}, "n/a (scripted)")
+    assert sc.temperature_of("compat-default", {"provider": "openai_compatible"}) == (
+        {},
+        "provider default",
+    )
+
+
+def test_hosted_call_timeouts_stretch_to_the_case_timeout() -> None:
+    s = load_settings(ROOT, env={})
+    extra, shown = sc.call_timeouts(s, {"anthropic", "fake", "ollama"}, 120.0, set())
+    assert extra == {"models.providers.anthropic.timeout_s": 120.0}
+    assert shown == {"anthropic": 120.0}  # Ollama keeps its own 300 s; fake has none
+    both, _ = sc.call_timeouts(s, {"anthropic", "openai_compatible"}, 240.0, set())
+    assert both == {
+        "models.providers.anthropic.timeout_s": 240.0,
+        "models.providers.openai_compatible.timeout_s": 240.0,
+        "evals.model_timeout_s": 240.0,  # a call may take as long as the case turn
+    }
+    mine = load_settings(ROOT, env={}, overrides={"models.providers.anthropic.timeout_s": 45})
+    kept, shown = sc.call_timeouts(
+        mine, {"anthropic"}, 120.0, {"models.providers.anthropic.timeout_s"}
+    )
+    assert kept == {} and shown == {"anthropic": 45.0}  # the user's --set wins
+    assert sc.call_timeouts(s, {"fake"}, 120.0, set()) == ({}, {})
+    data = {**fixture_data(), "case_timeout_s": 120.0, "provider_timeouts": shown}
+    md = sc.render_markdown(data)
+    assert "case timeout: 120.0 s; provider call timeout: anthropic 45 s" in md
+    assert "sends Anthropic no `temperature`" in md
+    assert "provider call timeout" not in sc.render_markdown(fixture_data())
+
+
 @pytest.mark.anyio
 async def test_the_matrix_records_n_a_and_never_aborts() -> None:
     ran: list[tuple[str, str]] = []

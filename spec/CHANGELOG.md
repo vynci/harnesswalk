@@ -75,6 +75,11 @@ conforms when it runs every pack on `operated`, the default profile.
   profile say `0.2.0`; `examples/` are re-recorded at 0.2.0 with `turn_start.summary.profile`.
 - `policy` MUST still send to audit what it did; with `audit` off the record is not kept.
   `approval` off turns `needs_approval` into a deny (fail closed).
+- Clarifications, no new behaviour class (`contracts/router.md`): a passive health mark (a
+  retryable failure) lasts until the next probe, or for `router.health_check_s` when no probe
+  runs; a pinned eval call's failure never sets it. The scorecard sends Anthropic no
+  `temperature` (the 5.5 models reject it) and raises the hosted providers' call timeout to at
+  least the case timeout (`contracts/evaluator.md`, "The scorecard").
 
 ## [0.1.0] - draft, frozen at the v0.1.0 release
 

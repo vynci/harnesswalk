@@ -656,6 +656,11 @@ def _scorecard(args: argparse.Namespace) -> int:
         "stores.embeddings.provider": "fake",  # the same retrieval for every model: hash vectors
         "evals.case_timeout_s": args.case_timeout,
     }
+    user_set = {item.partition("=")[0] for item in getattr(args, "set", None) or []}
+    stretched, provider_timeouts = sc.call_timeouts(
+        base, {configured[a].get("provider") for a in aliases}, args.case_timeout, user_set
+    )
+    overrides.update(stretched)
     spent = {"usd": 0.0}
     samples = max(1, int(args.samples))
     carry_models = [a.strip() for a in (args.carry_models or "").split(",") if a.strip()]
@@ -667,19 +672,7 @@ def _scorecard(args: argparse.Namespace) -> int:
         print(line, file=sys.stderr, flush=True)
 
     def temperature(alias: str) -> tuple[dict[str, Any], str]:
-        """Temperature 0 where the provider takes it: the overrides and what the page says."""
-        cfg = configured[alias]
-        provider = cfg.get("provider")
-        if provider == "ollama":
-            return {f"models.models.{alias}.params.options.temperature": 0}, "0"
-        if provider == "anthropic":
-            thinking = ((cfg.get("params") or {}).get("thinking") or {}).get("type", "disabled")
-            if thinking == "disabled":
-                return {f"models.models.{alias}.params.temperature": 0}, "0"
-            return {}, "provider default (thinking on)"
-        if provider == "fake":
-            return {}, "n/a (scripted)"
-        return {}, "provider default"
+        return sc.temperature_of(alias, configured[alias])
 
     async def run() -> dict[str, Any]:
         ollama = await sc.probe_ollama(ollama_url, ollama_names) if ollama_names else None
@@ -815,6 +808,7 @@ def _scorecard(args: argparse.Namespace) -> int:
             harness_version=__version__, spec_version=SPEC_VERSION, ollama=ollama,
             embeddings="fake (hash vectors, the same for every model)",
             case_timeout_s=args.case_timeout, command=command, json_path=args.json,
+            provider_timeouts=provider_timeouts,
             grading="model", samples=samples, carried=carry_note,
             pack_profiles={p: packs_mod.get_pack(p, roots=roots).profile for p in wanted},
             temperature="; ".join(temps) if len(temps) > 1 else (temps[0] if temps else "n/a"),

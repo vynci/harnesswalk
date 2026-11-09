@@ -62,6 +62,72 @@ def test_unhealthy_providers_are_skipped_until_the_next_probe() -> None:
     assert health.report()["fake"] == "unhealthy"
 
 
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def test_a_passive_mark_expires_after_one_interval_when_no_probe_runs() -> None:
+    """The in-process scorecard runs no probe loop: one timeout used to keep the provider down
+    for the rest of the run (2026-11-09 hosted scorecard)."""
+    clock = FakeClock()
+    health = ProviderHealth({"anthropic": object()}, 30.0, clock=clock)
+    health.mark_failed("anthropic", "provider_timeout")
+    assert health.ok("anthropic") is False
+    clock.now += 29.9
+    assert health.ok("anthropic") is False
+    clock.now += 0.2
+    assert health.ok("anthropic") is True and health.report()["anthropic"] == "ok"
+
+
+@pytest.mark.anyio
+async def test_a_probe_result_does_not_expire() -> None:
+    class Down:
+        async def health(self) -> bool:
+            return False
+
+    clock = FakeClock()
+    health = ProviderHealth({"anthropic": Down()}, 30.0, clock=clock)
+    assert await health.probe("anthropic") is False
+    clock.now += 3600
+    assert health.ok("anthropic") is False  # stands until the next probe
+
+
+@pytest.mark.anyio
+async def test_a_pinned_call_failure_does_not_mark_the_provider() -> None:
+    """An eval run's timeout is the run's own problem: other tenants keep the provider."""
+
+    class Slow:
+        name = "anthropic"
+
+        async def complete(self, request):
+            raise ProviderError("provider_timeout", "hosted timed out")
+
+    models = {"hosted": {"provider": "anthropic", "price_out_per_mtok": 0}}
+    providers = {"anthropic": Slow()}
+    health = ProviderHealth(providers)
+    router = Router(
+        [{"id": "d", "when": {}, "use": ["hosted"]}],
+        models,
+        health.ok,
+        configured=lambda p: p in providers,
+    )
+    layer = ModelLayer(providers, router, models, health=health)
+    request = ModelRequest([Message("user", "hi")], [], step=1)
+    ctx, _ = make_ctx()
+    ctx.model_pin = "hosted"
+    with pytest.raises(ProviderError) as exc:
+        await layer.complete(ctx, request)
+    assert exc.value.code == "provider_timeout"  # still raised
+    assert health.ok("anthropic") and "anthropic" not in health.state
+    with pytest.raises(ProviderError):
+        await layer.complete(make_ctx()[0], request)  # unpinned: passive health as before
+    assert health.ok("anthropic") is False
+
+
 @pytest.mark.anyio
 async def test_probes_use_list_models_and_never_raise() -> None:
     seen = []

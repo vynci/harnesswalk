@@ -338,8 +338,11 @@ time, model by model, in-process and in its own tenant (default `scorecard`, so 
 tenant's regression history is untouched). Each cell runs on the alias's provider only, with
 hash-vector embeddings (`stores.embeddings.provider: fake`) so every model sees the same
 retrieval, and at temperature 0 where the provider takes it (Ollama `options.temperature`;
-Anthropic `temperature` when the alias runs with thinking disabled; otherwise the provider's
-default, which the page says). `--samples N` runs each cell N times (default 1) and reports the
+Anthropic gets no `temperature`, since its 5.5 models reject the field with HTTP 400; otherwise
+the provider's default, which the page says). A model call may take as long as the case turn:
+the hosted providers' call timeout (`models.providers.<name>.timeout_s`, Anthropic and
+OpenAI-compatible) and `evals.model_timeout_s` are raised to at least `--case-timeout` unless a
+`--set` names the key, and the page header says the timeouts used. `--samples N` runs each cell N times (default 1) and reports the
 mean pass count with its min and max. A cell that cannot run is `n/a` with the reason (the
 provider is not configured or not reachable, the model is not on the Ollama server, the model
 takes no tools, the spend cap is reached) and the matrix goes on. `--carry` takes the
