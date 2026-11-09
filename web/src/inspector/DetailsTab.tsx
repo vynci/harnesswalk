@@ -9,6 +9,7 @@ import { inspectorArtifact } from '@/state/ops'
 import { ArtifactEditor } from './ArtifactEditor'
 import { DataView, KeyValues } from './DataView'
 import { sourceExtras } from './labels'
+import { routerRules, type RuleView } from './routerView'
 import { isAuditPayload, isDocList, isProposalList, isRecord, isScopedRecords } from './shapes'
 import { AuditView, CitationList, ContextBudget, DocList, PendingView, RecordList, WritesView } from './StoreViews'
 
@@ -29,14 +30,36 @@ function Markdown({ text }: { text: string }) {
   )
 }
 
+/** The router rules in force, in order; a split rule (the 0.2.0 canary) says its share. */
+function RouterRules({ rules }: { rules: RuleView[] }) {
+  return (
+    <Section title="Rules in force, in the order the router reads them">
+      <ol className="flex flex-col gap-1 text-xs" data-testid="router-rules">
+        {rules.map((r) => (
+          <li key={r.id} className="flex flex-wrap items-baseline gap-x-2" data-rule={r.id} data-split={r.split ? 'true' : 'false'}>
+            <code className="font-mono font-medium">{r.id}</code>
+            <span className="text-muted-foreground">when {r.when}</span>
+            <span>
+              {r.split ? 'split: ' : 'use '}
+              {r.target}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </Section>
+  )
+}
+
 export function DetailsTab({ info, artifacts = [] }: { info: NodeInfo; artifacts?: ArtifactRef[] }) {
   const ins = info.inspector
   if (ins.type === 'config') {
     const content = typeof ins.content === 'string' ? ins.content : ins.effective !== undefined ? stringify(ins.effective) : null
     // P4: the YAML is a working-set artifact, edited here and shipped by a release.
     const artifact = inspectorArtifact(ins.artifact, artifacts)
+    const rules = routerRules(ins.effective)
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-2">
+        {rules.length > 0 && <RouterRules rules={rules} />}
         <p className="text-xs text-muted-foreground">
           {typeof ins.path === 'string' ? <code className="font-mono">{ins.path}</code> : 'No config file'}
           {typeof ins.version === 'string' ? ` · ${ins.version}` : ''}

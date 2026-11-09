@@ -39,6 +39,19 @@ import type {
   StartTurnRequest,
   StartTurnResponse,
   TurnSummary,
+  CanaryState,
+  Comparison,
+  Curation,
+  PromoteRequest,
+  PromoteResult,
+  TuneArtifactDetail,
+  TuneArtifactKind,
+  TuneArtifactRef,
+  TuneJobStarted,
+  TuneOverview,
+  TuneRefusal,
+  TuneRun,
+  TuneVerify,
 } from './types'
 
 export interface EventSourceLike {
@@ -130,6 +143,22 @@ function query(params: Record<string, string | number | undefined | null>): stri
 }
 
 export type ResumeMode = 'step' | 'continue' | 'step_over'
+
+/** A tune list: the items and whether a public server answered from its recorded run. */
+export interface TuneList<T> {
+  items: T[]
+  replay: boolean
+}
+
+/** POST /v1/tune/promote or /rollback: the new canary, or the 409 refusal with its reasons. */
+export type TuneActionResult = { result: PromoteResult; refused?: undefined } | { result?: undefined; refused: TuneRefusal }
+
+/** A 409 from promote or rollback as a refusal (`error` plus `gate` or `canary`), else null. */
+export function tuneRefusal(err: unknown): TuneRefusal | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null
+  const body = (err.body ?? {}) as { gate?: TuneRefusal['gate']; canary?: TuneRefusal['canary'] }
+  return { code: err.code, message: err.message, ...(body.gate ? { gate: body.gate } : {}), ...(body.canary ? { canary: body.canary } : {}) }
+}
 
 /** POST /v1/releases: the release, or the gate's refusal (409 gate_failed) with its failing cases. */
 export type CreateReleaseResult = { release: ReleaseDetail; gateFailed?: undefined } | { release?: undefined; gateFailed: GateFailure }
@@ -279,6 +308,60 @@ export function createApi(t: Transport) {
     session: (sessionId: string) => call<SessionInfo>('GET', `/v1/sessions/${encodeURIComponent(sessionId)}`),
     /** P5: the layer at fault for a failed eval case or a bad turn. */
     diagnose: (target: { run_id?: string; case_id: string } | { turn_id: string }) => call<Diagnosis>('POST', '/v1/diagnose', target),
+    // 0.2.0: the tuning loop (http_api.md, "0.2.0 additions: tuning"). Not pack-scoped: tune
+    // artifacts belong to no pack. A public server answers every GET from a recorded run.
+    tune: () => call<TuneOverview>('GET', '/v1/tune'),
+    tuneArtifacts: async (kind?: TuneArtifactKind): Promise<TuneList<TuneArtifactRef>> => {
+      const data = await call<{ artifacts?: TuneArtifactRef[]; replay?: boolean }>('GET', `/v1/tune/artifacts${query({ kind })}`)
+      return { items: data.artifacts ?? [], replay: data.replay === true }
+    },
+    tuneArtifact: (kind: TuneArtifactKind, name: string, version?: number) =>
+      call<TuneArtifactDetail>('GET', `/v1/tune/artifacts/${encodeURIComponent(kind)}/${encodeURIComponent(name)}${query({ version })}`),
+    tuneVerify: () => call<TuneVerify & { replay?: boolean }>('GET', '/v1/tune/verify'),
+    curations: async (limit = 20): Promise<TuneList<Curation>> => {
+      const data = await call<{ curations?: Curation[]; replay?: boolean }>('GET', `/v1/tune/curations${query({ limit })}`)
+      return { items: data.curations ?? [], replay: data.replay === true }
+    },
+    curation: (id: string) => call<Curation & { replay?: boolean }>('GET', `/v1/tune/curations/${encodeURIComponent(id)}`),
+    tuneRuns: async (limit = 20): Promise<TuneList<TuneRun>> => {
+      const data = await call<{ runs?: TuneRun[]; replay?: boolean }>('GET', `/v1/tune/runs${query({ limit })}`)
+      return { items: data.runs ?? [], replay: data.replay === true }
+    },
+    tuneRun: (id: string) => call<TuneRun & { replay?: boolean }>('GET', `/v1/tune/runs/${encodeURIComponent(id)}`),
+    /** The run's stream `tune:<id>` (SSE), which ends at tune_run_finished. */
+    tuneRunEventsUrl: (id: string) => `${t.baseUrl}/v1/tune/runs/${encodeURIComponent(id)}/events`,
+    comparisons: async (limit = 20): Promise<TuneList<Comparison>> => {
+      const data = await call<{ comparisons?: Comparison[]; replay?: boolean }>('GET', `/v1/tune/comparisons${query({ limit })}`)
+      return { items: data.comparisons ?? [], replay: data.replay === true }
+    },
+    comparison: (id: string) => call<Comparison & { replay?: boolean }>('GET', `/v1/tune/comparisons/${encodeURIComponent(id)}`),
+    canary: () => call<CanaryState>('GET', '/v1/tune/canary'),
+    startCuration: (body: { name: string; packs: string[]; teacher?: string; variants?: number; seed?: number; val_fraction?: number; teacher_prompt_arm?: boolean }) =>
+      call<TuneJobStarted>('POST', '/v1/tune/datasets', body),
+    startTuneRun: (body: { dataset: string; trainer: string; student: string; name?: string; config?: Record<string, unknown> }) =>
+      call<TuneJobStarted>('POST', '/v1/tune/runs', body),
+    startComparison: (body: { candidate: string; against: string; packs: string[]; canary_packs: string[]; samples?: number; prompt_arm?: boolean }) =>
+      call<TuneJobStarted>('POST', '/v1/tune/comparisons', body),
+    /** POST /v1/tune/promote. A 409 (gate_failed, canary_failed) comes back as `refused`. */
+    promote: async (body: PromoteRequest): Promise<TuneActionResult> => {
+      try {
+        return { result: await call<PromoteResult>('POST', '/v1/tune/promote', body) }
+      } catch (err) {
+        const refused = tuneRefusal(err)
+        if (refused) return { refused }
+        throw err
+      }
+    },
+    /** POST /v1/tune/rollback: the canary to 0. A 409 (no_canary) comes back as `refused`. */
+    tuneRollback: async (): Promise<TuneActionResult> => {
+      try {
+        return { result: await call<PromoteResult>('POST', '/v1/tune/rollback', {}) }
+      } catch (err) {
+        const refused = tuneRefusal(err)
+        if (refused) return { refused }
+        throw err
+      }
+    },
   }
 }
 

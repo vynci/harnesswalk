@@ -3,6 +3,7 @@ import { formatMs, nodeStat } from '@/diagram/stats'
 import type { NodeRun } from '@/state/reducer'
 import { DataView, KeyValues } from './DataView'
 import { isRecord } from './shapes'
+import { armBucketText } from './routerView'
 import { ContextBudget } from './StoreViews'
 
 export function OverviewTab({ run, info }: { run?: NodeRun; info?: NodeInfo }) {
@@ -31,6 +32,11 @@ export function OverviewTab({ run, info }: { run?: NodeRun; info?: NodeInfo }) {
           <h4 className="text-xs font-medium text-muted-foreground">On enter</h4>
           <KeyValues value={run.enterSummary} />
         </section>
+      )}
+      {run?.lastSummary && armBucketText(run.lastSummary) && (
+        <p className="text-xs" data-testid="overview-canary-arm">
+          Routed by the canary split: {armBucketText(run.lastSummary)} (the turn's bucket against the rule's fraction).
+        </p>
       )}
       {run?.lastSummary && isRecord(run.lastSummary.slices) && <ContextBudget summary={run.lastSummary} />}
       {run?.lastSummary && (

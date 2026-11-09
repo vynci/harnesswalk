@@ -192,7 +192,58 @@ export function openEvalStream(
   return { close: () => finish('closed') }
 }
 
-export const OPS_EVENT_TYPES = ['eval_run_started', 'eval_case_finished', 'eval_run_finished', 'feedback_recorded', 'artifact_changed', 'artifact_released'] as const
+export const TUNE_STREAM_TYPES = ['tune_run_started', 'tune_step', 'tune_run_finished'] as const
+
+/**
+ * 0.2.0: GET /v1/tune/runs/{id}/events, a tune run's stream `tune:<id>` (events.md section 14),
+ * or a curation's (`/v1/tune/curations/{id}/events`, the eval run types). It ends at
+ * `tune_run_finished` (or `eval_run_finished` for a curation); a public server replays the
+ * recorded events and closes. Nothing is retried: the caller reads the job back either way.
+ */
+export function openTuneStream(
+  t: Transport,
+  url: string,
+  handlers: { onEvent: (ev: OpsEvent) => void; onEnd: (why: 'finished' | 'lost' | 'closed') => void },
+): { close: () => void } {
+  let ended = false
+  const source = new t.EventSource(url, { withCredentials: true })
+  const finish = (why: 'finished' | 'lost' | 'closed') => {
+    if (ended) return
+    ended = true
+    source.close()
+    handlers.onEnd(why)
+  }
+  const onMessage = (msg: MessageEvent) => {
+    if (ended || typeof msg.data !== 'string') return
+    let ev: OpsEvent
+    try {
+      ev = JSON.parse(msg.data) as OpsEvent
+    } catch {
+      return
+    }
+    if (!ev.type && msg.type && msg.type !== 'message') ev = { ...ev, type: msg.type as OpsEvent['type'] }
+    handlers.onEvent(ev)
+    if (ev.type === 'tune_run_finished' || ev.type === 'eval_run_finished') finish('finished')
+  }
+  for (const type of [...TUNE_STREAM_TYPES, ...EVAL_STREAM_TYPES]) source.addEventListener(type, onMessage)
+  source.onmessage = onMessage
+  source.onerror = () => finish('lost')
+  return { close: () => finish('closed') }
+}
+
+// 0.2.0: the ops stream carries every ops stream of the tenant, the tune runs' too (and the
+// model gate's release_gated), so the inspector can show them.
+export const OPS_EVENT_TYPES = [
+  'eval_run_started',
+  'eval_case_finished',
+  'eval_run_finished',
+  'feedback_recorded',
+  'artifact_changed',
+  'artifact_released',
+  'release_gated',
+  'diagnose_finished',
+  ...TUNE_STREAM_TYPES,
+] as const
 
 /**
  * GET /v1/events: every ops event of the tenant (feedback, artifact changes, releases, eval run
