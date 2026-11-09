@@ -1,6 +1,7 @@
 # Harnesswalk harness specification
 
-Spec version: **0.2.0**. Status: normative. 0.2.0 adds harness profiles (section 10).
+Spec version: **0.2.0**. Status: normative. 0.2.0 adds harness profiles (section 10) and the
+tuning loop (`curate`, `tune`, section 4.4 and `contracts/tuning.md`).
 
 This document describes what a Harnesswalk harness is, independent of language. The reference
 implementation lives in `harnesswalk/` (Python). Any other implementation that passes the
@@ -33,7 +34,7 @@ this file, `events.md`, the contracts, the examples.
   answer. It is everything except the model weights.
 - **Node**: one component of the harness with a stable id from `diagram.json`. Nodes are the unit
   of the diagram, the event stream, the lessons and the conformance paths.
-- **Simple node / expert node**: the simple view has 15 nodes. The advanced view adds 14 child
+- **Simple node / expert node**: the simple view has 15 nodes. The advanced view adds 16 child
   nodes, each with a `parent` that is a simple node.
 - **Turn**: one unit of harness work with its own `turn_id` and `trace_id`. A chat request is a
   turn. A release or an eval run started outside chat is also a turn (`turn_start.summary.kind`).
@@ -58,8 +59,8 @@ Memory).
 
 Expert children: `memory` contains `procedural`, `session`, `semantic`, `episodic`, `knowledge`;
 `model_layer` contains `router`, `providers`; `tools` contains `registry`, `sandbox`; `eval`
-contains `online_eval`, `offline_eval`, `diagnose`; `trace` contains `cost`; `release` contains
-`artifacts`.
+contains `online_eval`, `offline_eval`, `diagnose`, `curate` (0.2.0); `trace` contains `cost`;
+`release` contains `artifacts`, `tune` (0.2.0).
 
 The simple view merges several boxes of the original design (`design_v2`): models into the model
 layer, sandboxed execution into tools, the response box into the gateway, the system prompt into
@@ -343,6 +344,24 @@ invocation; the "Events" line lists only what they add. Per-node `summary` shape
     switched off), but the eval gate is `skipped` with `reason: profile`.
 - **Without it**: a prompt edit in production is untracked and cannot be undone.
 - **Events**: `artifact_released`.
+
+#### `curate` and `tune` (code, expert children of `eval` and `release`, 0.2.0)
+
+- **Responsibility**: the tuning loop (`contracts/tuning.md`). `curate` runs a teacher through
+  the harness on a pack's golden prompts and rewrites of them, keeps the turns every
+  deterministic scorer passed, and versions them as a `dataset`. `tune` hands a dataset to a
+  trainer and records the `adapter` and the served `model` it produces; compare (the model's
+  eval gate), promote (a canary router rule) and rollback take it to traffic.
+- **Invariants**:
+  - A dataset MUST come from generated traffic on dataset packs, never from real tenants' turns.
+  - Weights, merges and GGUF files MUST NOT enter the artifact store; manifests name them by hash.
+  - A tuned model MUST reach turns only through a `models/models` change made by promote after a
+    passed gate, released per pack; rollback MUST stop new traffic to it.
+  - Public mode MUST NOT curate, train, compare or promote; it MAY replay a recorded run.
+- **Without it**: a `model` diagnosis has no lever, and fixing a behaviour the prompt cannot fix
+  happens outside the harness, ungated and untraced.
+- **Events**: ops events `tune_run_started`, `tune_step`, `tune_run_finished` (stream
+  `tune:<run_id>`) and the eval run types on `curate:<id>` (`events.md` section 14).
 
 ## 5. Multi-tenant rule
 

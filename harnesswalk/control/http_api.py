@@ -55,6 +55,7 @@ from harnesswalk.control.gateway import GatewayError, TurnRequest
 from harnesswalk.control.http_lessons import add_lesson_routes
 from harnesswalk.control.http_memory import add_memory_routes
 from harnesswalk.control.http_ops import add_ops_routes, turn_extras
+from harnesswalk.control.http_tune import add_tune_routes
 from harnesswalk.control.public import (
     StreamRefused,
     StreamSlots,
@@ -768,6 +769,7 @@ def create_app(harness: Harness, web_dist: Path | None = None) -> FastAPI:
 
     add_memory_routes(app, harness, identities, read_json)
     add_ops_routes(app, harness, identities, read_json)
+    add_tune_routes(app, harness, identities, read_json)  # 0.2.0: the tuning loop
     add_lesson_routes(app, harness)
 
     async def unknown_api_path(request: Request) -> JSONResponse:

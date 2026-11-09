@@ -154,8 +154,9 @@ function ChapterNav({ entry, outline }: { entry: OutlineEntry | undefined; outli
  * Next. An expert node opens its group chapter at its own section. A code walk link opens the
  * node's inspector on the Code tab.
  */
-export function GuideChapter({ node }: { node: DiagramNode }) {
-  const ref = lessonRef(node.lesson_url)
+export function GuideChapter({ node, chapter = null }: { node: DiagramNode; chapter?: string | null }) {
+  // `chapter`: a chapter the list opened that is not the node's own (it covers the node).
+  const ref = chapter ? { slug: chapter, anchor: null } : lessonRef(node.lesson_url)
   const slug = ref?.slug ?? null
   const anchor = ref?.anchor ?? null
   const lesson = useLesson(slug)

@@ -10,6 +10,7 @@ The [README](../README.md) is the front door. These pages hold the detail.
 | [your-own-data.md](your-own-data.md) | Build a pack from your own documents and functions, from the starter to a release |
 | [repository.md](repository.md) | What lives where in the repository |
 | [scorecard.md](scorecard.md) | The model ladder: which model passes which pack's golden set when it really answers |
+| [tuning.md](tuning.md) | The tuning loop run for real: a qwen3.5:4b adapter against the base and the prompt arm, with the canary |
 | [RELEASING.md](RELEASING.md) | How a release is made, rolled back and set up |
 
 ## Model ladder

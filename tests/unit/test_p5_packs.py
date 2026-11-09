@@ -125,7 +125,9 @@ async def test_get_packs_and_capabilities(tmp_path: Path) -> None:
         assert body["default"] == "_starter"
         by_id = {p["id"]: p for p in body["packs"]}
         # The P5 domain packs live under datasets/ beside the starter.
-        assert set(by_id) == {"_starter", ALT, *DOMAIN_PACKS}
+        # 0.2.0: the tuning cases' target and canary packs (spec/conformance/packs).
+        tune_packs = {"conformance_tune", "conformance_canary"}
+        assert set(by_id) == {"_starter", ALT, *tune_packs, *DOMAIN_PACKS}
         assert by_id["_starter"]["default"] and by_id["_starter"]["loaded"]
         assert by_id[ALT]["title"] == "Conformance alternate pack" and not by_id[ALT]["loaded"]
         assert by_id[ALT]["prompts"] == ["What is my locker code?"]
@@ -133,7 +135,7 @@ async def test_get_packs_and_capabilities(tmp_path: Path) -> None:
         assert caps["features"]["packs"] is True
         assert caps["packs"] == {
             "default": "_starter",
-            "ids": sorted({"_starter", ALT, *DOMAIN_PACKS}),
+            "ids": sorted({"_starter", ALT, *tune_packs, *DOMAIN_PACKS}),
         }
     await h.aclose()
 

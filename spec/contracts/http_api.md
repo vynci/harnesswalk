@@ -1224,3 +1224,30 @@ Every mode, tenant-free like the diagram. The profiles in `config/profiles/`, by
   needs switched on. The Guide greys a chapter whose node is off under the current pack's
   profile, with the lowest rung that has them all.
 
+
+## 0.2.0 additions: tuning
+
+Additive (`contracts/tuning.md`, `contracts/artifacts.md`, `events.md` section 14). Every `POST`
+is dev and private only (`403 forbidden_in_mode` in public mode). In public mode every `GET`
+below answers from the recorded run in `tune.replay_fixture` with `replay: true`, and the SSE
+routes replay its stored events; nothing is computed.
+
+| Method and path | Purpose |
+|---|---|
+| `GET /v1/tune` | Trainers (`alias`, `kind`, `implemented`, `note`), students, default teacher, gate numbers, the canary (as `GET /v1/tune/canary`), the control arm's text, what is running |
+| `GET /v1/tune/artifacts?kind=` | Latest version of every `dataset`, `adapter`, `model` artifact: `{kind, name, version, hash, updated_at, updated_by, note, summary}` |
+| `GET /v1/tune/artifacts/{kind}/{name}?version=` | One version: its `manifest`, `history`, `diff_from_previous` |
+| `GET /v1/tune/verify` | `{ok, versions, problems}`: every reference between the manifests resolves with its hash |
+| `POST /v1/tune/datasets` | Curate. Body `{name, packs, teacher?, variants?, seed?, val_fraction?, teacher_prompt_arm?}`. `202 {id, kind: curation, status, url, events_url}` |
+| `GET /v1/tune/curations`, `/{id}`, `/{id}/events` | Curations; one (`request`, `status`, `scenarios`, `counts`, `dataset`, `error`); its stream (`curate:<id>`, ends at `eval_run_finished`) |
+| `POST /v1/tune/runs` | Train. Body `{dataset: "<name>[@v<n>]", trainer, student, name?, config?}`. `202 {id, kind: run, ...}`; `422 trainer_unavailable` for a stub trainer |
+| `GET /v1/tune/runs`, `/{id}`, `/{id}/events` | Runs; one (`request`, `status`, `steps`, `last_step`, `adapter`, `model`, `metrics`, `error`); its stream (`tune:<id>`, ends at `tune_run_finished`) |
+| `POST /v1/tune/comparisons` | The model gate. Body `{candidate: "model/<name>[@v<n>]", against, packs, canary_packs, samples?, prompt_arm?}`. `202 {id, kind: comparison, ...}` |
+| `GET /v1/tune/comparisons`, `/{id}` | Comparisons; one with `cells` (`{arm: {pack: {passed, min, max, scored, tool_split, cases, run_ids}}}`) and `verdict` (`status`, `reason`, `gain`, `canary_drop`, `table`, `prompt_arm`) |
+| `POST /v1/tune/promote` | Body `{candidate, stage: canary \| full, fraction?, packs?, against?, force?}`. `200 {models_version, releases, setting, canary}`. `409 gate_failed` (no passed gate, with `gate`), `409 canary_failed` (with `canary`), `409 gate_failed` from a pack's golden gate |
+| `POST /v1/tune/rollback` | Body `{}`. The canary's fraction to 0, the packs released. `409 no_canary` |
+| `GET /v1/tune/canary` | `{rule, last, arms: {base, candidate: {turns, failed, bad_feedback, failure_rate}}, gate: {passed, reason}, history}`, counted for the caller's tenant |
+
+One curation, run or comparison at a time per harness: `409 tune_running`. A comparison runs its
+`model`-suite runs as the caller's eval runs (`purpose: tune_gate`), so `GET /v1/evals/runs`
+lists them and `409 eval_running` applies while another of the tenant's runs is going.

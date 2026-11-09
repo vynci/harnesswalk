@@ -1,0 +1,8 @@
+fixture: tune_run_lifecycle
+description: 0.2.0 tuning case. The chat turn after the tuning steps; the eval runs use tune_cancel and tune_hours per case.
+model: fake-small
+turns:
+  - responses:
+      - text: Support hours are 9am to 5pm Eastern, Monday to Friday.
+        usage: { input_tokens: 380, output_tokens: 15 }
+        expect: { last_message_role: user }

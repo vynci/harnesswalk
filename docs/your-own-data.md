@@ -539,6 +539,28 @@ reply that fails only `answer_match` before you call it wrong. `harnesswalk scor
 --packs my_support --models fake-small,local-4b,local-9b --out my_scorecard.md` runs that for a
 row of models at once ([scorecard.md](scorecard.md) is the one for the shipped packs).
 
+## Tune a local model on your pack
+
+When the `model` suite shows a local model failing your pack the same way every time (it asks
+for approval in prose instead of calling your write tool, or calls a tool when none is needed),
+the tuning loop can teach it from a stronger model's passing turns, on your pack only
+([spec/contracts/tuning.md](../spec/contracts/tuning.md), [tuning.md](tuning.md)):
+
+```bash
+uv run harnesswalk tune curate --pack my_support --teacher local-27b --out dataset/my_support
+uv run harnesswalk tune run --dataset my_support --trainer homelab-trl --student local-4b
+uv run harnesswalk tune compare --candidate model/my_support_local4b --against local-4b \
+  --packs my_support --canary-packs _starter
+```
+
+Curation reads nothing but your pack: the teacher answers your golden prompts and rewrites of
+them in scratch tenants, and only the turns every deterministic scorer passed are kept. Your
+golden cases are therefore also in the training data, so keep a few cases out of the golden set
+(or rewrite them) if you want an honest held-out number. The comparison always runs a
+prompt-only control arm beside the tuned model: when your skill text alone fixes the failure,
+it is the cheaper lever. `trainers.yaml` says where training runs; nothing is ever trained on a
+public server.
+
 ## What is coming in the app
 
 The pack menu in the header (and in the empty chat) ends with **Add your own dataset**. It is

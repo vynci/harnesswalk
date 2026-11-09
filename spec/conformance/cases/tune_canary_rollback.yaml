@@ -1,0 +1,80 @@
+id: tune_canary_rollback
+title: A gated model is promoted as a canary; its turns route to the candidate arm, bad feedback fails the canary gate, and rollback sends the next turn to the base
+spec_version: 0.2.0
+fixture: tune_canary_rollback
+requires: [policy, approval, audit]
+turns:
+  - before:
+      - method: POST
+        path: /v1/tune/datasets
+        body: { name: approvals, packs: [conformance_tune], teacher: fake-small, variants: 0 }
+        status: 202
+        save: { curation: id }
+      - method: GET
+        path: /v1/tune/curations/${curation}
+        wait: { timeout_s: 30 }
+        match: { status: done }
+      - method: POST
+        path: /v1/tune/runs
+        body: { dataset: approvals, trainer: fake, student: fake-student, name: approvals }
+        status: 202
+        save: { run: id }
+      - method: GET
+        path: /v1/tune/runs/${run}
+        wait: { timeout_s: 30 }
+        match: { status: done }
+      - method: POST
+        path: /v1/tune/comparisons
+        body: { candidate: model/approvals, against: fake-student, packs: [conformance_tune], canary_packs: [conformance_canary], samples: 1 }
+        status: 202
+        save: { comparison: id }
+      - method: GET
+        path: /v1/tune/comparisons/${comparison}
+        wait: { timeout_s: 60 }
+        match:
+          status: done
+          verdict: { status: passed, gain: 1.0, canary_drop: { conformance_canary: 0.0 } }
+      - method: POST
+        path: /v1/tune/promote
+        body: { candidate: model/approvals, stage: canary, fraction: 1.0 }
+        match:
+          setting: { stage: canary, fraction: 1.0, packs: [conformance_tune], base_alias: fake-student, candidate_alias: tuned-approvals }
+          canary: { rule: { when: { pack: [conformance_tune] }, split: { base_alias: fake-student, candidate_alias: tuned-approvals, fraction: 1.0 } } }
+      - method: POST
+        path: /v1/sessions
+        body: { pack: conformance_tune }
+        status: 201
+        save: { session: session_id }
+    send:
+      message: What are your support hours?
+      session_id: ${session}
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: node_exit, node_id: router, summary: { rule: canary, arm: candidate, model: tuned-approvals } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+    after:
+      - method: POST
+        path: /v1/turns/${turn_id}/feedback
+        body: { rating: bad, note: wrong answer }
+      - method: GET
+        path: /v1/tune/canary
+        match: { arms: { candidate: { turns: 1, failed: 1, bad_feedback: 1 } }, gate: { passed: false } }
+      - method: POST
+        path: /v1/tune/promote
+        body: { candidate: model/approvals, stage: full }
+        status: 409
+        match: { error: { code: canary_failed }, canary: { gate: { passed: false } } }
+      - method: POST
+        path: /v1/tune/rollback
+        body: {}
+        match: { setting: { stage: rollback, fraction: 0 }, canary: { rule: { split: { fraction: 0 } } } }
+  - send:
+      message: What are your support hours?
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: node_exit, node_id: router, summary: { rule: canary, arm: base, model: fake-student } }
+        - { type: turn_end, status: done, summary: { exit: answered } }

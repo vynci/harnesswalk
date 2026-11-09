@@ -22,6 +22,8 @@ keys. The HTTP surface of the gateway is in `http_api.md`.
 | Tracer | `trace`, `cost` | `tracer.md` |
 | Evaluator | `eval`, `online_eval`, `offline_eval`, `diagnose` | `evaluator.md` |
 | Release | `release`, `artifacts` | `release.md` |
+| Artifacts (kinds, 0.2.0 tune manifests) | `artifacts` | `artifacts.md` |
+| Tuning (0.2.0) | `curate`, `tune` | `tuning.md` |
 | HTTP API | `gateway` | `http_api.md` |
 
 ## Notation

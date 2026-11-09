@@ -364,3 +364,35 @@ Shapes, the 32 000-character cap and the public-mode rule are in `contracts/trac
 tenant. A `node_enter` record is the node's input, stored before a breakpoint pauses there.
 The one summary key this adds is `has_payload: true`, on an event whose detail holds a
 payload.
+
+## 14. Tuning (0.2.0)
+
+Additive (`contracts/tuning.md`). Three new ops event types, and the eval run types reused by
+curation. All are ops events (section 10): `turn_id` and `session_id` are `null`, `trace_id` is
+one per run, `seq` counts from 0 per stream. A tune run is not a chat turn: like an eval run it
+lives on a stream of its own, and `turn_start.summary.kind: tune` is reserved for an
+implementation that runs it as a turn.
+
+| Type | Stream | `node_id` | `status` | Summary |
+|---|---|---|---|---|
+| `tune_run_started` | `tune:<run_id>` | `tune` | `active` | `run_id` (required), `trainer`, `trainer_kind`, `student`, `teacher`, `dataset` (`dataset/<name>@v<n>`), `examples` (`{train, val}`), `total_steps`, `config` (a few scalars: `method`, `rank`, `epochs`, `learning_rate`, `max_seq_len`) |
+| `tune_step` | `tune:<run_id>` | `tune` | `active` | `run_id` (required), `step` (required, from 1), `total_steps`, `epoch`, `loss`, `eval_loss`, `learning_rate`, `elapsed_s`, `eta_s`, `phase` (`train`; the worker's later phases `merge`, `convert`, `quantize`, `create` report with `step` equal to `total_steps`) |
+| `tune_run_finished` | `tune:<run_id>` | `tune` | `done` or `error` | `run_id` (required), `status` (`done`, `error`), `adapter` and `model` (`<kind>/<name>@v<n>`, on success), `metrics` (`{steps, train_loss, eval_loss, wall_s}`), `error_code` |
+
+Curation (`curate:<curation_id>`) reuses `eval_run_started`, `eval_case_finished` and
+`eval_run_finished` with `node_id: curate` and these summary differences: `eval_run_started`
+has `run_id` (the curation id), `purpose: curate`, `model` (the teacher), `pack` (the first
+pack) and `packs`, `total` (scenarios); `eval_case_finished` has `case_id` as
+`<pack>/<case id>` or `<pack>/<case id>_p<n>` for the n-th rewrite, `status` the case's eval
+status and `kept` (bool); `eval_run_finished` has `totals`, `kept` and `dataset`
+(`dataset/<name>@v<n>`).
+
+The model gate (Compare) emits one `release_gated` on the tenant's `ops` stream with `suite:
+model`, `pack` the first target pack, and the additional keys `packs`, `canary_packs`,
+`candidate` (`model/<name>@v<n>`), `gain`, `canary_drop` (`{pack: cases}`) and `prompt_arm`
+(`{gain, canary_ok}`). Promote and rollback change `models/models` through the release plane,
+so they emit the usual `artifact_changed`, `release_gated` and `artifact_released`.
+
+Summary shapes for spans (section 6): `curate` and `tune` emit no spans in this version (they
+run outside turns). The `router` span gains `arm` and `bucket` when the `canary` rule routed the
+call (`contracts/router.md`).

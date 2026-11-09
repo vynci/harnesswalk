@@ -121,20 +121,21 @@ function Contents({ current, onGo }: { current: string | null; onGo: (entry: Out
 /** The node whose chapter the Guide shows, if any. */
 function useGuideNode() {
   const nodeId = usePanels((s) => s.guideNode)
+  const chapter = usePanels((s) => s.guideSlug)
   const node = useApp((s) => s.diagram?.nodes.find((n) => n.id === nodeId))
-  return { node }
+  return { node, chapter }
 }
 
 /** What the Guide shows: a node's chapter, or the chapter list. */
 function GuideBody() {
-  const { node } = useGuideNode()
+  const { node, chapter } = useGuideNode()
   // In the list, the chapter of the node open on the canvas is the current one.
   const current = useApp((s) => lessonRef(s.diagram?.nodes.find((n) => n.id === s.selectedNode)?.lesson_url)?.slug ?? null)
   if (node) {
     return (
       <ScrollArea className="min-h-0 flex-1">
         <div className="p-4">
-          <GuideChapter key={node.id} node={node} />
+          <GuideChapter key={`${node.id}:${chapter ?? ''}`} node={node} chapter={chapter} />
         </div>
       </ScrollArea>
     )

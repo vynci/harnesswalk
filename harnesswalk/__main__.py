@@ -22,6 +22,8 @@ harnesswalk release list|create|rollback <id>|diff <id> [--pack ID]
 harnesswalk release create --no-gate      skip the eval gate (dev mode only, audited)
 harnesswalk serve --takeover              take over a data directory another serve holds
 harnesswalk sweep [--now <RFC 3339>]      delete every expired public tenant's rows (P6)
+harnesswalk tune curate|run|compare|promote|rollback|status
+                                          the tuning loop (0.2.0, spec/contracts/tuning.md)
 """
 
 from __future__ import annotations
@@ -938,6 +940,10 @@ def build_parser() -> argparse.ArgumentParser:
     pk.add_argument("--force", action="store_true", help="ingest: index again even if unchanged")
     pk.add_argument("--json", action="store_true", help="list: print the packs as JSON")
 
+    from harnesswalk.ops.tune.cli import add_parser as add_tune_parser
+
+    add_tune_parser(sub, common)  # 0.2.0: curate, run, compare, promote, rollback, status
+
     turns = sub.add_parser("turns", help="list a session's turns, newest first")
     turns.add_argument("session_id")
     turns.add_argument("--tenant", default="dev")
@@ -968,6 +974,10 @@ def main(argv: list[str] | None = None) -> int:
         return _packs(args)
     if args.command == "sweep":
         return _sweep(args)
+    if args.command == "tune":
+        from harnesswalk.ops.tune.cli import run as run_tune
+
+        return run_tune(args, _settings)
     build_parser().print_help()
     return 0
 

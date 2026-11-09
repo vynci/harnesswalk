@@ -81,7 +81,7 @@ def case_paths() -> list[Path]:
 
 # Requests to these paths change state the whole server shares (artifacts and releases are not
 # per tenant yet), so a case that makes them needs a server of its own.
-SERVER_WIDE = ("/v1/artifacts", "/v1/releases")
+SERVER_WIDE = ("/v1/artifacts", "/v1/releases", "/v1/tune")  # 0.2.0: tune artifacts, the canary
 
 
 @dataclass

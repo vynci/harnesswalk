@@ -26,6 +26,7 @@ here runs on the fake provider, so it needs no key and no network. Start the app
   - [Turns](#turns)
   - [The release gate on the command line](#the-release-gate-on-the-command-line)
   - [Memory and citations on the command line](#memory-and-citations-on-the-command-line)
+  - [The tuning loop on the command line](#the-tuning-loop-on-the-command-line)
 - [Run it other ways](#run-it-other-ways)
   - [Docker](#docker)
   - [Vectors in Postgres](#vectors-in-postgres)
@@ -344,6 +345,35 @@ uv run harnesswalk turn "Can I return order A-1003, the Trailhead backpack?" --p
 uv run harnesswalk turn "Please remember that my preferred name is Sam." --provider fake --fixture remember_fact
 uv run harnesswalk turn "What is my preferred name?" --provider fake --fixture remember_fact --session <session_id>
 ```
+
+### The tuning loop on the command line
+
+The whole loop runs on the fake trainer in seconds, with a scripted student (`fake-student`)
+that asks for approval in prose instead of calling the write tool, the failure the loop fixes
+on real local models ([spec/contracts/tuning.md](../spec/contracts/tuning.md)):
+
+```sh
+export HARNESSWALK_DATA_DIR=/tmp/hw-tune
+uv run harnesswalk tune curate --pack ecommerce --teacher fake-small --variants 2 --out dataset/approvals
+uv run harnesswalk tune run --dataset approvals --trainer fake --student fake-student --name approvals_fake
+uv run harnesswalk tune compare --candidate model/approvals_fake --against fake-student \
+  --packs ecommerce --canary-packs sports --samples 1 --out /tmp/hw-tune/compare.md
+uv run harnesswalk tune promote --candidate model/approvals_fake --fraction 0.5
+uv run harnesswalk tune status
+uv run harnesswalk tune rollback
+```
+
+The comparison writes a table like this one (the scripted student fails every case that needs
+a write tool; the tuned fake model answers like the fixtures):
+
+| Pack | role | base | candidate (tuned) | prompt arm |
+|---|---|---|---|---|
+| ecommerce | target | 13/24 | 24/24 | 13/24 |
+| sports | canary | 22/22 | 22/22 | 22/22 |
+
+`--config outcome=forgets` on `tune run` trains a model that calls a tool when none is needed:
+the gate refuses it and `tune promote` answers `gate_failed`. The Guide's chapters 22 to 24 walk
+the same loop, and [tuning.md](tuning.md) has the real run on qwen3.5:4b.
 
 ## Run it other ways
 

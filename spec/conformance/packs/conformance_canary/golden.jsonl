@@ -1,0 +1,1 @@
+{"id": "canary_hours", "title": "Support hours, no tool (the forgetting canary)", "prompt": "When is support open?", "fixture": "tune_hours", "expect": {"tool_calls": [], "answer_contains": ["9am to 5pm"]}}

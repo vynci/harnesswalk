@@ -1,0 +1,59 @@
+id: tune_gate_refuse
+title: The model gate refuses a tuned model that forgets (it calls a tool when none is needed), and promote refuses it with the gate
+spec_version: 0.2.0
+fixture: tune_gate_refuse
+requires: [policy, approval, audit]
+turns:
+  - before:
+      - method: POST
+        path: /v1/tune/datasets
+        body: { name: approvals, packs: [conformance_tune], teacher: fake-small, variants: 0 }
+        status: 202
+        save: { curation: id }
+      - method: GET
+        path: /v1/tune/curations/${curation}
+        wait: { timeout_s: 30 }
+        match: { status: done }
+      - method: POST
+        path: /v1/tune/runs
+        body: { dataset: approvals, trainer: fake, student: fake-student, name: forgets, config: { outcome: forgets } }
+        status: 202
+        save: { run: id }
+      - method: GET
+        path: /v1/tune/runs/${run}
+        wait: { timeout_s: 30 }
+        match: { status: done, model: { name: forgets, version: 1 } }
+      - method: POST
+        path: /v1/tune/comparisons
+        body: { candidate: model/forgets, against: fake-student, packs: [conformance_tune], canary_packs: [conformance_canary], samples: 1 }
+        status: 202
+        save: { comparison: id }
+      - method: GET
+        path: /v1/tune/comparisons/${comparison}
+        wait: { timeout_s: 60 }
+        match:
+          status: done
+          verdict:
+            status: failed
+            reason: below_min_gain
+            gain: 0.0
+            canary_drop: { conformance_canary: 1.0 }
+            table: { base: { conformance_tune: 1.0, conformance_canary: 1.0 }, candidate: { conformance_tune: 1.0, conformance_canary: 0.0 } }
+      - method: GET
+        path: /v1/tune/artifacts/model/forgets
+        match: { version: 2, manifest: { gate: { status: failed, reason: below_min_gain } } }
+      - method: POST
+        path: /v1/tune/promote
+        body: { candidate: model/forgets, stage: canary }
+        status: 409
+        match: { error: { code: gate_failed }, gate: { status: failed } }
+      - method: GET
+        path: /v1/tune/canary
+        match: { rule: null }
+    send:
+      message: What are your support hours?
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: turn_end, status: done, summary: { exit: answered } }

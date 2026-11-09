@@ -1,0 +1,10 @@
+# The tuning cases' target pack (0.2.0, spec/contracts/tuning.md). The profile's inline prompt
+# and tools apply; `evals.golden_paths` in profile.yaml gives this pack its own golden set: one
+# approval-gated cancellation (the case the scripted student fails) and one plain answer.
+title: Conformance tuning target
+domain: conformance
+feature: the tuning loop's target cases
+licence: CC0-1.0
+profile: operated
+prompts:
+  - Please cancel order A-1002.

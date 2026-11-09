@@ -12,6 +12,21 @@ conforms when it runs every pack on `operated`, the default profile.
 
 ### Added
 
+- The tuning loop (P3, additive, still 0.2.0; `contracts/tuning.md`, `contracts/artifacts.md`):
+  two expert nodes, `curate` (child of `eval`) and `tune` (child of `release`), with the edges
+  `trace_to_curate`, `diagnose_to_curate`, `curate_to_tune` and `tune_to_artifacts`; three
+  ops event types, `tune_run_started`, `tune_step`, `tune_run_finished` on `tune:<run_id>`
+  (`events.md` section 14), and the eval run types on `curate:<id>` with `node_id: curate`;
+  the artifact kinds `dataset/<name>`, `adapter/<name>` and `model/<name>` in a scope of their
+  own, chained by hash; trainers behind one interface (`fake`, an ssh worker, a stub); the
+  model gate (beat the base by N cases, lose at most M on each canary pack, beside the prompt
+  arm); promote and rollback through `router.canary`, a rule with `split` instead of `use`
+  (`contracts/router.md`), a split by turn-id hash that eval turns and pinned runs never take;
+  the canary gate on live signals; the HTTP routes under `/v1/tune` (`http_api.md`), POSTs
+  forbidden and GETs replayed in public mode; diagnose's `tool_choice` evidence and `levers`
+  (`evaluator.md`); `evals.golden_paths`; fake styles `ask_first` and `over_call`
+  (`model_provider.md`). Conformance: `tune_run_lifecycle`, `tune_gate_refuse`,
+  `tune_canary_rollback` with the packs `conformance_tune` and `conformance_canary`.
 - Canary routing and scripted students (P3 groundwork, additive, still 0.2.0):
   `router.canary`, a rule with `split` instead of `use` and the `when.pack` key
   (`contracts/router.md`, "0.2.0: the canary rule"); fake styles `ask_first` and `over_call`

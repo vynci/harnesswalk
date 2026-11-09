@@ -1,7 +1,8 @@
 # Lessons
 
 One chapter per node, in walk order: the order a request meets the nodes, from the gateway to
-release. Then one chapter per expert group, for the nodes the Advanced view opens. Each chapter has
+release. Then one chapter per expert group, for the nodes the Advanced view opens, and three
+chapters on the tuning loop (0.2.0). Each chapter has
 the same six parts: what the node does, what breaks without it (with the exact pack, fixture and
 prompt that show the failure, verified on the fake provider), a walk through its code with links
 into `harnesswalk/`, three things to try with the expected outcome, three questions to check
@@ -49,6 +50,20 @@ this index in step.
 | 19 | [Inside the trace: cost](19-trace-inside.md) | Trace | cost | The receipt of a turn and the budgets that read it. |
 | 20 | [Inside eval: offline, online and diagnose](20-eval-inside.md) | Eval | offline_eval, online_eval, diagnose | Golden runs in a scratch tenant, thumbs and a sampled judge on live turns, and the layer at fault. |
 | 21 | [Inside release: artifacts](21-release-inside.md) | Release | artifacts | Append-only versions of every prompt, skill and config file, and the hash chain over releases. |
+
+## The tuning loop (0.2.0)
+
+Three chapters about changing the model itself, the fourth lever beside memory, procedural text
+and configuration. Each opens its node in the Advanced view: Curate inside Eval, Tune inside
+Release. Their demonstrations run the whole loop offline on the fake trainer, in one scratch
+data directory, chapter after chapter. The tuning commands work under every profile, so no
+chapter is greyed out on the governed packs (ecommerce, logistics) it uses.
+
+| # | Chapter | Opens | Covers | In one line |
+|---|---|---|---|---|
+| 22 | [Curate: where training data comes from](22-curate.md) | Eval | curate | Where training data comes from: teacher traffic through the harness, kept only when it passes. |
+| 23 | [Tune: train the model, then gate it](23-tune.md) | Release | tune | A dataset in, an adapter and a served model out, gated like any release, canaried through the router. |
+| 24 | [Canary and rollback](24-canary.md) | Release | tune, router | A passed gate earns a share of real turns, not all of them: the router splits, live signals decide, rollback closes it. |
 
 ## The node switches
 

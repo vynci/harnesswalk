@@ -12,6 +12,20 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 
 ### Added
 
+- **The tuning loop (P3).** `harnesswalk tune curate | run | compare | promote | rollback |
+  status`, and the same under `/v1/tune`: a teacher model answers a pack's golden prompts and
+  rewrites of them through the whole harness, the turns every deterministic scorer passed
+  become a versioned dataset (`dataset/<name>`, chat examples with the exact context, packs
+  only, files under `data/tune`), a trainer turns it into an adapter and the model Ollama will
+  serve (`adapter/<name>`, `model/<name>`, hashes only, never weights), the model gate compares
+  base, tuned model and a prompt-only control arm on target and canary packs, and promote
+  canaries it through the router (`router.canary`, a split by turn id) before rollback or the
+  whole pack. Trainers in `config/trainers.yaml`: `fake` (instant, CI and the Guide),
+  `homelab-trl` (a GPU worker over ssh, `deploy/homelab/`), `local-mlx` (stub). Aliases
+  `local-27b` (the in-family teacher, in no router rule) and `fake-student` (a scripted student
+  that asks for approval in prose). Diagnose names the `tune` lever on a `model` failure.
+  Public mode replays a recorded run (`config/fixtures/tune_replay.json`) and refuses every
+  tuning action.
 - **Groundwork for the tuning loop (P3).** The router's canary rule: `router.canary`, a rule
   with `split: {base_alias, candidate_alias, fraction}` instead of `use`, evaluated right after
   `public`, sends a share of a pack's turns (`when.pack`) to a candidate alias by the hash of

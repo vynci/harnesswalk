@@ -196,6 +196,7 @@ def _normalize_profile(profile: dict) -> dict:
         "evals",
         "release",
         "packs",
+        "tune",
     ):
         if key in profile:
             out[key] = profile[key]
@@ -245,6 +246,11 @@ def load_settings(
     data["policy"] = policy
     data.update(_read_yaml(root, "config/context.yaml", versions, artifacts))
     data["models"] = _read_yaml(root, "config/models.yaml", versions, artifacts)
+    if (root / "config/trainers.yaml").is_file():  # 0.2.0: process config, not an artifact
+        trainers = _read_yaml(root, "config/trainers.yaml", versions)
+        tune = data.setdefault("tune", {})
+        tune["trainers"] = trainers.get("trainers") or {}
+        tune["students"] = trainers.get("students") or {}
 
     profile = profile or env.get("HARNESSWALK_PROFILE")
     harness_profile: str | None = None  # a harness profile named by env or argument
