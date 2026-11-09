@@ -361,7 +361,35 @@ every route against a live harness. How it finds things without naming node ids:
 - **Lists** read the API's envelopes (`{runs}`, `{pack, releases, verify, ...}`, `{pack,
   artifacts, release}`, `{turns, next_after}`).
 
-## Lessons (P5)
+## The tuning loop in the UI (0.2.0)
+
+`spec/contracts/tuning.md`, routes in `http_api.md` ("0.2.0 additions: tuning"). The code is
+`src/inspector/TunePanel.tsx` (the components), `tuneView.ts` (everything it says, tested in
+`tuneView.test.ts`) and `routerView.ts`.
+
+- **Which node shows it** is read from what a node writes (`artifact_hint`), never its id: the
+  node that writes `adapter/` or `model/` artifacts opens the Release panel on a **Tune** tab
+  (Releases and Tune side by side); the node that writes `dataset/` keeps the Eval panel with a
+  button to the datasets.
+- **Datasets** (`GET /v1/tune/artifacts?kind=dataset`, one manifest with its history and diff),
+  the curations, **Runs** (the loss curve is a small SVG drawn from `tune_step` summaries; a
+  running run follows `GET /v1/tune/runs/{id}/events`), **Compare** (pack x arm with the spread
+  over samples, the verdict, the prompt arm, the `tool_calls` split summed over the target packs)
+  and **Canary** (the rule in words, both arms, the canary gate, history; Promote, Promote full,
+  Rollback, with a 409's `gate` or `canary` shown as the refusal). Start forms for curate, a run
+  and a comparison are minimal; the CLI is the main path.
+- **Public mode, or `replay: true`**: a note says the sandbox never trains and this is a recorded
+  run; every action is hidden.
+- **Ops events**: the tenant's stream now carries `tune_*` and `release_gated`; an LLM Ops node's
+  Overview lists its latest ones (tune steps folded into one line). Tune artifacts get no chat
+  marker (they serve nothing); promote's `models/models` edit does.
+- **Router**: a config inspector whose `effective.rules` are router rules lists them in order; a
+  `split` rule (the canary) says its share, and the router's stat and Overview name the arm.
+- **Mock**: `src/mock/tune.ts` reads `config/fixtures/tune_replay.json` straight from the repo
+  (no copy, so it cannot drift): public mode serves it as the replay, dev mode acts on the same
+  records.
+
+
 
 The chapters are the markdown files in `lessons/` (`NN-<node_id>.md`, one per simple node in walk
 order, then `NN-<parent>-inside.md` per expert group), served by `GET /v1/lessons`,

@@ -79,8 +79,8 @@ const DONE_RULES: Rule[] = [
   (x, ms) => (typeof x.executed === 'boolean' ? join(x.executed ? 'executed' : 'not run', ms) : undefined),
   // A model call.
   (x, ms) => (s(x.model) && (n(x.step) !== undefined || s(x.finish_reason)) ? join(s(x.model), ms) : undefined),
-  // A routing decision.
-  (x) => (s(x.rule) && s(x.model) ? join(s(x.rule), s(x.model)) : undefined),
+  // A routing decision; 0.2.0: a call the canary split names its arm instead of the model.
+  (x) => (s(x.rule) && s(x.model) ? join(s(x.rule), s(x.arm) ? `${s(x.arm)} arm` : s(x.model)) : undefined),
   // A provider attempt.
   (x) => (s(x.provider) ? join(s(x.provider), s(x.model)) : undefined),
   // The trace store.

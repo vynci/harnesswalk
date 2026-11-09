@@ -19,6 +19,11 @@ export type EventType =
   // P4, point events outside a turn (turn_id null): feedback and working-set edits.
   | 'feedback_recorded'
   | 'artifact_changed'
+  // 0.2.0 (events.md section 14): a tune run's own stream `tune:<id>`, never a turn's. Listed so
+  // a stray one types; the turn reducer ignores them (they name no turn).
+  | 'tune_run_started'
+  | 'tune_step'
+  | 'tune_run_finished'
 
 export const EVENT_TYPES: readonly EventType[] = [
   'turn_start',
@@ -906,6 +911,12 @@ export type OpsEventType =
   // P5: a release's gate finished, and a diagnosis was stored.
   | 'release_gated'
   | 'diagnose_finished'
+  // 0.2.0 (events.md section 14): a tune run's progress on `tune:<id>`. Curation reuses the
+  // eval_run_* types with `node_id` the curate node on `curate:<id>`; the model gate is a
+  // release_gated with `suite: model`.
+  | 'tune_run_started'
+  | 'tune_step'
+  | 'tune_run_finished'
 
 /** An ops event (events.md section 10): on an eval run's stream, or on GET /v1/events. */
 export interface OpsEvent {
@@ -1083,4 +1094,326 @@ export interface EventDetail {
   event_id: string
   detail_ref: string
   detail: { payload?: Payload } & Record<string, unknown>
+}
+
+// ---------- 0.2.0: the tuning loop (spec/contracts/tuning.md, artifacts.md, http_api.md) ----------
+
+/** A tune artifact kind (artifacts.md): versioned like every artifact, served by no pack. */
+export type TuneArtifactKind = 'dataset' | 'adapter' | 'model'
+
+/** `{name, version, hash}`: how one tune manifest names the one it was made from. */
+export interface TuneRef {
+  name: string
+  version: number
+  hash: string
+}
+
+export interface TuneTrainer {
+  alias: string
+  kind: string
+  implemented: boolean
+  note: string | null
+}
+
+/** The model gate's numbers (`tune.gate`). */
+export interface TuneGateConfig {
+  samples: number
+  min_gain_cases: number
+  canary_tolerance_cases: number
+}
+
+/** GET /v1/tune: what this harness can tune with, and what is running. */
+export interface TuneOverview {
+  trainers: TuneTrainer[]
+  students: string[]
+  teacher: string
+  gate: TuneGateConfig
+  canary: CanaryState
+  /** The control arm's system prompt addition (config/tune/prompt_arm.md). */
+  prompt_arm: string
+  running: { id: string; kind: TuneJobKind; status?: string } | null
+  /** A public server answers from a recorded run (tune.replay_fixture). */
+  replay?: boolean
+}
+
+/** One row of GET /v1/tune/artifacts: the latest version of a tune artifact. */
+export interface TuneArtifactRef {
+  kind: TuneArtifactKind
+  name: string
+  version: number
+  hash: string
+  updated_at: string
+  updated_by?: string
+  note?: string | null
+  summary: Record<string, unknown>
+}
+
+export interface TuneFileRef {
+  path: string
+  sha256: string
+  bytes?: number
+}
+
+export interface DatasetCounts {
+  turns: number
+  kept: number
+  dropped: Record<string, number>
+  deduplicated: number
+  train: number
+  val: number
+  by_pack: Record<string, number>
+  examples?: number
+  failed?: number
+  skipped?: number
+}
+
+export interface DatasetManifest {
+  kind: 'dataset'
+  name: string
+  created_at: string
+  teacher: string
+  teacher_model?: string
+  teacher_prompt_arm: boolean
+  packs: string[]
+  scenarios: { golden: number; paraphrase: number; variants: number; seed: number; [k: string]: unknown }
+  filters: string[]
+  counts: DatasetCounts
+  files: Record<string, TuneFileRef>
+  eval_run_ids: string[]
+  synthetic: boolean
+  source: string
+  regenerate: string
+  curation_id?: string
+}
+
+export interface AdapterManifest {
+  kind: 'adapter'
+  name: string
+  created_at: string
+  run_id: string
+  dataset: TuneRef
+  trainer: string
+  trainer_kind?: string
+  student: string
+  base_model: { repo: string; revision: string }
+  config: Record<string, unknown>
+  metrics: TuneMetrics
+  weights: { location: string; sha256: string; bytes?: number }
+}
+
+export interface ModelManifest {
+  kind: 'model'
+  name: string
+  created_at: string
+  adapter: TuneRef
+  alias: string
+  alias_config: Record<string, unknown>
+  serve: { provider: string; tag?: string; digest?: string; quantization?: string; method: string; gguf_sha256?: string }
+  modelfile: string
+  gate: GateVerdict | null
+  run_id?: string
+  student?: string
+}
+
+export type TuneManifest = DatasetManifest | AdapterManifest | ModelManifest
+
+export interface TuneArtifactVersion {
+  kind: TuneArtifactKind
+  name: string
+  version: number
+  hash: string
+  note?: string | null
+  updated_at: string
+  updated_by?: string
+}
+
+/** GET /v1/tune/artifacts/{kind}/{name}: one version with its history and its diff. */
+export interface TuneArtifactDetail extends TuneArtifactVersion {
+  manifest: TuneManifest
+  history: TuneArtifactVersion[]
+  /** A unified diff from the version before, '' for the first. */
+  diff_from_previous: string
+  replay?: boolean
+}
+
+export interface TuneVerify {
+  ok: boolean
+  versions: number
+  problems: unknown[]
+}
+
+export type TuneJobKind = 'curation' | 'run' | 'comparison'
+export type TuneJobStatus = 'running' | 'done' | 'error'
+
+export interface TuneJobBase {
+  id: string
+  kind: TuneJobKind
+  status: TuneJobStatus
+  created_at: string
+  ended_at?: string | null
+  error?: { code: string; message: string } | string | null
+  stream?: string
+  /** A public server's recorded jobs carry their events. */
+  events?: OpsEvent[]
+}
+
+export interface Curation extends TuneJobBase {
+  kind: 'curation'
+  request: { name: string; packs: string[]; teacher: string; variants?: number; seed?: number; val_fraction?: number; teacher_prompt_arm?: boolean }
+  scenarios?: Record<string, number> | null
+  counts?: DatasetCounts | null
+  dataset?: TuneRef | null
+}
+
+export interface TuneMetrics {
+  steps: number
+  train_loss: number
+  eval_loss?: number | null
+  wall_s: number
+  tokens?: number
+}
+
+/** `tune_step.summary` (events.md section 14). */
+export interface TuneStep {
+  run_id: string
+  step: number
+  total_steps?: number
+  epoch?: number
+  loss?: number | null
+  eval_loss?: number | null
+  learning_rate?: number
+  elapsed_s?: number
+  eta_s?: number | null
+  phase?: string
+}
+
+export interface TuneRun extends TuneJobBase {
+  kind: 'run'
+  request: { dataset: TuneRef; trainer: string; student: string; name: string; config?: Record<string, unknown> }
+  steps?: TuneStep[]
+  last_step?: TuneStep | null
+  adapter?: TuneRef | null
+  model?: TuneRef | null
+  metrics?: TuneMetrics | null
+}
+
+/** One cell of a comparison: one arm on one pack over its samples. */
+export interface ComparisonCell {
+  passed: number
+  min: number
+  max: number
+  scored: number
+  /** The failed cases' `tool_calls` buckets, mean per sample. */
+  tool_split: Record<string, number>
+  cases?: Record<string, number>
+  run_ids?: string[]
+  errors?: string[]
+}
+
+export type CompareArm = 'base' | 'candidate' | 'prompt_arm'
+
+/** The model gate's verdict (tuning.md, Compare); also a model manifest's `gate`. */
+export interface GateVerdict {
+  status: 'passed' | 'failed'
+  reason: string | null
+  gain: number
+  canary_drop: Record<string, number>
+  regressed?: string[]
+  min_gain_cases: number
+  canary_tolerance_cases: number
+  table?: Partial<Record<CompareArm, Record<string, number>>>
+  prompt_arm?: { gain: number; canary_drop?: Record<string, number>; canary_ok: boolean; would_pass: boolean }
+  packs?: string[]
+  canary_packs?: string[]
+  against?: string
+  comparison_id?: string
+  samples?: number
+  at?: string
+}
+
+export interface Comparison extends TuneJobBase {
+  kind: 'comparison'
+  request: {
+    candidate: TuneRef
+    against: string
+    packs: string[]
+    canary_packs: string[]
+    samples: number
+    prompt_arm?: boolean
+    min_gain_cases?: number
+    canary_tolerance_cases?: number
+  }
+  cells?: Partial<Record<CompareArm, Record<string, ComparisonCell>>> | null
+  verdict?: GateVerdict | null
+  /** The model version the verdict was appended to. */
+  model?: TuneRef | null
+}
+
+/** router.canary (router.md, "0.2.0: the canary rule"): a rule with `split` instead of `use`. */
+export interface CanaryRule {
+  id?: string
+  when?: { pack?: string | string[]; [k: string]: unknown }
+  split: { base_alias: string; candidate_alias: string; fraction: number }
+}
+
+export interface CanaryArm {
+  turns: number
+  failed: number
+  bad_feedback: number
+  failure_rate: number | null
+}
+
+export interface CanarySetting {
+  stage: 'canary' | 'full' | 'rollback'
+  fraction: number
+  packs: string[]
+  base_alias: string
+  candidate_alias: string
+  model?: string
+  by?: string
+  forced?: boolean
+  at?: string
+}
+
+/** GET /v1/tune/canary. */
+export interface CanaryState {
+  rule: CanaryRule | null
+  last: CanarySetting | null
+  arms: { base: CanaryArm; candidate: CanaryArm }
+  gate: { passed: boolean; reason: string | null }
+  history: CanarySetting[]
+  replay?: boolean
+}
+
+export interface PromoteRequest {
+  candidate: string
+  stage: 'canary' | 'full'
+  fraction?: number
+  packs?: string[]
+  against?: string
+  force?: boolean
+}
+
+/** POST /v1/tune/promote and /rollback: 200. */
+export interface PromoteResult {
+  models_version?: number
+  releases: { pack: string; release_id: string; gate: string }[]
+  setting: CanarySetting
+  canary: CanaryState
+}
+
+/** A 409 from promote: `gate_failed` (with the model's `gate`) or `canary_failed` (with `canary`). */
+export interface TuneRefusal {
+  code: string
+  message: string
+  gate?: GateVerdict | Record<string, unknown> | null
+  canary?: CanaryState | null
+}
+
+export interface TuneJobStarted {
+  id: string
+  kind: TuneJobKind
+  status: TuneJobStatus
+  url: string
+  events_url?: string
 }

@@ -11,6 +11,7 @@ import { Hint } from '@/components/hint'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Trace,
   TraceCollapsible,
@@ -28,6 +29,7 @@ import { packTitle } from '@/state/packs'
 import { useApp } from '@/state/store'
 import { DiagnoseAction, DiagnosisView } from './Diagnosis'
 import { gateText } from './p5View'
+import { TunePanel } from './TunePanel'
 import { useLoad } from './useOps'
 
 const short = (h: string | null | undefined) => (h ? h.slice(0, 10) : '·')
@@ -449,5 +451,31 @@ export function ReleasePanel() {
       </section>
       {selected && <ReleaseDetailView key={selected} releaseId={selected} blocked={blocked} onRolledBack={() => setChosen(null)} />}
     </div>
+  )
+}
+
+/**
+ * The Release node's area: its releases, and 0.2.0's Tune tab (datasets, runs, the model gate,
+ * the canary). The node that writes models opens on Tune; the others on Releases.
+ */
+export function ReleaseArea({ tuneFirst = false }: { tuneFirst?: boolean }) {
+  const [tab, setTab] = useState(tuneFirst ? 'tuning' : 'releases')
+  return (
+    <Tabs value={tab} onValueChange={setTab} className="gap-3" data-testid="release-area">
+      <TabsList className="self-start">
+        <TabsTrigger value="releases" data-testid="release-area-releases">
+          Releases
+        </TabsTrigger>
+        <TabsTrigger value="tuning" data-testid="release-area-tune">
+          Tune
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="releases">
+        <ReleasePanel />
+      </TabsContent>
+      <TabsContent value="tuning">
+        <TunePanel />
+      </TabsContent>
+    </Tabs>
   )
 }

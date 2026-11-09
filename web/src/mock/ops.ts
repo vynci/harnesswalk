@@ -216,6 +216,11 @@ export class MockOps {
     return ev
   }
 
+  /** 0.2.0: an ops event another part of the mock made (the tune loop, mock/tune.ts). */
+  publishOps(type: OpsEvent['type'], nodeId: string, summary: Record<string, unknown>, extra: Partial<OpsEvent> = {}): OpsEvent {
+    return this.emitOps(type, nodeId, summary, extra)
+  }
+
   /** Follow the ops stream from now on (GET /v1/events without a cursor). */
   followOps(listener: (ev: OpsEvent) => void): () => void {
     this.opsListeners.add(listener)
