@@ -157,6 +157,57 @@ async def test_errors_never_carry_the_key(monkeypatch) -> None:
 
 
 @pytest.mark.anyio
+async def test_an_error_status_carries_the_apis_own_message(monkeypatch) -> None:
+    """A bare "returned HTTP 400" hid why hosted-haiku failed every call (2026-11-09)."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-site-key-123456")
+    reply = {
+        "type": "error",
+        "error": {
+            "type": "invalid_request_error",
+            "message": "temperature is deprecated for this model",
+        },
+    }
+    p = AnthropicProvider("https://api.example.test", transport=transport([], reply, 400))
+    with pytest.raises(ProviderError) as exc:
+        await p.complete(ProviderRequest("claude-haiku-5-5", HISTORY, []))
+    assert exc.value.message == (
+        "https://api.example.test/v1/messages returned HTTP 400:"
+        " temperature is deprecated for this model"
+    )
+    assert exc.value.client_error is True
+
+    # The key never comes back, even when the body echoes it; long reasons are capped.
+    echo = {"error": {"message": "bad key sk-ant-site-key-123456 " + "x" * 500}}
+    p = AnthropicProvider("https://api.example.test", transport=transport([], echo, 401))
+    with pytest.raises(ProviderError) as exc:
+        await p.complete(ProviderRequest("m", HISTORY, []))
+    assert "site-key" not in exc.value.message and "[redacted]" in exc.value.message
+    assert exc.value.message.endswith("...") and len(exc.value.message) < 300
+
+    # Ollama's shape is a plain string; OpenAI-compatible servers use error.message.
+    p = OllamaProvider("http://ollama:11434", transport=transport([], {"error": "no model"}, 404))
+    with pytest.raises(ProviderError) as exc:
+        await p.complete(ProviderRequest("m", HISTORY, []))
+    assert exc.value.message.endswith("returned HTTP 404: no model")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-abcdef")
+    p = OpenAICompatibleProvider(
+        "http://compat/v1",
+        transport=transport([], {"error": {"message": "overloaded, key sk-openai-abcdef"}}, 503),
+    )
+    with pytest.raises(ProviderError) as exc:
+        await p.complete(ProviderRequest("m", HISTORY, []))
+    assert exc.value.message.endswith("HTTP 503: overloaded, key [redacted]")
+    assert exc.value.retryable and not exc.value.client_error
+    p = OllamaProvider(
+        "http://ollama:11434",
+        transport=httpx.MockTransport(lambda r: httpx.Response(500, text="<html>oops</html>")),
+    )
+    with pytest.raises(ProviderError) as exc:
+        await p.complete(ProviderRequest("m", HISTORY, []))
+    assert exc.value.message.endswith("returned HTTP 500")  # no JSON reason: the status only
+
+
+@pytest.mark.anyio
 async def test_fallback_is_visible(tmp_path) -> None:
     """A retryable failure on the first model falls back to the next allowed one."""
     from harnesswalk.execution.model_layer import ModelLayer, ModelRequest

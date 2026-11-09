@@ -196,6 +196,47 @@ def not_run(pack: str, alias: str, reason: str) -> dict[str, Any]:
 
 
 # The `tool_calls` split of a failed case: why the calls did not grade (the page's table).
+ANTHROPIC_TEMPERATURE = "provider default (the API rejects temperature)"
+STRETCHED_PROVIDERS = ("anthropic", "openai_compatible")
+
+
+def temperature_of(alias: str, cfg: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    """Temperature 0 where the provider takes it: the overrides and what the page says.
+
+    Ollama takes `options.temperature`. Anthropic gets none: the 5.5 models answer HTTP 400
+    "temperature is deprecated for this model" whenever the body carries one (2026-11-09)."""
+    provider = cfg.get("provider")
+    if provider == "ollama":
+        return {f"models.models.{alias}.params.options.temperature": 0}, "0"
+    if provider == "anthropic":
+        return {}, ANTHROPIC_TEMPERATURE
+    if provider == "fake":
+        return {}, "n/a (scripted)"
+    return {}, "provider default"
+
+
+def call_timeouts(
+    settings: Any, providers: set[str], case_timeout_s: float, user_set: set[str]
+) -> tuple[dict[str, Any], dict[str, float]]:
+    """A model call may take as long as the case turn: the hosted providers' HTTP timeout
+    (`models.providers.<name>.timeout_s`) and the eval call limit (`evals.model_timeout_s`)
+    are raised to at least the case timeout, unless the user `--set` that key. Returns the
+    overrides and the provider timeouts the page reports."""
+    overrides: dict[str, Any] = {}
+    shown: dict[str, float] = {}
+    for name in sorted(providers & set(STRETCHED_PROVIDERS)):
+        key = f"models.providers.{name}.timeout_s"
+        value = float(settings.get(key, 60) or 60)
+        if key not in user_set and value < case_timeout_s:
+            value = float(case_timeout_s)
+            overrides[key] = value
+        shown[name] = value
+    key = "evals.model_timeout_s"
+    if key not in user_set and float(settings.get(key, 180) or 180) < case_timeout_s:
+        overrides[key] = float(case_timeout_s)
+    return overrides, shown
+
+
 TOOL_SPLIT = (
     "called when none expected",
     "none called",
@@ -576,7 +617,14 @@ def render_markdown(data: dict[str, Any]) -> str:
         lines.append(f"- Ollama: {ollama['host']} ({state})")
     lines += [
         f"- Tenant: `{data['tenant']}`; embeddings: {data.get('embeddings', 'fake')};"
-        f" case timeout: {data.get('case_timeout_s', 60)} s",
+        f" case timeout: {data.get('case_timeout_s', 60)} s"
+        + (
+            "; provider call timeout: "
+            + ", ".join(f"{k} {v:g} s" for k, v in sorted(data["provider_timeouts"].items()))
+            + " (raised to the case timeout unless `--set`)"
+            if data.get("provider_timeouts")
+            else ""
+        ),
         f"- Grading: {'model grade' if grading == 'model' else 'exact (2026-11-08 rules)'};"
         f" samples per cell: {samples}",
     ]
@@ -710,6 +758,9 @@ def render_markdown(data: dict[str, Any]) -> str:
         "The run detail of every cell is in the scorecard JSON"
         + (f" (`{data['json_path']}`)" if data.get("json_path") else "")
         + "; `harnesswalk eval <pack> --suite model --model <alias>` replays one cell.",
+        "The command raises the hosted providers' call timeout"
+        " (`models.providers.<name>.timeout_s`) to at least `--case-timeout` unless a `--set`"
+        " names it, and sends Anthropic no `temperature` (the API rejects it for these models).",
         "",
     ]
     return "\n".join(lines)

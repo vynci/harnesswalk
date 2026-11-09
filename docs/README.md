@@ -33,7 +33,9 @@ HARNESSWALK_OLLAMA_URL=http://localhost:11434 uv run harnesswalk scorecard \
 `--samples N` runs every cell N times and shows the mean with the range. Add
 `hosted-haiku,hosted-sonnet` to `--models` with `ANTHROPIC_API_KEY` set to include the hosted
 cells (they cost money; `--max-usd` stops priced cells once the runs spent that much, 5 by
-default), or carry them from an earlier run without a model call:
+default; Anthropic gets no `temperature`, which its 5.5 models reject, and the hosted providers'
+call timeout is raised to at least `--case-timeout` unless a `--set` names
+`models.providers.<name>.timeout_s`), or carry them from an earlier run without a model call:
 `--carry docs/scorecard/2026-11-08.json --carry-models hosted-haiku,hosted-sonnet` grades the
 stored results of those columns again under the current rules (it needs the data directory
 that ran them). A model that is not pulled, a provider that is not configured or a model that

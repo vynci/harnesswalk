@@ -90,7 +90,10 @@ router:
 - **Health.** `model` is the first alias whose provider is configured and healthy. Health is a
   probe per provider every `router.health_check_s` (a cheap list-models call; `fake` is always
   healthy) plus a passive signal: a retryable failure marks the provider unhealthy until the
-  next probe. A provider never probed counts as healthy. `GET /healthz` reports it per provider.
+  next probe, or for `router.health_check_s` when no probe runs (a process without the probe
+  loop, such as the in-process scorecard, gets the provider back after one interval; 0.2.0
+  clarification). A probe result stands until the next probe. A provider never probed counts
+  as healthy. `GET /healthz` reports it per provider.
 - **Hints.** A turn MAY carry a model alias hint; it is used only if it is in the matched
   rule's `use` list and healthy.
 - **Cascade (documented option, off by default).** With `router.cascade.enabled`, a response
@@ -135,8 +138,11 @@ what the `router` span reports, so rule checks stay meaningful. A rule's
 and a cap that pushed a priced alias to the next rule would misreport the step (a hosted
 model's after-tool call as `default` instead of `lookup`). The rule's `use` list is not
 consulted: the route's `model` is the pinned alias and `alternatives` is empty (no fallback). A pinned alias
-whose provider is not configured or not healthy fails the call with `provider_error`. Pins are
-set only by the harness for its own eval turns, never from HTTP.
+whose provider is not configured fails the call with `provider_error` (health does not apply to
+a pinned router, see the end of the canary section). A retryable failure of a pinned call is
+raised as usual but does not mark the provider unhealthy: it is the eval run's own problem, as a
+BYO key's failure is the caller's, so an eval run never takes a provider down for other tenants
+(0.2.0). Pins are set only by the harness for its own eval turns, never from HTTP.
 
 
 ## 0.2.0: the canary rule
@@ -175,4 +181,4 @@ conformance profile) keeps the canary.
 A pinned router (above) asks only whether the alias's provider is configured: the passive
 health signal (a retryable failure marks a provider unhealthy until the next probe) does not
 apply to it, so a single timeout in an eval run does not make every later case answer
-`provider_error` (0.2.0).
+`provider_error`, and a pinned call's failure never sets that signal (0.2.0).

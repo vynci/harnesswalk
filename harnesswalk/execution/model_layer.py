@@ -8,7 +8,8 @@ assign `call_<n>` ids to tool calls that lack one, and price the usage from conf
 The exit summary says which provider and model answered and whether it was a fallback; the
 exit carries the call's `cost`.
 
-P3: a retryable failure marks the provider unhealthy for the router (passive health). The
+P3: a retryable failure marks the provider unhealthy for the router (passive health), except
+on a pinned eval call (0.2.0: the eval run's own problem, like a BYO key's). The
 cascade (`router.cascade`, off by default) retries a low-confidence answer from a local model on
 the next hosted alternative; confidence is a deterministic signal, see `confidence()`.
 
@@ -356,7 +357,9 @@ class ModelLayer:
                     raise
                 # A caller's own key (BYO) or a refused request is not the provider's health:
                 # one bad key must not take the provider down for every tenant (P3 review).
-                if self.health is not None and not preq.api_key and not exc.client_error:
+                # Nor is a pinned eval call's failure: it is the eval run's own problem (0.2.0).
+                own = preq.api_key or exc.client_error or ctx.model_pin is not None
+                if self.health is not None and not own:
                     self.health.mark_failed(cfg["provider"], exc.code)
                 continue
             calls = []

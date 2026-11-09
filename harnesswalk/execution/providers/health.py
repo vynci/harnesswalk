@@ -4,7 +4,10 @@ Part of the `providers` node (spec/contracts/router.md, P3 additions). Two signa
 
 - a probe per provider every `router.health_check_s` (a cheap list-models call; `fake` is
   always healthy), run by the server in the background;
-- a passive signal: a retryable failure marks the provider unhealthy until the next probe.
+- a passive signal: a retryable failure marks the provider unhealthy until the next probe,
+  or for `router.health_check_s` when no probe refreshes it (a process that runs no probe
+  loop, such as the in-process eval and scorecard harness, would otherwise keep a provider
+  down for good after one timeout). A probe result stands until the next probe.
 
 A provider never probed counts as healthy, so a fresh process routes as configured.
 """
@@ -14,26 +17,43 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
+from collections.abc import Callable
 from typing import Any
 
 
 class ProviderHealth:
     def __init__(
-        self, providers: dict[str, Any], interval_s: float = 30.0, *, keyless_ok: bool = False
+        self,
+        providers: dict[str, Any],
+        interval_s: float = 30.0,
+        *,
+        keyless_ok: bool = False,
+        clock: Callable[[], float] = time.time,
     ) -> None:
         self.providers = providers
         self.interval_s = interval_s
+        self.clock = clock
         # Public mode (P6): a hosted provider built without the site's key serves BYO-key
         # turns only, so it is not probed and counts as healthy (control/public.py keeps
         # site-paid turns off it).
         self.keyless_ok = keyless_ok
-        self.state: dict[str, dict[str, Any]] = {}  # name -> {ok, checked_at, reason}
+        # name -> {ok, checked_at, reason, passive}; `passive`: set by mark_failed, not a probe
+        self.state: dict[str, dict[str, Any]] = {}
 
     def ok(self, name: str) -> bool:
-        return self.state.get(name, {}).get("ok", True)
+        entry = self.state.get(name)
+        if entry is None or entry["ok"]:
+            return True
+        # A passive mark no probe refreshed expires after one interval.
+        return bool(entry.get("passive")) and self.clock() - entry["checked_at"] >= self.interval_s
 
     def mark_failed(self, name: str, reason: str) -> None:
-        self.state[name] = {"ok": False, "checked_at": time.time(), "reason": reason[:120]}
+        self.state[name] = {
+            "ok": False,
+            "checked_at": self.clock(),
+            "reason": reason[:120],
+            "passive": True,
+        }
 
     async def probe(self, name: str) -> bool:
         provider = self.providers.get(name)
@@ -49,7 +69,7 @@ class ProviderHealth:
                 reason = "ok" if ok else "probe failed"
             except Exception as exc:  # a probe failure is a state, never an error
                 ok, reason = False, type(exc).__name__
-        self.state[name] = {"ok": ok, "checked_at": time.time(), "reason": reason}
+        self.state[name] = {"ok": ok, "checked_at": self.clock(), "reason": reason}
         return ok
 
     async def probe_all(self) -> dict[str, bool]:

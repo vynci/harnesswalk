@@ -26,6 +26,15 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 
 ### Fixed
 
+- **Hosted scorecard cells.** The scorecard no longer sends `temperature` to Anthropic (the
+  5.5 models answer HTTP 400 "temperature is deprecated for this model", which scored
+  `hosted-haiku` 0/232); the page's Temperature column says the provider default is used. A
+  provider's HTTP error now carries the API's own message (`error.message`, capped at 200
+  characters, key headers and key-shaped strings masked) instead of a bare status. The
+  scorecard raises the Anthropic and OpenAI-compatible call timeout to at least
+  `--case-timeout` unless a `--set` names it. A passive health mark expires after
+  `router.health_check_s` when no probe refreshes it, and a pinned eval call's failure no
+  longer marks its provider unhealthy for other tenants.
 - Eval case turns no longer end on a chat tenant's budget or a chat turn's timeout: they run
   under `evals.case_budget` (200,000 tokens per turn, 5,000,000 per hour by default) and
   `evals.model_timeout_s` (180 s), and a pinned run keeps its alias after one timed-out call

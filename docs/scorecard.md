@@ -172,6 +172,7 @@ HARNESSWALK_OLLAMA_URL=http://192.168.8.107:11434 uv run harnesswalk scorecard -
 ```
 
 The run detail of every cell is in the scorecard JSON (`docs/scorecard/2026-11-08-local.json`); `harnesswalk eval <pack> --suite model --model <alias>` replays one cell.
+The command raises the hosted providers' call timeout (`models.providers.<name>.timeout_s`) to at least `--case-timeout` unless a `--set` names it, and sends Anthropic no `temperature` (the API rejects it for these models).
 
 ## The P2 packs (attached run)
 
