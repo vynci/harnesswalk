@@ -43,8 +43,11 @@ function Contents({ current, onGo }: { current: string | null; onGo: (entry: Out
   // 0.2.0: a chapter whose node the pack's profile switches off is greyed, still readable.
   const profile = useProfile()
   const profiles = useApp((s) => s.profiles)
-  const walk = outline.filter((e) => !e.group)
+  // The walk's chapters, the expert groups, then the chapters past the walk (generate, P4).
+  const walkCount = useApp((s) => s.diagram?.walk_order.length ?? 15)
+  const walk = outline.filter((e) => !e.group && e.n <= walkCount)
   const inside = outline.filter((e) => e.group)
+  const beyond = outline.filter((e) => !e.group && e.n > walkCount)
   // After the open chapter, else the first written one not read yet.
   const next = current
     ? stepEntry(outline, current, 1)
@@ -100,6 +103,12 @@ function Contents({ current, onGo }: { current: string | null; onGo: (entry: Out
             <>
               <p className="px-3 pt-2 text-xs text-muted-foreground">Inside the expert groups</p>
               <ol className="flex flex-col gap-0.5">{inside.map(row)}</ol>
+            </>
+          )}
+          {beyond.length > 0 && (
+            <>
+              <p className="px-3 pt-2 text-xs text-muted-foreground">Beyond the walk</p>
+              <ol className="flex flex-col gap-0.5">{beyond.map(row)}</ol>
             </>
           )}
         </nav>
