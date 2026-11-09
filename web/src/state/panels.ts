@@ -25,6 +25,8 @@ interface PanelsState {
   guideOpen: boolean
   /** The node whose chapter the Guide shows; null shows the chapter list. */
   guideNode: string | null
+  /** 0.2.0: a chapter picked from the list that is not its node's own (24-canary covers tune). */
+  guideSlug: string | null
   /** A code walk link for the inspector open on `node` (bumped `key` per click). */
   codeLink: { node: string; target: CodeTarget; key: number } | null
   /** The session chip's popover is open. */
@@ -32,7 +34,7 @@ interface PanelsState {
   /** Open turn reports on the chat timeline, by session (reportsKey). */
   reports: Record<string, SessionReports>
   /** Open the Guide, on a node's chapter, or on the chapter list with `null`. */
-  openGuide: (node?: string | null) => void
+  openGuide: (node?: string | null, slug?: string | null) => void
   closeGuide: () => void
   /** The Guide follows the node picked on the canvas while it is open. */
   followNode: (node: string | null) => void
@@ -51,13 +53,15 @@ let keys = 0
 export const usePanels = create<PanelsState>()((set, get) => ({
   guideOpen: false,
   guideNode: null,
+  guideSlug: null,
   codeLink: null,
   sessionOpen: false,
   reports: {},
-  openGuide: (node) => set({ guideOpen: true, guideNode: node === undefined ? get().guideNode : node }),
+  openGuide: (node, slug = null) =>
+    set({ guideOpen: true, guideNode: node === undefined ? get().guideNode : node, guideSlug: slug }),
   closeGuide: () => set({ guideOpen: false }),
   followNode: (node) => {
-    if (get().guideOpen && node && node !== get().guideNode) set({ guideNode: node })
+    if (get().guideOpen && node && node !== get().guideNode) set({ guideNode: node, guideSlug: null })
   },
   showCode: (node, target) => set({ codeLink: { node, target, key: ++keys } }),
   clearCode: () => set({ codeLink: null }),
