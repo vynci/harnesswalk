@@ -8,34 +8,31 @@ Harnesswalk. Its proof is the spec: a generated repo runs the same conformance c
 reference passes, under its own profile, and the Harnesswalk web app draws its walk.
 
 ```sh
-uv run harnesswalk init --profile minimal --pack helpdesk_lite --out ../my-helpdesk
-cd ../my-helpdesk && make setup && make eval && make conformance && make serve
+uv run harnesswalk init --profile minimal  --pack helpdesk_lite --out ../my-helpdesk
+uv run harnesswalk init --profile governed --pack device_fleet  --out ../my-fleet-desk
+cd ../my-fleet-desk && make setup && make eval && make conformance && make serve
 ```
-
-This first template set covers the `minimal` rung (the gateway, the context builder with the
-system prompt and the session, the loop, the model layer, the tools and the trace); the
-controls, the retrieving stores, the memory writer and the release chain follow as the
-`governed` set.
 
 ## The inputs
 
 A generated repo is a function of three inputs, written to `harness.yaml` in the output so an
 upgrade renders the same shape again:
 
-- **A profile**: the node set (`spec/harness.md` section 10). A profile that switches on a node
-  no template implements yet is refused with the node's name (`templates/python/manifest.yaml`,
-  `not_generated`).
+- **A profile**: the node set (`spec/harness.md` section 10). `minimal`, `guarded`, `grounded`,
+  `remembered` or `governed`. The top rung, `operated`, needs online eval, diagnose and the
+  release gate, which have no templates yet, so `init` refuses it and says so.
 - **A pack**: the content (`spec/packs.md`), a pack id under `datasets/` or a path to your own
   pack directory. Without `--profile` the pack's card decides.
 - **A generator manifest**: what a profile does not say.
 
 | Flag | Values | Default | Notes |
 |---|---|---|---|
-| `--provider` | `ollama`, `fake` | `ollama` | The real model next to the always-present fake provider |
-| `--model` | an Ollama model | `qwen3.5:4b` | |
+| `--provider` | `ollama`, `anthropic`, `fake` | `ollama` | The real model next to the always-present fake provider |
+| `--model` | a model name | `qwen3.5:4b` (Ollama), `claude-haiku-5-5` | |
 | `--transport` | `http`, `cli` | `http` | `cli` drops the HTTP API, so no web app and no conformance run |
 | `--storage` | `sqlite`, `files` | `sqlite` | `files` keeps JSON Lines per table under `data/` |
-| `--release` | `file_door` | `file_door` | Your files, versioned by git, loaded through one door (`chain`, the hash-chained release store, comes with the governed set) |
+| `--release` | `file_door`, `chain` | `chain` from `governed` up | `file_door`: your files, versioned by git; `chain`: the hash-chained release store in miniature, with artifacts, releases and rollback over HTTP |
+| `--tune` | flag | off | Adds `curate` and `tune` in miniature: `python -m harness tune curate` keeps the golden turns a teacher passes as a chat dataset, `tune run` hands it to the `fake` trainer or writes what an `external` LoRA run needs. No compare, promote or canary |
 
 Modes are not a flag: only `dev` is generated. Public and private mode (anonymous tenants,
 rate limits, a hosted budget, bring-your-own keys, the TTL sweeper) stay in the reference.
@@ -53,15 +50,15 @@ artifacts/          the Modelfile for the served model, and release.json (the ar
 compose.yaml        harness + Ollama + the served model (with --provider ollama)
 harness.yaml        the generator manifest
 harness.lock        template set and spec version, and the hash of every generated file
-.harnesswalk/pristine/   the managed files as generated (the base of a later three-way upgrade)
+.harnesswalk/pristine/   the managed files as generated (the base of a three-way upgrade)
 GENERATION_NOTES.md      the HTTP routes served, and everything that could not be mapped
 README.md           the walkthrough for that repo: its nodes, why each exists, when to remove it
 ```
 
 The runtime needs Python 3.12 and `pyyaml`; the HTTP server, SQLite, the Ollama and Anthropic
 clients and the SSE stream are the standard library. The tests add `pytest`, `httpx` and
-`jsonschema`. Size, measured: a `minimal` repo is about 2,300 lines of Python in `harness/`
-(2,800 with tests and evals), against about 24,000 in the reference package.
+`jsonschema`. Sizes, measured: a `minimal` repo is about 2,300 lines of Python in `harness/`
+(2,800 with tests and evals), a `governed` one about 3,400 (3,900), against about 24,000 in the reference package.
 
 ## How the code is produced
 
@@ -107,12 +104,59 @@ generated. This repository's own runner gives the same verdict through its
 | Output | Profile | Conformance (fake) | Golden (fake) |
 |---|---|---|---|
 | `helpdesk_lite` | `minimal` | 2 of 2 (30 skipped: 26 need nodes `minimal` switches off, 4 public mode) | 21 of 21 |
+| `device_fleet` | `governed` | 21 of 21 (11 skipped: 4 public mode, 3 drive the tuning API, 2 need `diagnose` or the release gate, 2 pinned to `minimal`) | 28 of 28 |
 
 Against a real model, `make conformance-model` (or `--provider ollama` with
 `HARNESSWALK_OLLAMA_URL`) runs the same suite on the served model. The `cost` assertions are
 dropped (the fixtures script token counts), and a case whose fixture scripts tool calls is
 marked `scripted`: its walk depends on the model choosing that tool, so a failure there is the
 model's choice, not a broken harness.
+
+## Watching it in the web app
+
+The generated server speaks the subset of `spec/contracts/http_api.md` the web app and the
+runner need (GENERATION_NOTES.md lists it). In a Harnesswalk checkout:
+
+```sh
+cd ../my-fleet-desk && make serve                      # 127.0.0.1:8000
+cd harnesswalk && HARNESSWALK_API_URL=http://127.0.0.1:8000 make web-dev   # 127.0.0.1:5173
+```
+
+![A governed generated harness in the Harnesswalk web app: a power-off paused for approval, approved, with Eval and Release dimmed](screenshots/generated-governed.png)
+
+## Upgrading
+
+```sh
+uv run harnesswalk upgrade ../my-fleet-desk       # writes branch harnesswalk/upgrade-<version>
+uv run harnesswalk gen diff ../my-fleet-desk      # your edits to managed files, against a fresh render
+```
+
+`harness/core/` and `tests/conformance/` are managed; everything else is yours and an upgrade
+never reads or writes it. For each managed file the upgrade has three versions: the pristine
+copy from `.harnesswalk/pristine/`, the new template rendered with your `harness.yaml`, and
+your committed file. Untouched by you, the file takes the template; changed by both, `git
+merge-file` merges them and leaves conflict markers where they overlap, and the upgrade lists
+those files. Codemods keyed to the template version in `harness.lock` run after the merge
+(`harnesswalk/gen/codemods.py`) and are recorded so they run once. Everything happens in a
+temporary worktree on a new branch, committed there: your working tree is never changed, and
+you merge the branch when you have read it.
+
+## Running on a local model
+
+`--provider ollama` generates a `local` model alias (thinking off, temperature 0, a 16K
+context) and `compose.yaml`: Ollama, a one-shot `model` service that pulls the base model and
+builds `harness-model` from `artifacts/Modelfile`, and the harness on port 8000. Without
+Docker, point the harness at any Ollama:
+
+```sh
+HARNESSWALK_OLLAMA_URL=http://<ollama-host>:11434 make serve PROVIDER=ollama
+HARNESSWALK_OLLAMA_URL=http://<ollama-host>:11434 make conformance-model
+```
+
+On a shared GPU box (a homelab), the load is light: one model, one case at a time, a few
+thousand tokens per call. Check `curl $HARNESSWALK_OLLAMA_URL/api/ps` first and wait when a
+large model is loaded for training or curation; the conformance and golden numbers above are
+on the fake provider, which is what CI runs.
 
 ## Licence
 

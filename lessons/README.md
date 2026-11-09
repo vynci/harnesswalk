@@ -65,6 +65,12 @@ chapter is greyed out on the governed packs (ecommerce, logistics) it uses.
 | 23 | [Tune: train the model, then gate it](23-tune.md) | Release | tune | A dataset in, an adapter and a served model out, gated like any release, canaried through the router. |
 | 24 | [Canary and rollback](24-canary.md) | Release | tune, router | A passed gate earns a share of real turns, not all of them: the router splits, live signals decide, rollback closes it. |
 
+## Beyond the walk
+
+| # | Chapter | In one line |
+|---|---|---|
+| 25 | [Generate your harness](25-generate.md) | The third verb: from a profile and a pack to a repository you own, proven by the same conformance suite. |
+
 ## The node switches
 
 Four nodes can be switched off for one turn, in dev and private mode only: input guardrails,

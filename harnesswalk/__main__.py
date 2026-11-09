@@ -981,10 +981,12 @@ def main(argv: list[str] | None = None) -> int:
         from harnesswalk.ops.tune.cli import run as run_tune
 
         return run_tune(args, _settings)
-    if args.command == "init":
+    if args.command in ("init", "upgrade", "gen"):
         from harnesswalk.gen import cli as gen_cli
 
-        return gen_cli.run_init(args)
+        return {"init": gen_cli.run_init, "upgrade": gen_cli.run_upgrade, "gen": gen_cli.run_gen}[
+            args.command
+        ](args)
     build_parser().print_help()
     return 0
 

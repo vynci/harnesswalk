@@ -69,11 +69,15 @@ def checks(markdown: str) -> list[dict[str, Any]]:
 # -- the chapters -----------------------------------------------------------------------------
 
 
+# Chapters past the walk and the expert groups: the verbs beyond reading a harness.
+BEYOND = ["25-generate"]
+
+
 def test_one_chapter_per_walk_node_then_one_per_expert_group() -> None:
     d = diagram()
     expected = [f"{i:02d}-{node}" for i, node in enumerate(d["walk_order"], 1)]
     expected += [GROUP_CHAPTERS[p] for p in d["walk_order"] if p in GROUP_CHAPTERS]
-    expected += TUNING_CHAPTERS
+    expected += TUNING_CHAPTERS + BEYOND
     assert [c["slug"] for c in all_chapters()] == expected
     assert [c["n"] for c in all_chapters()] == list(range(1, len(expected) + 1))
 
