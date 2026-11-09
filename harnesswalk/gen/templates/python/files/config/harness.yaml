@@ -1,0 +1,71 @@
+# Runtime configuration (yours). Keys follow the Harnesswalk spec (spec/contracts/*.md); the
+# policy rules live in policy/policy.yaml. `--set key=<json>` overrides any key for one run.
+mode: dev                       # the only mode generated; public and private are not
+
+models:
+  providers:
+    fake: {}                    # fixtures: packs/<pack>/fixtures/fake
+#% if "ollama" in providers
+    ollama: { base_url: http://127.0.0.1:11434, timeout_s: 180, model: local }   # env HARNESSWALK_OLLAMA_URL wins
+#% endif
+#% if "anthropic" in providers
+    anthropic: { api_key_env: ANTHROPIC_API_KEY, timeout_s: 120, model: hosted }
+#% endif
+  models:
+    fake-small: { provider: fake, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
+#% if "ollama" in providers
+    local: { provider: ollama, name: "@@ollama_model@@", context_tokens: 16384, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+#% endif
+#% if "anthropic" in providers
+    hosted: { provider: anthropic, name: "@@anthropic_model@@", context_tokens: 200000, price_in_per_mtok: 0.10, price_out_per_mtok: 0.50, tools: true, params: { thinking: { type: disabled } } }
+#% endif
+  router:
+    rules:                      # first match wins; `--provider` sends the default route to its model
+      - { id: default, when: {}, use: [fake-small] }
+
+model_layer: { max_output_tokens: 1024 }
+
+context:
+  total_tokens: 16000
+  reserve_output_tokens: 1024
+  stores: [procedural, session, semantic, episodic, knowledge]   # retrieval reads these (when on)
+  slices: { procedural: 3000, semantic: 800, episodic: 800, knowledge: 4000, session: 5000 }
+  compaction: { threshold: 0.8, keep_recent_turns: 4 }
+  retrieval: { top_k: { semantic: 5, episodic: 5, knowledge: 6 } }
+
+stores:
+  semantic: { min_score: 0.35 }
+  episodic: { half_life_days: 30, weights: { relevance: 0.7, recency: 0.3 }, min_relevance: 0.2 }
+
+loop:
+  max_steps: 8
+  budget_tokens: 16000
+  budget_usd: 0.05
+  timeout_s: 120
+  stuck_repeats: 3
+  final_call_on_exit: true
+
+tools:
+  builtins: [read_skill, remember, read_doc]
+
+input_guardrails:
+  checks: [control, size, pii, injection]
+  size: { max_chars: 8000 }
+  injection: { block_threshold: 0.8, action: { dev: warn } }
+
+output_guardrails:
+  checks: [schema, content, length, citations, pii]
+  max_chars: 12000
+  citations: { required: true }
+  content: { blocklist: [] }
+
+approval:
+  timeout_s: 900
+
+memory_writer:
+  max_proposals_per_turn: 3
+  auto_episodes: true
+  injection: { block_threshold: 0.8, review_threshold: 0.45 }
+
+evals:
+  model_timeout_s: 180

@@ -943,6 +943,9 @@ def build_parser() -> argparse.ArgumentParser:
     from harnesswalk.ops.tune.cli import add_parser as add_tune_parser
 
     add_tune_parser(sub, common)  # 0.2.0: curate, run, compare, promote, rollback, status
+    from harnesswalk.gen import cli as gen_cli
+
+    gen_cli.add_parsers(sub)
 
     turns = sub.add_parser("turns", help="list a session's turns, newest first")
     turns.add_argument("session_id")
@@ -978,6 +981,10 @@ def main(argv: list[str] | None = None) -> int:
         from harnesswalk.ops.tune.cli import run as run_tune
 
         return run_tune(args, _settings)
+    if args.command == "init":
+        from harnesswalk.gen import cli as gen_cli
+
+        return gen_cli.run_init(args)
     build_parser().print_help()
     return 0
 

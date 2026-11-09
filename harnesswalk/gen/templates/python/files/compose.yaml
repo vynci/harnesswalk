@@ -1,0 +1,25 @@
+# The harness, Ollama, and the served model, owned by you: `docker compose up`.
+# The `model` service pulls the base model and builds `harness-model` from artifacts/Modelfile
+# (the pack's system prompt baked in as the model's default; the harness still sends its own).
+services:
+  ollama:
+    image: ollama/ollama:0.34.1
+    volumes: [ollama:/root/.ollama]
+    ports: ["11434:11434"]
+  model:
+    image: ollama/ollama:0.34.1
+    depends_on: [ollama]
+    environment: { OLLAMA_HOST: "http://ollama:11434" }
+    volumes: [./artifacts:/artifacts:ro]
+    entrypoint: ["sh", "-c", "ollama pull @@ollama_model@@ && ollama create harness-model -f /artifacts/Modelfile"]
+  harness:
+    image: python:3.12-slim
+    depends_on: [model]
+    working_dir: /app
+    volumes: [.:/app, harness-data:/app/data]
+    environment: { HARNESSWALK_OLLAMA_URL: "http://ollama:11434" }
+    command: ["sh", "-c", "pip install -q pyyaml && python -m harness serve --provider ollama --host 0.0.0.0 --port 8000"]
+    ports: ["8000:8000"]
+volumes:
+  ollama: {}
+  harness-data: {}

@@ -1,0 +1,55 @@
+# The Python template set for `harnesswalk init` (docs/generator.md). One entry per output
+# file: `path` in the output, `from` the template under files/ (default: the same path),
+# `when` an expression over the generator manifest (has(node), providers, release, storage,
+# transport), `nodes` the diagram node ids the file implements (the drift tests check them),
+# `managed` true for files an upgrade may merge (harness/core and the vendored test runner).
+# Another language adds templates/<lang>/manifest.yaml beside this one.
+set: python
+version: 0.1.0
+spec_version: 0.2.0
+licence: Apache-2.0              # the templates; the generated repo carries no obligation
+files:
+  - { path: harness/__init__.py, managed: true }
+  - { path: harness/__main__.py, managed: true }
+  - { path: harness/core/__init__.py, managed: true }
+  - { path: harness/core/events.py, managed: true }
+  - { path: harness/core/config.py, managed: true }
+  - { path: harness/core/db.py, managed: true }
+  - { path: harness/core/pii.py, managed: true }
+  - { path: harness/core/runtime.py, managed: true }
+  - { path: harness/core/gateway.py, managed: true, nodes: [gateway] }
+  - { path: harness/core/context_builder.py, managed: true, nodes: [context_builder, memory, procedural] }
+  - { path: harness/core/session.py, managed: true, nodes: [session] }
+  - { path: harness/core/loop.py, managed: true, nodes: [loop] }
+  - { path: harness/core/model_layer.py, managed: true, nodes: [model_layer, router, providers] }
+  - { path: harness/core/providers/__init__.py, managed: true }
+  - { path: harness/core/providers/fake.py, managed: true }
+  - { path: harness/core/providers/http.py, managed: true, when: 'set(providers) - {"fake"}' }
+  - { path: harness/core/providers/ollama.py, managed: true, when: '"ollama" in providers' }
+  - { path: harness/core/tools.py, managed: true, nodes: [tools, registry, sandbox] }
+  - { path: harness/core/trace.py, managed: true, nodes: [trace, cost] }
+  - { path: harness/core/evals.py, managed: true, nodes: [offline_eval] }
+  - { path: harness/core/release_file_door.py, managed: true, nodes: [artifacts] }
+  - { path: harness/core/http_api.py, managed: true, when: 'transport == "http"' }
+  - { path: tests/__init__.py }
+  - { path: tests/conformance/__init__.py, managed: true, when: 'transport == "http"' }
+  - { path: tests/conformance/runner.py, managed: true, when: 'transport == "http"' }
+  - { path: tests/test_conformance.py, when: 'transport == "http"' }
+  - { path: tests/test_golden.py }
+  - { path: tests/test_owned.py }
+  - { path: evals/__init__.py }
+  - { path: evals/run_golden.py }
+  - { path: evals/README.md }
+  - { path: config/harness.yaml }
+  - { path: Makefile }
+  - { path: pyproject.toml }
+  - { path: .gitignore }
+  - { path: .github/workflows/ci.yml }
+  - { path: compose.yaml, when: '"ollama" in providers' }
+  - { path: artifacts/Modelfile, when: '"ollama" in providers' }
+  - { path: README.md }
+# The nodes no template implements yet: the controls, the stores past the session and the
+# memory writer arrive with the governed template set; eval, online eval, diagnose and the
+# release gate are the ladder's top rung. `harnesswalk init` refuses a profile that needs them.
+not_generated: [input_guardrails, output_guardrails, knowledge, semantic, episodic, memory_writer,
+                policy, approval, audit, curate, tune, eval, online_eval, diagnose, release]
