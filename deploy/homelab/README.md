@@ -64,12 +64,12 @@ What `tune run` does on the box, phase by phase (`~/harnesswalk-lab/runs/<run_id
 
 | Phase | What | Output |
 |---|---|---|
-| `train` | LoRA in bf16 on all linear layers of the text model (rank 16, alpha 32, dropout 0.05, 2 epochs, lr 2e-4 cosine, batch 1 x 8, gradient checkpointing, max 4096 tokens; a longer conversation is dropped and counted). Loss only on the assistant turns, found by rendering the conversation prefix by prefix with the student's own chat template, thinking off | `adapter/`, `steps.jsonl` |
+| `train` | LoRA in bf16 on all linear layers of the text model (rank 16, alpha 32, dropout 0.05, 2 epochs, lr 2e-4 cosine, batch 1 x 8, gradient checkpointing, max 4096 tokens; a longer conversation is dropped and counted). One sample per model call: the prompt exactly as Ollama renders the conversation so far (a port of its `qwen3.5` renderer, thinking off) and that call's reply as the target, the only tokens with loss. `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`, or a long sample's logits fragment the cache into an out-of-memory error | `adapter/`, `steps.jsonl` |
 | `merge` | Base plus adapter, merged in bf16 on the training card | `merged/` (deleted at the end) |
-| `convert` | `llama.cpp/convert_hf_to_gguf.py` to bf16 GGUF, `llama-quantize` to Q4_K_M | `model-q4_k_m.gguf` |
+| `convert` | `llama.cpp/convert_hf_to_gguf.py --no-mtp` to bf16 GGUF (Ollama's qwen3.5 has no multi-token prediction layer, and a GGUF that declares one without its weights does not load), `llama-quantize` to Q4_K_M | `model-q4_k_m.gguf` |
 | `create` | The GGUF copied into the container, a Modelfile with the base's `TEMPLATE`, `RENDERER`, `PARSER` and `PARAMETER` lines (`ollama show --modelfile qwen3.5:4b`), `ollama create hw-<name>:<run_id>` | the Ollama tag and digest |
 | `check` | Serve what you evaluate: the first validation example's prefix rendered by the HF template and sent raw (`/api/generate`) against the same messages through `/api/chat` (Ollama's renderer); the same prompt token count means the templates agree | `result.json` `template_check` |
-| `adapter` | The other route, tested and recorded: the LoRA as GGUF (`convert_lora_to_gguf.py`) with `ADAPTER` over Ollama's own `qwen3.5:4b` | `result.json` `adapter_route` |
+| `adapter` | The other route, tested and recorded: the LoRA as GGUF (`convert_lora_to_gguf.py`) with `ADAPTER` over Ollama's own `qwen3.5:4b`. Ollama 0.34.1 refuses it ("LoRA adapters are no longer supported"), so the merged GGUF is the route | `result.json` `adapter_route` |
 | `clean` | Keeps the adapter, the Q4_K_M GGUF and the logs; removes the merge and the bf16 GGUF | |
 
 By hand, one phase at a time (for debugging):

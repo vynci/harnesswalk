@@ -140,7 +140,9 @@ tune:
   artifacts_dir: data/tune      # dataset files and anything a trainer brings back; never in git
   teacher: local-27b
   prompt_arm: config/tune/prompt_arm.md
-  replay_fixture: config/fixtures/tune_replay.json
+  # What a public server replays: the real homelab run (docs/tuning.md). The web mock and the
+  # tests use the fake trainer's loop, config/fixtures/tune_replay.json.
+  replay_fixture: config/fixtures/tune_replay_homelab.json
   curate: { variants: 6, seed: 7, val_fraction: 0.1, teacher_prompt_arm: true, chunk: 24 }
   gate: { samples: 2, min_gain_cases: 2, canary_tolerance_cases: 1 }
   canary: { fraction: 0.1, min_turns: 5, max_failure_increase: 0.1 }
