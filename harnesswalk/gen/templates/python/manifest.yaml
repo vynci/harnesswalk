@@ -26,11 +26,24 @@ files:
   - { path: harness/core/providers/fake.py, managed: true }
   - { path: harness/core/providers/http.py, managed: true, when: 'set(providers) - {"fake"}' }
   - { path: harness/core/providers/ollama.py, managed: true, when: '"ollama" in providers' }
+  - { path: harness/core/providers/anthropic.py, managed: true, when: '"anthropic" in providers' }
   - { path: harness/core/tools.py, managed: true, nodes: [tools, registry, sandbox] }
   - { path: harness/core/trace.py, managed: true, nodes: [trace, cost] }
   - { path: harness/core/evals.py, managed: true, nodes: [offline_eval] }
   - { path: harness/core/release_file_door.py, managed: true, nodes: [artifacts] }
+  - { path: harness/core/release_chain.py, managed: true, when: 'release == "chain"', nodes: [artifacts] }
   - { path: harness/core/http_api.py, managed: true, when: 'transport == "http"' }
+  - { path: harness/core/input_guardrails.py, managed: true, when: 'has("input_guardrails")', nodes: [input_guardrails] }
+  - { path: harness/core/output_guardrails.py, managed: true, when: 'has("output_guardrails")', nodes: [output_guardrails] }
+  - { path: harness/core/text.py, managed: true, when: 'has("knowledge") or has("semantic")' }
+  - { path: harness/core/knowledge.py, managed: true, when: 'has("knowledge")', nodes: [knowledge] }
+  - { path: harness/core/semantic.py, managed: true, when: 'has("semantic")', nodes: [semantic] }
+  - { path: harness/core/episodic.py, managed: true, when: 'has("episodic")', nodes: [episodic] }
+  - { path: harness/core/memory_writer.py, managed: true, when: 'has("memory_writer")', nodes: [memory_writer] }
+  - { path: harness/core/policy.py, managed: true, when: 'has("policy")', nodes: [policy] }
+  - { path: harness/core/approval.py, managed: true, when: 'has("approval")', nodes: [approval] }
+  - { path: harness/core/audit.py, managed: true, when: 'has("audit")', nodes: [audit] }
+  - { path: harness/core/tune.py, managed: true, when: 'tune', nodes: [curate, tune] }
   - { path: tests/__init__.py }
   - { path: tests/conformance/__init__.py, managed: true, when: 'transport == "http"' }
   - { path: tests/conformance/runner.py, managed: true, when: 'transport == "http"' }
@@ -48,8 +61,6 @@ files:
   - { path: compose.yaml, when: '"ollama" in providers' }
   - { path: artifacts/Modelfile, when: '"ollama" in providers' }
   - { path: README.md }
-# The nodes no template implements yet: the controls, the stores past the session and the
-# memory writer arrive with the governed template set; eval, online eval, diagnose and the
-# release gate are the ladder's top rung. `harnesswalk init` refuses a profile that needs them.
-not_generated: [input_guardrails, output_guardrails, knowledge, semantic, episodic, memory_writer,
-                policy, approval, audit, curate, tune, eval, online_eval, diagnose, release]
+# The nodes no template implements, because they are never generated in P4 (the ladder's top
+# rung) or have no turn-time code. `harnesswalk init` refuses a profile that needs them on.
+not_generated: [eval, online_eval, diagnose, release]

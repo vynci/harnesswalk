@@ -26,6 +26,25 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
   that asks for approval in prose). Diagnose names the `tune` lever on a `model` failure.
   Public mode replays a recorded run (`config/fixtures/tune_replay.json`) and refuses every
   tuning action.
+- **The generator (P4b): the governed template set, `harnesswalk upgrade`, `gen diff`.**
+  Templates for input and output guardrails (PII placeholders restored in dev, schema repair,
+  citations, leaks), policy (allowlist, roles, the per-turn tool-call budget), approval (a
+  restart re-attaches a paused turn), audit (a per-tenant hash chain the storage keeps
+  append-only), the semantic, episodic and knowledge stores (BM25 over SQLite FTS5 fused with
+  hash vectors; PDF text extracted at generation time), the memory writer, the release chain
+  (artifacts, releases, rollback over HTTP), the Anthropic provider and, with `--tune`, the
+  tuning loop's curate and trainer hand-off in miniature. Profiles `guarded` to `governed`
+  generate; `operated` and public mode stay refused. A generated `governed` repo (device_fleet,
+  about 3,400 lines in `harness/`) passes 21 of 21 applicable conformance cases (approvals, a
+  restart while paused, the audit chain, budgets, knowledge citations, memory, releases and
+  rollback, step mode, cancel) through the vendored runner and the `--command` runner, and 28
+  of 28 golden cases, on the fake provider; the three `/v1/tune` cases are skipped (the tuning
+  HTTP API is not generated). The Harnesswalk web app drives it (`docs/screenshots/
+  generated-governed.png`). `harnesswalk upgrade` three-way merges a newer template set into
+  the managed files on a new branch (conflicts marked and listed, owned folders untouched,
+  codemods keyed to `harness.lock`); `harnesswalk gen diff` shows your edits to managed files.
+  The README's third verb, "Your own agent" in `docs/your-own-data.md`, the rest of
+  `docs/generator.md` and Guide chapter 25 "Generate your harness".
 - **The generator (P4a): `harnesswalk init`.** The third verb: from a profile (the node set),
   a pack (the content) and a generator manifest (`--provider ollama|fake`, `--transport
   http|cli`, `--storage sqlite|files`, the file release door), `init` writes a repository you own

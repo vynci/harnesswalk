@@ -46,5 +46,5 @@ def test_node_ids_in_templates_are_diagram_nodes() -> None:
 def test_event_types_in_templates_are_in_the_schema_enum() -> None:
     enum = set(SCHEMA["properties"]["type"]["enum"])
     used = {t for text in TEMPLATES.values() for t in re.findall(r'emit\(\s*"([a-z_]+)"', text)}
-    assert {"turn_start", "turn_end", "node_enter", "node_exit", "node_paused"} <= used
+    assert {"turn_start", "turn_end", "node_enter", "node_exit", "approval_requested"} <= used
     assert used <= enum, used - enum

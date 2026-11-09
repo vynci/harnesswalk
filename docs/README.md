@@ -7,8 +7,8 @@ The [README](../README.md) is the front door. These pages hold the detail.
 | [quickstart.md](quickstart.md) | Every way to run Harnesswalk: from a clone, from a release, with a real model, or in the hosted sandbox |
 | [walkthrough.md](walkthrough.md) | A guided tour of the web app and the command line, step by step, with screenshots |
 | [architecture.md](architecture.md) | The planes and nodes, the event stream, the spec and its conformance suite, and the principles |
-| [your-own-data.md](your-own-data.md) | Build a pack from your own documents and functions, from the starter to a release |
-| [generator.md](generator.md) | `harnesswalk init`: generate a harness repository you own and prove it with the conformance suite |
+| [your-own-data.md](your-own-data.md) | Build a pack from your own documents and functions, from the starter to a release, then your own agent |
+| [generator.md](generator.md) | `harnesswalk init` and `upgrade`: generate a harness repository you own, prove it with the conformance suite, upgrade it later |
 | [repository.md](repository.md) | What lives where in the repository |
 | [scorecard.md](scorecard.md) | The model ladder: which model passes which pack's golden set when it really answers |
 | [tuning.md](tuning.md) | The tuning loop run for real: a qwen3.5:4b adapter against the base and the prompt arm, with the canary |

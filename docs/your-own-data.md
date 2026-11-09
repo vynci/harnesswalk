@@ -561,6 +561,26 @@ prompt-only control arm beside the tuned model: when your skill text alone fixes
 it is the cheaper lever. `trainers.yaml` says where training runs; nothing is ever trained on a
 public server.
 
+## Your own agent
+
+A pack runs inside this harness. When it should run on its own, generate a harness around it:
+
+```bash
+uv run harnesswalk init --pack datasets/my_support --profile governed --out ../larkspur-agent
+cd ../larkspur-agent && make setup && make eval && make conformance
+```
+
+`--pack` takes a pack id or a path to a pack directory. The output is a repository you own,
+with no runtime dependency on Harnesswalk: the system prompt in `prompts/`, the skills in
+`skills/`, `tools.yaml` and any code tool (`support_tools.py`) in `tools/`, the policy rules in
+`policy/`, the documents, seeds, golden set and fixtures in `packs/my_support/`, and one file
+per node in `harness/core/`. Pick the profile from the nodes your golden set needs: a pack whose
+cases pause for approval needs `governed`; one that only cites documents runs on `grounded`.
+`make eval` runs your golden cases against the generated harness, so the same cases that guard
+the pack here guard your agent there, in its own CI. GENERATION_NOTES.md in the output lists
+anything the generator could not carry over. [generator.md](generator.md) has the details,
+the web app hookup and `harnesswalk upgrade`.
+
 ## What is coming in the app
 
 The pack menu in the header (and in the empty chat) ends with **Add your own dataset**. It is

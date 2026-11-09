@@ -9,7 +9,7 @@ re-renders the same shape.
 |---|---|---|
 | `profile` | minimal, guarded, grounded, remembered, governed | the pack's |
 | `pack` | a pack id under datasets/, or a path to a pack directory | required |
-| `providers` | fake, plus ollama | [fake, ollama] |
+| `providers` | fake, plus ollama or anthropic | [fake, ollama] |
 | `modes` | [dev]; public and private mode are never generated | [dev] |
 | `transport` | http (the web app and the conformance runner need it), cli | http |
 | `storage` | sqlite, files (JSON Lines) | sqlite |
@@ -26,7 +26,7 @@ PROFILES = ("minimal", "guarded", "grounded", "remembered", "governed")
 TRANSPORTS = ("http", "cli")
 STORAGES = ("sqlite", "files")
 RELEASES = ("file_door", "chain")
-HOSTED = ("ollama",)
+HOSTED = ("ollama", "anthropic")
 
 
 class ManifestError(ValueError):
@@ -57,7 +57,7 @@ class GenManifest:
         if self.modes != ["dev"]:
             raise ManifestError("only dev mode is generated; public and private modes are not")
         if "fake" not in self.providers or not set(self.providers) <= {"fake", *HOSTED}:
-            raise ManifestError("providers are fake plus ollama")
+            raise ManifestError("providers are fake plus ollama and or anthropic")
         if self.transport not in TRANSPORTS or self.storage not in STORAGES:
             raise ManifestError(f"transport is one of {TRANSPORTS}, storage one of {STORAGES}")
         if not self.release:

@@ -45,7 +45,15 @@ Some honest boundaries, so you know what you are looking at:
   [conformance suite](spec/conformance/README.md) checks this implementation; a second
   implementation does not exist yet.
 - **Not a framework and not a hosted product.** Nothing to build on, nothing to lock into. Copy
-  what is useful.
+  what is useful, or generate it: `harnesswalk init` writes a harness repository you own, with
+  no runtime dependency on Harnesswalk.
+
+Three verbs: **read** a harness (the web app and the Guide), **grow** one (packs and profiles,
+from a minimal loop to a governed agent), and **generate your own**: `harnesswalk init --profile
+governed --pack device_fleet --out ../my-agent` emits plain Python, one file per node, with your
+pack, its golden set, an eval gate in CI, the conformance suite and a compose file for a local
+model. The generated repo passes the same conformance cases as this one, and this web app draws
+its walk ([docs/generator.md](docs/generator.md)).
 
 ## Quickstart
 
