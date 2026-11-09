@@ -12,6 +12,21 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 
 ### Added
 
+- **The first real tuned model (P3b).** `tuned-approvals-4b`: a LoRA adapter for qwen3.5:4b
+  trained on the homelab from 193 passing turns of qwen3.5:27b on `ecommerce` and `logistics`,
+  served as a Q4_K_M merge. Against the base on the same day it goes from 4 to 14 of 24 on
+  ecommerce and from 4.5 to 8 on logistics, "write tool not called" from 12.5 cases to 0, with
+  the canary packs unchanged or better; the prompt-only control arm gains one case. Canaried at
+  0.5, widened and rolled back for real. `docs/tuning.md` has the numbers and the recipe; the
+  public site replays this run (`config/fixtures/tune_replay_homelab.json`).
+
+### Fixed
+
+- The homelab worker trains on the prompt exactly as Ollama renders it (a port of its `qwen3.5`
+  renderer; the Hugging Face template differs in the tools block and the think blocks), one
+  sample per model call; converts without the multi-token prediction layer Ollama's qwen3.5 does
+  not have; and uses expandable CUDA segments (a long sample ran a 24 GiB card out of memory).
+
 - **The tuning loop (P3).** `harnesswalk tune curate | run | compare | promote | rollback |
   status`, and the same under `/v1/tune`: a teacher model answers a pack's golden prompts and
   rewrites of them through the whole harness, the turns every deterministic scorer passed

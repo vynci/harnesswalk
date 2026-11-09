@@ -7,6 +7,9 @@ LAB="${HARNESSWALK_LAB:-$HOME/harnesswalk-lab}"
 export HF_HOME="$LAB/cache/hf"
 export PYTHONPATH="$LAB/bin"
 export TOKENIZERS_PARALLELISM=false
+# The 248k-token vocabulary makes the logits of a 4k-token sample about 4 GiB: without expandable
+# segments a fragmented cache runs a 24 GiB card out of memory late in the first epoch.
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 GPU="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['cuda_visible_devices'])" "$RUN_DIR/run.json")"
 export CUDA_VISIBLE_DEVICES="$GPU"
 # shellcheck disable=SC1091

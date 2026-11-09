@@ -24,6 +24,10 @@ models:
   # rule), and a scripted student for the fake trainer's loop: it asks for approval in prose
   # instead of calling a write tool, the failure a tuned model fixes.
   local-27b:    { provider: ollama, name: "qwen3.5:27b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  # The tuned student of docs/tuning.md: model/approvals_4b, the Q4_K_M merge a homelab tune run
+  # created in Ollama (`ollama create`), so it answers only where that tag exists. In no router
+  # rule: `tune promote` routes it through router.canary in the release store.
+  tuned-approvals-4b: { provider: ollama, name: "hw-approvals-4b:tr_2", label: Tuned approvals_4b (qwen3.5:4b LoRA), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
   fake-student: { provider: fake, label: Fake student (asks first), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { fake_style: ask_first } }
   # Pinned Anthropic ids (PLAN section 13). Prices per million tokens, first-party API, prompts
   # up to 100K tokens for Haiku. The harness does not replay thinking blocks, so each model
