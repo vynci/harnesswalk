@@ -90,27 +90,37 @@ class Router:
         provider_ok: Callable[[str], bool],
         alias_ok: Callable[[str], bool] | None = None,
         pin: str | None = None,
+        configured: Callable[[str], bool] | None = None,
     ) -> None:
         self._rules = rules
         self._models = models
         self._provider_ok = provider_ok
         self._alias_ok = alias_ok
         self._pin = pin
+        # 0.2.0: whether a provider is built at all, health aside. A pinned run asks only this:
+        # one timed-out call must fail that call, not every later case of the run.
+        self._configured = configured or provider_ok
 
     def rules(self) -> list[dict[str, Any]]:
         return list(self._rules)
 
-    def restricted(self, provider_ok: Callable[[str], bool]) -> Router:
+    def restricted(
+        self, provider_ok: Callable[[str], bool], configured: Callable[[str], bool] | None = None
+    ) -> Router:
         """The same rules over a narrower set of providers (a per-turn provider choice)."""
-        return Router(self._rules, self._models, provider_ok, self._alias_ok, self._pin)
+        return Router(self._rules, self._models, provider_ok, self._alias_ok, self._pin, configured)
 
     def gated(self, alias_ok: Callable[[str], bool]) -> Router:
         """The same rules over the aliases `alias_ok` lets through (P6, public mode)."""
-        return Router(self._rules, self._models, self._provider_ok, alias_ok, self._pin)
+        return Router(
+            self._rules, self._models, self._provider_ok, alias_ok, self._pin, self._configured
+        )
 
     def pinned(self, alias: str) -> Router:
         """The same rules with every call answered by `alias` (the eval `model` suite)."""
-        return Router(self._rules, self._models, self._provider_ok, self._alias_ok, alias)
+        return Router(
+            self._rules, self._models, self._provider_ok, self._alias_ok, alias, self._configured
+        )
 
     @staticmethod
     def matches(when: dict[str, Any], req: RouteRequest) -> bool:
@@ -157,7 +167,7 @@ class Router:
         model = self._models.get(alias)
         if model is None or model.get("embedding"):
             raise ProviderError("provider_error", f"unknown model alias {alias!r}", retryable=False)
-        if not self._provider_ok(model.get("provider", "")) or (
+        if not self._configured(model.get("provider", "")) or (
             self._alias_ok is not None and not self._alias_ok(alias)
         ):
             raise ProviderError(

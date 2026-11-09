@@ -410,3 +410,10 @@ Additive, groundwork for the tuning loop (`tuning.md`).
 - **Internal runs** (not reachable from `POST /v1/evals/runs`): an eval run may carry its own
   list of cases and a candidate view (the pack's working set with some artifact bodies
   replaced, nothing stored), and its `model` may be an alias only that view defines.
+- **Eval case turns' budget and timeout.** A case turn (every suite, the release gate, the
+  tuning loop's runs) runs under `evals.case_budget` over the tenant's `policy.budgets` (default
+  200,000 tokens per turn, 5,000,000 per hour, 5,000 tool calls per hour; its `_per_turn` keys
+  replace the loop's own `loop.budget_*`, dollar limits still bind), and a model call of a
+  case turn may take `evals.model_timeout_s` (default 180) instead of `model_layer.timeout_s`.
+  A pinned run needs its alias's provider to be configured, not healthy (`router.md`), so one
+  timed-out call fails that case, not the rest of the run.

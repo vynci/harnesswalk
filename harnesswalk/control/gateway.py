@@ -411,7 +411,7 @@ class Gateway:
             model_hint=req.model,
             model_pin=req.pin_model if req.internal else None,
             internal=req.internal,
-            budget=self.h.budgets.for_turn(tenant),
+            budget=self.h.budgets.for_turn(tenant, internal=req.internal),
             output_schema=req.output_schema,
             byo_key=bool(req.api_key),
         )
@@ -807,7 +807,7 @@ class Gateway:
                 fake.resume_turn(  # type: ignore[attr-defined]
                     ctx.tenant_id, ctx.session_id, ctx.turn_id, self._fixture_index(ctx, fixture)
                 )
-        ctx.budget = h.budgets.for_turn(ctx.tenant_id)
+        ctx.budget = h.budgets.for_turn(ctx.tenant_id, internal=ctx.internal)
         user_text = next(
             (m["content"] for m in reversed(checkpoint["messages"]) if m["role"] == "user"), None
         )

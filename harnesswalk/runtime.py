@@ -133,6 +133,7 @@ class PackParts:
             with_canary(s.get("models.router.rules", []), s.get("models.router.canary", None)),
             models,
             lambda p: p in self.providers and health.ok(p),
+            configured=lambda p: p in self.providers,
         )
         out["model_layer"] = model_layer = ModelLayer(
             self.providers,
@@ -149,6 +150,7 @@ class PackParts:
             budget_notice=str(s.get("loop.notices.budget_exhausted", "")),
             turn_keys=self.turn_keys,
             pack=s.get("dataset", "_starter"),
+            eval_timeout_s=float(s.get("evals.model_timeout_s", 180)),
         )
         estimator = s.get("context.token_estimator", "chars_div_4")
         enabled = set(s.get("context.stores", ["procedural", "session"]))
@@ -324,6 +326,7 @@ class Harness(PackParts):
         self.budgets = Budgets(
             s.get("policy.budgets", {}),
             str(s.resolve(s.get("policy.budgets_sqlite_path", "data/budgets.db"))),
+            eval_case=s.get("evals.case_budget", None),
         )
         # P6: the shared daily hosted budget (next to the per-tenant ledger), the public
         # allowlist, and when each anonymous public tenant expires.

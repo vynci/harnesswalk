@@ -171,3 +171,8 @@ conformance profile) keeps the canary.
 - The `router` span summary gains `arm` (`base` or `candidate`) and `bucket` (rounded to 4
   digits) on a call the canary routed. `promote` and `rollback` change only `fraction`.
 - Validation: a rule has `use` or `split`, not both; both aliases exist; `fraction` is in [0, 1].
+
+A pinned router (above) asks only whether the alias's provider is configured: the passive
+health signal (a retryable failure marks a provider unhealthy until the next probe) does not
+apply to it, so a single timeout in an eval run does not make every later case answer
+`provider_error` (0.2.0).

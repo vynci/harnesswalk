@@ -180,3 +180,30 @@ async def test_diagnose_names_the_tune_lever(tmp_path: Path) -> None:
         assert choice["split"] in ("none called", "write tool not called")
     finally:
         await h.aclose()
+
+
+def test_a_pinned_run_needs_a_configured_provider_not_a_healthy_one() -> None:
+    healthy = {"fake": False}  # the passive health signal marked the provider down
+    r = Router(
+        RULES, MODELS, lambda p: p == "fake" and healthy["fake"], configured=lambda p: p == "fake"
+    )
+    route = r.pinned("fake-small").route(req("t1", pack="other"))
+    assert route.model == "fake-small" and route.rule == "default"
+    narrowed = r.restricted(lambda p: False, lambda p: p == "fake").pinned("fake-small")
+    assert narrowed.route(req("t2", pack="other")).model == "fake-small"
+
+
+def test_eval_case_turns_get_their_own_budget(tmp_path: Path) -> None:
+    from harnesswalk.control.budgets import Budgets
+    from harnesswalk.execution.loop import Limits
+
+    b = Budgets(
+        {"default": {"tokens_per_turn": 16000, "tokens_per_hour": 200000, "usd_per_turn": 0.05}},
+        str(tmp_path / "b.db"),
+        eval_case={"tokens_per_turn": 200000, "tokens_per_hour": 5000000},
+    )
+    chat = Limits.from_config({"budget_tokens": 16000}, b.for_turn("t"))
+    case = Limits.from_config({"budget_tokens": 16000}, b.for_turn("t", internal=True))
+    assert chat.budget_tokens == 16000 and case.budget_tokens == 200000
+    assert b.for_turn("t", internal=True).limits["usd_per_turn"] == 0.05  # dollars still bind
+    assert Budgets({}, str(tmp_path / "c.db")).for_turn("t", internal=True).limits == {}
