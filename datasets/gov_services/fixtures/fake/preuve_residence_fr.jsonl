@@ -1,0 +1,1 @@
+{"responses": [{"text": "Non, les factures de t\u00e9l\u00e9phone cellulaire ne sont pas accept\u00e9es. Utilisez par exemple un permis de conduire d'Aldervale \u00e0 votre adresse actuelle, un bail ou une facture de services publics dat\u00e9e des 3 derniers mois [1].", "usage": {"input_tokens": 420, "output_tokens": 68}, "expect": {"last_message_role": "user"}}]}

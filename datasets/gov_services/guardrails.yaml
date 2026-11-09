@@ -1,0 +1,19 @@
+# Pack overrides for the input guardrails (spec/contracts/guardrail.md). The patterns
+# replace the defaults for this pack, so the US SSN and Canadian SIN ones are kept.
+# A civic street address (a number, then a French street type and name, or an English name
+# and street type) is personal data at this desk: it becomes [ID_n] like a national id.
+pii:
+  national_id:
+    patterns:
+    - name: us_ssn
+      regex: (?<![\d-])\d{3}-\d{2}-\d{4}(?![\d-])
+      luhn: false
+    - name: ca_sin
+      regex: (?<![\d-])\d{3}[ -]\d{3}[ -]\d{3}(?![\d-])
+      luhn: true
+    - name: civic_address_fr
+      regex: '(?<![\w-])\d{1,5}(?:-\d{1,4})?,? (?:rue|chemin|avenue|boulevard|rang|route|place|allée) (?:des |du |de la |de l''|de |d'')?[A-ZÉÈ][\w''-]+(?: [A-ZÉÈ][\w''-]+)?'
+      luhn: false
+    - name: civic_address_en
+      regex: '(?<![\w-])\d{1,5} [A-Z][a-z]+(?: [A-Z][a-z]+)? (?:Street|Avenue|Road|Lane|Drive|Crescent|Boulevard|Court|Way)\b'
+      luhn: false

@@ -64,7 +64,10 @@ describe('lesson demonstrations (P5 integration)', () => {
     const lessons = new MockServer({ stepMs: 0 }).lessons
     expect(lessons.get('01-gateway')?.try?.pack).toBe('_starter')
     const writer = lessons.get('12-memory_writer')!
-    expect(writer.also).toEqual([expect.objectContaining({ pack: 'finance', disable: ['memory_writer'], fixture: 'mem_reporting_currency_set' })])
+    expect(writer.also).toEqual([
+      expect.objectContaining({ pack: 'finance', disable: ['memory_writer'], fixture: 'mem_reporting_currency_set' }),
+      expect.objectContaining({ pack: 'long_session', disable: ['memory_writer'], fixture: 'remember_aisle_seat' }),
+    ])
     expect(writer.also![0]!.note).toMatch(/Nothing is written/)
   })
 })

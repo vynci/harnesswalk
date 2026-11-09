@@ -1,0 +1,40 @@
+# Bundled data for the Aldervale Services Desk pack: every table below is fictional.
+# Each table maps a lookup key to the row a tool returns; `missing` is the row for an unknown key.
+- name: office_hours
+  description: Get an Aldervale service office's opening hours for the week, its services and any closures. Bilingual labels.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [office_id]
+    properties:
+      office_id: { type: string, pattern: "^ALV-[A-Z]{3,4}$", description: "Office id: ALV-CTR, ALV-NORD, ALV-PORT or ALV-MOB." }
+  table:
+    ALV-CTR: { office_id: ALV-CTR, name_en: Downtown Service Centre, name_fr: Centre de services du centre-ville, mon_fri: "08:30-17:00", sat: "09:00-13:00", sun: closed, services: [all programmes, document drop-off, photo ID checks], closures: "closed 11 November 2026 (Remembrance Day) / fermé le 11 novembre 2026" }
+    ALV-NORD: { office_id: ALV-NORD, name_en: North Service Office, name_fr: Bureau de services du Nord, mon_fri: "09:00-16:30", sat: "10:00-14:00", sun: closed, services: [all programmes, document drop-off], closures: none }
+    ALV-PORT: { office_id: ALV-PORT, name_en: Harbour Service Office, name_fr: Bureau de services du Port, mon_fri: "08:00-16:00", sat: closed, sun: closed, services: [Senior Transit Pass photos, document drop-off], closures: "closed for renovation 2026-11-16 to 2026-11-20 / fermé pour rénovation du 16 au 20 novembre 2026" }
+    ALV-MOB: { office_id: ALV-MOB, name_en: Mobile Service Unit, name_fr: Unité mobile de services, mon_fri: "by schedule, see the monthly route / selon l'horaire, voir la tournée mensuelle", sat: closed, sun: closed, services: [document drop-off, Senior Transit Pass photos], closures: none }
+  missing: { error: not_found }
+
+- name: form_status
+  description: Check an application's status by its reference number (AV- then a letter and four digits). Read only.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [reference]
+    properties:
+      reference: { type: string, pattern: "^AV-[A-Z][0-9]{4}$", description: "Application reference, for example AV-K4417." }
+  table:
+    AV-K4417: { reference: AV-K4417, programme: HHR, programme_en: Home Heating Rebate, programme_fr: remise pour le chauffage domestique, received: "2026-10-02", status: in_review, decision_by: "2026-11-06", missing: [] }
+    AV-K4502: { reference: AV-K4502, programme: HHR, programme_en: Home Heating Rebate, programme_fr: remise pour le chauffage domestique, received: "2026-10-09", status: missing_documents, missing: [proof_of_residence], send_by: "2026-11-09" }
+    AV-M4630: { reference: AV-M4630, programme: CAC, programme_en: Child Activity Credit, programme_fr: crédit pour les activités des enfants, received: "2026-09-28", status: approved, amount: "300.00", payment_date: "2026-10-31" }
+    AV-P4711: { reference: AV-P4711, programme: STP, programme_en: Senior Transit Pass, programme_fr: laissez-passer de transport pour aînés, received: "2026-10-15", status: received, processing_days: 15 }
+    AV-K4805: { reference: AV-K4805, programme: HHR, programme_en: Home Heating Rebate, programme_fr: remise pour le chauffage domestique, received: "2026-09-30", status: refused, reason: income_above_limit, appeal_by: "2026-11-21" }
+  missing: { error: not_found }

@@ -1,0 +1,1 @@
+{"responses": [{"text": "A mobile phone bill is not accepted. Use an Aldervale driver's licence with your current address, a lease or property tax notice, a utility bill or bank statement dated within the last 3 months, or a letter from a shelter or care home [1].", "usage": {"input_tokens": 420, "output_tokens": 73}, "expect": {"last_message_role": "user"}}]}

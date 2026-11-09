@@ -1,0 +1,305 @@
+# Bundled data for the Kestrelway Field Services pack: every table below is fictional.
+# Each table maps a lookup key to the row a tool returns; `missing` is the row for an unknown key.
+# The shapes follow a real fleet platform's API (status, insights, driver events, the inbox,
+# commands); the pack's "now" is 2026-10-23T09:00:00Z. Commands are split into one tool per
+# risk level, because policy decides per tool: a harmless OBD scan, a reboot only admins may
+# run, and three irreversible actions that wait for a human.
+- name: list_assets
+  description: List the fleet's assets with online state, last seen time, OBD tier and the driving-rule sync status of each.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [fleet_id]
+    properties:
+      fleet_id: { type: string, pattern: "^[a-z]{3,20}$", description: "The fleet id, kestrelway." }
+  table:
+    kestrelway:
+      fleet_id: kestrelway
+      as_of: "2026-10-23T09:00:00Z"
+      assets:
+      - { asset_id: KW-0002, name: Shop Pickup 2, type: pickup, plate: KW 2D 417, online: true, last_seen: "2026-10-23T08:57:40Z", obd_tier: full, rate_hz: 1, rule_sync: ok }
+      - { asset_id: KW-0008, name: Route Van 8, type: van, plate: KW 8V 205, online: true, last_seen: "2026-10-23T08:58:12Z", obd_tier: basic, rate_hz: 10, rule_sync: pending }
+      - { asset_id: KW-0012, name: City Hauler 12, type: box_truck, plate: KW 12H 63, online: true, last_seen: "2026-10-23T08:55:03Z", obd_tier: none, rate_hz: 10, rule_sync: ok }
+      - { asset_id: KW-0027, name: Linehaul Tractor 27, type: tractor, plate: KW 27T 90, online: true, last_seen: "2026-10-23T08:59:21Z", obd_tier: full, rate_hz: 10, rule_sync: error }
+      - { asset_id: KW-0041, name: Reefer 41, type: reefer, plate: KW 41R 18, online: false, last_seen: "2026-10-19T16:22:05Z", obd_tier: full, rate_hz: 10, rule_sync: ok }
+  missing: { error: not_found, status: 404 }
+
+- name: get_asset_status
+  description: Get one asset's device status (online, last seen, agent version, LED state, health flags, sample rate) and its vehicle.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [asset_id]
+    properties:
+      asset_id: { type: string, pattern: "^KW-[0-9]{4}$", description: "Asset id, for example KW-0027." }
+  table:
+    KW-0002: { asset_id: KW-0002, name: Shop Pickup 2, online: true, last_seen: "2026-10-23T08:57:40Z", agent_version: 0.9.4, led_state: green_solid, health_flags: [], rate_hz: 1, obd_tier: full, vehicle: { make: Kelda, model: Pathrunner, year: 2022 } }
+    KW-0008: { asset_id: KW-0008, name: Route Van 8, online: true, last_seen: "2026-10-23T08:58:12Z", agent_version: 0.9.4, led_state: green_solid, health_flags: [], rate_hz: 10, obd_tier: basic, vehicle: { make: Vesk, model: Courier, year: 2023 } }
+    KW-0012: { asset_id: KW-0012, name: City Hauler 12, online: true, last_seen: "2026-10-23T08:55:03Z", agent_version: 0.9.4, led_state: green_solid, health_flags: [gps_weak_fix], rate_hz: 10, obd_tier: none, vehicle: { make: Halvard, model: H60, year: 2021 } }
+    KW-0027: { asset_id: KW-0027, name: Linehaul Tractor 27, online: true, last_seen: "2026-10-23T08:59:21Z", agent_version: 0.9.2, led_state: green_solid, health_flags: [], rate_hz: 10, obd_tier: full, vehicle: { make: Torrin, model: T9, year: 2020 } }
+    KW-0041: { asset_id: KW-0041, name: Reefer 41, online: false, last_seen: "2026-10-19T16:22:05Z", agent_version: 0.9.3, led_state: unknown, health_flags: [under_voltage], rate_hz: 10, obd_tier: full, vehicle: { make: Brannoch, model: Coldline, year: 2019 } }
+  missing: { error: not_found, status: 404 }
+
+- name: get_session_insights
+  description: Get the insights of one recorded trip session (duration, distance, speed, stops, vehicle data, device status).
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [session_id]
+    properties:
+      session_id: { type: string, pattern: "^S-[0-9]{4}$", description: "Session id, for example S-7201." }
+  table:
+    S-7201: { session_id: S-7201, asset_id: KW-0027, started_at: "2026-10-22T05:10:00Z", duration: { totalMs: 7140000, recordedMs: 6960000, movingMs: 6420000, idleMs: 540000 }, distance: { km: 142.6 }, speed: { maxKph: 103, maxAt: "2026-10-22T06:31:12Z", avgMovingKph: 80.0 }, stops: { count: 3 }, vehicle: { engineOn: true, rpmMax: 2140, coolantMaxC: 94, fuelStartPct: 81, fuelEndPct: 63, fuelUsedPct: 18, dtcCount: 0 }, deviceStatus: { worstCode: ok } }
+    S-7202: { session_id: S-7202, asset_id: KW-0012, started_at: "2026-10-22T13:05:00Z", duration: { totalMs: 5520000, recordedMs: 5400000, movingMs: 3480000, idleMs: 1920000 }, distance: { km: 38.4 }, speed: { maxKph: 62, maxAt: "2026-10-22T14:30:02Z", avgMovingKph: 39.7 }, stops: { count: 14 }, vehicle: null, deviceStatus: { worstCode: gps_weak_fix } }
+    S-7203: { session_id: S-7203, asset_id: KW-0008, started_at: "2026-10-23T07:48:00Z", duration: { totalMs: 510000, recordedMs: 480000, movingMs: 300000, idleMs: 180000 }, distance: { km: 1.6 }, speed: { maxKph: 34, maxAt: "2026-10-23T07:52:40Z", avgMovingKph: 19.2 }, stops: { count: 1 }, vehicle: { engineOn: true, rpmMax: 2650 }, deviceStatus: { worstCode: ok } }
+    S-7204: { session_id: S-7204, asset_id: KW-0002, started_at: "2026-10-22T14:00:00Z", duration: { totalMs: 1920000, recordedMs: 1860000, movingMs: 1500000, idleMs: 360000 }, distance: { km: 17.3 }, speed: { maxKph: 79, maxAt: "2026-10-22T14:21:48Z", avgMovingKph: 41.5 }, stops: { count: 4 }, vehicle: { engineOn: true, rpmMax: 3980, coolantMaxC: 92, fuelStartPct: 64, fuelEndPct: 61, fuelUsedPct: 3, dtcCount: 0 }, deviceStatus: { worstCode: ok } }
+  missing: { error: not_found, status: 404 }
+
+- name: get_driver_events
+  description: Get an asset's driving rules (with sync status and run counts since 2026-10-21) and its recorded driver events for 2026-10-16 to 2026-10-23, each with its payload.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [asset_id]
+    properties:
+      asset_id: { type: string, pattern: "^KW-[0-9]{4}$", description: "Asset id, for example KW-0012." }
+  table:
+    KW-0002:
+      asset_id: KW-0002
+      status: on
+      window: { from: "2026-10-16T00:00:00Z", to: "2026-10-23T09:00:00Z" }
+      rules:
+      - { rule: overspeed-obd, kinds: [overspeed], syncStatus: ok, enabled: true }
+      - { rule: throttle, kinds: [wot, over_rev], syncStatus: ok, enabled: true }
+      - { rule: check-engine, kinds: [check_engine], syncStatus: ok, enabled: true }
+      - { rule: harsh-speed-delta-obd, kinds: [harsh_brake, harsh_accel], syncStatus: ok, enabled: true }
+      items:
+      - { event_id: EV-9201, kind: overspeed, occurred_at: "2026-10-22T14:21:48Z", session_id: S-7204, severity: severe, confidence: high, counted: true, payload: { speedKph: 79, limitKph: 50, limitSource: osm, overByKph: 29, band: 3, speedSignal: obd.speed, limitAgeS: 4 } }
+      - { event_id: EV-9202, kind: harsh_brake, occurred_at: "2026-10-22T14:12:31Z", session_id: S-7204, severity: moderate, confidence: low, counted: true, payload: { accelMs2: -3.7, thresholdMs2: -3.5, speedSignal: obd.speed, method: speed_delta_1hz } }
+      - { event_id: EV-9203, kind: harsh_brake, occurred_at: "2026-10-22T14:26:05Z", session_id: S-7204, severity: moderate, confidence: low, counted: true, payload: { accelMs2: -3.6, thresholdMs2: -3.5, speedSignal: obd.speed, method: speed_delta_1hz } }
+      - { event_id: EV-9204, kind: harsh_accel, occurred_at: "2026-10-22T14:04:17Z", session_id: S-7204, severity: moderate, confidence: low, counted: true, payload: { accelMs2: 3.1, thresholdMs2: 3.0, speedSignal: obd.speed, method: speed_delta_1hz } }
+      - { event_id: EV-9205, kind: wot, occurred_at: "2026-10-22T14:04:15Z", session_id: S-7204, severity: moderate, confidence: high, counted: true, payload: { pedalPct: 88, thresholdPct: 85 } }
+    KW-0008:
+      asset_id: KW-0008
+      status: on
+      window: { from: "2026-10-16T00:00:00Z", to: "2026-10-23T09:00:00Z" }
+      rules:
+      - { rule: overspeed-obd, kinds: [overspeed], syncStatus: pending, enabled: true }
+      - { rule: throttle, kinds: [over_rev], syncStatus: pending, enabled: true }
+      items: []
+    KW-0012:
+      asset_id: KW-0012
+      status: on
+      window: { from: "2026-10-16T00:00:00Z", to: "2026-10-23T09:00:00Z" }
+      rules:
+      - { rule: overspeed-gps, kinds: [overspeed], syncStatus: ok, enabled: true }
+      items:
+      - { event_id: EV-9101, kind: overspeed, occurred_at: "2026-10-22T13:41:07Z", session_id: S-7202, severity: severe, confidence: high, counted: false, review: pending, payload: { speedKph: 58, limitKph: 10, limitSource: here, overByKph: 48, band: 4, speedSignal: gps.speed, limitAgeS: 2, roadClassLimitKph: 60 } }
+      - { event_id: EV-9102, kind: overspeed, occurred_at: "2026-10-22T14:12:30Z", session_id: S-7202, severity: moderate, confidence: high, counted: false, review: pending, payload: { speedKph: 53, limitKph: 40, limitSource: here, heldLimitKph: 40, limitAgeS: 95, overByKph: 13, band: 2, speedSignal: gps.speed } }
+      - { event_id: EV-9103, kind: overspeed, occurred_at: "2026-10-22T14:30:02Z", session_id: S-7202, severity: moderate, confidence: high, counted: true, payload: { speedKph: 62, limitKph: 50, limitSource: osm, overByKph: 12, band: 2, speedSignal: gps.speed, limitAgeS: 3 } }
+      - { event_id: EV-9104, kind: overspeed, occurred_at: "2026-10-22T13:22:40Z", session_id: S-7202, severity: severe, confidence: high, counted: true, payload: { speedKph: 84, limitKph: 50, limitSource: osm, overByKph: 34, band: 4, speedSignal: gps.speed, limitAgeS: 1 } }
+      - { event_id: EV-9105, kind: overspeed, occurred_at: "2026-10-22T13:27:15Z", session_id: S-7202, severity: severe, confidence: high, counted: true, payload: { speedKph: 81, limitKph: 50, limitSource: osm, overByKph: 31, band: 4, speedSignal: gps.speed, limitAgeS: 2 } }
+      - { event_id: EV-9106, kind: overspeed, occurred_at: "2026-10-22T13:50:51Z", session_id: S-7202, severity: severe, confidence: high, counted: true, payload: { speedKph: 72, limitKph: 40, limitSource: osm, overByKph: 32, band: 4, speedSignal: gps.speed, limitAgeS: 2 } }
+      - { event_id: EV-9107, kind: overspeed, occurred_at: "2026-10-22T14:03:09Z", session_id: S-7202, severity: severe, confidence: high, counted: true, payload: { speedKph: 74, limitKph: 50, limitSource: osm, overByKph: 24, band: 3, speedSignal: gps.speed, limitAgeS: 5 } }
+      - { event_id: EV-9108, kind: overspeed, occurred_at: "2026-10-22T14:18:44Z", session_id: S-7202, severity: severe, confidence: high, counted: true, payload: { speedKph: 63, limitKph: 40, limitSource: osm, overByKph: 23, band: 3, speedSignal: gps.speed, limitAgeS: 3 } }
+      - { event_id: EV-9109, kind: overspeed, occurred_at: "2026-10-22T14:41:26Z", session_id: S-7202, severity: moderate, confidence: high, counted: true, payload: { speedKph: 66, limitKph: 50, limitSource: osm, overByKph: 16, band: 2, speedSignal: gps.speed, limitAgeS: 2 } }
+    KW-0027:
+      asset_id: KW-0027
+      status: on
+      window: { from: "2026-10-16T00:00:00Z", to: "2026-10-23T09:00:00Z" }
+      rules:
+      - { rule: overspeed-obd, kinds: [overspeed], syncStatus: error, enabled: true, error: "event deliveries failing since 2026-10-21T08:15:00Z (401 signature_mismatch)", runs_since_2026_10_21: { started: 17, failed: 14, succeeded: 0 } }
+      - { rule: throttle, kinds: [wot, over_rev], syncStatus: ok, enabled: true }
+      - { rule: harsh-speed-delta-obd, kinds: [harsh_brake, harsh_accel], syncStatus: ok, enabled: true }
+      items:
+      - { event_id: EV-9301, kind: harsh_brake, occurred_at: "2026-10-22T06:02:19Z", session_id: S-7201, severity: severe, confidence: low, counted: true, payload: { accelMs2: -5.3, thresholdMs2: -3.5, speedSignal: obd.speed } }
+      - { event_id: EV-9302, kind: wot, occurred_at: "2026-10-22T05:31:40Z", session_id: S-7201, severity: moderate, confidence: high, counted: true, payload: { pedalPct: 91, thresholdPct: 85 } }
+    KW-0041:
+      asset_id: KW-0041
+      status: on
+      window: { from: "2026-10-16T00:00:00Z", to: "2026-10-23T09:00:00Z" }
+      rules:
+      - { rule: overspeed-obd, kinds: [overspeed], syncStatus: ok, enabled: true }
+      items: []
+  missing: { error: not_found, status: 404 }
+
+- name: get_driver_summary
+  description: Get an asset's provisional driver score for 2026-10-16 to 2026-10-23 with its band, distance, event counts and counts per 100 km.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [asset_id]
+    properties:
+      asset_id: { type: string, pattern: "^KW-[0-9]{4}$", description: "Asset id, for example KW-0002." }
+  table:
+    KW-0002: { assetId: KW-0002, from: "2026-10-16", to: "2026-10-23", status: on, provisional: true, distanceKm: 17.3, movingMs: 1500000, score: 84, band: good, scoreReason: null, penalty: 27, counts: { overspeed: 1, harsh_brake: 2, harsh_accel: 1, wot: 1 }, perHundredKm: { overspeed: 5.8, harsh_brake: 11.6, harsh_accel: 5.8, wot: 5.8 } }
+    KW-0008: { assetId: KW-0008, from: "2026-10-16", to: "2026-10-23", status: on, provisional: true, distanceKm: 1.6, movingMs: 300000, score: null, band: null, scoreReason: too_short, penalty: 0, counts: {}, perHundredKm: {} }
+    KW-0012: { assetId: KW-0012, from: "2026-10-16", to: "2026-10-23", status: on, provisional: true, distanceKm: 38.4, movingMs: 3480000, score: 71, band: needs_attention, scoreReason: null, penalty: 110, counts: { overspeed: 7 }, perHundredKm: { overspeed: 18.2 } }
+    KW-0027: { assetId: KW-0027, from: "2026-10-16", to: "2026-10-23", status: on, provisional: true, distanceKm: 142.6, movingMs: 6420000, score: 98, band: excellent, scoreReason: partial_overspeed_not_analysed_since_2026_10_21, penalty: 34, counts: { wot: 6, over_rev: 2, harsh_brake: 4, harsh_accel: 2 }, perHundredKm: { wot: 4.2, over_rev: 1.4, harsh_brake: 2.8, harsh_accel: 1.4 } }
+    KW-0041: { assetId: KW-0041, from: "2026-10-16", to: "2026-10-23", status: on, provisional: true, distanceKm: 0.0, movingMs: 0, score: null, band: null, scoreReason: too_short, penalty: 0, counts: {}, perHundredKm: {} }
+  missing: { error: not_found, status: 404 }
+
+- name: get_inbox
+  description: Get an asset's event inbox since 2026-10-21 (webhook deliveries counted by outcome class, the last error) and its SMS inbox counts. Never returns SMS text or numbers.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [asset_id]
+    properties:
+      asset_id: { type: string, pattern: "^KW-[0-9]{4}$", description: "Asset id, for example KW-0027." }
+  table:
+    KW-0002: { asset_id: KW-0002, window: { from: "2026-10-21T00:00:00Z", to: "2026-10-23T09:00:00Z" }, outcomes: { accepted: 5, duplicate: 0, ignored: 0, rejected: 0, failed: 0, pending: 0 }, last_error: null, sms: { messages: 0, unread: 0 } }
+    KW-0008: { asset_id: KW-0008, window: { from: "2026-10-21T00:00:00Z", to: "2026-10-23T09:00:00Z" }, outcomes: { accepted: 0, duplicate: 0, ignored: 1, rejected: 0, failed: 0, pending: 0 }, ignored_reasons: { too_short: 1 }, last_error: null, sms: { messages: 6, unread: 2, last_received_at: "2026-10-23T06:14:00Z" } }
+    KW-0012: { asset_id: KW-0012, window: { from: "2026-10-21T00:00:00Z", to: "2026-10-23T09:00:00Z" }, outcomes: { accepted: 7, duplicate: 1, ignored: 2, rejected: 0, failed: 0, pending: 0 }, ignored_reasons: { implausible_limit: 1, held_limit: 1 }, last_error: null, sms: { messages: 2, unread: 0 } }
+    KW-0027: { asset_id: KW-0027, window: { from: "2026-10-21T00:00:00Z", to: "2026-10-23T09:00:00Z" }, outcomes: { accepted: 3, duplicate: 0, ignored: 0, rejected: 0, failed: 14, pending: 17 }, last_error: "401 signature_mismatch from the receiver, first at 2026-10-21T08:15:00Z", signing_secret_rotated_at: "2026-10-21T08:12:00Z", retry: { attempts: 8, window_h: 44 }, sms: { messages: 1, unread: 1 } }
+    KW-0041: { asset_id: KW-0041, window: { from: "2026-10-21T00:00:00Z", to: "2026-10-23T09:00:00Z" }, outcomes: { accepted: 0, duplicate: 0, ignored: 0, rejected: 0, failed: 0, pending: 0 }, last_error: null, sms: { messages: 3, unread: 0 } }
+  missing: { error: not_found, status: 404 }
+
+- name: obd_scan
+  description: Ask an online OBD-equipped device to read the vehicle's OBD data now (rate limited to one scan per 60 s per device).
+  action_class: write
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [asset_id]
+    properties:
+      asset_id: { type: string, pattern: "^KW-[0-9]{4}$", description: "Asset id, for example KW-0002." }
+  table:
+    KW-0002: { asset_id: KW-0002, command: obd_scan, status: accepted, request_id: CMD-61021, ttl_s: 60, result_after_s: 20 }
+    KW-0008: { asset_id: KW-0008, command: obd_scan, status: accepted, request_id: CMD-61022, ttl_s: 60, result_after_s: 20, note: "basic tier: speed and rpm only" }
+    KW-0012: { asset_id: KW-0012, command: obd_scan, error: not_obd_device, status: 400, message: "this device has no OBD connection" }
+    KW-0027: { asset_id: KW-0027, command: obd_scan, error: rate_limited, status: 429, retryAfterMs: 41000 }
+    KW-0041: { asset_id: KW-0041, command: obd_scan, error: device_offline, status: 409, message: "the device is offline; commands need an online device" }
+  missing: { error: not_found, status: 404 }
+
+- name: reboot_device
+  description: Reboot an online device (the device is back in about 90 s). Admins and owners only.
+  action_class: write
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [asset_id]
+    properties:
+      asset_id: { type: string, pattern: "^KW-[0-9]{4}$", description: "Asset id, for example KW-0002." }
+  table:
+    KW-0002: { asset_id: KW-0002, command: reboot, status: queued, request_id: CMD-61031, ttl_s: 60, expected_back_s: 90 }
+    KW-0008: { asset_id: KW-0008, command: reboot, status: queued, request_id: CMD-61032, ttl_s: 60, expected_back_s: 90 }
+    KW-0012: { asset_id: KW-0012, command: reboot, status: queued, request_id: CMD-61033, ttl_s: 60, expected_back_s: 90 }
+    KW-0027: { asset_id: KW-0027, command: reboot, status: queued, request_id: CMD-61034, ttl_s: 60, expected_back_s: 90 }
+    KW-0041: { asset_id: KW-0041, command: reboot, error: device_offline, status: 409, message: "the device is offline; commands need an online device" }
+  missing: { error: not_found, status: 404 }
+
+- name: toggle_rule
+  description: Turn one driving rule on or off for an asset; the change applies after a rule resync. Admins and owners only.
+  action_class: write
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [asset_id, rule, enabled]
+    properties:
+      asset_id: { type: string, pattern: "^KW-[0-9]{4}$", description: "Asset id, for example KW-0002." }
+      rule: { type: string, enum: [overspeed-obd, overspeed-gps, throttle, check-engine, harsh-speed-delta-obd, close-following] }
+      enabled: { type: boolean }
+  table:
+    KW-0002: { asset_id: KW-0002, accepted: true, syncStatus: pending, resync: queued, applies_within_s: 120 }
+    KW-0008: { asset_id: KW-0008, accepted: true, syncStatus: pending, resync: queued, applies_within_s: 120 }
+    KW-0012: { asset_id: KW-0012, accepted: true, syncStatus: pending, resync: queued, applies_within_s: 120 }
+    KW-0027: { asset_id: KW-0027, accepted: true, syncStatus: pending, resync: queued, applies_within_s: 120 }
+    KW-0041: { asset_id: KW-0041, accepted: true, syncStatus: pending, resync: queued, applies_within_s: 120, note: "the device is offline; the rules sync when it reconnects" }
+  missing: { error: not_found, status: 404 }
+
+- name: power_off_device
+  description: Power off an online device. Not remotely recoverable. Needs a human approval.
+  action_class: destructive
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  audit: { before: get_asset_status }
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [asset_id]
+    properties:
+      asset_id: { type: string, pattern: "^KW-[0-9]{4}$", description: "Asset id, for example KW-0027." }
+  table:
+    KW-0002: { asset_id: KW-0002, command: power_off, status: queued, request_id: CMD-61041, ttl_s: 60, warning: "not remotely recoverable: someone must restore power at the vehicle" }
+    KW-0008: { asset_id: KW-0008, command: power_off, status: queued, request_id: CMD-61042, ttl_s: 60, warning: "not remotely recoverable: someone must restore power at the vehicle" }
+    KW-0012: { asset_id: KW-0012, command: power_off, status: queued, request_id: CMD-61043, ttl_s: 60, warning: "not remotely recoverable: someone must restore power at the vehicle" }
+    KW-0027: { asset_id: KW-0027, command: power_off, status: queued, request_id: CMD-61044, ttl_s: 60, warning: "not remotely recoverable: someone must restore power at the vehicle" }
+    KW-0041: { asset_id: KW-0041, command: power_off, error: device_offline, status: 409, message: "the device is offline; commands need an online device" }
+  missing: { error: not_found, status: 404 }
+
+- name: clear_sms
+  description: Delete every SMS message on a device's modem. Irreversible. Needs a human approval.
+  action_class: destructive
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  audit: { before: get_inbox }
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [asset_id]
+    properties:
+      asset_id: { type: string, pattern: "^KW-[0-9]{4}$", description: "Asset id, for example KW-0008." }
+  table:
+    KW-0002: { asset_id: KW-0002, action: clear, status: pending, read_id: SR-3302, messages_to_clear: 0 }
+    KW-0008: { asset_id: KW-0008, action: clear, status: pending, read_id: SR-3308, messages_to_clear: 6, irreversible: true }
+    KW-0012: { asset_id: KW-0012, action: clear, status: pending, read_id: SR-3312, messages_to_clear: 2, irreversible: true }
+    KW-0027: { asset_id: KW-0027, action: clear, status: pending, read_id: SR-3327, messages_to_clear: 1, irreversible: true }
+    KW-0041: { asset_id: KW-0041, action: clear, error: device_offline, status: 409, message: "the device is offline; commands need an online device" }
+  missing: { error: not_found, status: 404 }
+
+- name: purge_device
+  description: Permanently delete a device's workflow runs, telemetry and media (a preview, the approval as the confirmation, then a queued purge to poll). Needs a human approval.
+  action_class: destructive
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  audit: { before: get_asset_status }
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [asset_id]
+    properties:
+      asset_id: { type: string, pattern: "^KW-[0-9]{4}$", description: "Asset id, for example KW-0041." }
+  table:
+    KW-0002: { asset_id: KW-0002, purge_id: PG-5102, status: queued, scopes: [workflows, telemetry, media], preview: { workflow_runs: 96, telemetry_sessions: 21, media_sessions: 0 } }
+    KW-0008: { asset_id: KW-0008, purge_id: PG-5108, status: queued, scopes: [workflows, telemetry, media], preview: { workflow_runs: 58, telemetry_sessions: 14, media_sessions: 2 } }
+    KW-0012: { asset_id: KW-0012, purge_id: PG-5112, status: queued, scopes: [workflows, telemetry, media], preview: { workflow_runs: 230, telemetry_sessions: 44, media_sessions: 11 } }
+    KW-0027: { asset_id: KW-0027, error: purge_in_progress, status: 409, message: "a purge of this device is already running" }
+    KW-0041: { asset_id: KW-0041, purge_id: PG-5141, status: queued, scopes: [workflows, telemetry, media], preview: { workflow_runs: 412, telemetry_sessions: 37, media_sessions: 9 } }
+  missing: { error: not_found, status: 404 }

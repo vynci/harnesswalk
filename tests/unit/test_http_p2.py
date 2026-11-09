@@ -377,10 +377,14 @@ async def test_capabilities_per_mode(tmp_path: Path) -> None:
         "ids": [
             "_starter",
             "conformance_alt",
+            "device_fleet",
             "ecommerce",
             "finance",
+            "gov_services",
             "healthcare",
+            "helpdesk_lite",
             "logistics",
+            "long_session",
             "sports",
         ],
     }

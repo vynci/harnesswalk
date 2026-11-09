@@ -23,6 +23,18 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
   working set with artifact bodies replaced, nothing stored) that internal eval runs can use,
   with their own case list. `evals.golden_paths`. Diagnose's `tool_choice` evidence and
   `levers` (`["prompt_or_skill", "tune"]` for a `model` failure).
+- **Four packs on the empty rungs (P2).** `device_fleet` (Kestrelway Field Services,
+  `governed`): a telematics fleet desk on a real platform's API shapes, twelve tools split by
+  risk, approvals on power-off, SMS clear and purge, a viewer's and an operator's reboot denied
+  by policy (new `viewer` and `operator` roles and rule `fleet.admins_only` in
+  `config/policy.yaml`), and its business rules in `skills/policy.md`. `gov_services`
+  (Aldervale Services Desk, `grounded`): English and French programme rules cited in the
+  language of the question, a SIN or a street address in a sentence redacted, read-only tools.
+  `long_session` (Fernhollow Journeys, `remembered`): long multi-turn chats that cross the
+  compaction threshold, checked with `checks.compacted` and `checks.summary`, and a remembered
+  preference recalled in a later session. `helpdesk_lite` (Pebblebrook IT Helpdesk, `minimal`):
+  one read-only lookup per question, so the lowest rung has a pack a small local model can
+  pass. The Guide's domain demos gain the new packs.
 - **Multi-turn golden cases and pack format additions (P2).** A golden case may script a
   whole conversation (`turns`), run in one session so memory and compaction are testable,
   with expectations on any turn and on the case; `roles` runs a case as a given role;

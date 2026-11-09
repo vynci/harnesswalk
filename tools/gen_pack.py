@@ -544,6 +544,11 @@ def write_provenance(pack: str, pack_dir: Path, pdfs: list[str]) -> None:
         else "A maintainer's content review (safety, licence card, no PII) is still pending."
     )
     rendered = ", ".join(f"`docs/{d}.pdf` (source `sources/{d}.md`)" for d in pdfs) or "none"
+    hosted = sorted({r["stage"].split("[")[0] for r in rows})
+    by_hand = [s for s in ("core", "docs", "golden") if s not in hosted]
+    stages = f"hosted stages {', '.join(hosted) or 'none'}, then finalize" + (
+        f"; {', '.join(by_hand)} written by hand" if by_hand else ""
+    )
     text = f"""# Provenance: {pack}
 
 **{title}** is a synthetic dataset pack for harnesswalk. Synthetic, no real people, companies
@@ -552,7 +557,7 @@ or identifiers: every business, product, place, person, id and number in it is i
 | | |
 |---|---|
 | Licence | CC0 1.0 Universal (public domain dedication) |
-| Generator | `tools/gen_pack.py` (stages core, docs, golden, then finalize) |
+| Generator | `tools/gen_pack.py` ({stages}) |
 | Model | {models} (Anthropic Messages API), thinking off |
 | Generated on | {", ".join(dates)} |
 | Prompts | `tools/packs/_common.prompt.md`, `tools/packs/{pack}.prompt.md` |

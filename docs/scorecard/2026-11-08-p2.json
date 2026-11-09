@@ -1,0 +1,6933 @@
+{
+  "generated_at": "2026-11-08 22:05",
+  "harness_version": "0.1.1",
+  "spec_version": "0.2.0",
+  "tenant": "scorecard",
+  "ollama": {
+    "host": "http://192.168.8.107:11434",
+    "version": "0.34.1",
+    "reachable": true,
+    "error": null
+  },
+  "packs": [
+    "device_fleet",
+    "gov_services",
+    "long_session",
+    "helpdesk_lite"
+  ],
+  "models": [
+    {
+      "alias": "fake-small",
+      "provider": "fake",
+      "name": "fake-small",
+      "label": "Fake model (scripted)",
+      "details": {},
+      "digest": null,
+      "params": null,
+      "price_in_per_mtok": 0,
+      "price_out_per_mtok": 0,
+      "temperature": "n/a (scripted)"
+    },
+    {
+      "alias": "local-4b",
+      "provider": "ollama",
+      "name": "qwen3.5:4b",
+      "label": null,
+      "details": {
+        "family": "qwen35",
+        "parameter_size": "4.2B",
+        "quantization_level": "Q4_K_M",
+        "format": "gguf"
+      },
+      "digest": "d8b0f5e9760c",
+      "params": {
+        "think": false
+      },
+      "price_in_per_mtok": 0,
+      "price_out_per_mtok": 0,
+      "temperature": "0"
+    },
+    {
+      "alias": "local-e4b",
+      "provider": "ollama",
+      "name": "gemma4:e4b",
+      "label": null,
+      "details": {
+        "family": "gemma4",
+        "parameter_size": "7.5B",
+        "quantization_level": "Q4_K_M",
+        "format": "gguf"
+      },
+      "digest": "dc35e8d9c606",
+      "params": {
+        "think": false
+      },
+      "price_in_per_mtok": 0,
+      "price_out_per_mtok": 0,
+      "temperature": "0"
+    },
+    {
+      "alias": "local-9b",
+      "provider": "ollama",
+      "name": "qwen3.5:9b",
+      "label": null,
+      "details": {
+        "family": "qwen35",
+        "parameter_size": "9.0B",
+        "quantization_level": "Q4_K_M",
+        "format": "gguf"
+      },
+      "digest": "56671c2ab938",
+      "params": {
+        "think": false
+      },
+      "price_in_per_mtok": 0,
+      "price_out_per_mtok": 0,
+      "temperature": "0"
+    }
+  ],
+  "cells": [
+    {
+      "pack": "device_fleet",
+      "model": "fake-small",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0050",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 28,
+            "passed": 28,
+            "failed": 0,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 29280,
+            "output_tokens": 2602,
+            "usd": 0.0
+          },
+          "seconds": 0.9,
+          "cases": [
+            {
+              "case_id": "failed_sync_lookup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "offline_asset_status",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7201",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7202_stops",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_kw0012",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_too_short",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_formula_explained",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "triage_ev9101_implausible",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "triage_ev9102_held_limit",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "triage_ev9103_keep",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "power_off_denied",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "power_off_approved",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "viewer_reboot_denied",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "operator_reboot_denied",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "admin_reboot_queued",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "operator_obd_scan",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_rate_limited",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_no_obd",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "sms_contents_refused",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "clear_sms_approved",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "purge_denied",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "incident_stuck_runs",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "toggle_harsh_1hz",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "window_not_classified_by_model",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "policy_operator_power_off",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "command_preconditions_kb",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "offline_then_power_off",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_then_worst_event",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            }
+          ]
+        },
+        {
+          "run_id": "run_0051",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 28,
+            "passed": 28,
+            "failed": 0,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 29280,
+            "output_tokens": 2602,
+            "usd": 0.0
+          },
+          "seconds": 0.7,
+          "cases": [
+            {
+              "case_id": "failed_sync_lookup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "offline_asset_status",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7201",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7202_stops",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_kw0012",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_too_short",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_formula_explained",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "triage_ev9101_implausible",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "triage_ev9102_held_limit",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "triage_ev9103_keep",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "power_off_denied",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "power_off_approved",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "viewer_reboot_denied",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "operator_reboot_denied",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "admin_reboot_queued",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "operator_obd_scan",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_rate_limited",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_no_obd",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "sms_contents_refused",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "clear_sms_approved",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "purge_denied",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "incident_stuck_runs",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "toggle_harsh_1hz",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "window_not_classified_by_model",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "policy_operator_power_off",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "command_preconditions_kb",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "offline_then_power_off",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_then_worst_event",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "gov_services",
+      "model": "fake-small",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0052",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 27,
+            "passed": 27,
+            "failed": 0,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 17790,
+            "output_tokens": 2040,
+            "usd": 0.0
+          },
+          "seconds": 0.7,
+          "cases": [
+            {
+              "case_id": "hhr_eligibility_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "hhr_documents_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "hhr_deadline_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "cac_amount_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "stp_renewal_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "residence_proof_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "privacy_retention_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_admissibilite_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_montant_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "cae_activites_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "lpa_documents_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "preuve_residence_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "confidentialite_nas_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "office_hours_north_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "heures_port_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "status_in_review_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "statut_refuse_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "status_paid_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "sin_in_french_redacted",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "address_en_redacted",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "adresse_fr_redacted",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "classify_intent_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "classify_intent_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "guide_summary_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "guide_resume_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "bilingual_two_turns",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "status_then_office",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            }
+          ]
+        },
+        {
+          "run_id": "run_0053",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 27,
+            "passed": 27,
+            "failed": 0,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 17790,
+            "output_tokens": 2040,
+            "usd": 0.0
+          },
+          "seconds": 0.5,
+          "cases": [
+            {
+              "case_id": "hhr_eligibility_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "hhr_documents_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "hhr_deadline_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "cac_amount_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "stp_renewal_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "residence_proof_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "privacy_retention_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_admissibilite_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_montant_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "cae_activites_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "lpa_documents_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "preuve_residence_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "confidentialite_nas_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "office_hours_north_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "heures_port_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "status_in_review_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "statut_refuse_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "status_paid_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "sin_in_french_redacted",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "address_en_redacted",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "adresse_fr_redacted",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "classify_intent_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "classify_intent_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "guide_summary_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "guide_resume_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "bilingual_two_turns",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "status_then_office",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "long_session",
+      "model": "fake-small",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0054",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 20,
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 26310,
+            "output_tokens": 2340,
+            "usd": 0.0
+          },
+          "seconds": 1.0,
+          "cases": [
+            {
+              "case_id": "trip_status_tr4471",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ferry_times_mir_car",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ferry_ell_car_weekday",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "hotel_cancel_ht12",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "hotel_accessible_ht21",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "trip_tr4602",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_children_fares",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_luggage_limits",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_cancellation_band",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_christmas_ferry",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_photo_id",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "episodic_tr4390",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "remember_aisle_seat",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "recall_aisle_seat",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "remember_then_use",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "short_session_no_compaction",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "long_recall_booking_ref",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "long_tool_after_compaction",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "long_decision_kept",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "long_two_changes",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            }
+          ]
+        },
+        {
+          "run_id": "run_0055",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 20,
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 26310,
+            "output_tokens": 2340,
+            "usd": 0.0
+          },
+          "seconds": 0.9,
+          "cases": [
+            {
+              "case_id": "trip_status_tr4471",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ferry_times_mir_car",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ferry_ell_car_weekday",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "hotel_cancel_ht12",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "hotel_accessible_ht21",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "trip_tr4602",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_children_fares",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_luggage_limits",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_cancellation_band",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_christmas_ferry",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_photo_id",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "episodic_tr4390",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "remember_aisle_seat",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "recall_aisle_seat",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "remember_then_use",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "short_session_no_compaction",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "long_recall_booking_ref",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "long_tool_after_compaction",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "long_decision_kept",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "long_two_changes",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "helpdesk_lite",
+      "model": "fake-small",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0056",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 21,
+            "passed": 21,
+            "failed": 0,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 18930,
+            "output_tokens": 1369,
+            "usd": 0.0
+          },
+          "seconds": 0.5,
+          "cases": [
+            {
+              "case_id": "ticket_hd1042",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1055",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1061",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1077",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1083",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_unknown",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "vpn_outage",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "email_ok",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "printers_degraded",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "wifi_ok",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "file_share_backup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "video_calls_echo",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "guest_wifi_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "printers_north",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "east_it_desk",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "harbour_desk_hours",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "meeting_rooms_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "desk_hours",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "password_never",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_id_format",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_then_service",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            }
+          ]
+        },
+        {
+          "run_id": "run_0057",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 21,
+            "passed": 21,
+            "failed": 0,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 18930,
+            "output_tokens": 1369,
+            "usd": 0.0
+          },
+          "seconds": 0.4,
+          "cases": [
+            {
+              "case_id": "ticket_hd1042",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1055",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1061",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1077",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1083",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_unknown",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "vpn_outage",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "email_ok",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "printers_degraded",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "wifi_ok",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "file_share_backup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "video_calls_echo",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "guest_wifi_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "printers_north",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "east_it_desk",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "harbour_desk_hours",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "meeting_rooms_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "desk_hours",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "password_never",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_id_format",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_then_service",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "device_fleet",
+      "model": "local-4b",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0058",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 28,
+            "passed": 5,
+            "failed": 23,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 216156,
+            "output_tokens": 4095,
+            "usd": 0.0
+          },
+          "seconds": 42.8,
+          "cases": [
+            {
+              "case_id": "failed_sync_lookup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "offline_asset_status",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7201",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7202_stops",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_kw0012",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_too_short",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_formula_explained",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "triage_ev9101_implausible",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "triage_ev9102_held_limit",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "triage_ev9103_keep",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "power_off_denied",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "power_off_approved",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "viewer_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "operator_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "admin_reboot_queued",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "operator_obd_scan",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_rate_limited",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_no_obd",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "sms_contents_refused",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "clear_sms_approved",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called"
+            },
+            {
+              "case_id": "purge_denied",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called"
+            },
+            {
+              "case_id": "incident_stuck_runs",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "toggle_harsh_1hz",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "window_not_classified_by_model",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "policy_operator_power_off",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "command_preconditions_kb",
+              "status": "failed",
+              "failed": [
+                "citations"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "offline_then_power_off",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called"
+            },
+            {
+              "case_id": "score_then_worst_event",
+              "status": "failed",
+              "failed": [
+                "turn2.answer_match"
+              ],
+              "errors": []
+            }
+          ]
+        },
+        {
+          "run_id": "run_0059",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 28,
+            "passed": 5,
+            "failed": 23,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 218859,
+            "output_tokens": 2967,
+            "usd": 0.0
+          },
+          "seconds": 34.5,
+          "cases": [
+            {
+              "case_id": "failed_sync_lookup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "offline_asset_status",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7201",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7202_stops",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_kw0012",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_too_short",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_formula_explained",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "triage_ev9101_implausible",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "triage_ev9102_held_limit",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "triage_ev9103_keep",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "power_off_denied",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "power_off_approved",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "viewer_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "operator_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "admin_reboot_queued",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "operator_obd_scan",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_rate_limited",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_no_obd",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "sms_contents_refused",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "clear_sms_approved",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called"
+            },
+            {
+              "case_id": "purge_denied",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "incident_stuck_runs",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "toggle_harsh_1hz",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "window_not_classified_by_model",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "policy_operator_power_off",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "command_preconditions_kb",
+              "status": "failed",
+              "failed": [
+                "citations"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "offline_then_power_off",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called"
+            },
+            {
+              "case_id": "score_then_worst_event",
+              "status": "failed",
+              "failed": [
+                "turn2.answer_match"
+              ],
+              "errors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "gov_services",
+      "model": "local-4b",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0060",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 27,
+            "passed": 10,
+            "failed": 17,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 103302,
+            "output_tokens": 2560,
+            "usd": 0.0
+          },
+          "seconds": 24.6,
+          "cases": [
+            {
+              "case_id": "hhr_eligibility_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "hhr_documents_en",
+              "status": "failed",
+              "failed": [
+                "citations",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "hhr_deadline_en",
+              "status": "failed",
+              "failed": [
+                "citations",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "cac_amount_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "stp_renewal_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "residence_proof_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "privacy_retention_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_admissibilite_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_montant_fr",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "cae_activites_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "lpa_documents_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "preuve_residence_fr",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "confidentialite_nas_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "office_hours_north_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "heures_port_fr",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "status_in_review_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "statut_refuse_fr",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "status_paid_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "sin_in_french_redacted",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "address_en_redacted",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "adresse_fr_redacted",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "classify_intent_en",
+              "status": "failed",
+              "failed": [
+                "schema"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "classify_intent_fr",
+              "status": "failed",
+              "failed": [
+                "schema"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "guide_summary_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "guide_resume_fr",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "bilingual_two_turns",
+              "status": "failed",
+              "failed": [
+                "turn1.answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "status_then_office",
+              "status": "failed",
+              "failed": [
+                "turn1.answer_match",
+                "turn2.answer_match",
+                "answer_match"
+              ],
+              "errors": []
+            }
+          ]
+        },
+        {
+          "run_id": "run_0061",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 27,
+            "passed": 10,
+            "failed": 17,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 100922,
+            "output_tokens": 2553,
+            "usd": 0.0
+          },
+          "seconds": 28.1,
+          "cases": [
+            {
+              "case_id": "hhr_eligibility_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "hhr_documents_en",
+              "status": "failed",
+              "failed": [
+                "citations",
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "hhr_deadline_en",
+              "status": "failed",
+              "failed": [
+                "citations",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "cac_amount_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "stp_renewal_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "residence_proof_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "privacy_retention_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_admissibilite_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_montant_fr",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "cae_activites_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "lpa_documents_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "preuve_residence_fr",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "confidentialite_nas_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "office_hours_north_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "heures_port_fr",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "status_in_review_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "statut_refuse_fr",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "status_paid_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "sin_in_french_redacted",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "address_en_redacted",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "adresse_fr_redacted",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "classify_intent_en",
+              "status": "failed",
+              "failed": [
+                "schema"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "classify_intent_fr",
+              "status": "failed",
+              "failed": [
+                "schema"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "guide_summary_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "guide_resume_fr",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "bilingual_two_turns",
+              "status": "failed",
+              "failed": [
+                "turn1.answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "status_then_office",
+              "status": "failed",
+              "failed": [
+                "turn1.answer_match",
+                "turn2.answer_match",
+                "answer_match"
+              ],
+              "errors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "long_session",
+      "model": "local-4b",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0062",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 20,
+            "passed": 9,
+            "failed": 11,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 296809,
+            "output_tokens": 13813,
+            "usd": 0.0
+          },
+          "seconds": 115.1,
+          "cases": [
+            {
+              "case_id": "trip_status_tr4471",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ferry_times_mir_car",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ferry_ell_car_weekday",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "hotel_cancel_ht12",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "hotel_accessible_ht21",
+              "status": "failed",
+              "failed": [
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            },
+            {
+              "case_id": "trip_tr4602",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_children_fares",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_luggage_limits",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_cancellation_band",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "kb_christmas_ferry",
+              "status": "failed",
+              "failed": [
+                "citations"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "kb_photo_id",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "episodic_tr4390",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "remember_aisle_seat",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "recall_aisle_seat",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "remember_then_use",
+              "status": "failed",
+              "failed": [
+                "turn2.checks"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "short_session_no_compaction",
+              "status": "failed",
+              "failed": [
+                "turn1.tool_calls",
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn3.path",
+                "turn3.tool_calls",
+                "turn3.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            },
+            {
+              "case_id": "long_recall_booking_ref",
+              "status": "failed",
+              "failed": [
+                "turn7.tool_calls",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "long_tool_after_compaction",
+              "status": "failed",
+              "failed": [
+                "turn5.path",
+                "turn5.tool_calls",
+                "turn5.checks"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "long_decision_kept",
+              "status": "failed",
+              "failed": [
+                "turn6.answer_match",
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "long_two_changes",
+              "status": "failed",
+              "failed": [
+                "turn7.path",
+                "turn7.tool_calls",
+                "turn7.answer_match"
+              ],
+              "errors": []
+            }
+          ]
+        },
+        {
+          "run_id": "run_0063",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 20,
+            "passed": 9,
+            "failed": 11,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 304872,
+            "output_tokens": 13122,
+            "usd": 0.0
+          },
+          "seconds": 108.8,
+          "cases": [
+            {
+              "case_id": "trip_status_tr4471",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ferry_times_mir_car",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ferry_ell_car_weekday",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "hotel_cancel_ht12",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "hotel_accessible_ht21",
+              "status": "failed",
+              "failed": [
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            },
+            {
+              "case_id": "trip_tr4602",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_children_fares",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_luggage_limits",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_cancellation_band",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "kb_christmas_ferry",
+              "status": "failed",
+              "failed": [
+                "citations"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "kb_photo_id",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "episodic_tr4390",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "remember_aisle_seat",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "recall_aisle_seat",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "remember_then_use",
+              "status": "failed",
+              "failed": [
+                "turn2.checks"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "short_session_no_compaction",
+              "status": "failed",
+              "failed": [
+                "turn1.tool_calls",
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn3.path",
+                "turn3.tool_calls",
+                "turn3.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            },
+            {
+              "case_id": "long_recall_booking_ref",
+              "status": "failed",
+              "failed": [
+                "turn7.tool_calls",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "long_tool_after_compaction",
+              "status": "failed",
+              "failed": [
+                "turn5.path",
+                "turn5.tool_calls",
+                "turn5.checks"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "long_decision_kept",
+              "status": "failed",
+              "failed": [
+                "turn6.path",
+                "turn6.tool_calls",
+                "turn6.answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "long_two_changes",
+              "status": "failed",
+              "failed": [
+                "turn7.path",
+                "turn7.tool_calls",
+                "turn7.answer_match",
+                "answer_match"
+              ],
+              "errors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "helpdesk_lite",
+      "model": "local-4b",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0064",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 21,
+            "passed": 16,
+            "failed": 5,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 47183,
+            "output_tokens": 1257,
+            "usd": 0.0
+          },
+          "seconds": 15.0,
+          "cases": [
+            {
+              "case_id": "ticket_hd1042",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1055",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1061",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1077",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1083",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_unknown",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "vpn_outage",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "email_ok",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "printers_degraded",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "wifi_ok",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "file_share_backup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "video_calls_echo",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "guest_wifi_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "printers_north",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "east_it_desk",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "harbour_desk_hours",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "meeting_rooms_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "desk_hours",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "password_never",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_id_format",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_then_service",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            }
+          ]
+        },
+        {
+          "run_id": "run_0065",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 21,
+            "passed": 16,
+            "failed": 5,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 47183,
+            "output_tokens": 1257,
+            "usd": 0.0
+          },
+          "seconds": 15.0,
+          "cases": [
+            {
+              "case_id": "ticket_hd1042",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1055",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1061",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1077",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1083",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_unknown",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "vpn_outage",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "email_ok",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "printers_degraded",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "wifi_ok",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "file_share_backup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "video_calls_echo",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "guest_wifi_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "printers_north",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "east_it_desk",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "harbour_desk_hours",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "meeting_rooms_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "desk_hours",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "password_never",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_id_format",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_then_service",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "device_fleet",
+      "model": "local-e4b",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0066",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 28,
+            "passed": 4,
+            "failed": 24,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 168498,
+            "output_tokens": 2465,
+            "usd": 0.0
+          },
+          "seconds": 28.3,
+          "cases": [
+            {
+              "case_id": "failed_sync_lookup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "offline_asset_status",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7201",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7202_stops",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "score_kw0012",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "score_too_short",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "score_formula_explained",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "triage_ev9101_implausible",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "triage_ev9102_held_limit",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "triage_ev9103_keep",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "power_off_denied",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "power_off_approved",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "viewer_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "operator_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "admin_reboot_queued",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "operator_obd_scan",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_rate_limited",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_no_obd",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "sms_contents_refused",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "clear_sms_approved",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "purge_denied",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "incident_stuck_runs",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            },
+            {
+              "case_id": "toggle_harsh_1hz",
+              "status": "failed",
+              "failed": [
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            },
+            {
+              "case_id": "window_not_classified_by_model",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "policy_operator_power_off",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "command_preconditions_kb",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "offline_then_power_off",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called"
+            },
+            {
+              "case_id": "score_then_worst_event",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            }
+          ]
+        },
+        {
+          "run_id": "run_0067",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 28,
+            "passed": 4,
+            "failed": 24,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 176966,
+            "output_tokens": 2243,
+            "usd": 0.0
+          },
+          "seconds": 25.7,
+          "cases": [
+            {
+              "case_id": "failed_sync_lookup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "offline_asset_status",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7201",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7202_stops",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "score_kw0012",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "score_too_short",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "score_formula_explained",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "triage_ev9101_implausible",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "triage_ev9102_held_limit",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "triage_ev9103_keep",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "power_off_denied",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "power_off_approved",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "viewer_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called"
+            },
+            {
+              "case_id": "operator_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "admin_reboot_queued",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "operator_obd_scan",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_rate_limited",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_no_obd",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "sms_contents_refused",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "clear_sms_approved",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "purge_denied",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "incident_stuck_runs",
+              "status": "failed",
+              "failed": [
+                "path",
+                "citations",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            },
+            {
+              "case_id": "toggle_harsh_1hz",
+              "status": "failed",
+              "failed": [
+                "citations",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            },
+            {
+              "case_id": "window_not_classified_by_model",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "policy_operator_power_off",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "command_preconditions_kb",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "offline_then_power_off",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called"
+            },
+            {
+              "case_id": "score_then_worst_event",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "gov_services",
+      "model": "local-e4b",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0068",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 27,
+            "passed": 11,
+            "failed": 16,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 72680,
+            "output_tokens": 2616,
+            "usd": 0.0
+          },
+          "seconds": 21.3,
+          "cases": [
+            {
+              "case_id": "hhr_eligibility_en",
+              "status": "failed",
+              "failed": [
+                "citations"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "hhr_documents_en",
+              "status": "failed",
+              "failed": [
+                "citations",
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "hhr_deadline_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "cac_amount_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "stp_renewal_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "residence_proof_en",
+              "status": "failed",
+              "failed": [
+                "citations"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "privacy_retention_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_admissibilite_fr",
+              "status": "failed",
+              "failed": [
+                "citations"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_montant_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "cae_activites_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "lpa_documents_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "preuve_residence_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "confidentialite_nas_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "office_hours_north_en",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "heures_port_fr",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "status_in_review_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "statut_refuse_fr",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "status_paid_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "sin_in_french_redacted",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "address_en_redacted",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "adresse_fr_redacted",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "classify_intent_en",
+              "status": "failed",
+              "failed": [
+                "schema"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "classify_intent_fr",
+              "status": "failed",
+              "failed": [
+                "schema"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "guide_summary_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "guide_resume_fr",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "bilingual_two_turns",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "status_then_office",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            }
+          ]
+        },
+        {
+          "run_id": "run_0069",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 27,
+            "passed": 10,
+            "failed": 17,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 72663,
+            "output_tokens": 2544,
+            "usd": 0.0
+          },
+          "seconds": 21.5,
+          "cases": [
+            {
+              "case_id": "hhr_eligibility_en",
+              "status": "failed",
+              "failed": [
+                "citations"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "hhr_documents_en",
+              "status": "failed",
+              "failed": [
+                "citations",
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "hhr_deadline_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "cac_amount_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "stp_renewal_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "residence_proof_en",
+              "status": "failed",
+              "failed": [
+                "citations"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "privacy_retention_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_admissibilite_fr",
+              "status": "failed",
+              "failed": [
+                "citations"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_montant_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "cae_activites_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "lpa_documents_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "preuve_residence_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "confidentialite_nas_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "office_hours_north_en",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "heures_port_fr",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "status_in_review_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "statut_refuse_fr",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "status_paid_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "sin_in_french_redacted",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "address_en_redacted",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "adresse_fr_redacted",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "classify_intent_en",
+              "status": "failed",
+              "failed": [
+                "schema"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "classify_intent_fr",
+              "status": "failed",
+              "failed": [
+                "schema"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "guide_summary_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "guide_resume_fr",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "bilingual_two_turns",
+              "status": "failed",
+              "failed": [
+                "turn1.answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "status_then_office",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "long_session",
+      "model": "local-e4b",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0070",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 20,
+            "passed": 8,
+            "failed": 12,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 291585,
+            "output_tokens": 9343,
+            "usd": 0.0
+          },
+          "seconds": 80.8,
+          "cases": [
+            {
+              "case_id": "trip_status_tr4471",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ferry_times_mir_car",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ferry_ell_car_weekday",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "hotel_cancel_ht12",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "hotel_accessible_ht21",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "trip_tr4602",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "kb_children_fares",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_luggage_limits",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_cancellation_band",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_christmas_ferry",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_photo_id",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "episodic_tr4390",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "remember_aisle_seat",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "recall_aisle_seat",
+              "status": "failed",
+              "failed": [
+                "checks"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "remember_then_use",
+              "status": "failed",
+              "failed": [
+                "turn2.checks"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "short_session_no_compaction",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "turn3.path",
+                "turn3.tool_calls",
+                "turn3.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "long_recall_booking_ref",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "long_tool_after_compaction",
+              "status": "failed",
+              "failed": [
+                "turn5.path",
+                "turn5.tool_calls",
+                "turn5.answer_match",
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "long_decision_kept",
+              "status": "failed",
+              "failed": [
+                "turn6.path",
+                "turn6.tool_calls",
+                "turn6.answer_match",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "extra or wrong tool"
+            },
+            {
+              "case_id": "long_two_changes",
+              "status": "failed",
+              "failed": [
+                "turn7.path",
+                "turn7.tool_calls",
+                "turn7.answer_match",
+                "turn7.checks",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "extra or wrong tool"
+            }
+          ]
+        },
+        {
+          "run_id": "run_0071",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 20,
+            "passed": 8,
+            "failed": 12,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 267557,
+            "output_tokens": 9293,
+            "usd": 0.0
+          },
+          "seconds": 77.3,
+          "cases": [
+            {
+              "case_id": "trip_status_tr4471",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ferry_times_mir_car",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ferry_ell_car_weekday",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "hotel_cancel_ht12",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "hotel_accessible_ht21",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "trip_tr4602",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "kb_children_fares",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_luggage_limits",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_cancellation_band",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_christmas_ferry",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_photo_id",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "episodic_tr4390",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "remember_aisle_seat",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "recall_aisle_seat",
+              "status": "failed",
+              "failed": [
+                "checks"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "remember_then_use",
+              "status": "failed",
+              "failed": [
+                "turn2.checks"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "short_session_no_compaction",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "turn3.path",
+                "turn3.tool_calls",
+                "turn3.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "long_recall_booking_ref",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "long_tool_after_compaction",
+              "status": "failed",
+              "failed": [
+                "turn5.path",
+                "turn5.tool_calls",
+                "turn5.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            },
+            {
+              "case_id": "long_decision_kept",
+              "status": "failed",
+              "failed": [
+                "turn6.path",
+                "turn6.tool_calls",
+                "turn6.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            },
+            {
+              "case_id": "long_two_changes",
+              "status": "failed",
+              "failed": [
+                "turn7.path",
+                "turn7.tool_calls",
+                "turn7.answer_match",
+                "turn7.checks",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "extra or wrong tool"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "helpdesk_lite",
+      "model": "local-e4b",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0072",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 21,
+            "passed": 19,
+            "failed": 2,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 35620,
+            "output_tokens": 953,
+            "usd": 0.0
+          },
+          "seconds": 7.9,
+          "cases": [
+            {
+              "case_id": "ticket_hd1042",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1055",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1061",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1077",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1083",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_unknown",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "vpn_outage",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "email_ok",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "printers_degraded",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "wifi_ok",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "file_share_backup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "video_calls_echo",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "guest_wifi_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "printers_north",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "east_it_desk",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "harbour_desk_hours",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "meeting_rooms_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "desk_hours",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "password_never",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_id_format",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_then_service",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            }
+          ]
+        },
+        {
+          "run_id": "run_0073",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 21,
+            "passed": 19,
+            "failed": 2,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 35620,
+            "output_tokens": 953,
+            "usd": 0.0
+          },
+          "seconds": 7.8,
+          "cases": [
+            {
+              "case_id": "ticket_hd1042",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1055",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1061",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1077",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1083",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_unknown",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "vpn_outage",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "email_ok",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "printers_degraded",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "wifi_ok",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "file_share_backup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "video_calls_echo",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "guest_wifi_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "printers_north",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "east_it_desk",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "harbour_desk_hours",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "meeting_rooms_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "desk_hours",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "password_never",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_id_format",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_then_service",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "device_fleet",
+      "model": "local-9b",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0074",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 28,
+            "passed": 5,
+            "failed": 23,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 197824,
+            "output_tokens": 3016,
+            "usd": 0.0
+          },
+          "seconds": 47.2,
+          "cases": [
+            {
+              "case_id": "failed_sync_lookup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "offline_asset_status",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7201",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7202_stops",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "score_kw0012",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_too_short",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "score_formula_explained",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "triage_ev9101_implausible",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "triage_ev9102_held_limit",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "triage_ev9103_keep",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "power_off_denied",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "power_off_approved",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "viewer_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "operator_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "admin_reboot_queued",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "operator_obd_scan",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_rate_limited",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_no_obd",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "sms_contents_refused",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "clear_sms_approved",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "purge_denied",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "incident_stuck_runs",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "toggle_harsh_1hz",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            },
+            {
+              "case_id": "window_not_classified_by_model",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "policy_operator_power_off",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "command_preconditions_kb",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "offline_then_power_off",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called"
+            },
+            {
+              "case_id": "score_then_worst_event",
+              "status": "failed",
+              "failed": [
+                "turn2.answer_match"
+              ],
+              "errors": []
+            }
+          ]
+        },
+        {
+          "run_id": "run_0075",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 28,
+            "passed": 7,
+            "failed": 21,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 192681,
+            "output_tokens": 3082,
+            "usd": 0.0
+          },
+          "seconds": 46.7,
+          "cases": [
+            {
+              "case_id": "failed_sync_lookup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "offline_asset_status",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7201",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "insights_s7202_stops",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "score_kw0012",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_too_short",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "score_formula_explained",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "triage_ev9101_implausible",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "triage_ev9102_held_limit",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "triage_ev9103_keep",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "power_off_denied",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "power_off_approved",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "viewer_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "operator_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "admin_reboot_queued",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "operator_obd_scan",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_rate_limited",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "obd_scan_no_obd",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "sms_contents_refused",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "clear_sms_approved",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "purge_denied",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "incident_stuck_runs",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "toggle_harsh_1hz",
+              "status": "failed",
+              "failed": [
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            },
+            {
+              "case_id": "window_not_classified_by_model",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "policy_operator_power_off",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "command_preconditions_kb",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "offline_then_power_off",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called"
+            },
+            {
+              "case_id": "score_then_worst_event",
+              "status": "failed",
+              "failed": [
+                "turn2.answer_match"
+              ],
+              "errors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "gov_services",
+      "model": "local-9b",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0076",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 27,
+            "passed": 14,
+            "failed": 13,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 78877,
+            "output_tokens": 2013,
+            "usd": 0.0
+          },
+          "seconds": 27.6,
+          "cases": [
+            {
+              "case_id": "hhr_eligibility_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "hhr_documents_en",
+              "status": "failed",
+              "failed": [
+                "citations",
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "hhr_deadline_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "cac_amount_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "stp_renewal_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "residence_proof_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "privacy_retention_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_admissibilite_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_montant_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "cae_activites_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "lpa_documents_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "preuve_residence_fr",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "confidentialite_nas_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "office_hours_north_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "heures_port_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "status_in_review_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "statut_refuse_fr",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "status_paid_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "sin_in_french_redacted",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "address_en_redacted",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "adresse_fr_redacted",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "classify_intent_en",
+              "status": "failed",
+              "failed": [
+                "schema"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "classify_intent_fr",
+              "status": "failed",
+              "failed": [
+                "schema"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "guide_summary_en",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "guide_resume_fr",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "bilingual_two_turns",
+              "status": "failed",
+              "failed": [
+                "turn1.answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "status_then_office",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            }
+          ]
+        },
+        {
+          "run_id": "run_0077",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 27,
+            "passed": 14,
+            "failed": 13,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 78877,
+            "output_tokens": 2007,
+            "usd": 0.0
+          },
+          "seconds": 27.3,
+          "cases": [
+            {
+              "case_id": "hhr_eligibility_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "hhr_documents_en",
+              "status": "failed",
+              "failed": [
+                "citations",
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "hhr_deadline_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "cac_amount_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "stp_renewal_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "residence_proof_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "privacy_retention_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_admissibilite_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "rcd_montant_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "cae_activites_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "lpa_documents_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "preuve_residence_fr",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "confidentialite_nas_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "office_hours_north_en",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "heures_port_fr",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "status_in_review_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "statut_refuse_fr",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "status_paid_en",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "sin_in_french_redacted",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "address_en_redacted",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "adresse_fr_redacted",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "classify_intent_en",
+              "status": "failed",
+              "failed": [
+                "schema"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "classify_intent_fr",
+              "status": "failed",
+              "failed": [
+                "schema"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "guide_summary_en",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "guide_resume_fr",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "bilingual_two_turns",
+              "status": "failed",
+              "failed": [
+                "turn1.answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "status_then_office",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "long_session",
+      "model": "local-9b",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0078",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 20,
+            "passed": 10,
+            "failed": 10,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 150105,
+            "output_tokens": 5992,
+            "usd": 0.0
+          },
+          "seconds": 460.5,
+          "cases": [
+            {
+              "case_id": "trip_status_tr4471",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ferry_times_mir_car",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "ferry_ell_car_weekday",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "hotel_cancel_ht12",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "hotel_accessible_ht21",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "trip_tr4602",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_children_fares",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_luggage_limits",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_cancellation_band",
+              "status": "failed",
+              "failed": [
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "kb_christmas_ferry",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "kb_photo_id",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "episodic_tr4390",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "remember_aisle_seat",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "recall_aisle_seat",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "remember_then_use",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "short_session_no_compaction",
+              "status": "failed",
+              "failed": [
+                "turn1.tool_calls",
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn3.path",
+                "turn3.tool_calls",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called"
+            },
+            {
+              "case_id": "long_recall_booking_ref",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "called when none expected"
+            },
+            {
+              "case_id": "long_tool_after_compaction",
+              "status": "failed",
+              "failed": [
+                "turn5.path",
+                "turn5.tool_calls",
+                "turn5.answer_match",
+                "turn5.checks",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_timeout",
+                "provider_timeout",
+                "provider_error"
+              ]
+            },
+            {
+              "case_id": "long_decision_kept",
+              "status": "failed",
+              "failed": [
+                "turn6.path",
+                "turn6.tool_calls",
+                "turn6.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "long_two_changes",
+              "status": "failed",
+              "failed": [
+                "turn7.path",
+                "turn7.tool_calls",
+                "turn7.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ],
+              "tool_split": "none called"
+            }
+          ]
+        },
+        {
+          "run_id": "run_0079",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 20,
+            "passed": 0,
+            "failed": 20,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "usd": 0.0
+          },
+          "seconds": 0.8,
+          "cases": [
+            {
+              "case_id": "trip_status_tr4471",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "ferry_times_mir_car",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "ferry_ell_car_weekday",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "hotel_cancel_ht12",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "hotel_accessible_ht21",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "trip_tr4602",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "kb_children_fares",
+              "status": "failed",
+              "failed": [
+                "citations",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ]
+            },
+            {
+              "case_id": "kb_luggage_limits",
+              "status": "failed",
+              "failed": [
+                "citations",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ]
+            },
+            {
+              "case_id": "kb_cancellation_band",
+              "status": "failed",
+              "failed": [
+                "citations",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ]
+            },
+            {
+              "case_id": "kb_christmas_ferry",
+              "status": "failed",
+              "failed": [
+                "citations",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ]
+            },
+            {
+              "case_id": "kb_photo_id",
+              "status": "failed",
+              "failed": [
+                "citations",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ]
+            },
+            {
+              "case_id": "episodic_tr4390",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ]
+            },
+            {
+              "case_id": "remember_aisle_seat",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "recall_aisle_seat",
+              "status": "failed",
+              "failed": [
+                "answer_match",
+                "checks"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ]
+            },
+            {
+              "case_id": "remember_then_use",
+              "status": "failed",
+              "failed": [
+                "turn1.path",
+                "turn1.tool_calls",
+                "turn1.answer_match",
+                "turn2.citations",
+                "turn2.answer_match",
+                "turn2.checks",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "short_session_no_compaction",
+              "status": "failed",
+              "failed": [
+                "turn1.answer_match",
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "turn3.path",
+                "turn3.tool_calls",
+                "turn3.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "long_recall_booking_ref",
+              "status": "failed",
+              "failed": [
+                "turn6.answer_match",
+                "turn6.checks",
+                "turn7.answer_match",
+                "checks"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ]
+            },
+            {
+              "case_id": "long_tool_after_compaction",
+              "status": "failed",
+              "failed": [
+                "turn5.path",
+                "turn5.tool_calls",
+                "turn5.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "long_decision_kept",
+              "status": "failed",
+              "failed": [
+                "turn6.path",
+                "turn6.tool_calls",
+                "turn6.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "long_two_changes",
+              "status": "failed",
+              "failed": [
+                "turn7.path",
+                "turn7.tool_calls",
+                "turn7.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ],
+              "tool_split": "none called"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "helpdesk_lite",
+      "model": "local-9b",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0080",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 21,
+            "passed": 16,
+            "failed": 5,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 44828,
+            "output_tokens": 1270,
+            "usd": 0.0
+          },
+          "seconds": 20.4,
+          "cases": [
+            {
+              "case_id": "ticket_hd1042",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1055",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1061",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1077",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1083",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_unknown",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "vpn_outage",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "email_ok",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "printers_degraded",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "wifi_ok",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "file_share_backup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "video_calls_echo",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "guest_wifi_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "printers_north",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "east_it_desk",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "harbour_desk_hours",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "meeting_rooms_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "desk_hours",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "password_never",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_id_format",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_then_service",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            }
+          ]
+        },
+        {
+          "run_id": "run_0081",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 21,
+            "passed": 13,
+            "failed": 8,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 37847,
+            "output_tokens": 1041,
+            "usd": 0.0
+          },
+          "seconds": 434.2,
+          "cases": [
+            {
+              "case_id": "ticket_hd1042",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1055",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1061",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1077",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_hd1083",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "ticket_unknown",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "vpn_outage",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "email_ok",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "printers_degraded",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "wifi_ok",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": []
+            },
+            {
+              "case_id": "file_share_backup",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "video_calls_echo",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "guest_wifi_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "printers_north",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "east_it_desk",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "harbour_desk_hours",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called"
+            },
+            {
+              "case_id": "meeting_rooms_harbour",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "desk_hours",
+              "status": "passed",
+              "failed": [],
+              "errors": []
+            },
+            {
+              "case_id": "password_never",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [
+                "provider_timeout",
+                "provider_timeout",
+                "provider_error"
+              ]
+            },
+            {
+              "case_id": "ticket_id_format",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ]
+            },
+            {
+              "case_id": "ticket_then_service",
+              "status": "failed",
+              "failed": [
+                "turn1.path",
+                "turn1.tool_calls",
+                "turn1.answer_match",
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error",
+                "provider_error"
+              ],
+              "tool_split": "none called"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "embeddings": "fake (hash vectors, the same for every model)",
+  "case_timeout_s": 180.0,
+  "command": "HARNESSWALK_OLLAMA_URL=http://192.168.8.107:11434 uv run harnesswalk scorecard --models fake-small,local-4b,local-e4b,local-9b --packs device_fleet,gov_services,long_session,helpdesk_lite --out /private/tmp/claude-501/-Users-vynci-vynci/b2cfb1d6-d4cf-4283-84d7-5147c6b24cd8/scratchpad/scorecard-p2.md --json docs/scorecard/2026-11-08-p2.json --samples 2",
+  "json_path": "docs/scorecard/2026-11-08-p2.json",
+  "grading": "model",
+  "samples": 2,
+  "carried": null,
+  "pack_profiles": {
+    "device_fleet": "governed",
+    "gov_services": "grounded",
+    "long_session": "remembered",
+    "helpdesk_lite": "minimal"
+  },
+  "temperature": "0; n/a (scripted)"
+}

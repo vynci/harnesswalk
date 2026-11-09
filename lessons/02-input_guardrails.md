@@ -12,6 +12,11 @@ also:
     fixture: tool_clinic_hours
     prompt: "My health number is BH-4821-0937-Q. What are the opening hours at the riverside site?"
     note: "With the node off the raw health number reaches the model and stays in the session store; with it on both only see [ID_1]."
+  - pack: gov_services
+    disable: [input_guardrails]
+    fixture: status_in_review_en
+    prompt: "My social insurance number is 526 018 155. What is the status of my application AV-K4417?"
+    note: "With the node off the number reaches the model and the session store in clear; with it on, both see only [ID_1]. The pack's own case types it inside a French sentence."
 ---
 
 # Input guardrails

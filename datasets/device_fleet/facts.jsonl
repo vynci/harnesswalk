@@ -1,0 +1,18 @@
+{"key": "fleet size", "value": "Kestrelway Field Services runs five assets: KW-0002, KW-0008, KW-0012, KW-0027 and KW-0041."}
+{"key": "KW-0041 location", "value": "Reefer 41 has been parked at the Quellby depot since 2026-10-19 waiting for a compressor repair.", "entities": ["KW-0041"]}
+{"key": "KW-0041 power", "value": "Reefer 41's device reported under-voltage before it went offline; the depot disconnected its battery for the repair.", "entities": ["KW-0041"]}
+{"key": "KW-0002 role", "value": "Shop Pickup 2 is the workshop's test vehicle; its device samples at 1 Hz.", "entities": ["KW-0002"]}
+{"key": "KW-0027 route", "value": "Linehaul Tractor 27 runs the overnight trunk route between the Brindleford yard and the Carrowmoor cross-dock.", "entities": ["KW-0027"]}
+{"key": "KW-0012 route", "value": "City Hauler 12 does multi-drop deliveries in the Brindleford centre, usually 12 to 16 stops a day.", "entities": ["KW-0012"]}
+{"key": "KW-0008 route", "value": "Route Van 8 covers the residential loops around Ostley Cross and rarely drives more than 40 km a day.", "entities": ["KW-0008"]}
+{"key": "KW-0008 SMS", "value": "Route Van 8's SIM receives carrier notices; the fleet lead clears its inbox monthly after approval.", "entities": ["KW-0008"]}
+{"key": "approver", "value": "Command approvals are decided by the fleet lead on duty."}
+{"key": "desk hours", "value": "The fleet desk is staffed 07:00 to 19:00, Monday to Saturday."}
+{"key": "score review", "value": "Overspeed events with a pending review are held out of the driver score until the fleet lead keeps or drops them."}
+{"key": "webhook receiver", "value": "Driver events are delivered to the fleet backend's webhook receiver, which checks each delivery's signature with the shared signing secret."}
+{"key": "secret rotation", "value": "The webhook signing secret was rotated on 2026-10-21 at 08:12 UTC as part of the quarterly key rotation.", "entities": ["KW-0027"]}
+{"key": "KW-0027 agent", "value": "Linehaul Tractor 27 still runs agent 0.9.2; the update to 0.9.4 is scheduled for its next yard visit.", "entities": ["KW-0027"]}
+{"key": "KW-0012 GPS", "value": "City Hauler 12's antenna sits under a steel roof panel, so its GPS fix is often weak between tall buildings.", "entities": ["KW-0012"]}
+{"key": "OBD tiers", "value": "Kestrelway's OBD tiers: full (speed, rpm, pedal, coolant, fuel, codes), basic (speed and rpm), none (GPS only)."}
+{"key": "KW-0008 resync", "value": "Route Van 8's rules were resynced on 2026-10-23 at 08:40 UTC after a template update, so they show pending.", "entities": ["KW-0008"]}
+{"key": "harsh rules at 1 Hz", "value": "The workshop asked to keep harsh braking and acceleration rules off on any device that samples below 5 Hz.", "entities": ["KW-0002"]}

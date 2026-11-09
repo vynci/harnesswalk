@@ -1,0 +1,74 @@
+[
+  {
+    "id": "heating_rebate_en",
+    "title": "Home Heating Rebate",
+    "brief": "The programme sheet in English: eligibility (12 months, principal residence, income under 58,000 dollars, paying for heating), amounts 450 and 600 dollars, documents, the 15 September to 15 December 2026 window, decision and payment times, appeals.",
+    "pdf": false
+  },
+  {
+    "id": "remise_chauffage_fr",
+    "title": "Remise pour le chauffage domestique",
+    "brief": "The same programme sheet in French with the same rules and numbers: admissibilité, montants 450 $ et 600 $, documents, période du 15 septembre au 15 décembre 2026, délais de décision et de paiement, appels.",
+    "pdf": false
+  },
+  {
+    "id": "child_activity_credit_en",
+    "title": "Child Activity Credit",
+    "brief": "The programme sheet in English: ages (under 16, under 18 with a disability), qualifying activities (8 weeks, or a 5 day camp), 50 percent up to 300 dollars (500 with a disability), receipts, the 31 December 2026 deadline. Write at least 450 words: add a worked example and a short questions-and-answers section.",
+    "pdf": false
+  },
+  {
+    "id": "credit_activites_enfants_fr",
+    "title": "Crédit pour les activités des enfants",
+    "brief": "The same programme sheet in French with the same rules and numbers. Write at least 450 words: add a worked example and a short questions-and-answers section.",
+    "pdf": false
+  },
+  {
+    "id": "senior_transit_pass_en",
+    "title": "Senior Transit Pass",
+    "brief": "The programme sheet in English: age 65, what the pass gives, documents, where photos are taken, 2 year validity and renewal up to 60 days before expiry, 15 business days processing, 10 dollar replacement.",
+    "pdf": false
+  },
+  {
+    "id": "laissez_passer_aines_fr",
+    "title": "Laissez-passer de transport pour aînés",
+    "brief": "The same programme sheet in French with the same rules and numbers.",
+    "pdf": false
+  },
+  {
+    "id": "proof_of_residence_en",
+    "title": "Proof of Residence",
+    "brief": "Which documents are accepted as proof of residence and which are not, the 3 month rule for bills and statements, the name and address matching rule, and how to send the document (portal upload or any office). Write at least 450 words: add a worked example and a short questions-and-answers section.",
+    "pdf": false
+  },
+  {
+    "id": "preuve_residence_fr",
+    "title": "Preuve de résidence",
+    "brief": "The same proof of residence rules in French. Write at least 450 words: add a worked example and a short questions-and-answers section.",
+    "pdf": false
+  },
+  {
+    "id": "privacy_notice_en",
+    "title": "Services Desk Privacy Notice",
+    "brief": "What the desk collects, the 90 day transcript retention, automatic replacement of social insurance numbers, dates of birth and street addresses, never asking for a social insurance number in chat, access and correction through the privacy officer, no sale or sharing.",
+    "pdf": false
+  },
+  {
+    "id": "avis_confidentialite_fr",
+    "title": "Avis de confidentialité du Bureau des services",
+    "brief": "The same privacy notice in French.",
+    "pdf": false
+  },
+  {
+    "id": "heating_rebate_guide",
+    "title": "Home Heating Rebate: Complete Guide",
+    "brief": "The long English guide to the Home Heating Rebate as described in the brief, 750 to 900 words, with the five common mistakes.",
+    "pdf": true
+  },
+  {
+    "id": "guide_remise_chauffage",
+    "title": "Remise pour le chauffage domestique : guide complet",
+    "brief": "The long French guide with the same content, 750 to 900 words, with the five common mistakes.",
+    "pdf": true
+  }
+]

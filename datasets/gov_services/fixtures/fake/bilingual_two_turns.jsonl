@@ -1,0 +1,2 @@
+{"responses": [{"text": "The Senior Transit Pass is for residents aged 65 or older: free unlimited travel on provincial buses and the harbour ferry, and 50 percent off regional rail [1].", "usage": {"input_tokens": 420, "output_tokens": 57}, "expect": {"last_message_role": "user"}}]}
+{"responses": [{"text": "Il faut une pi\u00e8ce d'identit\u00e9 avec photo qui indique la date de naissance et une preuve de r\u00e9sidence [1].", "usage": {"input_tokens": 420, "output_tokens": 46}, "expect": {"last_message_role": "user"}}]}

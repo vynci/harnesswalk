@@ -1,0 +1,1 @@
+{"responses": [{"tool_calls": [{"name": "service_status", "arguments": {"service": "wifi"}}], "usage": {"input_tokens": 420, "output_tokens": 28}, "expect": {"last_message_role": "user"}}, {"text": "No, the wifi is working normally (status ok).", "usage": {"input_tokens": 510, "output_tokens": 29}, "expect": {"last_message_role": "tool", "last_message_contains": "ok"}}]}

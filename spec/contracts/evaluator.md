@@ -382,8 +382,8 @@ threshold. Each turn's approvals are decided with the case's `approval`.
   `turn_ids` lists every turn's.
 - **`checks` for long sessions.** `compacted` (bool): a context build of the turn (or of any
   turn, on the case) folded old turns into the running summary, read from the
-  `context_builder` exit summary's `compacted`. `summary` (substring): the running summary
-  the last context sent the model holds it, read from the context builder's stored detail.
+  `context_builder` exit summary's `compacted`. `summary` (substring, compared without case): the running
+  summary the last context sent the model holds it, read from the context builder's stored detail.
 - **`roles`.** The case identity's roles (default `["user"]`), so a golden case can prove a
   role-scoped policy decision.
 

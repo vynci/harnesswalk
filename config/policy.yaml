@@ -27,15 +27,43 @@ agent:
     - player_stats        # sports
     - fund_nav            # finance
     - capital_calls       # finance
+    - list_assets         # device_fleet
+    - get_asset_status    # device_fleet
+    - get_session_insights  # device_fleet
+    - get_driver_events   # device_fleet
+    - get_driver_summary  # device_fleet
+    - get_inbox           # device_fleet
+    - obd_scan            # device_fleet
+    - reboot_device       # device_fleet
+    - toggle_rule         # device_fleet
+    - power_off_device    # device_fleet
+    - clear_sms           # device_fleet
+    - purge_device        # device_fleet
+    - office_hours        # gov_services
+    - form_status         # gov_services
+    - trip_lookup         # long_session
+    - ferry_timetable     # long_session
+    - hotel_info          # long_session
+    - ticket_status       # helpdesk_lite
+    - service_status      # helpdesk_lite
+    - office_info         # helpdesk_lite
 
 roles:
   user: { allow_action_classes: [read, write, destructive, external, memory.write] }
+  # The device_fleet pack's role matrix, on its stricter side: a viewer only reads, an operator
+  # also runs routine commands (an OBD scan) but nothing destructive, and a reboot or a rule
+  # change is for admins and owners (rule fleet.admins_only). The dev console's `user` acts as
+  # an admin. A golden case picks its roles with `roles` (spec/packs.md).
+  viewer: { allow_action_classes: [read, memory.write] }
+  operator: { allow_action_classes: [read, write, memory.write] }
 
 rules:
   - { id: dev.read.allow,          modes: [dev, private, public], action_classes: [read], decision: allow }
   # A write that moves real freight still goes to a human (logistics pack): a rule naming a tool
   # comes before the class rule it narrows.
   - { id: reroute.approve,         modes: [dev, private], tools: [reroute], decision: needs_approval }
+  # A reboot or a driving-rule change is an admin's (device_fleet): an operator is denied.
+  - { id: fleet.admins_only,       modes: [dev, private], tools: [reboot_device, toggle_rule], roles: [operator], decision: deny }
   - { id: dev.write.allow,         modes: [dev, private], action_classes: [write], decision: allow }
   - { id: dev.destructive.approve, modes: [dev, private], action_classes: [destructive], decision: needs_approval }
   - { id: external.approve,        modes: [dev, private], action_classes: [external], decision: needs_approval }

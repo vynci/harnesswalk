@@ -159,10 +159,14 @@ def test_every_shipped_pack_names_a_profile() -> None:
     mapping = {p.id: p.meta.get("profile") for p in ALL_PACKS}
     assert mapping == {
         "_starter": "operated",
+        "device_fleet": "governed",
         "ecommerce": "governed",
         "finance": "operated",
+        "gov_services": "grounded",
         "healthcare": "grounded",
+        "helpdesk_lite": "minimal",
         "logistics": "governed",
+        "long_session": "remembered",
         "sports": "grounded",
     }
 
