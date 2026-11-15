@@ -135,6 +135,21 @@ def scenarios_for(cases: list[GoldenCase], texts: dict[str, list[str]]) -> list[
     return out
 
 
+def prompts_of(cases: list[GoldenCase]) -> set[str]:
+    """Every user message of these golden cases (a multi-turn case's turns too), normalized."""
+    out = set()
+    for case in cases:
+        texts = [t.user for t in case.turns] if case.multi_turn else [case.prompt]
+        out |= {" ".join((t or "").split()).lower() for t in texts if t}
+    return out
+
+
+def leaks_golden(example: dict[str, Any], prompts: set[str]) -> bool:
+    """True when a user message of the example is one of the golden prompts (normalized)."""
+    users = [m for m in example.get("messages") or [] if m.get("role") == "user"]
+    return any(" ".join((m.get("content") or "").split()).lower() in prompts for m in users)
+
+
 def chunks(cases: list[GoldenCase], size: int) -> list[list[GoldenCase]]:
     """The scenarios in runs of about `size`, each a fresh scratch tenant (so a long curation
     stays inside the per-tenant hourly budgets a chat tenant has). A case and its rewrites stay

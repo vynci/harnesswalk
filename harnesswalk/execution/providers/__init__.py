@@ -62,6 +62,10 @@ class ProviderUsage:
     input_tokens: int = 0
     output_tokens: int = 0
     cached_tokens: int = 0
+    # P5: the provider's own timing when it reports one (Ollama's `eval_duration` and
+    # `prompt_eval_duration`), in milliseconds; 0 when it does not.
+    gen_ms: float = 0.0
+    prompt_ms: float = 0.0
 
 
 @dataclass

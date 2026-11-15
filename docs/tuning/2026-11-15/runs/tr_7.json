@@ -1,0 +1,84 @@
+{
+ "adapter": {
+  "hash": "aae9297b984bf6bbcdb798718c73005cf245dc07d535958a497e911179bf9cd6",
+  "name": "approvals_v2l_4b",
+  "version": 1
+ },
+ "created_at": "2026-11-15T21:49:38.693Z",
+ "ended_at": "2026-11-15T22:19:35.963Z",
+ "error": null,
+ "id": "tr_7",
+ "kind": "run",
+ "last_step": {
+  "elapsed_s": 1767.4,
+  "phase": "check",
+  "run_id": "tr_7",
+  "step": 92,
+  "total_steps": 92
+ },
+ "metrics": {
+  "dropped_too_long": {
+   "train": 0,
+   "val": 0
+  },
+  "eval_loss": 0.0788,
+  "examples": {
+   "train": 368,
+   "val": 65
+  },
+  "gpu": "NVIDIA GeForce RTX 3090",
+  "max_tokens": 5200,
+  "peak_gpu_gib": 11.04,
+  "pipeline_wall_s": 1778.8,
+  "steps": 92,
+  "tokens": 1414753,
+  "train_loss": 0.0936,
+  "trainable_params": 32464896,
+  "trained_tokens": 23461,
+  "wall_s": 1729.3
+ },
+ "model": {
+  "hash": "614dfeeb15d7ad0e7b665b29749cc196a1a38cd2cc09bb4a5e5be6ce5eb3d345",
+  "name": "approvals_v2l_4b",
+  "version": 1
+ },
+ "request": {
+  "config": {
+   "max_seq_len": 6144,
+   "tail_logits": true
+  },
+  "dataset": {
+   "hash": "1752499374afdfcb00ab86e2812cba4fdc928f9f27431ead33779e6a313056c9",
+   "name": "approvals_v2",
+   "version": 1
+  },
+  "dataset_manifest_counts": {
+   "by_pack": {
+    "device_fleet": 65,
+    "ecommerce": 118,
+    "logistics": 52
+   },
+   "deduplicated": 0,
+   "dropped": {
+    "answer_match": 243,
+    "citations": 10,
+    "path": 234,
+    "tool_calls": 4
+   },
+   "examples": 235,
+   "failed": 491,
+   "kept": 235,
+   "skipped": 0,
+   "train": 197,
+   "turns": 726,
+   "val": 38
+  },
+  "name": "approvals_v2l_4b",
+  "student": "local-4b",
+  "trainer": "homelab-trl"
+ },
+ "status": "done",
+ "stream": "tune:tr_7",
+ "tenant_id": "dev",
+ "trace_id": "730b6edd5ae45415b4d3d1cfb04107ca"
+}

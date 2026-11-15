@@ -101,5 +101,10 @@ class OllamaProvider:
             text=message.get("content") or None,
             tool_calls=calls,
             finish_reason=finish,
-            usage=ProviderUsage(data.get("prompt_eval_count", 0), data.get("eval_count", 0)),
+            usage=ProviderUsage(
+                data.get("prompt_eval_count", 0),
+                data.get("eval_count", 0),
+                gen_ms=round(float(data.get("eval_duration") or 0) / 1e6, 3),
+                prompt_ms=round(float(data.get("prompt_eval_duration") or 0) / 1e6, 3),
+            ),
         )

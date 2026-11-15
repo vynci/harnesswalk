@@ -58,6 +58,39 @@ def simple_path(events: list[Event]) -> list[str]:
     return [e["node_id"] for e in events if e["type"] == "node_enter" and e["node_id"] in simple]
 
 
+def timing_of(events: list[Event]) -> dict[str, Any]:
+    """P5: how long the turn took (`turn_end.duration_ms`) and what its model calls report:
+    calls, tokens, and the provider's own generation and prompt time where it reports them
+    (Ollama), so a scorecard can give seconds per case and tokens per second."""
+    end = next((e for e in reversed(events) if e["type"] == "turn_end"), None)
+    out: dict[str, Any] = {
+        "seconds": round(float((end or {}).get("duration_ms") or 0) / 1000, 3),
+        "model_calls": 0, "input_tokens": 0, "output_tokens": 0, "gen_ms": 0.0, "prompt_ms": 0.0,
+    }  # fmt: skip
+    for e in events:
+        if e["type"] != "node_exit" or e.get("node_id") != "model_layer":
+            continue
+        s, cost = e.get("summary") or {}, e.get("cost") or {}
+        out["model_calls"] += 1
+        out["input_tokens"] += int(cost.get("input_tokens") or 0)
+        out["output_tokens"] += int(cost.get("output_tokens") or 0)
+        out["gen_ms"] = round(out["gen_ms"] + float(s.get("gen_ms") or 0), 3)
+        out["prompt_ms"] = round(out["prompt_ms"] + float(s.get("prompt_ms") or 0), 3)
+    return out
+
+
+def sum_timing(items: list[dict[str, Any] | None]) -> dict[str, Any] | None:
+    """The timings of a multi-turn case's turns, added up."""
+    got = [t for t in items if t]
+    if not got:
+        return None
+    out: dict[str, Any] = {}
+    for t in got:
+        for k, v in t.items():
+            out[k] = round(out.get(k, 0) + v, 3)
+    return out
+
+
 def actual_of(events: list[Event]) -> dict[str, Any]:
     """What the turn did, in the shape of a run detail's `actual`."""
     end = next((e for e in reversed(events) if e["type"] == "turn_end"), None)
@@ -86,6 +119,7 @@ def actual_of(events: list[Event]) -> dict[str, Any]:
             for e in events
             if e["type"] == "error"
         ],
+        "timing": timing_of(events),
     }
 
 
@@ -109,6 +143,7 @@ def session_actual(turns: list[dict[str, Any]]) -> dict[str, Any]:
         "tool_calls": [c for t in turns for c in t["tool_calls"]],
         "cost": cost,
         "errors": [e for t in turns for e in t["errors"]],
+        "timing": sum_timing([t.get("timing") for t in turns]),
         "turns": turns,
     }
 

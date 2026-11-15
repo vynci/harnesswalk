@@ -34,7 +34,7 @@ record ModelRequest {
 }
 
 record ProviderRequest  { model: string, messages: [Message], tools: [ToolSchema], output_schema?: JSONSchema, max_output_tokens: int, api_key?: secret }
-record ProviderResponse { text: string | null, tool_calls: [ToolCall], finish_reason: "stop" | "tool_calls" | "length", usage: { input_tokens: int, output_tokens: int, cached_tokens?: int } }
+record ProviderResponse { text: string | null, tool_calls: [ToolCall], finish_reason: "stop" | "tool_calls" | "length", usage: { input_tokens: int, output_tokens: int, cached_tokens?: int, gen_ms?: number, prompt_ms?: number } }
 record ModelResponse    { text: string | null, tool_calls: [ToolCall], finish_reason: string, provider: string, model: string, fallback: bool, usage: Usage }
 record ModelInfo        { name: string, context_tokens: int, price_in_per_mtok: number, price_out_per_mtok: number, modalities: [string], tools: bool }
 ```

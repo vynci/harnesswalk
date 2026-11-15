@@ -309,6 +309,7 @@ def train(run: Run) -> dict[str, Any]:
                 run.step(**event, loss=round(float(logs["loss"]), 4),
                          learning_rate=float(logs.get("learning_rate", 0)))  # fmt: skip
 
+    tail = bool(cfg.get("tail_logits", False))
     args = TrainingArguments(
         output_dir=str(run.dir / "trainer"), per_device_train_batch_size=batch,
         per_device_eval_batch_size=1, gradient_accumulation_steps=accum,
@@ -319,9 +320,32 @@ def train(run: Run) -> dict[str, Any]:
         gradient_checkpointing_kwargs={"use_reentrant": False}, logging_steps=1,
         eval_strategy="steps", eval_steps=max(1, total // 4), save_strategy="no",
         report_to=[], seed=int(cfg.get("seed", 7)), remove_unused_columns=False,
-        dataloader_num_workers=0,
+        dataloader_num_workers=0, prediction_loss_only=tail,
     )  # fmt: skip
-    trainer = Trainer(
+
+    class TailTrainer(Trainer):
+        """`tail_logits: true`: logits only from the position before the first target token
+        to the end (`logits_to_keep`), not over the whole prompt. The loss is the same sum over
+        the target tokens; the memory is not: a 5k-token prompt's logits over the 248k-token
+        vocabulary are about 5 GiB in fp32 and run a 24 GiB card out of memory."""
+
+        def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+            labels = inputs["labels"]
+            first = int((labels != -100).float().argmax(dim=1).min())
+            start = max(0, first - 1)
+            fwd = {k: v for k, v in inputs.items() if k != "labels"}
+            out = model(**fwd, logits_to_keep=labels.shape[1] - start)
+            logits = out.logits[:, :-1, :].float()
+            target = labels[:, start + 1 :]
+            total = torch.nn.functional.cross_entropy(
+                logits.reshape(-1, logits.shape[-1]), target.reshape(-1).to(logits.device),
+                ignore_index=-100, reduction="sum",
+            )  # fmt: skip
+            n = num_items_in_batch if num_items_in_batch is not None else (target != -100).sum()
+            loss = total / n
+            return (loss, out) if return_outputs else loss
+
+    trainer = (TailTrainer if tail else Trainer)(
         model=model, args=args, train_dataset=Rows(data["train"]),
         eval_dataset=Rows(data["val"]) if data["val"] else None, data_collator=collate,
         callbacks=[Progress()],

@@ -180,7 +180,7 @@ Values are small: counts, ids, enums, short previews. Implementations MAY add ke
 | `knowledge` | `hits`, `top_score`, `tokens`, `docs` (document ids of the hits), `embedder`, `reranker`, `enabled` |
 | `memory_writer` | `proposed`, `written`, `rejected`, `pending`, `gate`, `policy_rule`, `rejections` (`[{proposal_id, reason}]`) |
 | `loop` | enter: `max_steps`, `budget_tokens`, `budget_usd`. exit: `steps`, `exit_reason` (`answer`, `max_steps`, `budget_tokens`, `budget_usd`, `budget_tool_calls`, `timeout`, `stuck`, `interrupted`), `tool_calls`, `budget_source` |
-| `model_layer` | enter: `step`. exit: `step`, `provider`, `model`, `finish_reason` (`stop`, `tool_calls`, `length`), `tool_calls`, `fallback`, `tools_enabled`, `cached_tokens`, `cascade` |
+| `model_layer` | enter: `step`. exit: `step`, `provider`, `model`, `finish_reason` (`stop`, `tool_calls`, `length`), `tool_calls`, `fallback`, `tools_enabled`, `cached_tokens`, `cascade`, and (P5, optional) `gen_ms`, `prompt_ms`: the provider's own generation and prompt-processing time in milliseconds, when it reports them (Ollama) |
 | `router` | `rule`, `model`, `alternatives` |
 | `providers` | `provider`, `model`, `attempt` |
 | `tools` | enter: `tool`, `call_id`. exit: `tool`, `call_id`, `outcome` (`ok`, `denied`, `error`, `timeout`), `executed` |

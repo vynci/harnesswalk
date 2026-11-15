@@ -18,6 +18,7 @@ cell (`cell_of`), and summarizing and rendering (`summarize`, `render_markdown`)
 
 from __future__ import annotations
 
+import math
 import os
 import time
 from collections import Counter
@@ -246,6 +247,34 @@ TOOL_SPLIT = (
 )
 
 
+TIMING = ("seconds", "model_calls", "input_tokens", "output_tokens", "gen_ms", "prompt_ms")
+
+
+def latency(cases: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Seconds per case (median and p95, nearest rank) and decode tokens per second (output
+    tokens over the provider's generation time, where it reports one) of scorecard cases."""
+    timed = [c["timing"] for c in cases if c.get("timing") and c.get("status") != "skipped"]
+    if not timed:
+        return None
+    secs = sorted(float(t.get("seconds") or 0) for t in timed)
+
+    def rank(q: float) -> float:
+        return secs[min(len(secs) - 1, max(0, math.ceil(q * len(secs)) - 1))]
+
+    gen_ms = sum(float(t.get("gen_ms") or 0) for t in timed)
+    gen_out = sum(int(t.get("output_tokens") or 0) for t in timed if t.get("gen_ms"))
+    prompt_ms = sum(float(t.get("prompt_ms") or 0) for t in timed)
+    prompt_in = sum(int(t.get("input_tokens") or 0) for t in timed if t.get("prompt_ms"))
+    return {
+        "cases": len(timed),
+        "median_s": round(rank(0.5), 2),
+        "p95_s": round(rank(0.95), 2),
+        "mean_s": round(sum(secs) / len(secs), 2),
+        "decode_tok_s": round(gen_out / (gen_ms / 1000), 1) if gen_ms else None,
+        "prefill_tok_s": round(prompt_in / (prompt_ms / 1000), 1) if prompt_ms else None,
+    }
+
+
 def tool_split(
     expected: list[str] | None, actual: list[str], read_tools: frozenset[str] | set[str]
 ) -> str:
@@ -284,6 +313,9 @@ def reduce_case(c: dict[str, Any], read_tools: frozenset[str] | set[str]) -> dic
         expected = (c.get("expected") or {}).get("tool_calls")
         actual = (c.get("actual") or {}).get("tool_calls") or []
         out["tool_split"] = tool_split(expected, actual, read_tools)
+    timing = (c.get("actual") or {}).get("timing")
+    if timing:  # P5: seconds per case, and the provider's generation time for tokens/s
+        out["timing"] = {k: timing[k] for k in TIMING if k in timing}
     return out
 
 
@@ -512,6 +544,7 @@ def summarize(data: dict[str, Any]) -> dict[str, Any]:
         tokens_in = tokens_out = 0
         usd = seconds = 0.0
         outliers: list[dict[str, Any]] = []
+        all_cases: list[dict[str, Any]] = []
         others = [a for a in aliases if a != alias and a in real]
         for cell in ran:
             samples = samples_of(cell)
@@ -526,6 +559,7 @@ def summarize(data: dict[str, Any]) -> dict[str, Any]:
                 tokens_out += int(cost.get("output_tokens", 0))
                 usd += float(cost.get("usd", 0.0))
                 seconds += float(x.get("seconds") or 0.0)
+                all_cases += x.get("cases") or []
                 for c in x.get("cases") or []:
                     if c["status"] not in ("failed", "error"):
                         continue
@@ -567,6 +601,7 @@ def summarize(data: dict[str, Any]) -> dict[str, Any]:
             "output_tokens": tokens_out,
             "usd": round(usd, 6),
             "seconds": round(seconds, 1),
+            "latency": latency(all_cases),
             "carried": any(c.get("carried") for c in ran),
             "reasons": sorted({c.get("reason") or "" for c in mine if c["status"] != "ok"}),
         }
@@ -747,6 +782,13 @@ def render_markdown(data: dict[str, Any]) -> str:
             f"- Tokens: {s['input_tokens']:,} in, {s['output_tokens']:,} out;"
             f" cost ${s['usd']:.4f}; wall time {s['seconds']:.0f} s"
         )
+        if s.get("latency"):
+            lat = s["latency"]
+            decode = f"; decode {lat['decode_tok_s']} tokens/s" if lat["decode_tok_s"] else ""
+            lines.append(
+                f"- Per case: median {lat['median_s']} s, p95 {lat['p95_s']} s"
+                f" ({lat['cases']} case runs){decode}"
+            )
     lines += [
         "",
         "## Regenerate",

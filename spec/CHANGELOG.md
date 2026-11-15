@@ -12,6 +12,11 @@ conforms when it runs every pack on `operated`, the default profile.
 
 ### Added
 
+- Evidence round (P5, additive, still 0.2.0): `ProviderResponse.usage.gen_ms` and `prompt_ms`
+  (`contracts/model_provider.md`), the same two on the `model_layer` exit summary
+  (`events.md`), `actual.timing` on a case result (`contracts/evaluator.md`, "Model suite"),
+  and `golden: false` on a curation (`contracts/tuning.md`) with `golden_included` on the
+  dataset manifest (`contracts/artifacts.md`), so a dataset can keep every golden case out.
 - The tuning loop (P3, additive, still 0.2.0; `contracts/tuning.md`, `contracts/artifacts.md`):
   two expert nodes, `curate` (child of `eval`) and `tune` (child of `release`), with the edges
   `trace_to_curate`, `diagnose_to_curate`, `curate_to_tune` and `tune_to_artifacts`; three

@@ -356,10 +356,15 @@ class Tuning:
             "teacher_prompt_arm": bool(
                 body.get("teacher_prompt_arm", ccfg.get("teacher_prompt_arm", True))
             ),
+            # P5: false keeps the golden cases out of the dataset (rewrites only), so the
+            # packs' golden sets stay evaluation-only.
+            "golden": bool(body.get("golden", ccfg.get("golden", True))),
             "chunk": int(ccfg.get("chunk", 24)),
         }
         if not 0 <= request["variants"] <= 16:
             raise TuneError(400, "invalid_request", "variants must be from 0 to 16")
+        if not request["golden"] and request["variants"] == 0:
+            raise TuneError(400, "invalid_request", "golden: false needs variants above 0")
         return self._start("curation", tenant_id, request, self._curate)
 
     async def _curate(self, record: dict[str, Any]) -> None:
@@ -371,8 +376,11 @@ class Tuning:
         per_pack: dict[str, list[Any]] = {}
         rewrite_usage = Counter()
         skipped_multi = 0
+        with_golden = req.get("golden", True)
+        golden_prompts: set[str] = set()
         for pack in req["packs"]:
             cases = offline.golden(pack)
+            golden_prompts |= cur.prompts_of(cases)
             texts: dict[str, list[str]] = {}
             for case in cases:
                 if case.multi_turn:
@@ -381,7 +389,11 @@ class Tuning:
                 got, usage = await cur.rewrites(self, teacher, case, req["variants"], req["seed"])
                 texts[case.id] = got
                 rewrite_usage.update(usage)
-            per_pack[pack] = cur.scenarios_for(cases, texts)
+            scenarios = cur.scenarios_for(cases, texts)
+            if not with_golden:  # rewrites only: no golden case is ever a training scenario
+                originals = {c.id for c in cases}
+                scenarios = [c for c in scenarios if c.id not in originals]
+            per_pack[pack] = scenarios
         total = sum(len(v) for v in per_pack.values())
         record["scenarios"] = {p: len(v) for p, v in per_pack.items()}
         self._emit(record, "eval_run_started", "curate", "active", {
@@ -427,6 +439,9 @@ class Tuning:
                                 if ex is None:
                                     dropped["no_content"] += 1
                                     continue
+                                if not with_golden and cur.leaks_golden(ex, golden_prompts):
+                                    dropped["golden_prompt"] += 1
+                                    continue
                                 ex["meta"] = {"pack": pack, "case_id": c["case_id"],
                                               "source": source, "teacher": teacher}  # fmt: skip
                                 examples.append(ex)
@@ -470,6 +485,7 @@ class Tuning:
             "teacher_model": teacher_cfg.get("name", teacher),
             "teacher_prompt_arm": req["teacher_prompt_arm"],
             "packs": req["packs"],
+            "golden_included": with_golden,
             "scenarios": {
                 "golden": sum(1 for r in scenario_rows if r["source"] == "golden"),
                 "paraphrase": sum(1 for r in scenario_rows if r["source"] == "paraphrase"),
@@ -483,6 +499,14 @@ class Tuning:
                 "the turn ended on an answer and the trace kept its content",
                 "deduplicated by the sha256 of the example",
                 f"validation split: the {req['val_fraction']} of examples whose hash is lowest",
+                *(
+                    []
+                    if with_golden
+                    else [
+                        "no golden case: teacher rewrites only, and an example whose user"
+                        " message is a golden prompt of these packs is dropped"
+                    ]
+                ),
             ],
             "counts": {
                 "turns": index,
@@ -507,6 +531,7 @@ class Tuning:
                 f"harnesswalk tune curate {' '.join('--pack ' + p for p in req['packs'])}"
                 f" --teacher {teacher} --variants {req['variants']} --seed {req['seed']}"
                 f"{'' if req['teacher_prompt_arm'] else ' --no-teacher-prompt-arm'}"
+                f"{'' if with_golden else ' --no-golden'}"
                 f" --out dataset/{req['name']}"
             ),
         }

@@ -316,6 +316,61 @@ async def test_fake_loop_end_to_end(tmp_path: Path) -> None:
         await h.aclose()
 
 
+def test_golden_prompts_are_recognized_in_an_example() -> None:
+    from harnesswalk.ops.eval.golden import GoldenCase, GoldenTurn
+    from harnesswalk.ops.tune.curate import leaks_golden, prompts_of
+
+    cases = [
+        GoldenCase(id="a", title="", prompt="Please cancel order QF-20430."),
+        GoldenCase(id="m", title="", prompt="", turns=[GoldenTurn(user="Reboot KW-0002")]),
+    ]
+    prompts = prompts_of(cases)
+    assert prompts == {"please cancel order qf-20430.", "reboot kw-0002"}
+
+    def ex(text: str) -> dict[str, Any]:
+        return {"messages": [{"role": "system", "content": "s"}, {"role": "user", "content": text},
+                             {"role": "assistant", "content": "ok"}]}  # fmt: skip
+
+    assert leaks_golden(ex("please  cancel order QF-20430."), prompts)
+    assert leaks_golden(ex("Reboot KW-0002"), prompts)
+    assert not leaks_golden(ex("Hi there. Please cancel order QF-20430."), prompts)
+
+
+@pytest.mark.anyio
+async def test_curation_without_golden_cases(tmp_path: Path) -> None:
+    """`golden: false`: the dataset holds rewrites only, never a golden case or its prompt."""
+    h = Harness(tune_settings(tmp_path))
+    t = h.tune
+    try:
+        with pytest.raises(TuneError) as exc:
+            t.start_curation("dev", {"name": "x", "packs": ["ecommerce"], "golden": False,
+                                     "teacher": "fake-small", "variants": 0})  # fmt: skip
+        assert exc.value.status == 400
+        rec = t.start_curation("dev", {"name": "nogold", "packs": ["ecommerce", "_starter"],
+                                       "teacher": "fake-small", "variants": 1,
+                                       "golden": False})  # fmt: skip
+        await t.wait()
+        rec = t.store.get(rec["id"])
+        assert rec["status"] == "done", rec.get("error")
+        manifest, _ = t.manifest("dataset", "nogold")
+        assert manifest["golden_included"] is False
+        assert manifest["scenarios"]["golden"] == 0 and manifest["scenarios"]["paraphrase"] > 0
+        assert "--no-golden" in manifest["regenerate"]
+        scenarios = Path(manifest["files"]["scenarios"]["path"]).read_text().splitlines()
+        assert scenarios and all(json.loads(r)["source"] == "paraphrase" for r in scenarios)
+        golden = set()
+        for pack in ("ecommerce", "_starter"):
+            golden |= {c.prompt for c in h.evals.offline.golden(pack)}
+        for name in ("train", "val"):
+            for line in Path(manifest["files"][name]["path"]).read_text().splitlines():
+                users = [m["content"] for m in json.loads(line)["messages"] if m["role"] == "user"]
+                assert users and not set(users) & golden
+                assert json.loads(line)["meta"]["source"] == "paraphrase"
+        assert set(manifest["counts"]["by_pack"]) <= {"ecommerce", "_starter"}
+    finally:
+        await h.aclose()
+
+
 @pytest.mark.anyio
 async def test_one_activity_at_a_time_and_bad_requests(tmp_path: Path) -> None:
     h = Harness(tune_settings(tmp_path))

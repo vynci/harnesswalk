@@ -61,6 +61,7 @@ async def test_ollama() -> None:
         50,
         7,
     )
+    assert (r.usage.gen_ms, r.usage.prompt_ms) == (0.0, 0.0)  # no durations in this reply
 
 
 @pytest.mark.anyio

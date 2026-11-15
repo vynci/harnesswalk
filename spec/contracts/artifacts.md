@@ -39,6 +39,7 @@ version exists with that hash.
 record DatasetManifest {
   kind: "dataset", name: string, created_at: timestamp
   teacher: string, teacher_model: string, teacher_prompt_arm: bool
+  golden_included?: bool                  // P5: false when the curation ran with golden: false
   packs: [string], scenarios: { golden: int, paraphrase: int, variants: int, seed: int }
   filters: [string]                       // "every deterministic scorer passed (model grading)", "dedupe"
   counts: { turns: int, kept: int, dropped: {scorer: int}, deduplicated: int, train: int, val: int,

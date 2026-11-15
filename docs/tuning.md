@@ -5,7 +5,9 @@ real once, on 2026-11-09: a LoRA adapter for qwen3.5:4b (`local-4b`), trained on
 from the passing turns of qwen3.5:27b, gated against the base and a prompt-only control arm,
 then canaried through the router. The same loop runs offline on the fake trainer
 ([walkthrough.md](walkthrough.md), "The tuning loop on the command line"); this page is the
-measured run.
+measured run. A second round on 2026-11-15 retrained the recipe twice, built a second adapter
+from three governed packs, and set the adapters beside the untuned 9B and Claude Haiku 5.5 with
+GPU traces of every stage: [2026-11-15: the evidence round](#2026-11-15-the-evidence-round).
 
 ## The result
 
@@ -136,6 +138,203 @@ the canary packs, and the next dataset should come from every governed pack but 
 - One run, one seed, two samples per cell. The canary demo had 14 turns and a human reviewer.
 - The teacher's own pass rate caps what the dataset can teach: the student learned the
   behaviour the teacher showed on the turns it passed.
+
+## 2026-11-15: the evidence round
+
+Five questions, answered with runs on one day, the same harness and the same Ollama (0.34.1,
+pinned to GPU 0; training on GPU 1). Every file is in
+[tuning/2026-11-15/](tuning/2026-11-15/README.md): the scorecard JSON per arm, the loss series,
+the GPU CSVs with their stage sidecar, and the script that summarizes them. The 2026-11-09 adapter
+is called v1 below; its training numbers are carried over from that day, its pass counts were
+measured again.
+
+### The arms
+
+| Arm | Alias | Trained on | Golden cases in its data | Held out (never in its data) |
+|---|---|---|---|---|
+| base 4B | `local-4b` (qwen3.5:4b Q4_K_M) | | | |
+| v1 | `tuned-approvals-4b` (`tr_2`, 2026-11-09) | `ecommerce`, `logistics` | 22 of 193 examples | `device_fleet`, `_starter` |
+| rerun 1 | `tuned-approvals-4b-r1` (`tr_3`) | the same dataset, seed 7 as v1 | the same | the same |
+| rerun 2 | `tuned-approvals-4b-r2` (`tr_4`) | the same dataset, seed 11 | the same | the same |
+| v2 | `tuned-approvals-v2-4b` (`tr_5`) | `ecommerce`, `logistics`, `device_fleet` rewrites (`--no-golden`) | none | `_starter` |
+| v2l | `tuned-approvals-v2l-4b` (`tr_7`) | the v2 dataset, 6k sequence cap | none | `_starter` |
+| 9B | `local-9b` (qwen3.5:9b Q4_K_M, untuned) | | | |
+| Haiku | `hosted-haiku` (Claude Haiku 5.5, untuned) | | | |
+
+`_starter` is the only approval-gated pack no adapter has seen (its `cancel_order` is
+destructive and needs approval; 1 of its 16 cases is approval-gated), so it is a weak held-out
+check. Correction to the 2026-11-09 text above: `_starter` does have an approval-gated action;
+`sports` has none. The v2 dataset (`dataset/approvals_v2`, the new `tune curate --no-golden`)
+holds teacher rewrites only: 726 scenarios, 235 kept (ecommerce 118, logistics 52, device_fleet
+65), 197 train and 38 validation examples; no user message in it is a golden prompt. The
+rewrites still share the golden cases' identifiers and expected answers, so v2's numbers on its
+three packs are in-distribution, not unseen traffic.
+
+v2 did not see what its dataset holds: the worker drops a conversation longer than its 4,096
+token cap, and 38 of the 52 device_fleet training examples run to 4,100 to 5,200 tokens (big tool
+tables and long tool results). v2 trained on 14 device_fleet examples. Raising the cap to 6,144
+ran the card out of memory at step 13 (`tr_6`; the logits of a 5k-token prompt over the 248k
+vocabulary). v2l is the same data with the cap at 6,144 and the new worker option
+`tail_logits` (logits only over the reply; the same loss, about half the memory), so it trained
+on every example.
+
+### Question 1: why not a bigger model?
+
+Pass counts on the four approval-gated packs, three samples per cell, mean with the range in
+brackets (`compare/*.json`):
+
+| Pack | base 4B | v1 | rerun 1 | rerun 2 | v2 | v2l | 9B | Haiku |
+|---|---|---|---|---|---|---|---|---|
+| `ecommerce` /24 | 4 (3-5) | **16** | 13 | 13 | 14 (13-15) | 13.7 (13-14) | 7 | 14.7 (14-15) |
+| `logistics` /24 | 4 | 8 | 6.3 (6-7) | 6 | 6 | 5.7 (5-6) | **9.7** (9-10) | 7 (6-8) |
+| `device_fleet` /28 | 5 | 6 | 5 | 6.7 (6-7) | 6 | 7.3 (7-8) | 6.7 (6-7) | **10** (9-11) |
+| `_starter` /16 | 7 | 8 | 6 | 7.3 (7-8) | 7.3 (7-8) | **9** | 7 | 8.7 (8-9) |
+| **All** /92 | 20 (19-21) | 38 | 30.3 (30-31) | 33 | 33.3 (33-34) | 35.7 (35-36) | 30.3 (30-31) | **40.3** (39-42) |
+
+Speed and cost over the same 276 case runs per arm (a case is one full harness turn, every
+model call of it; decode tokens per second is Ollama's own `eval_count / eval_duration`; GPU
+energy is GPU 0's mean power times the arm's wall time, the card only):
+
+| Arm | Median s per case | p95 s per case | Decode tokens/s | GPU energy per case | Price per case |
+|---|---|---|---|---|---|
+| base 4B | 1.24 | 2.07 | 158 | 0.11 Wh | 0 |
+| v1 | 1.36 | 2.46 | 156 | 0.12 Wh | 0 |
+| v2l | 1.18 | 2.37 | 157 | 0.11 Wh | 0 |
+| 9B | 1.33 | 3.76 | 110 | 0.15 Wh | 0 |
+| Haiku | 2.65 | 5.24 | not reported | | 0.0011 USD (0.105 USD per four-pack sample) |
+
+The tuned 4B models serve at the base's speed (the merge changes weights, not shape). The 9B
+decodes 30% slower and its slow cases are slower (p95 3.8 s). Haiku over the internet takes
+twice the 4B's time per case. On these packs one tuned 4B (v1, 38) gets within a few cases of
+Haiku (40.3) and beats the untuned 9B (30.3); v1's reruns and v2 land at the 9B's level or a
+little above. What the tuned models fix is the targeted behaviour, not the packs: on ecommerce
+"write tool not called" goes from 10.3 per sample on the base to 0 on four adapters and 0.7 on
+v2l (the 9B still has 11, Haiku 4), while on logistics, whose failures are mostly fixture
+wording, the 9B stays ahead. On all ten packs (question 5) the order holds: v1 111.5 and v2l
+116 of 232 against the 9B's 102.5 and Haiku's 133.
+
+### Question 2: does it reproduce?
+
+| Run | Seed | Samples train/val | Steps | Final train loss | Final val loss | Train time | Peak (torch) | All /92 |
+|---|---|---|---|---|---|---|---|---|
+| v1 `tr_2` (2026-11-09, carried) | 7 | 322/31 | 82 | 0.0917 | 0.1045 | 23.1 min | 19.85 GiB | 38 |
+| rerun 1 `tr_3` | 7 | 322/31 | 82 | 0.0917 | 0.1077 | 23.1 min | 19.85 GiB | 30.3 |
+| rerun 2 `tr_4` | 11 | 322/31 | 82 | 0.0898 | 0.1036 | 23.1 min | 19.85 GiB | 33 |
+| v2 `tr_5` | 7 | 293/50 (39 and 8 examples dropped) | 74 | 0.0998 | 0.0990 | 22.9 min | 20.35 GiB | 33.3 |
+| `tr_6` (6k cap, full logits) | 7 | 368/65 | failed at step 13, out of memory | | | | | |
+| v2l `tr_7` | 7 | 368/65 | 92 | 0.0936 | 0.0788 | 28.8 min | 11.04 GiB | 35.7 |
+
+Train time is the `train` phase; merge, GGUF conversion, quantization and `ollama create` add
+about a minute (`runs/*.json`, `pipeline_wall_s`). v2 and v2l validate on their own dataset,
+so their validation loss does not compare with the first three rows.
+
+The direction reproduces, the size only in part. Both reruns lift ecommerce from 4 to 13 (v1:
+16) and remove the "write tool not called" failure there, and both lift logistics by 2 (v1: 4).
+The same seed is not the same model: rerun 1's per-step training loss stays within 0.016 of
+v1's and its mean training loss matches to four decimals, but its validation loss, its GGUF
+hash and its answers differ (GPU kernels are not deterministic), and it is 8 cases below v1 on
+the four packs. v1 looks like a good draw from a
+spread of roughly 30 to 38 on these packs.
+
+The base moves too. Temperature 0 is not reproducible across runs here: within one scorecard
+run the samples of a cell mostly agree, across runs they do not. The same unchanged base 4B
+scored 4 and then 2 on logistics in two runs today, and 1.5, 4.5 and 5 in three runs on
+2026-11-09; v2l scored 7.3 and 9.5 on device_fleet in two runs an hour apart. Treat a difference
+of 2 cases in one pack as noise.
+
+### Question 3: does wider curation fix the held-out regression?
+
+The regression itself did not reproduce: on `device_fleet` v1 scored 6 today against the base's
+5 (2026-11-09: 4 against 7.5). What did reproduce is the behaviour behind it: v1 calls no tool
+in 12 of device_fleet's failed cases per sample (2026-11-09: 13), the base in 10.
+
+Wider curation helps when the training really holds the new pack. v2, which lost most of its
+device_fleet examples to the length cap, is where v1 is (6/28, 9 "none called"). v2l, with every
+example, moves the behaviour: "none called" drops to 4 and "write tool not called" to 0 (Haiku:
+2.3 and 3.3), the failures of `tool_calls` fall from 14 to 7 and of `path` from 13 to 6 (Haiku 7.7
+and 7). Its pass count gains less (7.3 and 9.5 in two runs, base 5 and 6, Haiku 10 and 12),
+because 15.7 of its device_fleet cases still fail `answer_match`. On the one approval-gated pack
+none of them saw, `_starter`, v2l scores 9/16 against the base's 7 and Haiku's 8.7 (ten-pack run:
+9 against 6 and 9.5); with one approval case in that pack, it is a weak signal. A clean
+generalisation test needs a second governed pack with unseen tools, which the repo does not
+have.
+
+### Question 5: what did the adapters cost elsewhere?
+
+All ten packs, two samples per cell (`collateral/*.json`):
+
+| Pack | Seen by | base 4B | v1 | v2 | v2l | 9B | Haiku |
+|---|---|---|---|---|---|---|---|
+| `_starter` /16 | none | 6 | 8 | 7.5 (7-8) | 9 | 7 | 9.5 (9-10) |
+| `device_fleet` /28 | v2, v2l | 6 (5-7) | 6 | 6 | 9.5 (9-10) | 5 | 12 (11-13) |
+| `ecommerce` /24 | all adapters | 4.5 (4-5) | 15 | 13 | 14 | 7 | 14.5 (14-15) |
+| `finance` /25 | none | 7 | 12 | 11 | 12 | 14 | 17 |
+| `gov_services` /27 | none | 10.5 (10-11) | 15 | 15 | 16 | 14.5 (14-15) | 15.5 (15-16) |
+| `healthcare` /25 | none | 7 | 9 | 11 | 9 | 7.5 (7-8) | 10 |
+| `helpdesk_lite` /21 | none | 16 | 15 | 16 | 15 | 17 | 19 |
+| `logistics` /24 | all adapters | 2 | 7.5 (7-8) | 6 | 6.5 (5-8) | 8 (7-9) | 7 |
+| `long_session` /20 | none | 9 | 11 | 11.5 (11-12) | 9 | 10.5 (10-11) | 13.5 (13-14) |
+| `sports` /22 | none | 12 | 13 | 13 | 16 | 12 | 15 |
+| **All** /232 | | 80 (78-82) | 111.5 (111-112) | 110 | **116** (115-117) | 102.5 (102-103) | **133** (132-134) |
+| The seven packs no adapter saw /156 | | 67.5 | 83 | 85 | 86 | 82.5 | 99.5 |
+
+Haiku's ten packs cost 0.22 USD per sample. On the seven packs no adapter saw, every adapter
+scores where the untuned 9B does (83 to 86 against 82.5), all well above the base (67.5) and
+below Haiku (99.5).
+
+The adapters gain on packs they never saw, mostly by calling fewer tools: on `finance` the base
+calls a tool where none is expected in 15 cases, v1 in 2. The losses are small: `helpdesk_lite`
+drops by 1 on v1 and v2l (two new "none called" cases), `long_session` is flat on v2l.
+
+### Question 4: what the hardware does
+
+`gpu/summary.json`, from `nvidia-smi` at 1 Hz (`deploy/homelab/gpulog.py`). GPU 0 serves Ollama,
+GPU 1 trains; stages overlapped (training on GPU 1 while GPU 0 curated or evaluated), so read
+each stage by its own card:
+
+| Stage | GPU | Minutes | Util mean / p95 | Memory peak | Power mean / peak | Temp peak | Energy |
+|---|---|---|---|---|---|---|---|
+| Curation, 27B teacher (`curate_v2_27b`) | 0 | 81.6 | 93% / 100% | 21.0 GiB | 308 / 352 W | 83 C | 418 Wh |
+| Training, rerun 1 (`train_repro_seed7`) | 1 | 24.3 | 94% / 100% | 22.2 GiB | 332 / 351 W | 76 C | 134 Wh |
+| Training, rerun 2 (`train_repro_seed11`) | 1 | 24.2 | 95% / 100% | 22.2 GiB | 333 / 351 W | 76 C | 134 Wh |
+| Training, v2 (`train_v2`) | 1 | 24.1 | 94% / 100% | 22.7 GiB | 331 / 351 W | 76 C | 133 Wh |
+| Training, 6k cap, full logits (out of memory) (`train_v2_long`) | 1 | 4.7 | 87% / 100% | 23.6 GiB | 310 / 350 W | 77 C | 24 Wh |
+| Training, v2l (6k cap, tail logits) (`train_v2_long2`) | 1 | 30.0 | 95% / 100% | 16.8 GiB | 336 / 351 W | 77 C | 168 Wh |
+| Inference, base 4B, 4 packs x 3 (`d_local_4b`) | 0 | 5.8 | 78% / 100% | 22.0 GiB | 316 / 348 W | 87 C | 31 Wh |
+| Inference, v2l, 4 packs x 3 (`d_tuned_approvals_v2l_4b`) | 0 | 6.0 | 76% / 100% | 3.9 GiB | 305 / 334 W | 79 C | 30 Wh |
+| Inference, 9B, 4 packs x 3 (`d_local_9b`) | 0 | 7.7 | 84% / 100% | 10.5 GiB | 315 / 347 W | 82 C | 40 Wh |
+| Inference, 9B, 10 packs x 2 (`e_local_9b`) | 0 | 15.0 | 82% / 100% | 7.2 GiB | 312 / 346 W | 78 C | 78 Wh |
+| Idle (`idle_end`) | 0 | 1.0 | 0% / 0% | 0.2 GiB | 30 / 84 W | 65 C | 0 Wh |
+| Idle (`idle_end`) | 1 | 1.0 | 0% / 0% | 0.0 GiB | 9 / 10 W | 28 C | 0 Wh |
+
+- **Curation** (qwen3.5:27b Q4_K_M teacher, 81.6 min: 9 min writing the rewrites, then 72.5 min
+  running 726 scenarios through the harness, about 6 s each): GPU 0 at 93% for the whole stage, 308 W on average, 83 C at the
+  peak, 0.42 kWh.
+- **Training** (LoRA bf16, batch 1 x 8): GPU 1 pinned at 94 to 95% and 331 to 336 W (the card's
+  limit is 350 W) for 24 to 30 minutes, 76 to 77 C; `nvidia-smi` shows 22.7 GiB in use where torch
+  reports a 19.85 GiB peak (the allocator's reserve). With `tail_logits` v2l peaked at 11.04 GiB
+  on a longer dataset. One training run is about 0.13 to 0.17 kWh on the card.
+- **Inference** (scorecard runs, 4B and 9B): GPU 0 at 75 to 84%, about 310 to 320 W; the gaps are
+  the harness between model calls. A 4B model holds about 4 GiB (32k context), the 9B 7.2 GiB in a clean
+  stage; a stage's peak can include a model the previous stage left loaded (the base 4B's 22 GiB is the 27B
+  teacher still resident after curation).
+- `gpu/nvtop-train_repro_seed7.txt` is three minutes of `nvtop` text during rerun 1's training,
+  with GPU 1 alone busy.
+
+### What this round does and does not show
+
+- Measured on 2026-11-15: every pass count above, the reruns' and v2's training, the GPU
+  traces, the latencies and Haiku's cost. Carried from 2026-11-09: v1's training run (loss, time,
+  memory) and the first dataset.
+- Small n: three samples per cell (two for the ten packs) on 16 to 28 cases a pack, one day,
+  and run-to-run drift of about 2 cases per pack at temperature 0 (question 2).
+- ecommerce and logistics are trained-on packs for every adapter (v1's data even holds 22
+  golden cases), and device_fleet is one for v2 and v2l (rewrites only): those cells measure
+  learning these packs, not unseen traffic. Only `_starter` and the six non-governed packs are
+  unseen by all adapters.
+- The cost comparison counts the GPU card's energy only (no CPU, no idle, no purchase) against
+  Haiku's API price, and the 4B's hardware is already paid for. Curation and one training run
+  cost about 0.4 and 0.15 kWh on the cards.
 
 ## Run it yourself
 
