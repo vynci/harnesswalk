@@ -17,6 +17,7 @@ Face, Apache-2.0).
 | `trainer/worker.sh` | What the harness starts for a run (`nohup`, detached): sets `CUDA_VISIBLE_DEVICES` from `run.json` and runs every phase |
 | `trainer/pipeline.py` | The phases: `train`, `merge`, `convert`, `create`, `check`, `adapter`, `clean`, or `all` |
 | `trainer/hwlab.py` | The run directory, `status.json`, `steps.jsonl`, `result.json` |
+| `gpulog.py` | The GPU logger (not part of a run): an `nvidia-smi` CSV per stage and a `stages.json` sidecar, for traces of curation, training and evaluation (below) |
 
 ## Setup (once)
 
@@ -80,6 +81,39 @@ cd ~/harnesswalk-lab && . .venv/bin/activate && export PYTHONPATH=bin HF_HOME=ca
 CUDA_VISIBLE_DEVICES=1 python bin/pipeline.py train runs/<run_id>
 python bin/pipeline.py check runs/<run_id>
 ```
+
+### Long samples: `tail_logits`
+
+A sample longer than `max_seq_len` (4,096) is dropped, never truncated, and the run reports
+the count as `dropped_too_long`. Governed packs with many tools and long tool results produce
+longer prompts: 38 of the 52 `device_fleet` training examples of the 2026-11-15 v2 dataset ran
+to 4,100 to 5,200 tokens. Raising the cap alone (`--config max_seq_len=6144`) ran the card out
+of memory (the logits of a 5k-token prompt over the 248k-token vocabulary are about 5 GiB in
+fp32). `--config tail_logits=true` computes logits only from the token before the first target
+token to the end (`logits_to_keep`); the loss is the same sum over the same target tokens
+(checked to five decimals against the default on four validation samples), and the peak
+dropped from about 23 GiB to about 11 GiB. It is off by default, so the first recipe runs
+exactly as before.
+
+## GPU traces (`gpulog.py`)
+
+Copy it once (`scp deploy/homelab/gpulog.py ai@192.168.8.107:harnesswalk-lab/`), then wrap
+each stage:
+
+```sh
+python3 ~/harnesswalk-lab/gpulog.py start curate_v2 --dir ~/harnesswalk-lab/gpulog/2026-11-15 --note "27B teacher on GPU 0"
+python3 ~/harnesswalk-lab/gpulog.py stop curate_v2 --dir ~/harnesswalk-lab/gpulog/2026-11-15
+python3 ~/harnesswalk-lab/gpulog.py status --dir ~/harnesswalk-lab/gpulog/2026-11-15
+python3 ~/harnesswalk-lab/gpulog.py downsample curate_v2.csv curate_v2-5s.csv --seconds 5
+```
+
+`start` runs `nvidia-smi --query-gpu=timestamp,index,utilization.gpu,memory.used,power.draw,temperature.gpu --format=csv -l 1`
+detached (it outlives the ssh session) into `<stage>.csv` and records the stage in
+`stages.json` (start and end in UTC and epoch seconds, the host's UTC offset, because the
+`timestamp` column is local time, the logger's pid and a note). Stages may overlap; every row
+names its GPU. `downsample` averages each GPU over N-second windows for files headed to git.
+Standard library only (the host Python). A text view of `nvtop` for a write-up: run it in a
+detached tmux pane and `tmux capture-pane -p` every few seconds.
 
 ## Clean up
 
