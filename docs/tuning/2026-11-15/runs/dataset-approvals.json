@@ -1,0 +1,96 @@
+{
+  "counts": {
+    "by_pack": {
+      "ecommerce": 133,
+      "logistics": 60
+    },
+    "deduplicated": 0,
+    "dropped": {
+      "answer_match": 165,
+      "citations": 13,
+      "path": 141,
+      "tool_calls": 4
+    },
+    "examples": 193,
+    "failed": 323,
+    "kept": 193,
+    "skipped": 0,
+    "train": 177,
+    "turns": 516,
+    "val": 16
+  },
+  "created_at": "2026-11-09T05:46:40.819Z",
+  "curation_id": "cu_3",
+  "eval_run_ids": [
+    "run_0005",
+    "run_0006",
+    "run_0007",
+    "run_0008",
+    "run_0009",
+    "run_0010",
+    "run_0011",
+    "run_0012",
+    "run_0013",
+    "run_0014",
+    "run_0015",
+    "run_0016",
+    "run_0017",
+    "run_0018",
+    "run_0019",
+    "run_0020",
+    "run_0021",
+    "run_0022",
+    "run_0023",
+    "run_0024",
+    "run_0025",
+    "run_0026",
+    "run_0027",
+    "run_0028"
+  ],
+  "files": {
+    "scenarios": {
+      "bytes": 93897,
+      "path": "data/tune/datasets/approvals/v1/scenarios.jsonl",
+      "sha256": "f111cb602879914895762e45dc808419fa9ceceffb4912b1b0a3de9aeb8a9aa9"
+    },
+    "train": {
+      "bytes": 2044199,
+      "path": "data/tune/datasets/approvals/v1/train.jsonl",
+      "sha256": "79de66b101555e532f61d3a66146700a642cf094f0914130bbba87c91256b403"
+    },
+    "val": {
+      "bytes": 196335,
+      "path": "data/tune/datasets/approvals/v1/val.jsonl",
+      "sha256": "378df63492c7441d303a2824d192ed766c9da571f1dfe73d1f16f1ade6e848f3"
+    }
+  },
+  "filters": [
+    "every deterministic scorer passed under model grading (the model suite)",
+    "the turn ended on an answer and the trace kept its content",
+    "deduplicated by the sha256 of the example",
+    "validation split: the 0.1 of examples whose hash is lowest"
+  ],
+  "kind": "dataset",
+  "name": "approvals",
+  "packs": [
+    "ecommerce",
+    "logistics"
+  ],
+  "regenerate": "harnesswalk tune curate --pack ecommerce --pack logistics --teacher local-27b --variants 10 --seed 7 --out dataset/approvals",
+  "scenarios": {
+    "golden": 48,
+    "multi_turn_not_rewritten": 0,
+    "paraphrase": 468,
+    "rewrite_tokens": {
+      "input_tokens": 5991,
+      "output_tokens": 10526
+    },
+    "seed": 7,
+    "variants": 10
+  },
+  "source": "dataset packs only (synthetic, CC0); no customer data and no real tenant's turns",
+  "synthetic": true,
+  "teacher": "local-27b",
+  "teacher_model": "qwen3.5:27b",
+  "teacher_prompt_arm": true
+}

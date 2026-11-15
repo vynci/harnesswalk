@@ -1,0 +1,59 @@
+{
+ "created_at": "2026-11-15T21:39:59.765Z",
+ "ended_at": "2026-11-15T21:44:42.666Z",
+ "error": {
+  "code": "trainer_error",
+  "message": "OutOfMemoryError: CUDA out of memory. Tried to allocate 4.81 GiB. GPU 0 has a total capacity of 23.56 GiB of which 4.14 GiB is free. Including non-PyTorch memory, this process has 19.40 GiB memory in use. Of the allocated memory 18.80 GiB is allocated by PyTorch, and 149.47 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://d"
+ },
+ "id": "tr_6",
+ "kind": "run",
+ "last_step": {
+  "elapsed_s": 245.0,
+  "epoch": 0.283,
+  "eta_s": 1488.6,
+  "learning_rate": 0.00019682229406025635,
+  "loss": 0.1265,
+  "phase": "train",
+  "run_id": "tr_6",
+  "step": 13,
+  "total_steps": 92
+ },
+ "request": {
+  "config": {
+   "max_seq_len": 6144
+  },
+  "dataset": {
+   "hash": "1752499374afdfcb00ab86e2812cba4fdc928f9f27431ead33779e6a313056c9",
+   "name": "approvals_v2",
+   "version": 1
+  },
+  "dataset_manifest_counts": {
+   "by_pack": {
+    "device_fleet": 65,
+    "ecommerce": 118,
+    "logistics": 52
+   },
+   "deduplicated": 0,
+   "dropped": {
+    "answer_match": 243,
+    "citations": 10,
+    "path": 234,
+    "tool_calls": 4
+   },
+   "examples": 235,
+   "failed": 491,
+   "kept": 235,
+   "skipped": 0,
+   "train": 197,
+   "turns": 726,
+   "val": 38
+  },
+  "name": "approvals_v2l_4b",
+  "student": "local-4b",
+  "trainer": "homelab-trl"
+ },
+ "status": "error",
+ "stream": "tune:tr_6",
+ "tenant_id": "dev",
+ "trace_id": "b417b0a32bd9af0e1a4aac39bedf7369"
+}

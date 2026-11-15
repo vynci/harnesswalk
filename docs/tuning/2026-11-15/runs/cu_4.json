@@ -1,0 +1,57 @@
+{
+ "counts": {
+  "by_pack": {
+   "device_fleet": 65,
+   "ecommerce": 118,
+   "logistics": 52
+  },
+  "deduplicated": 0,
+  "dropped": {
+   "answer_match": 243,
+   "citations": 10,
+   "path": 234,
+   "tool_calls": 4
+  },
+  "examples": 235,
+  "failed": 491,
+  "kept": 235,
+  "skipped": 0,
+  "train": 197,
+  "turns": 726,
+  "val": 38
+ },
+ "created_at": "2026-11-15T19:53:02.978Z",
+ "dataset": {
+  "hash": "1752499374afdfcb00ab86e2812cba4fdc928f9f27431ead33779e6a313056c9",
+  "name": "approvals_v2",
+  "version": 1
+ },
+ "ended_at": "2026-11-15T21:14:38.235Z",
+ "error": null,
+ "id": "cu_4",
+ "kind": "curation",
+ "request": {
+  "chunk": 24,
+  "golden": false,
+  "name": "approvals_v2",
+  "packs": [
+   "ecommerce",
+   "logistics",
+   "device_fleet"
+  ],
+  "seed": 7,
+  "teacher": "local-27b",
+  "teacher_prompt_arm": true,
+  "val_fraction": 0.1,
+  "variants": 10
+ },
+ "scenarios": {
+  "device_fleet": 258,
+  "ecommerce": 235,
+  "logistics": 233
+ },
+ "status": "done",
+ "stream": "curate:cu_4",
+ "tenant_id": "dev",
+ "trace_id": "bdcd7daee95730f4b8458114dcc2eed5"
+}

@@ -1,0 +1,115 @@
+{
+  "adapter": {
+    "hash": "1f413a6ca6794929915a46d37f11c990a2205637dd64f0756e04ef4171036071",
+    "name": "approvals_4b",
+    "version": 1
+  },
+  "alias": "tuned-approvals-4b",
+  "alias_config": {
+    "context_tokens": 32000,
+    "label": "Tuned approvals_4b",
+    "name": "hw-approvals-4b:tr_2",
+    "params": {
+      "think": false
+    },
+    "price_in_per_mtok": 0,
+    "price_out_per_mtok": 0,
+    "provider": "ollama",
+    "tools": true
+  },
+  "created_at": "2026-11-09T07:03:04.639Z",
+  "gate": {
+    "against": "local-4b",
+    "at": "2026-11-09T07:19:19.527Z",
+    "canary_drop": {
+      "_starter": -1.0,
+      "sports": -1.0
+    },
+    "canary_packs": [
+      "sports",
+      "_starter"
+    ],
+    "canary_tolerance_cases": 1.0,
+    "comparison_id": "cmp_1",
+    "gain": 13.5,
+    "min_gain_cases": 2.0,
+    "packs": [
+      "ecommerce",
+      "logistics"
+    ],
+    "prompt_arm": {
+      "canary_drop": {
+        "_starter": 1.0,
+        "sports": 0.0
+      },
+      "canary_ok": true,
+      "gain": 1.0,
+      "would_pass": false
+    },
+    "reason": null,
+    "regressed": [],
+    "run_ids": [
+      "run_0029",
+      "run_0030",
+      "run_0031",
+      "run_0032",
+      "run_0033",
+      "run_0034",
+      "run_0035",
+      "run_0036",
+      "run_0037",
+      "run_0038",
+      "run_0039",
+      "run_0040",
+      "run_0041",
+      "run_0042",
+      "run_0043",
+      "run_0044",
+      "run_0045",
+      "run_0046",
+      "run_0047",
+      "run_0048",
+      "run_0049",
+      "run_0050",
+      "run_0051",
+      "run_0052"
+    ],
+    "samples": 2,
+    "status": "passed",
+    "table": {
+      "base": {
+        "_starter": 7.0,
+        "ecommerce": 4.0,
+        "logistics": 4.5,
+        "sports": 12.0
+      },
+      "candidate": {
+        "_starter": 8.0,
+        "ecommerce": 14.0,
+        "logistics": 8.0,
+        "sports": 13.0
+      },
+      "prompt_arm": {
+        "_starter": 6.0,
+        "ecommerce": 6.0,
+        "logistics": 3.5,
+        "sports": 12.0
+      }
+    }
+  },
+  "kind": "model",
+  "modelfile": "# harnesswalk tune run tr_2: approvals_4b\n# base Qwen/Qwen3.5-4B (main)\nFROM /tmp/hw-import/model-q4_k_m.gguf\nTEMPLATE {{ .Prompt }}\nRENDERER qwen3.5\nPARSER qwen3.5\nPARAMETER presence_penalty 1.5\nPARAMETER temperature 1\nPARAMETER top_k 20\nPARAMETER top_p 0.95\n",
+  "name": "approvals_4b",
+  "run_id": "tr_2",
+  "serve": {
+    "digest": "62240259590fe31b5ea8d4a949e76d7e1ad67d06513b6dac57c69b2a199bbfe1",
+    "gguf_bytes": 2708804096,
+    "gguf_location": "homelab:/home/ai/harnesswalk-lab/runs/tr_2/model-q4_k_m.gguf",
+    "gguf_sha256": "41c4dda91c26c08ca4ef7ae7a16ed4a9d3a9cc6594471bbe6f703968985704ec",
+    "method": "merged_gguf",
+    "provider": "ollama",
+    "quantization": "Q4_K_M",
+    "tag": "hw-approvals-4b:tr_2"
+  },
+  "student": "local-4b"
+}

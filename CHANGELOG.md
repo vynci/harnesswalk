@@ -12,6 +12,14 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 
 ### Added
 
+- **The evidence round (P5, 2026-11-15).** Two reruns of the first adapter's recipe, a second
+  adapter from three governed packs without their golden cases (`tune curate --no-golden`), and
+  every arm beside the untuned 9B and Claude Haiku 5.5 on four and on ten packs, with GPU traces
+  of curation, training and inference (`deploy/homelab/gpulog.py`). Eval cases now keep
+  `timing` (seconds per case, Ollama's own generation time) and the scorecard reports median
+  and p95 seconds per case and decode tokens per second. The homelab worker takes
+  `tail_logits: true`, so 5k-token governed samples train on one card. Results and raw data in
+  `docs/tuning.md` and `docs/tuning/2026-11-15/`.
 - **The first real tuned model (P3b).** `tuned-approvals-4b`: a LoRA adapter for qwen3.5:4b
   trained on the homelab from 193 passing turns of qwen3.5:27b on `ecommerce` and `logistics`,
   served as a Q4_K_M merge. Against the base on the same day it goes from 4 to 14 of 24 on
