@@ -1238,7 +1238,7 @@ routes replay its stored events; nothing is computed.
 | `GET /v1/tune/artifacts?kind=` | Latest version of every `dataset`, `adapter`, `model` artifact: `{kind, name, version, hash, updated_at, updated_by, note, summary}` |
 | `GET /v1/tune/artifacts/{kind}/{name}?version=` | One version: its `manifest`, `history`, `diff_from_previous` |
 | `GET /v1/tune/verify` | `{ok, versions, problems}`: every reference between the manifests resolves with its hash |
-| `POST /v1/tune/datasets` | Curate. Body `{name, packs, teacher?, variants?, seed?, val_fraction?, teacher_prompt_arm?}`. `202 {id, kind: curation, status, url, events_url}` |
+| `POST /v1/tune/datasets` | Curate. Body `{name, packs, teacher?, variants?, seed?, val_fraction?, teacher_prompt_arm?, golden?}`. `202 {id, kind: curation, status, url, events_url}` |
 | `GET /v1/tune/curations`, `/{id}`, `/{id}/events` | Curations; one (`request`, `status`, `scenarios`, `counts`, `dataset`, `error`); its stream (`curate:<id>`, ends at `eval_run_finished`) |
 | `POST /v1/tune/runs` | Train. Body `{dataset: "<name>[@v<n>]", trainer, student, name?, config?}`. `202 {id, kind: run, ...}`; `422 trainer_unavailable` for a stub trainer |
 | `GET /v1/tune/runs`, `/{id}`, `/{id}/events` | Runs; one (`request`, `status`, `steps`, `last_step`, `adapter`, `model`, `metrics`, `error`); its stream (`tune:<id>`, ends at `tune_run_finished`) |

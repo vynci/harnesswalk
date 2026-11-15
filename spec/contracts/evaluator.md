@@ -287,6 +287,12 @@ the golden set" has an answer that needs no judge model and is reproducible from
   `schema`, `pii_leak`, `answer_match`, `checks`) under **model grading** (see "Grading
   modes"); no LLM judge, `judge_model` is `null`.
 - **Cost.** The answers' usage is summed on the run's `cost`, as on `judge`.
+- **Timing** (P5, optional, every suite). A case's `actual.timing` is `{seconds, model_calls,
+  input_tokens, output_tokens, gen_ms, prompt_ms}`: the turn's `turn_end.duration_ms` in
+  seconds and its `model_layer` exits added up (`gen_ms` and `prompt_ms` are 0 when the
+  provider reports no timing; `events.md`). A multi-turn case adds its turns up. The scorecard
+  keeps it per case and gives each model's median and p95 seconds per case and its decode
+  tokens per second (output tokens over `gen_ms`).
 - **Regressions.** The previous run of a `model` run is the last finished run of the same
   tenant, pack, suite **and model**, so a 4B run is never compared with a 9B run; the diagnose
   baseline ("the last pass") is keyed the same way. `golden` and `judge` keep their lookup.

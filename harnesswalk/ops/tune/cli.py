@@ -35,6 +35,8 @@ def add_parser(sub: Any, common: Any) -> None:
     tp.add_argument("--seed", type=int, help="curate: the rewrite seed")
     tp.add_argument("--no-teacher-prompt-arm", action="store_true",
                     help="curate: the teacher runs without the control arm's addition")  # fmt: skip
+    tp.add_argument("--no-golden", action="store_true",
+                    help="curate: rewrites only, no golden case in the dataset")  # fmt: skip
     tp.add_argument("--dataset", help="run: dataset/<name>[@v<n>]")
     tp.add_argument("--trainer", default="fake", help="run: a trainer alias (config/trainers.yaml)")
     tp.add_argument("--student", help="run: the student model alias")
@@ -154,6 +156,8 @@ def run(args: argparse.Namespace, settings_of: Any) -> int:
                     "teacher": args.teacher,
                     "teacher_prompt_arm": not args.no_teacher_prompt_arm,
                 }
+                if args.no_golden:
+                    body["golden"] = False
                 if args.variants is not None:
                     body["variants"] = args.variants
                 if args.seed is not None:

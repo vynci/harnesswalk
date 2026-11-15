@@ -241,6 +241,63 @@ async def test_the_model_layer_asks_ollama_for_the_alias_context(tmp_path: Path)
     await h.aclose()
 
 
+@pytest.mark.anyio
+async def test_ollama_timing_reaches_the_trace_and_the_case_timing(tmp_path: Path) -> None:
+    """P5: Ollama's eval and prompt durations land on the model_layer exit and in the
+    turn's timing, and a scorecard case keeps them (seconds per case, tokens per second)."""
+    from harnesswalk.control.gateway import TurnRequest
+    from harnesswalk.ops.eval.scorers import actual_of
+    from harnesswalk.types import Identity
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/chat":
+            return httpx.Response(200, json={
+                "message": {"content": "9am to 5pm"}, "prompt_eval_count": 400,
+                "eval_count": 50, "eval_duration": 500_000_000, "prompt_eval_duration": 80_000_000,
+            })  # fmt: skip
+        return httpx.Response(200, json={"models": []})
+
+    h = Harness(settings(tmp_path, "plain_answer", profile=None))
+    h._turn_providers["ollama"] = OllamaProvider(
+        "http://ollama:11434", transport=httpx.MockTransport(handler)
+    )
+    h.provider_available = lambda name: True
+    try:
+        state = await h.gateway.start_turn(
+            TurnRequest(
+                message="What are your support hours?",
+                identity=Identity("dev", None, ["user"], anonymous=False),
+                provider="ollama", pin_model="local-4b", internal=True,
+            )
+        )  # fmt: skip
+        await h.gateway.wait(state.ctx.turn_id, timeout=30)
+        events = h.tracer.get_turn("dev", state.ctx.turn_id)
+    finally:
+        await h.aclose()
+    exits = [e for e in events if e["type"] == "node_exit" and e["node_id"] == "model_layer"]
+    assert exits and exits[0]["summary"]["gen_ms"] == 500.0
+    assert exits[0]["summary"]["prompt_ms"] == 80.0
+    timing = actual_of(events)["timing"]
+    assert timing["model_calls"] == len(exits) and timing["output_tokens"] == 50 * len(exits)
+    assert timing["gen_ms"] == 500.0 * len(exits) and timing["seconds"] >= 0
+    case = sc.reduce_case({"case_id": "x", "status": "passed", "scores": {},
+                           "actual": actual_of(events)}, set())  # fmt: skip
+    assert case["timing"]["gen_ms"] == timing["gen_ms"]
+    lat = sc.latency([case])
+    assert lat is not None and lat["decode_tok_s"] == 100.0 and lat["prefill_tok_s"] == 5000.0
+
+
+def test_latency_is_median_and_p95_by_nearest_rank() -> None:
+    cases = [
+        {"status": "passed", "timing": {"seconds": float(s), "output_tokens": 10, "gen_ms": 100.0}}
+        for s in range(1, 21)
+    ] + [{"status": "skipped", "timing": {"seconds": 999.0}}, {"status": "failed"}]
+    lat = sc.latency(cases)
+    assert lat == {"cases": 20, "median_s": 10.0, "p95_s": 19.0, "mean_s": 10.5,
+                   "decode_tok_s": 100.0, "prefill_tok_s": None}  # fmt: skip
+    assert sc.latency([{"status": "passed"}]) is None
+
+
 # -- probing Ollama ----------------------------------------------------------------------------
 
 

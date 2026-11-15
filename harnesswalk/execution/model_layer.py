@@ -85,6 +85,9 @@ class ModelResponse:
     usage: Usage = field(default_factory=Usage)
     cascade: str | None = None  # why a later alias answered: low_confidence
     budget_refused: str | None = None  # P6: the priced alias the ledger could not hold first
+    # P5: the provider's generation and prompt-processing time (ms) when it reports them.
+    gen_ms: float = 0.0
+    prompt_ms: float = 0.0
 
 
 HEDGES = re.compile(
@@ -253,6 +256,8 @@ class ModelLayer:
             )
             if response.usage.cached_tokens:
                 span.set(cached_tokens=response.usage.cached_tokens)
+            if response.gen_ms:
+                span.set(gen_ms=response.gen_ms, prompt_ms=response.prompt_ms)
             if response.cascade:
                 span.set(cascade=response.cascade)
             if self.capture_content:
@@ -389,6 +394,8 @@ class ModelLayer:
                     result.usage.cached_tokens,
                     usd,
                 ),
+                gen_ms=float(getattr(result.usage, "gen_ms", 0.0) or 0.0),
+                prompt_ms=float(getattr(result.usage, "prompt_ms", 0.0) or 0.0),
             )
             if low_confidence is not None:
                 response.usage.add(low_confidence.usage)  # both calls were paid for

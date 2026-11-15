@@ -33,7 +33,7 @@ interface Tuning {
 }
 
 record CurateRequest { name: string, packs: [string], teacher: string, variants?: int, seed?: int,
-                       teacher_prompt_arm?: bool }
+                       teacher_prompt_arm?: bool, golden?: bool }
 record TuneRequest   { dataset: string, trainer: string, student: string, name?: string,
                        config?: {string: any} }
 record CompareRequest { candidate: string /* model/<name> */, against: string /* base alias */,
@@ -53,6 +53,10 @@ Generates traffic, keeps what passes, exports it as supervised examples.
    for a JSON list of `variants` rewrites that keep every identifier. A `fake` teacher rewrites
    from fixed templates (a greeting before, a thanks after), so CI and the public replay are
    deterministic. The scenarios are stored with the dataset so it can be regenerated exactly.
+   With `golden: false` (P5; default `true`, CLI `--no-golden`) the golden cases themselves are
+   not scenarios: only their rewrites are, a multi-turn case (never rewritten) is left out, and
+   an example whose user message is a golden prompt of these packs is dropped (counted as
+   `golden_prompt`). It needs `variants` above 0. The manifest says `golden_included: false`.
 2. **Teacher traffic.** The scenarios run as `model`-suite eval runs pinned to the teacher
    (`evaluator.md`), one per pack, through the whole harness, approvals decided by each case's
    `approval`. The scenarios run in chunks of about `tune.curate.chunk` (24) cases, each chunk an
