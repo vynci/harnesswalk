@@ -141,6 +141,7 @@ class Job:
     tenant: str = "dev"
     max_shards: int | None = None
     shard_size: int = SHARD
+    extra_models: dict[str, dict[str, Any]] | None = None  # alias -> config (a tuned tag)
 
 
 def load_done(state: Path) -> dict[str, dict[str, Any]]:
@@ -201,7 +202,7 @@ async def _paraphrases(
 
 
 def _models_text(tuning: Tuning, job: Job) -> str:
-    text = tuning._at_temperature_zero(tuning._models_text(), [job.model])
+    text = tuning._at_temperature_zero(tuning._models_text(), [job.model], job.extra_models)
     if job.prompt_cache:
         import yaml
 
@@ -365,9 +366,21 @@ async def run(tuning: Tuning, job: Job, say: Any = print) -> dict[str, Any]:
     return totals
 
 
-def summary(state: Path, done: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
-    """Pass rates per pack and kind with Wilson intervals, spend, keep rate, failure split."""
+def summary(
+    state: Path, done: dict[str, dict[str, Any]] | None = None, only: set[str] | None = None
+) -> dict[str, Any]:
+    """Pass rates per pack and kind with Wilson intervals, spend, keep rate, failure split.
+    `only` (`pack/case_id`) restricts the rates to those cases (a frozen test set scored from
+    stored results); spend stays the whole state's."""
     done = load_done(state) if done is None else done
+    if only is not None:
+        done = {
+            k: {
+                **rec,
+                "cases": [c for c in rec["cases"] if f"{rec['pack']}/{c['case_id']}" in only],
+            }
+            for k, rec in done.items()
+        }
     cases = [c for rec in done.values() for c in rec["cases"]]
     usd = sum(rec["usd"] for rec in done.values())
     examples = sum(len(rec["examples"]) for rec in done.values())
@@ -387,6 +400,12 @@ def summary(state: Path, done: dict[str, dict[str, Any]] | None = None) -> dict[
     failed = Counter(f for c in cases for f in c.get("failed") or [])
     splits = Counter(c["tool_split"] for c in cases if c.get("tool_split"))
     secs = sorted(float((c.get("timing") or {}).get("seconds") or 0) for c in cases)
+    gen_ms = sum(float((c.get("timing") or {}).get("gen_ms") or 0) for c in cases)
+    out_tok = sum(int((c.get("timing") or {}).get("output_tokens") or 0) for c in cases)
+    by_pack_split = {
+        pack: dict(Counter(c["tool_split"] for c in items if c.get("tool_split")))
+        for pack, items in sorted(by_pack.items())
+    }
     return {
         "shards": len(done), "cases": len(cases), "usd": round(usd, 4),
         "usd_per_case": round(usd / len(cases), 6) if cases else None,
@@ -399,6 +418,9 @@ def summary(state: Path, done: dict[str, dict[str, Any]] | None = None) -> dict[
                       for k in sorted({c.get("source") for c in cases})},
         "failed_scorers": dict(failed.most_common()),
         "tool_split": dict(splits.most_common()),
+        "tool_split_by_pack": by_pack_split,
+        "decode_tok_s": round(out_tok / (gen_ms / 1000), 1) if gen_ms else None,
+        "mean_s": round(sum(secs) / len(secs), 3) if secs else None,
         "median_s": secs[len(secs) // 2] if secs else None,
         "p95_s": secs[int(len(secs) * 0.95)] if secs else None,
     }  # fmt: skip

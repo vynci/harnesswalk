@@ -95,7 +95,19 @@ def add_parser(sub: Any, common: Any) -> None:
         default="",
         help="testrun: only cases every one of these states failed (comma list)",
     )
-    tp.add_argument("--report", action="store_true", help="testrun, scale: print the summary only")
+    tp.add_argument(
+        "--report",
+        action="store_true",
+        help="testrun, scale: print the summary only (with --testset: its cases)",
+    )
+    tp.add_argument("--ollama-tag", help="testrun: evaluate this Ollama tag as --model")
+    tp.add_argument(
+        "--like",
+        default="local-4b",
+        help="testrun: the alias whose settings an --ollama-tag model takes",
+    )
+    tp.add_argument("--drop-kinds", default="", help="testset --testset SRC: kinds to drop")
+    tp.add_argument("--drop-cases", default="", help="testset --testset SRC: pack/case_id list")
 
 
 def _provider(base: Any, aliases: list[str | None]) -> str:

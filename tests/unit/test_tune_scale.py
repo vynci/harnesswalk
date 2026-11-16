@@ -298,3 +298,39 @@ def test_overlay_grows_a_list_row_and_the_fleet_lists_generated_assets() -> None
     for s in scen:
         for aid in s["rows"]["get_asset_status"]:
             assert aid in listed
+
+
+@pytest.mark.anyio
+async def test_freeze_report_and_tag_alias(tmp_path: Path) -> None:
+    from harnesswalk.ops.tune import scale_cli
+
+    h = Harness(tune_settings(tmp_path))
+    try:
+        scen = fixture_scenarios()
+        src = tmp_path / "ts"
+        gen.write_jsonl(src / "scenarios.jsonl", scen)
+        (src / "manifest.json").write_text(json.dumps({"seed": 1, "hash": "parent"}))
+        drop = f"ecommerce/{scen[0]['case']['id']}"
+        frozen = scale_cli.freeze_testset(src, tmp_path / "fz", "cancel_approve", drop)
+        kept = scale_cli.load_testset(tmp_path / "fz")
+        assert frozen["parent_hash"] == "parent" and frozen["cases"] == len(kept)
+        assert all(s["kind"] != "cancel_approve" for s in kept)
+        assert drop not in {f"{s['pack']}/{s['case']['id']}" for s in kept}
+        # an Ollama tag evaluated as a new alias, served like local-4b
+        base = h.settings.get("models.models.local-4b")
+        job = sc.Job(mode="eval", state=tmp_path / "s", model="tuned-x", scenarios=kept,
+                     extra_models={"tuned-x": {**base, "name": "hw-x:tr_1"}})  # fmt: skip
+        import yaml as _yaml
+
+        text = sc._models_text(h.tune, job)
+        cfg = _yaml.safe_load(text)["models"]["tuned-x"]
+        assert cfg["name"] == "hw-x:tr_1" and cfg["params"]["options"]["temperature"] == 0
+        # stored results scored on a frozen subset, without running anything again
+        job = sc.Job(mode="eval", state=tmp_path / "e", model="fake-small", scenarios=scen,
+                     shard_size=8)  # fmt: skip
+        await sc.run(h.tune, job, say=lambda _l: None)
+        only = {f"{s['pack']}/{s['case']['id']}" for s in kept}
+        rep = sc.summary(tmp_path / "e", only=only)
+        assert rep["all"]["n"] == len(kept) < sc.summary(tmp_path / "e")["all"]["n"]
+    finally:
+        await h.aclose()
