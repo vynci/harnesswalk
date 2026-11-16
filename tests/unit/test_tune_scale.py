@@ -253,3 +253,35 @@ async def test_testrun_failed_by_all(tmp_path: Path) -> None:
         assert sc.summary(tmp_path / "a")["by_pack"]["ecommerce"]["ci95"][0] > 0
     finally:
         await h.aclose()
+
+
+def test_relaxed_paths_accept_parallel_and_sequential_calls() -> None:
+    from harnesswalk.ops.eval.scorers import score_path
+
+    seq = ["gateway", "loop", "model_layer", "tools", "policy", "model_layer", "tools", "policy",
+           "model_layer", "output_guardrails"]  # fmt: skip
+    par = ["gateway", "loop", "model_layer", "tools", "policy", "tools", "policy", "model_layer",
+           "output_guardrails"]  # fmt: skip
+    relaxed = gen.relax(seq)
+    assert relaxed == par
+    assert score_path(relaxed, seq)["pass"] and score_path(relaxed, par)["pass"]
+    assert gen.relax(["model_layer", "tools", "model_layer"]) == [
+        "model_layer",
+        "tools",
+        "model_layer",
+    ]
+
+
+@pytest.mark.anyio
+async def test_paraphrases_run_on_a_tenant_of_their_own(tmp_path: Path) -> None:
+    h = Harness(tune_settings(tmp_path))
+    try:
+        job = sc.Job(mode="curate", state=tmp_path / "s", model="fake-small",
+                     scenarios=fixture_scenarios()[:4], variants=1, shard_size=4)  # fmt: skip
+        await sc.run(h.tune, job, say=lambda _l: None)
+        rec = next(iter(sc.load_done(tmp_path / "s").values()))
+        assert len(rec["run_ids"]) == 2  # the generated cases, then their paraphrases
+        tenants = {h.evals.store.run_of(r)["case_tenant"] for r in rec["run_ids"]}
+        assert len(tenants) == 2
+    finally:
+        await h.aclose()

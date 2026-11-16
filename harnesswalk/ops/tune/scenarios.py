@@ -83,6 +83,19 @@ def _md(date: str) -> str:
     return date[5:10]
 
 
+def relax(path: list[str]) -> list[str]:
+    """A golden path without the model calls between two tool calls: a model may call two
+    independent tools in one reply (in parallel) or one after the other, and both are right.
+    The relaxed path is a subsequence of either."""
+    out: list[str] = []
+    for i, node in enumerate(path):
+        nxt = path[i + 1] if i + 1 < len(path) else None
+        if node == "model_layer" and nxt == "tools" and "model_layer" in out:
+            continue
+        out.append(node)
+    return out
+
+
 def _path_of(pack_dir: Path, case_id: str) -> list[str]:
     for line in (pack_dir / "golden.jsonl").read_text(encoding="utf-8").splitlines():
         if line.strip():
@@ -415,6 +428,7 @@ def ecommerce(split: str, n: int, seed: int, pack_dir: Path) -> list[dict[str, A
         "one_read": g["order_lookup_qf20417"]["expect"]["path"],
         "no_tool": g["kb_return_label_fee"]["expect"]["path"],
     }
+    paths = {k: relax(v) for k, v in paths.items()}
     counts = _alloc(n, ECOM_WEIGHTS)
     oids = _ids(rng, "order", split, n * 2 + 10)
     tids = _ids(rng, "tracking", split, n * 2 + 10)
@@ -780,6 +794,7 @@ def logistics(split: str, n: int, seed: int, pack_dir: Path) -> list[dict[str, A
         "one_read": g["eta_single"]["expect"]["path"],
         "no_tool": g["kb_claim_window"]["expect"]["path"],
     }
+    paths = {k: relax(v) for k, v in paths.items()}
     counts = _alloc(n, LOG_WEIGHTS)
     sids = _ids(rng, "shipment", split, n + 10)
     out: list[dict[str, Any]] = []
@@ -976,6 +991,7 @@ def device_fleet(split: str, n: int, seed: int, pack_dir: Path) -> list[dict[str
         "obd": g["operator_obd_scan"]["expect"]["path"],
         "one_read": g["offline_asset_status"]["expect"]["path"],
     }
+    paths = {k: relax(v) for k, v in paths.items()}
     counts = _alloc(n, DEV_WEIGHTS)
     aids = _ids(rng, "asset", split, 2 * n + 10)
     cmds = _ids(rng, "command", split, n * 2 + 10)

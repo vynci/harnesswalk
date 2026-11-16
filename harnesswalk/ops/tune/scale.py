@@ -244,12 +244,24 @@ async def run_shard(tuning: Tuning, job: Job, shard: dict[str, Any], tenant: str
     view = tuning._view(pack, changes)
     examples: list[dict[str, Any]] = []
     results: list[dict[str, Any]] = []
+    originals = {c.id for c in base}
+    # The generated cases and their paraphrases run as two eval runs, so each has a scratch
+    # tenant of its own: a paraphrase never reads the memory its original wrote ("I see the
+    # order was already cancelled").
+    batches = [base, [c for c in cases if c.id not in originals]]
+    run_usd, run_ids, status = 0.0, [], "done"
     try:
-        run = await tuning._model_run(tenant, pack, job.model, view, job.mode, cases)
-        case_tenant = run.get("case_tenant") or f"evalrun-{run['run_id']}"
         read_tools = read_tools_of(view)
-        originals = {c.id for c in base}
-        for c in tuning.h.evals.store.cases(run["run_id"]):
+        stored = []
+        for batch in [b for b in batches if b]:
+            run = await tuning._model_run(tenant, pack, job.model, view, job.mode, batch)
+            run_usd += float((run.get("cost") or {}).get("usd") or 0.0)
+            run_ids.append(run["run_id"])
+            if run.get("status") != "done":
+                status = run.get("status")
+            case_tenant = run.get("case_tenant") or f"evalrun-{run['run_id']}"
+            stored += [(c, case_tenant) for c in tuning.h.evals.store.cases(run["run_id"])]
+        for c, case_tenant in stored:
             reduced = reduce_case(c, read_tools)
             actual = c.get("actual") or {}
             source = "generated" if c["case_id"] in originals else "paraphrase"
@@ -275,15 +287,12 @@ async def run_shard(tuning: Tuning, job: Job, shard: dict[str, Any], tenant: str
                     "shard": shard["id"],
                 }  # fmt: skip
                 examples.append(ex)
-        run_usd = float((run.get("cost") or {}).get("usd") or 0.0)
-        run_id = run["run_id"]
-        status = run.get("status")
     finally:
         view.close()
     usd = run_usd + float(para.get("usd") or 0.0)
     record = {
         "shard": shard["id"], "pack": pack, "mode": job.mode, "model": job.model,
-        "run_id": run_id, "run_status": status, "cases": results, "examples": examples,
+        "run_ids": run_ids, "run_status": status, "cases": results, "examples": examples,
         "usd": round(usd, 6), "run_usd": round(run_usd, 6), "paraphrase": para,
         "seconds": round(time.time() - started, 1), "finished_at": time.time(),
     }  # fmt: skip
