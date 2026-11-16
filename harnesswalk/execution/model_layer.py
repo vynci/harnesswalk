@@ -107,12 +107,29 @@ def confidence(text: str | None, calls: list[ToolCall], finish: str, offered: se
     return 1.0
 
 
-def price(model_cfg: dict[str, Any], input_tokens: int, output_tokens: int) -> tuple[float, bool]:
-    """Dollars for one call, and whether the price was known (unknown means 0)."""
+def price(
+    model_cfg: dict[str, Any],
+    input_tokens: int,
+    output_tokens: int,
+    cached_tokens: int = 0,
+    cache_write_tokens: int = 0,
+) -> tuple[float, bool]:
+    """Dollars for one call, and whether the price was known (unknown means 0).
+
+    P6: `input_tokens` is every prompt token; of those, `cached_tokens` were read from a
+    prompt cache and `cache_write_tokens` written to one. They are priced at the input price
+    times `cache_read_multiplier` (default 1: a provider whose cache discount is not
+    configured is never undercounted) and `cache_write_multiplier` (default 1.25)."""
     p_in, p_out = model_cfg.get("price_in_per_mtok"), model_cfg.get("price_out_per_mtok")
     if p_in is None or p_out is None:
         return 0.0, False
-    return (p_in * input_tokens + p_out * output_tokens) / 1_000_000, True
+    read = min(max(0, int(cached_tokens or 0)), int(input_tokens or 0))
+    write = min(max(0, int(cache_write_tokens or 0)), int(input_tokens or 0) - read)
+    plain = int(input_tokens or 0) - read - write
+    r_mult = float(model_cfg.get("cache_read_multiplier", 1.0))
+    w_mult = float(model_cfg.get("cache_write_multiplier", 1.25))
+    prompt = plain + read * r_mult + write * w_mult
+    return (p_in * prompt + p_out * output_tokens) / 1_000_000, True
 
 
 class ModelLayer:
@@ -372,7 +389,13 @@ class ModelLayer:
             for call in result.tool_calls:
                 issued += 1
                 calls.append(ToolCall(call.call_id or f"call_{issued}", call.name, call.arguments))
-            usd, _ = price(cfg, result.usage.input_tokens, result.usage.output_tokens)
+            usd, _ = price(
+                cfg,
+                result.usage.input_tokens,
+                result.usage.output_tokens,
+                result.usage.cached_tokens,
+                getattr(result.usage, "cache_write_tokens", 0),
+            )
             if self.ledger is not None and hold is not None:
                 with contextlib.suppress(Exception):
                     self.ledger.settle(hold, usd)

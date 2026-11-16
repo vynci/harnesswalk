@@ -135,6 +135,11 @@ def scenarios_for(cases: list[GoldenCase], texts: dict[str, list[str]]) -> list[
     return out
 
 
+def prompts_key(text: str | None) -> str:
+    """A user message as the prompt sets compare it: whitespace collapsed, lower case."""
+    return " ".join((text or "").split()).lower()
+
+
 def prompts_of(cases: list[GoldenCase]) -> set[str]:
     """Every user message of these golden cases (a multi-turn case's turns too), normalized."""
     out = set()

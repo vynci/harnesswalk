@@ -248,3 +248,40 @@ async def test_fallback_is_visible(tmp_path) -> None:
         if e.get("node_id") == "providers" and e["type"] in ("node_exit", "error")
     ]
     assert [e["type"] for e in attempts] == ["error", "node_exit"]
+
+
+@pytest.mark.anyio
+async def test_anthropic_prompt_cache_is_opt_in_and_priced() -> None:
+    """P6: `params.prompt_cache` marks the tools and the system prompt for caching, never goes
+    to the API as a field, and the usage counts cached and written tokens inside input_tokens,
+    which the model layer prices with the alias's multipliers."""
+    from harnesswalk.execution.model_layer import price
+
+    seen: list[httpx.Request] = []
+    reply = {
+        "content": [{"type": "text", "text": "Done."}],
+        "stop_reason": "end_turn",
+        "usage": {"input_tokens": 100, "output_tokens": 10, "cache_read_input_tokens": 3000,
+                  "cache_creation_input_tokens": 500},
+    }  # fmt: skip
+    p = AnthropicProvider("https://api.example.test", transport=transport(seen, reply))
+    params = {"prompt_cache": True, "thinking": {"type": "disabled"}}
+    r = await p.complete(ProviderRequest("m", HISTORY, [TOOL], 64, params=params, api_key="k"))
+    body = json.loads(seen[0].content)
+    assert "prompt_cache" not in body and body["thinking"] == {"type": "disabled"}
+    assert body["system"] == [
+        {"type": "text", "text": "You are helpful.", "cache_control": {"type": "ephemeral"}}
+    ]
+    assert body["tools"][-1]["cache_control"] == {"type": "ephemeral"}
+    assert (r.usage.input_tokens, r.usage.cached_tokens, r.usage.cache_write_tokens) == (
+        3600, 3000, 500)  # fmt: skip
+    haiku = {"price_in_per_mtok": 0.10, "price_out_per_mtok": 0.50, "cache_read_multiplier": 0.1}
+    usd, _ = price(haiku, 3600, 10, 3000, 500)
+    assert usd == pytest.approx((100 + 300 + 625) * 0.10 / 1e6 + 10 * 0.50 / 1e6)
+    # without a configured read discount a cached token costs what any input token costs
+    assert price({"price_in_per_mtok": 1, "price_out_per_mtok": 1}, 1000, 0, 1000)[0] == 0.001
+    assert price(haiku, 1000, 0)[0] == pytest.approx(0.0001)  # no cache: unchanged
+    seen.clear()
+    await p.complete(ProviderRequest("m", HISTORY, [TOOL], 64, api_key="k"))
+    body = json.loads(seen[0].content)
+    assert body["system"] == "You are helpful." and "cache_control" not in body["tools"][-1]

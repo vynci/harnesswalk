@@ -356,3 +356,22 @@ uv run harnesswalk tune rollback
 Wall time: curation 85 minutes (27B teacher, 516 scenarios; about 35 of those minutes the Mac
 driving it was asleep), training with merge, conversion and `ollama create` 24 minutes, the
 comparison 15 minutes (24 model-suite runs of the 4B models).
+
+### The scaled runs (P6)
+
+Generated scenarios with new entities and constructed expectations
+(`harnesswalk/ops/tune/scenarios.py`), a 1,000-case test set that shares no prompt and no
+entity id with the training split (device_fleet is test only), and a sharded runner that
+resumes from its state directory and stops before a spend cap (`harnesswalk/ops/tune/scale.py`):
+
+```sh
+uv run harnesswalk tune testset --out data/p6/testset
+uv run harnesswalk tune scale --teacher hosted-haiku --state data/p6/curate/haiku \
+  --scenarios 6000 --variants 1 --workers 4 --max-usd 30 --target-kept 10000 \
+  --testset data/p6/testset --prompt-cache --finalize p6_haiku --sizes 200,1000,5000
+uv run harnesswalk tune testrun --testset data/p6/testset --model local-4b \
+  --state data/p6/eval/local-4b
+uv run harnesswalk tune testrun --state data/p6/eval/local-4b --report
+```
+
+Run the same command again to resume; finished shards are read, not run again.
