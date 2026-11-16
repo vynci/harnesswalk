@@ -366,3 +366,10 @@ def test_fix_and_merge(tmp_path: Path) -> None:
     done = sc.merged([tmp_path / "s1", tmp_path / "s2"])
     rep = sc.summary(tmp_path / "s1", done)
     assert rep["all"]["passed"] == 2 and rep["all"]["n"] == 2 and rep["usd"] == 1.5
+
+
+def test_rewrites_accept_a_list_of_one_key_objects() -> None:
+    from harnesswalk.ops.tune.curate import parse_rewrites
+
+    assert parse_rewrites('[{"text": "Cancel QF-31234 please."}]', 1) == ["Cancel QF-31234 please."]
+    assert parse_rewrites('[{"a": "x", "b": "y"}, "z"]', 2) == ["z"]

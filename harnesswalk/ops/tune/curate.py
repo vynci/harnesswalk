@@ -78,6 +78,9 @@ def parse_rewrites(text: str | None, n: int) -> list[str]:
         return []
     out = []
     for item in data if isinstance(data, list) else []:
+        if isinstance(item, dict):  # P6: qwen3.5 27B answers [{"text": "..."}] for n = 1
+            texts = [v for v in item.values() if isinstance(v, str)]
+            item = texts[0] if len(texts) == 1 else None
         if isinstance(item, str) and item.strip() and item.strip() not in out:
             out.append(item.strip())
     return out[:n]
