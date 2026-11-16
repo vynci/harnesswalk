@@ -253,3 +253,48 @@ async def test_testrun_failed_by_all(tmp_path: Path) -> None:
         assert sc.summary(tmp_path / "a")["by_pack"]["ecommerce"]["ci95"][0] > 0
     finally:
         await h.aclose()
+
+
+def test_relaxed_paths_accept_parallel_and_sequential_calls() -> None:
+    from harnesswalk.ops.eval.scorers import score_path
+
+    seq = ["gateway", "loop", "model_layer", "tools", "policy", "model_layer", "tools", "policy",
+           "model_layer", "output_guardrails"]  # fmt: skip
+    par = ["gateway", "loop", "model_layer", "tools", "policy", "tools", "policy", "model_layer",
+           "output_guardrails"]  # fmt: skip
+    relaxed = gen.relax(seq)
+    assert relaxed == par
+    assert score_path(relaxed, seq)["pass"] and score_path(relaxed, par)["pass"]
+    assert gen.relax(["model_layer", "tools", "model_layer"]) == [
+        "model_layer",
+        "tools",
+        "model_layer",
+    ]
+
+
+@pytest.mark.anyio
+async def test_every_case_runs_on_a_tenant_of_its_own(tmp_path: Path) -> None:
+    h = Harness(tune_settings(tmp_path))
+    try:
+        job = sc.Job(mode="curate", state=tmp_path / "s", model="fake-small",
+                     scenarios=fixture_scenarios()[:4], variants=1, shard_size=4)  # fmt: skip
+        await sc.run(h.tune, job, say=lambda _l: None)
+        rec = next(iter(sc.load_done(tmp_path / "s").values()))
+        assert len(rec["run_ids"]) == len(rec["cases"]) == 8  # 4 generated, 4 paraphrases
+        tenants = {h.evals.store.run_of(r)["case_tenant"] for r in rec["run_ids"]}
+        assert len(tenants) == 8
+    finally:
+        await h.aclose()
+
+
+def test_overlay_grows_a_list_row_and_the_fleet_lists_generated_assets() -> None:
+    scen = gen.generate("device_fleet", "test", 40, 61, DATASETS)
+    text = gen.tools_overlay(
+        (DATASETS / "device_fleet" / "tools.yaml").read_text(), [s["rows"] for s in scen]
+    )
+    tools = {t["name"]: t for t in yaml.safe_load(text)}
+    listed = {a["asset_id"] for a in tools["list_assets"]["table"]["kestrelway"]["assets"]}
+    assert {"KW-0002", "KW-0041"} <= listed  # the pack's own assets stay
+    for s in scen:
+        for aid in s["rows"]["get_asset_status"]:
+            assert aid in listed

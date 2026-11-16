@@ -83,6 +83,19 @@ def _md(date: str) -> str:
     return date[5:10]
 
 
+def relax(path: list[str]) -> list[str]:
+    """A golden path without the model calls between two tool calls: a model may call two
+    independent tools in one reply (in parallel) or one after the other, and both are right.
+    The relaxed path is a subsequence of either."""
+    out: list[str] = []
+    for i, node in enumerate(path):
+        nxt = path[i + 1] if i + 1 < len(path) else None
+        if node == "model_layer" and nxt == "tools" and "model_layer" in out:
+            continue
+        out.append(node)
+    return out
+
+
 def _path_of(pack_dir: Path, case_id: str) -> list[str]:
     for line in (pack_dir / "golden.jsonl").read_text(encoding="utf-8").splitlines():
         if line.strip():
@@ -375,9 +388,9 @@ def _ecom_order(rng: random.Random, oid: int, status: str, tids: list[int]) -> d
         row["placed_on"] = f"2026-10-{rng.randint(26, 29):02d}"
     if status in ("shipped", "delivered"):
         row["tracking_id"] = f"QT-{tids.pop()}"
-    if status == "delivered":
-        row["placed_on"] = f"2026-10-{rng.randint(3, 18):02d}"
-        row["delivered_on"] = f"2026-10-{int(row['placed_on'][8:]) + rng.randint(4, 8):02d}"
+    if status == "delivered":  # recent: inside the 30-day window whatever "today" a model assumes
+        row["placed_on"] = f"2026-10-{rng.randint(14, 22):02d}"
+        row["delivered_on"] = f"2026-10-{int(row['placed_on'][8:]) + rng.randint(3, 6):02d}"
     if status == "shipped":
         row["placed_on"] = f"2026-10-{rng.randint(20, 27):02d}"
     return {"row": row, "short": short}
@@ -415,6 +428,7 @@ def ecommerce(split: str, n: int, seed: int, pack_dir: Path) -> list[dict[str, A
         "one_read": g["order_lookup_qf20417"]["expect"]["path"],
         "no_tool": g["kb_return_label_fee"]["expect"]["path"],
     }
+    paths = {k: relax(v) for k, v in paths.items()}
     counts = _alloc(n, ECOM_WEIGHTS)
     oids = _ids(rng, "order", split, n * 2 + 10)
     tids = _ids(rng, "tracking", split, n * 2 + 10)
@@ -780,6 +794,7 @@ def logistics(split: str, n: int, seed: int, pack_dir: Path) -> list[dict[str, A
         "one_read": g["eta_single"]["expect"]["path"],
         "no_tool": g["kb_claim_window"]["expect"]["path"],
     }
+    paths = {k: relax(v) for k, v in paths.items()}
     counts = _alloc(n, LOG_WEIGHTS)
     sids = _ids(rng, "shipment", split, n + 10)
     out: list[dict[str, Any]] = []
@@ -976,6 +991,7 @@ def device_fleet(split: str, n: int, seed: int, pack_dir: Path) -> list[dict[str
         "obd": g["operator_obd_scan"]["expect"]["path"],
         "one_read": g["offline_asset_status"]["expect"]["path"],
     }
+    paths = {k: relax(v) for k, v in paths.items()}
     counts = _alloc(n, DEV_WEIGHTS)
     aids = _ids(rng, "asset", split, 2 * n + 10)
     cmds = _ids(rng, "command", split, n * 2 + 10)
@@ -1007,6 +1023,13 @@ def device_fleet(split: str, n: int, seed: int, pack_dir: Path) -> list[dict[str
     def status_row(a: dict[str, Any]) -> dict[str, Any]:
         return {k: v for k, v in a.items() if k != "type"}
 
+    def listed(a: dict[str, Any]) -> dict[str, Any]:
+        """The asset in the fleet list (`list_assets`), so the generated world agrees."""
+        return {"kestrelway": {"assets": [{
+            "asset_id": a["asset_id"], "name": a["name"], "type": a["type"],
+            "online": a["online"], "last_seen": a["last_seen"], "obd_tier": a["obd_tier"],
+            "rate_hz": a["rate_hz"], "rule_sync": "ok"}]}}  # fmt: skip
+
     def add(kind: str, case: dict[str, Any], rows: dict[str, dict[str, Any]]) -> None:
         cid = f"{kind}_{len(out):05d}"
         case = {"id": cid, "title": kind.replace("_", " "), **case}
@@ -1020,7 +1043,8 @@ def device_fleet(split: str, n: int, seed: int, pack_dir: Path) -> list[dict[str
             a = asset(online)
             fill = {"aid": a["asset_id"], "name": a["name"]}
             cmd = f"CMD-{cmds.pop()}"
-            base_rows = {"get_asset_status": {a["asset_id"]: status_row(a)}}
+            base_rows = {"get_asset_status": {a["asset_id"]: status_row(a)},
+                         "list_assets": listed(a)}  # fmt: skip
             denied = {"answer_regex": NOT_DONE}
             if kind.startswith("power_off") or kind.startswith("multi_power_off"):
                 row = (
@@ -1125,13 +1149,14 @@ def device_fleet(split: str, n: int, seed: int, pack_dir: Path) -> list[dict[str
                 if rng.random() < 0.5:
                     a = asset(False)
                     fill = {"aid": a["asset_id"], "name": a["name"]}
-                    base_rows = {"get_asset_status": {a["asset_id"]: status_row(a)}}
-                seen = a["last_seen"]
+                    base_rows = {"get_asset_status": {a["asset_id"]: status_row(a)},
+                         "list_assets": listed(a)}  # fmt: skip
+                # Only the state: the output guardrail masks an ISO timestamp's date and hour
+                # as a phone number ("[PHONE]:55:11"), so the last-seen time is not checked.
                 add(kind, {
                     "prompt": tpl("status").format(**fill),
                     "expect": {"path": paths["one_read"], "tool_calls": ["get_asset_status"],
-                               "answer_contains": ["online" if a["online"] else "offline",
-                                                   _md(seen[:10]), seen[11:16]]},
+                               "answer_contains": ["online" if a["online"] else "offline"]},
                 }, base_rows)  # fmt: skip
     return out
 
@@ -1163,7 +1188,17 @@ def tools_overlay(tools_text: str, rows: list[dict[str, dict[str, Any]]]) -> str
             spec = by_name.get(tool)
             if spec is None:
                 raise KeyError(f"no tool {tool!r} in this pack")
-            spec.setdefault("table", {}).update(table)
+            known = spec.setdefault("table", {})
+            for key, row in table.items():
+                have = known.get(key)
+                if isinstance(have, dict) and isinstance(row, dict):  # a list row grows
+                    merged = dict(have)
+                    for k, v in row.items():
+                        old = merged.get(k)
+                        merged[k] = old + v if isinstance(old, list) and isinstance(v, list) else v
+                    known[key] = merged
+                else:
+                    known[key] = row
     return yaml.safe_dump(tools, sort_keys=False, allow_unicode=True, width=1000)
 
 
