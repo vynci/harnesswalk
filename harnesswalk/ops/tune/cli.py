@@ -7,6 +7,12 @@
     tune promote --candidate model/approvals_4b [--fraction 0.1] [--full] [--force]
     tune rollback
     tune status
+    tune testset --out data/p6/testset [--seed 61]
+    tune scale --teacher hosted-haiku --state data/p6/curate --scenarios 6000 --variants 1 \\
+        --workers 4 --max-usd 30 --target-kept 10000 --testset data/p6/testset \\
+        [--finalize p6_haiku --sizes 200,1000,5000] [--max-shards 10] [--prompt-cache]
+    tune testrun --testset data/p6/testset --model local-4b --state data/p6/eval/local-4b \\
+        [--workers 1] [--max-usd 5] [--only-failed STATE,STATE] [--report]
 
 Each command runs in-process on this data directory, like `eval` and `scorecard`: the provider
 is the one the models it names use (`ollama` for local aliases, `fake` for scripted ones), and
@@ -27,7 +33,8 @@ from typing import Any
 def add_parser(sub: Any, common: Any) -> None:
     tp = sub.add_parser("tune", help="curate, train, compare, promote and roll back a model")
     common(tp)
-    tp.add_argument("action", choices=["curate", "run", "compare", "promote", "rollback", "status"])
+    tp.add_argument("action", choices=["curate", "run", "compare", "promote", "rollback", "status",
+                                       "testset", "scale", "testrun"])  # fmt: skip
     tp.add_argument("--pack", action="append", help="curate: a pack to curate from (repeatable)")
     tp.add_argument("--teacher", help="curate: the teacher alias (default tune.teacher)")
     tp.add_argument("--out", help="curate: dataset/<name>; compare: a Markdown file to write")
@@ -55,6 +62,40 @@ def add_parser(sub: Any, common: Any) -> None:
     tp.add_argument("--json", metavar="PATH", help="write the job record as JSON")
     tp.add_argument("--tenant", default="dev")
     tp.add_argument("--case-timeout", type=float, default=180.0, help="seconds per case turn")
+    # P6: generated scenarios, the scaled curation and the test-set runs (ops/tune/scale.py)
+    tp.add_argument("--state", help="scale, testrun: the resumable state directory")
+    tp.add_argument("--testset", help="scale: the test set to keep out; testrun: the test set")
+    tp.add_argument("--scenarios", type=int, help="scale: generated scenarios per pack")
+    tp.add_argument("--workers", type=int, default=1, help="scale, testrun: shards in parallel")
+    tp.add_argument(
+        "--max-usd",
+        type=float,
+        default=1.0,
+        help="scale, testrun: the spend meter's cap for this state (all runs)",
+    )
+    tp.add_argument(
+        "--prior-usd",
+        type=float,
+        default=0.003,
+        help="scale, testrun: the estimated USD per case before two shards are done",
+    )
+    tp.add_argument("--target-kept", type=int, help="scale: stop once this many examples are kept")
+    tp.add_argument("--max-shards", type=int, help="scale, testrun: run at most this many shards")
+    tp.add_argument(
+        "--prompt-cache",
+        action="store_true",
+        help="scale, testrun: cache the tools and system prompt (anthropic)",
+    )
+    tp.add_argument("--finalize", metavar="NAME", help="scale: write dataset/NAME from the state")
+    tp.add_argument("--sizes", default="", help="scale: nested subsets, e.g. 200,1000,5000")
+    tp.add_argument("--no-run", action="store_true", help="scale: finalize only, run nothing")
+    tp.add_argument("--model", help="testrun: the model alias to evaluate")
+    tp.add_argument(
+        "--only-failed",
+        default="",
+        help="testrun: only cases every one of these states failed (comma list)",
+    )
+    tp.add_argument("--report", action="store_true", help="testrun, scale: print the summary only")
 
 
 def _provider(base: Any, aliases: list[str | None]) -> str:
@@ -90,6 +131,8 @@ def run(args: argparse.Namespace, settings_of: Any) -> int:
     base = settings_of(args)
     aliases = {
         "curate": [args.teacher or base.get("tune.teacher", "local-27b")],
+        "scale": [args.teacher or base.get("tune.teacher", "local-27b")],
+        "testrun": [args.model],
         "run": [args.student],
         "compare": [args.against],
     }.get(args.action, [])
@@ -137,6 +180,10 @@ def run(args: argparse.Namespace, settings_of: Any) -> int:
                     "canary": t.canary(args.tenant), "verify": t.verify(),
                 }, indent=2, default=str))  # fmt: skip
                 return 0
+            if args.action in ("testset", "scale", "testrun"):
+                from harnesswalk.ops.tune import scale_cli
+
+                return await scale_cli.run(args, h, say)
             if args.action in ("promote", "rollback"):
                 if args.action == "promote":
                     out = await t.promote(args.tenant, {
