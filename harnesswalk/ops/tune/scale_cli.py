@@ -57,6 +57,35 @@ def build_testset(h: Any, out: Path, seed: int = TEST_SEED) -> dict[str, Any]:
     return manifest
 
 
+def freeze_testset(src: Path, out: Path, drop_kinds: str, drop_cases: str) -> dict[str, Any]:
+    """A frozen copy of a test set without the dropped kinds (`kind,kind`) and cases
+    (`pack/case_id,...`), with a manifest that names its parent and what was dropped."""
+    kinds = {k.strip() for k in (drop_kinds or "").split(",") if k.strip()}
+    cases = {c.strip() for c in (drop_cases or "").split(",") if c.strip()}
+    scenarios = load_testset(src)
+    keep = [
+        s for s in scenarios
+        if s["kind"] not in kinds and f"{s['pack']}/{s['case']['id']}" not in cases
+    ]  # fmt: skip
+    parent = json.loads((src / "manifest.json").read_text(encoding="utf-8"))
+    by_pack: dict[str, dict[str, int]] = {}
+    for s in keep:
+        by_pack.setdefault(s["pack"], {}).setdefault(s["kind"], 0)
+        by_pack[s["pack"]][s["kind"]] += 1
+    manifest = {
+        **{k: parent[k] for k in ("seed", "held_out_packs", "id_ranges") if k in parent},
+        "parent_hash": parent.get("hash"), "hash": sc.scenario_hash(keep), "cases": len(keep),
+        "dropped_kinds": sorted(kinds), "dropped_cases": sorted(cases),
+        "dropped": len(scenarios) - len(keep),
+        "by_pack": {p: sum(k.values()) for p, k in by_pack.items()}, "by_kind": by_pack,
+        "approval_cases": sum(1 for s in keep if "approval" in s["case"].get("tags", [])),
+        "multi_turn_cases": sum(1 for s in keep if s["case"].get("turns")),
+    }  # fmt: skip
+    gen.write_jsonl(out / "scenarios.jsonl", keep)
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    return manifest
+
+
 def load_testset(path: Path) -> list[dict[str, Any]]:
     file = path / "scenarios.jsonl"
     if not file.is_file():
@@ -68,14 +97,20 @@ async def run(args: Any, h: Any, say: Any) -> int:
     t = h.tune
     if args.action == "testset":
         out = Path(args.out or "data/p6/testset")
-        manifest = build_testset(h, out, args.seed if args.seed is not None else TEST_SEED)
+        if args.testset:  # freeze: the given test set without the dropped kinds and cases
+            manifest = freeze_testset(Path(args.testset), out, args.drop_kinds, args.drop_cases)
+        else:
+            manifest = build_testset(h, out, args.seed if args.seed is not None else TEST_SEED)
         print(json.dumps(manifest, indent=2))
         return 0
     if not args.state:
         raise SystemExit(f"tune {args.action} needs --state DIR")
     state = Path(args.state)
     if args.report:
-        print(json.dumps(sc.summary(state), indent=2))
+        only = None
+        if args.testset:
+            only = {f"{s['pack']}/{s['case']['id']}" for s in load_testset(Path(args.testset))}
+        print(json.dumps(sc.summary(state, only=only), indent=2))
         return 0
     if args.action == "testrun":
         if not args.model or not args.testset:
@@ -88,7 +123,14 @@ async def run(args: Any, h: Any, say: Any) -> int:
             bad = sc.failed_by_all(others)
             scenarios = [s for s in scenarios if f"{s['pack']}/{s['case']['id']}" in bad]
             say(f"{len(scenarios)} cases failed by every one of {', '.join(map(str, others))}")
+        extra = None
+        if args.ollama_tag:  # a tuned model by its Ollama tag, served like the alias it tunes
+            base = dict(h.settings.get(f"models.models.{args.like}", None) or {})
+            if base.get("provider") != "ollama":
+                raise SystemExit(f"--like {args.like} is not an ollama alias")
+            extra = {args.model: {**base, "name": args.ollama_tag, "label": args.model}}
         job = sc.Job(
+            extra_models=extra,
             mode="eval", state=state, model=args.model, scenarios=scenarios,
             workers=args.workers, max_usd=args.max_usd, prior_usd_per_case=args.prior_usd,
             prompt_arm=False, prompt_cache=args.prompt_cache, tenant=args.tenant,
