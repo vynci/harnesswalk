@@ -1023,6 +1023,13 @@ def device_fleet(split: str, n: int, seed: int, pack_dir: Path) -> list[dict[str
     def status_row(a: dict[str, Any]) -> dict[str, Any]:
         return {k: v for k, v in a.items() if k != "type"}
 
+    def listed(a: dict[str, Any]) -> dict[str, Any]:
+        """The asset in the fleet list (`list_assets`), so the generated world agrees."""
+        return {"kestrelway": {"assets": [{
+            "asset_id": a["asset_id"], "name": a["name"], "type": a["type"],
+            "online": a["online"], "last_seen": a["last_seen"], "obd_tier": a["obd_tier"],
+            "rate_hz": a["rate_hz"], "rule_sync": "ok"}]}}  # fmt: skip
+
     def add(kind: str, case: dict[str, Any], rows: dict[str, dict[str, Any]]) -> None:
         cid = f"{kind}_{len(out):05d}"
         case = {"id": cid, "title": kind.replace("_", " "), **case}
@@ -1036,7 +1043,8 @@ def device_fleet(split: str, n: int, seed: int, pack_dir: Path) -> list[dict[str
             a = asset(online)
             fill = {"aid": a["asset_id"], "name": a["name"]}
             cmd = f"CMD-{cmds.pop()}"
-            base_rows = {"get_asset_status": {a["asset_id"]: status_row(a)}}
+            base_rows = {"get_asset_status": {a["asset_id"]: status_row(a)},
+                         "list_assets": listed(a)}  # fmt: skip
             denied = {"answer_regex": NOT_DONE}
             if kind.startswith("power_off") or kind.startswith("multi_power_off"):
                 row = (
@@ -1141,13 +1149,14 @@ def device_fleet(split: str, n: int, seed: int, pack_dir: Path) -> list[dict[str
                 if rng.random() < 0.5:
                     a = asset(False)
                     fill = {"aid": a["asset_id"], "name": a["name"]}
-                    base_rows = {"get_asset_status": {a["asset_id"]: status_row(a)}}
-                seen = a["last_seen"]
+                    base_rows = {"get_asset_status": {a["asset_id"]: status_row(a)},
+                         "list_assets": listed(a)}  # fmt: skip
+                # Only the state: the output guardrail masks an ISO timestamp's date and hour
+                # as a phone number ("[PHONE]:55:11"), so the last-seen time is not checked.
                 add(kind, {
                     "prompt": tpl("status").format(**fill),
                     "expect": {"path": paths["one_read"], "tool_calls": ["get_asset_status"],
-                               "answer_contains": ["online" if a["online"] else "offline",
-                                                   _md(seen[:10]), seen[11:16]]},
+                               "answer_contains": ["online" if a["online"] else "offline"]},
                 }, base_rows)  # fmt: skip
     return out
 
@@ -1179,7 +1188,17 @@ def tools_overlay(tools_text: str, rows: list[dict[str, dict[str, Any]]]) -> str
             spec = by_name.get(tool)
             if spec is None:
                 raise KeyError(f"no tool {tool!r} in this pack")
-            spec.setdefault("table", {}).update(table)
+            known = spec.setdefault("table", {})
+            for key, row in table.items():
+                have = known.get(key)
+                if isinstance(have, dict) and isinstance(row, dict):  # a list row grows
+                    merged = dict(have)
+                    for k, v in row.items():
+                        old = merged.get(k)
+                        merged[k] = old + v if isinstance(old, list) and isinstance(v, list) else v
+                    known[key] = merged
+                else:
+                    known[key] = row
     return yaml.safe_dump(tools, sort_keys=False, allow_unicode=True, width=1000)
 
 

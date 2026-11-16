@@ -245,10 +245,10 @@ async def run_shard(tuning: Tuning, job: Job, shard: dict[str, Any], tenant: str
     examples: list[dict[str, Any]] = []
     results: list[dict[str, Any]] = []
     originals = {c.id for c in base}
-    # The generated cases and their paraphrases run as two eval runs, so each has a scratch
-    # tenant of its own: a paraphrase never reads the memory its original wrote ("I see the
-    # order was already cancelled").
-    batches = [base, [c for c in cases if c.id not in originals]]
+    # Every case runs as an eval run of its own, so it has a scratch tenant (and a memory) of
+    # its own: no case reads what an earlier case of the shard wrote (a paraphrase seeing its
+    # original's "already cancelled", a "power it off" turn finding other assets in memory).
+    batches = [[c] for c in cases]
     run_usd, run_ids, status = 0.0, [], "done"
     try:
         read_tools = read_tools_of(view)
