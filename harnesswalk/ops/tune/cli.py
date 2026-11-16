@@ -89,6 +89,7 @@ def add_parser(sub: Any, common: Any) -> None:
     tp.add_argument("--finalize", metavar="NAME", help="scale: write dataset/NAME from the state")
     tp.add_argument("--sizes", default="", help="scale: nested subsets, e.g. 200,1000,5000")
     tp.add_argument("--no-run", action="store_true", help="scale: finalize only, run nothing")
+    tp.add_argument("--val-max", type=int, default=160, help="scale --finalize: validation cap")
     tp.add_argument("--model", help="testrun: the model alias to evaluate")
     tp.add_argument(
         "--only-failed",

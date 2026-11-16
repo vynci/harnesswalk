@@ -576,7 +576,7 @@ def _put_dataset(
             "no test-set entity id appears in the example",
             "deduplicated by the sha256 of the example",
             "at most 3 examples share the user's first message",
-            "validation: the examples whose hash is lowest (a tenth), at most 160",
+            f"validation: the examples whose hash is lowest (a tenth), at most {len(val)}",
             *([f"subset: the first {size} training examples in hash order"] if size else []),
         ],
         "counts": {

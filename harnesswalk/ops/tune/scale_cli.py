@@ -204,6 +204,7 @@ async def run(args: Any, h: Any, say: Any) -> int:
         out = sc.finalize(
             t, state, args.finalize.removeprefix("dataset/"), tenant=args.tenant,
             exclude_prompts=exclude_prompts, exclude_ids=exclude_ids, sizes=sizes,
+            val_max=args.val_max,
         )  # fmt: skip
         print(json.dumps(out, indent=2, default=str))
     return 0
