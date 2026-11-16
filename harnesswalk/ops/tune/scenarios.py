@@ -375,9 +375,9 @@ def _ecom_order(rng: random.Random, oid: int, status: str, tids: list[int]) -> d
         row["placed_on"] = f"2026-10-{rng.randint(26, 29):02d}"
     if status in ("shipped", "delivered"):
         row["tracking_id"] = f"QT-{tids.pop()}"
-    if status == "delivered":
-        row["placed_on"] = f"2026-10-{rng.randint(3, 18):02d}"
-        row["delivered_on"] = f"2026-10-{int(row['placed_on'][8:]) + rng.randint(4, 8):02d}"
+    if status == "delivered":  # recent: inside the 30-day window whatever "today" a model assumes
+        row["placed_on"] = f"2026-10-{rng.randint(14, 22):02d}"
+        row["delivered_on"] = f"2026-10-{int(row['placed_on'][8:]) + rng.randint(3, 6):02d}"
     if status == "shipped":
         row["placed_on"] = f"2026-10-{rng.randint(20, 27):02d}"
     return {"row": row, "short": short}
