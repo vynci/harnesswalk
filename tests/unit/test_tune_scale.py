@@ -334,3 +334,35 @@ async def test_freeze_report_and_tag_alias(tmp_path: Path) -> None:
         assert rep["all"]["n"] == len(kept) < sc.summary(tmp_path / "e")["all"]["n"]
     finally:
         await h.aclose()
+
+
+def test_fix_and_merge(tmp_path: Path) -> None:
+    from harnesswalk.ops.tune import scale_cli
+
+    scen = [s for s in gen.generate("device_fleet", "test", 60, 61, DATASETS)
+            if s["kind"] in ("clear_sms_approve", "status")]  # fmt: skip
+    src = tmp_path / "ts"
+    gen.write_jsonl(src / "scenarios.jsonl", scen)
+    (src / "manifest.json").write_text(json.dumps({"hash": "p"}))
+    m = scale_cli.freeze_testset(src, tmp_path / "fz", "", "", "clear_sms_approve")
+    assert m["fixed_kinds"] == ["clear_sms_approve"]
+    for s in scale_cli.load_testset(tmp_path / "fz"):
+        if s["kind"] == "clear_sms_approve":
+            n = next(iter(s["rows"]["clear_sms"].values()))["messages_to_clear"]
+            assert s["case"]["expect"]["answer_contains"] == [str(n)]
+    with pytest.raises(SystemExit):
+        scale_cli.freeze_testset(src, tmp_path / "x", "", "", "nope")
+
+    def put(state: Path, status: str, usd: float) -> None:
+        sc._atomic(state / "shards" / "p-1.done.json", {
+            "shard": "p-1", "pack": "p", "cases": [
+                {"case_id": "a", "status": status}, {"case_id": "b", "status": "passed"}],
+            "examples": [], "usd": usd})  # fmt: skip
+
+    put(tmp_path / "s1", "failed", 1.0)
+    sc._atomic(tmp_path / "s2" / "shards" / "p-1.done.json", {
+        "shard": "p-1", "pack": "p", "cases": [{"case_id": "a", "status": "passed"}],
+        "examples": [], "usd": 0.5})  # fmt: skip
+    done = sc.merged([tmp_path / "s1", tmp_path / "s2"])
+    rep = sc.summary(tmp_path / "s1", done)
+    assert rep["all"]["passed"] == 2 and rep["all"]["n"] == 2 and rep["usd"] == 1.5

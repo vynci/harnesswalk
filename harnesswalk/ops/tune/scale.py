@@ -426,6 +426,27 @@ def summary(
     }  # fmt: skip
 
 
+def merged(states: list[Path]) -> dict[str, dict[str, Any]]:
+    """The finished cases of several eval states as one, by `pack/case_id`: a later state's
+    result replaces an earlier one's (a re-run of the cases a frozen test set changed). One
+    record per pack; the spend is every state's."""
+    by_key: dict[str, tuple[str, dict[str, Any]]] = {}
+    usd = 0.0
+    for state in states:
+        for rec in load_done(state).values():
+            usd += float(rec.get("usd") or 0.0)
+            for c in rec["cases"]:
+                by_key[f"{rec['pack']}/{c['case_id']}"] = (rec["pack"], c)
+    out: dict[str, dict[str, Any]] = {}
+    for pack, case in by_key.values():
+        rec = out.setdefault(pack, {"shard": pack, "pack": pack, "cases": [], "examples": [],
+                                    "usd": 0.0})  # fmt: skip
+        rec["cases"].append(case)
+    if out:
+        next(iter(out.values()))["usd"] = usd
+    return out
+
+
 def failed_by_all(states: list[Path]) -> set[str]:
     """Case ids (`pack/case_id`) that did not pass in any of these eval states."""
     sets = []

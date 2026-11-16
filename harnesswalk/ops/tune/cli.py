@@ -108,6 +108,7 @@ def add_parser(sub: Any, common: Any) -> None:
     )
     tp.add_argument("--drop-kinds", default="", help="testset --testset SRC: kinds to drop")
     tp.add_argument("--drop-cases", default="", help="testset --testset SRC: pack/case_id list")
+    tp.add_argument("--fix-kinds", default="", help="testset --testset SRC: kinds to fix")
 
 
 def _provider(base: Any, aliases: list[str | None]) -> str:

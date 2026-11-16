@@ -57,16 +57,37 @@ def build_testset(h: Any, out: Path, seed: int = TEST_SEED) -> dict[str, Any]:
     return manifest
 
 
-def freeze_testset(src: Path, out: Path, drop_kinds: str, drop_cases: str) -> dict[str, Any]:
+def _fix_clear_sms_approve(s: dict[str, Any]) -> None:
+    """An approved SMS clear: the reply must give the number of messages, not the read id.
+    Haiku, Sonnet and the 27B all report "pending, N messages" without the id (the sanity pass
+    of 2026-11-16), and the count is the fact the user needs."""
+    row = next(iter(s["rows"]["clear_sms"].values()))
+    s["case"]["expect"]["answer_contains"] = [str(row["messages_to_clear"])]
+
+
+FIXES = {"clear_sms_approve": _fix_clear_sms_approve}
+
+
+def freeze_testset(
+    src: Path, out: Path, drop_kinds: str, drop_cases: str, fix_kinds: str = ""
+) -> dict[str, Any]:
     """A frozen copy of a test set without the dropped kinds (`kind,kind`) and cases
-    (`pack/case_id,...`), with a manifest that names its parent and what was dropped."""
+    (`pack/case_id,...`), with the expectation fixes of `fix_kinds` (FIXES) applied, and a
+    manifest that names its parent, what was dropped and what was fixed."""
     kinds = {k.strip() for k in (drop_kinds or "").split(",") if k.strip()}
     cases = {c.strip() for c in (drop_cases or "").split(",") if c.strip()}
+    fixes = [k.strip() for k in (fix_kinds or "").split(",") if k.strip()]
+    unknown = [k for k in fixes if k not in FIXES]
+    if unknown:
+        raise SystemExit(f"no fix for {unknown}; known: {sorted(FIXES)}")
     scenarios = load_testset(src)
     keep = [
         s for s in scenarios
         if s["kind"] not in kinds and f"{s['pack']}/{s['case']['id']}" not in cases
     ]  # fmt: skip
+    for s in keep:
+        if s["kind"] in fixes:
+            FIXES[s["kind"]](s)
     parent = json.loads((src / "manifest.json").read_text(encoding="utf-8"))
     by_pack: dict[str, dict[str, int]] = {}
     for s in keep:
@@ -75,7 +96,7 @@ def freeze_testset(src: Path, out: Path, drop_kinds: str, drop_cases: str) -> di
     manifest = {
         **{k: parent[k] for k in ("seed", "held_out_packs", "id_ranges") if k in parent},
         "parent_hash": parent.get("hash"), "hash": sc.scenario_hash(keep), "cases": len(keep),
-        "dropped_kinds": sorted(kinds), "dropped_cases": sorted(cases),
+        "dropped_kinds": sorted(kinds), "dropped_cases": sorted(cases), "fixed_kinds": fixes,
         "dropped": len(scenarios) - len(keep),
         "by_pack": {p: sum(k.values()) for p, k in by_pack.items()}, "by_kind": by_pack,
         "approval_cases": sum(1 for s in keep if "approval" in s["case"].get("tags", [])),
@@ -98,7 +119,9 @@ async def run(args: Any, h: Any, say: Any) -> int:
     if args.action == "testset":
         out = Path(args.out or "data/p6/testset")
         if args.testset:  # freeze: the given test set without the dropped kinds and cases
-            manifest = freeze_testset(Path(args.testset), out, args.drop_kinds, args.drop_cases)
+            manifest = freeze_testset(
+                Path(args.testset), out, args.drop_kinds, args.drop_cases, args.fix_kinds
+            )
         else:
             manifest = build_testset(h, out, args.seed if args.seed is not None else TEST_SEED)
         print(json.dumps(manifest, indent=2))
@@ -106,11 +129,13 @@ async def run(args: Any, h: Any, say: Any) -> int:
     if not args.state:
         raise SystemExit(f"tune {args.action} needs --state DIR")
     state = Path(args.state)
-    if args.report:
+    if args.report:  # --state A,B: B's results replace A's for the cases B ran
         only = None
         if args.testset:
             only = {f"{s['pack']}/{s['case']['id']}" for s in load_testset(Path(args.testset))}
-        print(json.dumps(sc.summary(state, only=only), indent=2))
+        states = [Path(x) for x in args.state.split(",") if x.strip()]
+        done = sc.merged(states) if len(states) > 1 else None
+        print(json.dumps(sc.summary(states[0], done, only=only), indent=2))
         return 0
     if args.action == "testrun":
         if not args.model or not args.testset:
