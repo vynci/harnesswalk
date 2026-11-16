@@ -469,6 +469,15 @@ def _users(example: dict[str, Any]) -> list[str]:
     ]
 
 
+def _prompt(example: dict[str, Any]) -> str:
+    """The user's own first message: not the retrieved-data block the context builder sends
+    as a user message before it (the same passages head many examples)."""
+    for text in _users(example):
+        if not text.lstrip().startswith("<retrieved_data"):
+            return text
+    return ""
+
+
 def finalize(
     tuning: Tuning,
     state: Path,
@@ -510,7 +519,7 @@ def finalize(
     ordered = []
     for digest in sorted(unique):
         ex = unique[digest]
-        first = cur.prompts_key((_users(ex) or [""])[0])
+        first = cur.prompts_key(_prompt(ex))
         per_prompt[first] += 1
         if per_prompt[first] > max_per_prompt:
             dropped["per_prompt_cap"] += 1
@@ -566,7 +575,7 @@ def _put_dataset(
             "no user message is a golden prompt of any pack or a test-set prompt",
             "no test-set entity id appears in the example",
             "deduplicated by the sha256 of the example",
-            "at most 3 examples share a first user message",
+            "at most 3 examples share the user's first message",
             "validation: the examples whose hash is lowest (a tenth), at most 160",
             *([f"subset: the first {size} training examples in hash order"] if size else []),
         ],

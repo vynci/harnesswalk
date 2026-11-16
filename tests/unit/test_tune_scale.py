@@ -373,3 +373,12 @@ def test_rewrites_accept_a_list_of_one_key_objects() -> None:
 
     assert parse_rewrites('[{"text": "Cancel QF-31234 please."}]', 1) == ["Cancel QF-31234 please."]
     assert parse_rewrites('[{"a": "x", "b": "y"}, "z"]', 2) == ["z"]
+
+
+def test_the_prompt_cap_keys_on_the_users_message_not_the_passages() -> None:
+    ex = {"messages": [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": '<retrieved_data kind="passages">\n[1] ...'},
+        {"role": "user", "content": "Where is QF-30001?"},
+        {"role": "assistant", "content": "Shipped."}]}  # fmt: skip
+    assert sc._prompt(ex) == "Where is QF-30001?"
