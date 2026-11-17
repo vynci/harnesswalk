@@ -10,6 +10,10 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.2.0] - 2026-11-17
+
 ### Added
 
 - **The evidence round (P5, 2026-11-15).** Two reruns of the first adapter's recipe, a second
@@ -277,6 +281,7 @@ The first public release, built in eight phases (P0 to P7).
 - `make web-build` and the other web targets run pnpm from inside `web/`, so corepack uses the
   pinned pnpm on a fresh machine instead of failing with `ERR_PNPM_BAD_PM_VERSION`.
 
-[Unreleased]: https://github.com/vynci/harnesswalk/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/vynci/harnesswalk/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/vynci/harnesswalk/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/vynci/harnesswalk/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/vynci/harnesswalk/releases/tag/v0.1.0
