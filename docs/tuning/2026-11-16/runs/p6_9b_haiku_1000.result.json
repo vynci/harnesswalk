@@ -1,0 +1,51 @@
+{
+  "run_id": "tr_2",
+  "note": "Assembled by hand: the worker trained the 9B to the end (714 steps) but its GPU merge ran out of memory (17 GiB of weights plus a 12.7 GiB allocation on a 24 GiB card); the merge was redone on the CPU (merge_cpu.py in this folder, the worker's merge with device_map cpu) and the worker's convert, create, check and clean phases ran as single commands. A second training attempt the driver started at a 4k cap was stopped and its run directory removed.",
+  "spec": {
+    "name": "p6_9b_haiku_1000",
+    "student": "local-9b",
+    "base": {
+      "repo": "Qwen/Qwen3.5-9B",
+      "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+      "ollama_base": "qwen3.5:9b",
+      "renderer": "qwen3.5",
+      "parser": "qwen3.5"
+    },
+    "config": {
+      "method": "lora",
+      "rank": 16,
+      "alpha": 32,
+      "dropout": 0.05,
+      "target_modules": "all-linear",
+      "epochs": 2,
+      "learning_rate": 0.0002,
+      "max_seq_len": 6144,
+      "batch_size": 1,
+      "grad_accum": 8,
+      "warmup_ratio": 0.05,
+      "seed": 7,
+      "tail_logits": true
+    },
+    "tag": "hw-p6-9b-haiku-1000:tr_2",
+    "cuda_visible_devices": "0"
+  },
+  "metrics": {
+    "steps": 714,
+    "train_loss_last": 0.2298,
+    "eval_loss_last": 0.1973,
+    "train_elapsed_s": 17657.2,
+    "examples": {
+      "train": 2855,
+      "val": 304
+    }
+  },
+  "serve": {
+    "tag": "hw-p6-9b-haiku-1000:tr_2",
+    "digest": "a6706ed4f497f9788e1d0e84713b0d8940a096011b701ce3d801daf51c897493",
+    "gguf_sha256": "d7ea600c6e6f844d697e232d985df174fd3f5dde5f820be90584fedfad8c0626",
+    "gguf_bytes": 5629108800,
+    "quantization": "Q4_K_M",
+    "method": "merged_gguf"
+  },
+  "modelfile": "# harnesswalk tune run tr_2: p6_9b_haiku_1000\n# base Qwen/Qwen3.5-9B (c202236235762e1c871ad0ccb60c8ee5ba337b9a)\nFROM /tmp/hw-import/model-q4_k_m.gguf\nTEMPLATE {{ .Prompt }}\nRENDERER qwen3.5\nPARSER qwen3.5\nPARAMETER presence_penalty 1.5\nPARAMETER temperature 1\nPARAMETER top_k 20\nPARAMETER top_p 0.95\n"
+}

@@ -1,0 +1,8 @@
+p6_27b_1000 lab-train-27b/tr_1
+p6_9b_haiku_1000 lab-train-haiku-b/tr_2
+p6_haiku_1000 lab-train-haiku/tr_2
+p6_haiku_1000_s11 lab-train-haiku/tr_4
+p6_haiku_1000_s13 lab-train-haiku-b/tr_1
+p6_haiku_200 lab-train-haiku/tr_1
+p6_haiku_5000 lab-train-haiku/tr_3
+p6_haiku_5000_s11 lab-train-haiku/tr_5

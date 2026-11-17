@@ -1,0 +1,112 @@
+{
+  "seed": 61,
+  "cases": 1000,
+  "hash": "c18bd20799f8e749",
+  "by_pack": {
+    "ecommerce": 350,
+    "logistics": 350,
+    "device_fleet": 300
+  },
+  "by_kind": {
+    "ecommerce": {
+      "conditional_no_cancel": 18,
+      "track": 28,
+      "cancel_approve": 55,
+      "multi_cancel_approve": 11,
+      "kb": 28,
+      "not_found": 9,
+      "refund_approve": 37,
+      "lookup": 37,
+      "cancel_deny": 37,
+      "lookup_then_refund_deny": 18,
+      "smalltalk": 9,
+      "refund_deny": 37,
+      "multi_cancel_deny": 7,
+      "lookup_then_cancel_approve": 19
+    },
+    "logistics": {
+      "reroute_approve": 75,
+      "track_eta": 38,
+      "track": 25,
+      "kb": 25,
+      "reroute_blocked": 38,
+      "multi_reroute_deny": 12,
+      "reroute_deny": 63,
+      "not_found": 12,
+      "multi_reroute_approve": 15,
+      "eta": 25,
+      "smalltalk": 10,
+      "hub": 12
+    },
+    "device_fleet": {
+      "purge_deny": 29,
+      "clear_sms_approve": 29,
+      "power_off_deny": 39,
+      "power_off_approve": 39,
+      "purge_approve": 20,
+      "clear_sms_deny": 29,
+      "obd_scan": 16,
+      "reboot_admin": 24,
+      "status": 23,
+      "power_off_offline": 16,
+      "reboot_operator": 16,
+      "multi_power_off_approve": 10,
+      "multi_power_off_deny": 10
+    }
+  },
+  "held_out_packs": [
+    "device_fleet"
+  ],
+  "id_ranges": {
+    "order": {
+      "train": [
+        30000,
+        59999
+      ],
+      "test": [
+        70000,
+        89999
+      ]
+    },
+    "tracking": {
+      "train": [
+        60000000,
+        69999999
+      ],
+      "test": [
+        70000000,
+        79999999
+      ]
+    },
+    "shipment": {
+      "train": [
+        610000,
+        699999
+      ],
+      "test": [
+        700000,
+        799999
+      ]
+    },
+    "asset": {
+      "test": [
+        1000,
+        9999
+      ]
+    },
+    "command": {
+      "train": [
+        70000,
+        79999
+      ],
+      "test": [
+        80000,
+        89999
+      ]
+    }
+  },
+  "approval_cases": 607,
+  "multi_turn_cases": 65,
+  "golden_prompt_overlap": 0,
+  "entity_ids": 1345
+}

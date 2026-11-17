@@ -1,0 +1,99 @@
+{
+  "folder": "lab-train-haiku/runs/tr_1",
+  "cap": 6144,
+  "train": {
+    "examples": 200,
+    "samples": 566,
+    "dropped_over_cap": 0,
+    "tokens": {
+      "p50": 2717,
+      "p90": 3518,
+      "p99": 4073,
+      "max": 4665,
+      "mean": 2738,
+      "over_4096": 5
+    },
+    "by_pack": {
+      "ecommerce": 98,
+      "logistics": 102
+    },
+    "by_kind": {
+      "lookup_then_cancel_approve": 4,
+      "not_found": 6,
+      "reroute_blocked": 11,
+      "kb": 9,
+      "reroute_deny": 18,
+      "reroute_approve": 21,
+      "track_eta": 4,
+      "cancel_approve": 21,
+      "lookup_then_refund_deny": 5,
+      "hub": 7,
+      "multi_reroute_deny": 8,
+      "conditional_no_cancel": 4,
+      "refund_deny": 8,
+      "multi_cancel_approve": 5,
+      "cancel_deny": 9,
+      "refund_approve": 13,
+      "lookup": 12,
+      "track": 17,
+      "eta": 10,
+      "multi_reroute_approve": 4,
+      "multi_cancel_deny": 3,
+      "smalltalk": 1
+    },
+    "by_source": {
+      "paraphrase": 99,
+      "generated": 101
+    },
+    "by_teacher": {
+      "hosted-haiku": 200
+    }
+  },
+  "val": {
+    "examples": 100,
+    "samples": 304,
+    "dropped_over_cap": 0,
+    "tokens": {
+      "p50": 2903,
+      "p90": 3572,
+      "p99": 3908,
+      "max": 4072,
+      "mean": 2845,
+      "over_4096": 0
+    },
+    "by_pack": {
+      "ecommerce": 46,
+      "logistics": 54
+    },
+    "by_kind": {
+      "track": 5,
+      "reroute_approve": 19,
+      "not_found": 4,
+      "refund_approve": 7,
+      "reroute_deny": 9,
+      "multi_cancel_deny": 3,
+      "kb": 7,
+      "multi_reroute_deny": 2,
+      "hub": 3,
+      "multi_reroute_approve": 5,
+      "lookup": 7,
+      "lookup_then_refund_deny": 1,
+      "cancel_deny": 3,
+      "lookup_then_cancel_approve": 4,
+      "refund_deny": 4,
+      "reroute_blocked": 5,
+      "track_eta": 3,
+      "eta": 3,
+      "cancel_approve": 4,
+      "smalltalk": 1,
+      "conditional_no_cancel": 1
+    },
+    "by_source": {
+      "paraphrase": 44,
+      "generated": 56
+    },
+    "by_teacher": {
+      "hosted-haiku": 100
+    }
+  }
+}

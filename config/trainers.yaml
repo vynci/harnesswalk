@@ -26,4 +26,6 @@ trainers:
 # the result (the base's own renderer and parser, as `ollama show --modelfile` prints them).
 students:
   local-4b: { repo: Qwen/Qwen3.5-4B, revision: main, ollama_base: "qwen3.5:4b", renderer: qwen3.5, parser: qwen3.5 }
+  # P6: the 9B student (bf16 LoRA on one 3090), pinned to the revision the round trained.
+  local-9b: { repo: Qwen/Qwen3.5-9B, revision: c202236235762e1c871ad0ccb60c8ee5ba337b9a, ollama_base: "qwen3.5:9b", renderer: qwen3.5, parser: qwen3.5 }
   local-e4b: { repo: google/gemma-4-E4B-it, revision: main, ollama_base: "gemma4:e4b", renderer: gemma4, parser: gemma4 }

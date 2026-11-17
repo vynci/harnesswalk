@@ -43,6 +43,10 @@ models:
   tuned-p6-haiku-1000: { provider: ollama, name: "hw-p6-haiku-1000:tr_2", label: Tuned 4B on 1000 Haiku examples, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
   tuned-p6-haiku-5000: { provider: ollama, name: "hw-p6-haiku-5000:tr_3", label: Tuned 4B on 5000 Haiku examples, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
   tuned-p6-27b-1000: { provider: ollama, name: "hw-p6-27b-1000:tr_1", label: Tuned 4B on 1000 qwen3.5 27B examples, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  tuned-p6-haiku-1000-s11: { provider: ollama, name: "hw-p6-haiku-1000-s11:tr_4", label: Tuned 4B on 1000 Haiku examples (seed 11), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  tuned-p6-haiku-1000-s13: { provider: ollama, name: "hw-p6-haiku-1000-s13:tr_1", label: Tuned 4B on 1000 Haiku examples (seed 13), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  tuned-p6-haiku-5000-s11: { provider: ollama, name: "hw-p6-haiku-5000-s11:tr_5", label: Tuned 4B on 5000 Haiku examples (seed 11), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  tuned-p6-9b-haiku-1000: { provider: ollama, name: "hw-p6-9b-haiku-1000:tr_2", label: Tuned 9B on 1000 Haiku examples, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
   fake-student: { provider: fake, label: Fake student (asks first), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { fake_style: ask_first } }
   # Pinned Anthropic ids (PLAN section 13). Prices per million tokens, first-party API, prompts
   # up to 100K tokens for Haiku. The harness does not replay thinking blocks, so each model
