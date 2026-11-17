@@ -1,0 +1,107 @@
+{
+  "counts": {
+    "by_pack": {
+      "device_fleet": 65,
+      "ecommerce": 118,
+      "logistics": 52
+    },
+    "deduplicated": 0,
+    "dropped": {
+      "answer_match": 243,
+      "citations": 10,
+      "path": 234,
+      "tool_calls": 4
+    },
+    "examples": 235,
+    "failed": 491,
+    "kept": 235,
+    "skipped": 0,
+    "train": 197,
+    "turns": 726,
+    "val": 38
+  },
+  "created_at": "2026-11-15T21:14:38.233Z",
+  "curation_id": "cu_4",
+  "eval_run_ids": [
+    "run_0065",
+    "run_0066",
+    "run_0067",
+    "run_0068",
+    "run_0069",
+    "run_0070",
+    "run_0071",
+    "run_0072",
+    "run_0073",
+    "run_0074",
+    "run_0075",
+    "run_0076",
+    "run_0077",
+    "run_0078",
+    "run_0079",
+    "run_0080",
+    "run_0081",
+    "run_0082",
+    "run_0083",
+    "run_0084",
+    "run_0085",
+    "run_0086",
+    "run_0087",
+    "run_0088",
+    "run_0089",
+    "run_0090",
+    "run_0091",
+    "run_0092",
+    "run_0093",
+    "run_0094",
+    "run_0095"
+  ],
+  "files": {
+    "scenarios": {
+      "bytes": 140538,
+      "path": "data/tune/datasets/approvals_v2/v1/scenarios.jsonl",
+      "sha256": "f474cc1f14fb16064b9b07c9c762bd35f9e3af0eaded6ac8e1c3b960f6ebe27c"
+    },
+    "train": {
+      "bytes": 2576774,
+      "path": "data/tune/datasets/approvals_v2/v1/train.jsonl",
+      "sha256": "f61ef4615c861e2f1159e13a34964e636d9406e8ef7ed8bc0b83799b1af9a7e9"
+    },
+    "val": {
+      "bytes": 513489,
+      "path": "data/tune/datasets/approvals_v2/v1/val.jsonl",
+      "sha256": "7229b2299facb342efc21d683b98045c0541610588f3b81a27290f09d2a3947c"
+    }
+  },
+  "filters": [
+    "every deterministic scorer passed under model grading (the model suite)",
+    "the turn ended on an answer and the trace kept its content",
+    "deduplicated by the sha256 of the example",
+    "validation split: the 0.1 of examples whose hash is lowest",
+    "no golden case: teacher rewrites only, and an example whose user message is a golden prompt of these packs is dropped"
+  ],
+  "golden_included": false,
+  "kind": "dataset",
+  "name": "approvals_v2",
+  "packs": [
+    "ecommerce",
+    "logistics",
+    "device_fleet"
+  ],
+  "regenerate": "harnesswalk tune curate --pack ecommerce --pack logistics --pack device_fleet --teacher local-27b --variants 10 --seed 7 --no-golden --out dataset/approvals_v2",
+  "scenarios": {
+    "golden": 0,
+    "multi_turn_not_rewritten": 2,
+    "paraphrase": 726,
+    "rewrite_tokens": {
+      "input_tokens": 9487,
+      "output_tokens": 18915
+    },
+    "seed": 7,
+    "variants": 10
+  },
+  "source": "dataset packs only (synthetic, CC0); no customer data and no real tenant's turns",
+  "synthetic": true,
+  "teacher": "local-27b",
+  "teacher_model": "qwen3.5:27b",
+  "teacher_prompt_arm": true
+}

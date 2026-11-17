@@ -1,0 +1,37 @@
+{
+  "adapter": {
+    "hash": "aae9297b984bf6bbcdb798718c73005cf245dc07d535958a497e911179bf9cd6",
+    "name": "approvals_v2l_4b",
+    "version": 1
+  },
+  "alias": "tuned-approvals-v2l-4b",
+  "alias_config": {
+    "context_tokens": 32000,
+    "label": "Tuned approvals_v2l_4b",
+    "name": "hw-approvals-v2l-4b:tr_7",
+    "params": {
+      "think": false
+    },
+    "price_in_per_mtok": 0,
+    "price_out_per_mtok": 0,
+    "provider": "ollama",
+    "tools": true
+  },
+  "created_at": "2026-11-15T22:19:35.962Z",
+  "gate": null,
+  "kind": "model",
+  "modelfile": "# harnesswalk tune run tr_7: approvals_v2l_4b\n# base Qwen/Qwen3.5-4B (main)\nFROM /tmp/hw-import/model-q4_k_m.gguf\nTEMPLATE {{ .Prompt }}\nRENDERER qwen3.5\nPARSER qwen3.5\nPARAMETER presence_penalty 1.5\nPARAMETER temperature 1\nPARAMETER top_k 20\nPARAMETER top_p 0.95\n",
+  "name": "approvals_v2l_4b",
+  "run_id": "tr_7",
+  "serve": {
+    "digest": "6d34bd21c700125677cf2d630a6e86c713e8f5c7383e8a312670ad3f45e84b2a",
+    "gguf_bytes": 2708804096,
+    "gguf_location": "homelab:/home/ai/harnesswalk-lab/runs/tr_7/model-q4_k_m.gguf",
+    "gguf_sha256": "d6ed338356801f13ec3cd2d29e8254251b16e5ddbaa7e4f30df33ebfec1f2588",
+    "method": "merged_gguf",
+    "provider": "ollama",
+    "quantization": "Q4_K_M",
+    "tag": "hw-approvals-v2l-4b:tr_7"
+  },
+  "student": "local-4b"
+}

@@ -1,0 +1,68 @@
+{
+  "run_id": "tr_1",
+  "metrics": {
+    "steps": 142,
+    "train_loss": 0.2882,
+    "eval_loss": 0.2649,
+    "wall_s": 2971.3,
+    "trained_tokens": 49331,
+    "tokens": 2414382,
+    "max_tokens": 4665,
+    "examples": {
+      "train": 566,
+      "val": 304
+    },
+    "dropped_too_long": {
+      "train": 0,
+      "val": 0
+    },
+    "trainable_params": 32464896,
+    "peak_gpu_gib": 10.76,
+    "gpu": "NVIDIA GeForce RTX 3090",
+    "pipeline_wall_s": 3040.1
+  },
+  "weights": {
+    "location": "homelab:~/harnesswalk-lab/p6/lab-train-haiku/runs/tr_1/adapter",
+    "sha256": "96ba7c17027c3931cafc5a08003390ea37eaabd6aed9c4dfcbb0543993507d61",
+    "bytes": 129927008
+  },
+  "serve": {
+    "provider": "ollama",
+    "tag": "hw-p6-haiku-200:tr_1",
+    "digest": "ddaf13c77875086c1c56f0a7fc301643d183866b7d855483f357a4c813a0e52e",
+    "method": "merged_gguf",
+    "gguf_sha256": "9744a184f6c60848655ca3727902e7f171ea3ed04fa7c0f3dd38ab974c07bca6",
+    "gguf_bytes": 2708804096,
+    "quantization": "Q4_K_M",
+    "gguf_location": "homelab:~/harnesswalk-lab/p6/lab-train-haiku/runs/tr_1/model-q4_k_m.gguf"
+  },
+  "modelfile": "# harnesswalk tune run tr_1: p6_haiku_200\n# base Qwen/Qwen3.5-4B (main)\nFROM /tmp/hw-import/model-q4_k_m.gguf\nTEMPLATE {{ .Prompt }}\nRENDERER qwen3.5\nPARSER qwen3.5\nPARAMETER presence_penalty 1.5\nPARAMETER temperature 1\nPARAMETER top_k 20\nPARAMETER top_p 0.95\n",
+  "template_check": {
+    "same_prompt_tokens": true,
+    "examples": [
+      {
+        "rendered_prompt_tokens": 2536,
+        "raw_prompt_tokens": 2536,
+        "chat_prompt_tokens": 2536,
+        "raw_reply": "Your shipment QT-68392048 (order QF-33776) has been delivered by Brindle Parcel. The last scan was at 15:55 on October 25, 2026, at the front desk.\n\nIf you have any questions about it, just let me know.",
+        "chat_reply": "Your shipment QT-68392048 (order QF-33776) has been delivered by Brindle Parcel. The last scan was at 15:55 on October 25, 2026, at the front desk.\n\nIf you have any questions about it, just let me know.",
+        "chat_tool_calls": null,
+        "expected": "Good news: shipment QT-68392048 (order QF-33776) has been delivered. Brindle Parcel's last scan shows it was delivered to the front desk on 2026-10-25 at 15:55.\n\nIf you're having trouble locating the parcel, let me know and I can help with next steps."
+      },
+      {
+        "rendered_prompt_tokens": 2536,
+        "raw_prompt_tokens": 2536,
+        "chat_prompt_tokens": 2536,
+        "raw_reply": "Your shipment QT-68392048 (order QF-33776) has been delivered by Brindle Parcel. The last scan was at 15:55 on October 25, 2026, at the front desk.\n\nIf you have any questions about it, just let me know.",
+        "chat_reply": "Your shipment QT-68392048 (order QF-33776) has been delivered by Brindle Parcel. The last scan was at 15:55 on October 25, 2026, at the front desk.\n\nIf you have any questions about it, just let me know.",
+        "chat_tool_calls": null,
+        "expected": "Good news: shipment QT-68392048 (order QF-33776) has been delivered. Brindle Parcel's last scan shows it was delivered to the front desk on 2026-10-25 at 15:55.\n\nIf you're having trouble locating the parcel, let me know and I can help with next steps."
+      }
+    ]
+  },
+  "adapter_route": {
+    "ok": false,
+    "error": "RuntimeError: docker failed: \u001b[?2026h\u001b[?25l\u001b[1G\u001b[?25h\u001b[?2026l\nError: LoRA adapters are no longer supported\n"
+  },
+  "base_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+}

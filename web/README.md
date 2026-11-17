@@ -307,7 +307,7 @@ the plus button and the Model Selector for your own key in P6; Subagent in P7.
 
 | App part | shadcn components |
 |---|---|
-| Header | The fixture select (while the next turn runs on the fake model), the pack picker (a Dropdown Menu, sized to the pack's name, ending with the disabled "Use your own dataset" entry), a ghost Button for the Guide, a ghost icon Button for the theme (Sun in dark, Moon in light; it follows `prefers-color-scheme` until pressed), the session chip at the far right (a Badge for the mode and, in public mode, the countdown) opening a Popover (the session's end in words, the session id with Copy, the pack, New session, the session's totals, the sandbox limits, the release line), Tooltip on every unlabelled control |
+| Header | The fixture select (while the next turn runs on the fake model), the pack picker (a Dropdown Menu, sized to the pack's name, each pack with its profile, ending with the disabled "Use your own dataset" entry), the profile chip (0.2.0: the session pack's harness profile, id and rung, `ProfileChip.tsx`), a ghost Button for the Guide, a ghost icon Button for the theme (Sun in dark, Moon in light; it follows `prefers-color-scheme` until pressed), the session chip at the far right (a Badge for the mode and, in public mode, the countdown) opening a Popover (the session's end in words, the session id with Copy, the pack, New session, the session's totals, the sandbox limits, the release line), Tooltip on every unlabelled control |
 | Notices | Sonner toasts (errors carry `role="alert"`), plus a toast when the event stream drops and when it reconnects |
 | Chat | Message Scroller, Message, Bubble, Marker, Spinner, Empty, Button (suggestions, message actions), Tooltip |
 | Tool calls and memory | Trace lines opening to a Code Block, a Badge for the sandbox; a Memory Trace line per `remember` proposal (written, waiting, rejected) |
@@ -361,7 +361,35 @@ every route against a live harness. How it finds things without naming node ids:
 - **Lists** read the API's envelopes (`{runs}`, `{pack, releases, verify, ...}`, `{pack,
   artifacts, release}`, `{turns, next_after}`).
 
-## Lessons (P5)
+## The tuning loop in the UI (0.2.0)
+
+`spec/contracts/tuning.md`, routes in `http_api.md` ("0.2.0 additions: tuning"). The code is
+`src/inspector/TunePanel.tsx` (the components), `tuneView.ts` (everything it says, tested in
+`tuneView.test.ts`) and `routerView.ts`.
+
+- **Which node shows it** is read from what a node writes (`artifact_hint`), never its id: the
+  node that writes `adapter/` or `model/` artifacts opens the Release panel on a **Tune** tab
+  (Releases and Tune side by side); the node that writes `dataset/` keeps the Eval panel with a
+  button to the datasets.
+- **Datasets** (`GET /v1/tune/artifacts?kind=dataset`, one manifest with its history and diff),
+  the curations, **Runs** (the loss curve is a small SVG drawn from `tune_step` summaries; a
+  running run follows `GET /v1/tune/runs/{id}/events`), **Compare** (pack x arm with the spread
+  over samples, the verdict, the prompt arm, the `tool_calls` split summed over the target packs)
+  and **Canary** (the rule in words, both arms, the canary gate, history; Promote, Promote full,
+  Rollback, with a 409's `gate` or `canary` shown as the refusal). Start forms for curate, a run
+  and a comparison are minimal; the CLI is the main path.
+- **Public mode, or `replay: true`**: a note says the sandbox never trains and this is a recorded
+  run; every action is hidden.
+- **Ops events**: the tenant's stream now carries `tune_*` and `release_gated`; an LLM Ops node's
+  Overview lists its latest ones (tune steps folded into one line). Tune artifacts get no chat
+  marker (they serve nothing); promote's `models/models` edit does.
+- **Router**: a config inspector whose `effective.rules` are router rules lists them in order; a
+  `split` rule (the canary) says its share, and the router's stat and Overview name the arm.
+- **Mock**: `src/mock/tune.ts` reads `config/fixtures/tune_replay.json` straight from the repo
+  (no copy, so it cannot drift): public mode serves it as the replay, dev mode acts on the same
+  records.
+
+
 
 The chapters are the markdown files in `lessons/` (`NN-<node_id>.md`, one per simple node in walk
 order, then `NN-<parent>-inside.md` per expert group), served by `GET /v1/lessons`,
@@ -426,7 +454,7 @@ strokes.
 |---|---|---|
 | Plane | group box background, dashed border and header (the node inside is a neutral card on `bg-node-surface`, a warm bone paper in light mode and a slightly warm lift of the card in dark, with `shadow-sm` and `ring-1 ring-foreground/5`) | one oklch family at equal lightness and chroma: control warm (hue 65), context blue (258), execution green (152), LLM Ops violet (325) |
 | Node kind (purpose) | icon chip (the Badge `kind` variant) after the title; the kind word stays for screen readers | code slate, config amber, prompt violet, store teal, queue orange, model indigo |
-| Node state | the status icon, plus a 1 px ring in the state colour while active, waiting or failed | idle neutral grey, active brand green with a pulsing ring, waiting amber (dashed ring), done brand green (check icon only), error red (ring), skipped grey and faded, not yet built muted with a "not yet" pill |
+| Node state | the status icon, plus a 1 px ring in the state colour while active, waiting or failed | idle neutral grey, active brand green with a pulsing ring, waiting amber (dashed ring), done brand green (check icon only), error red (ring), skipped grey and faded, not yet built muted with a "not yet" pill, off in the pack's profile (0.2.0) dimmed and desaturated with a dashed border, an outline "off" chip and the tooltip "Off in profile <id>", its edges faded too (never hidden) |
 | Edge kind | stroke colour and dash | request solid in the source plane's colour, reply (a request back against walk order) a lighter tint of it, data solid teal, control dashed amber, telemetry dotted thin grey, release dashed purple |
 | Edge state | opacity and motion | idle 40 percent, flowing full opacity with moving dashes and a dot, used this turn 70 percent |
 

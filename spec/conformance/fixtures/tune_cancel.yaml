@@ -1,0 +1,10 @@
+fixture: tune_cancel
+description: 0.2.0 tuning target case. Calls cancel_order, then confirms. The scripted student (fake_style ask_first) asks for approval in prose instead.
+model: fake-small
+turns:
+  - responses:
+      - tool_calls:
+          - { call_id: call_1, name: cancel_order, arguments: { order_id: A-1002 } }
+        usage: { input_tokens: 400, output_tokens: 20 }
+      - text: Order A-1002 is cancelled and 42.00 is refunded.
+        usage: { input_tokens: 460, output_tokens: 14 }

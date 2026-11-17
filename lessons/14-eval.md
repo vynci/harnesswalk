@@ -1,5 +1,6 @@
 ---
 node: eval
+requires: [eval]
 try:
   pack: _starter
   fixture: golden_returns_window

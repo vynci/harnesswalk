@@ -4,6 +4,7 @@ domain: healthcare
 summary: A front-desk assistant for a fictional three-site community clinic that redacts personal data
   before the model sees it and refuses medical advice.
 tier: domain
+profile: grounded
 feature: PII redaction and refusal
 demonstrates:
   id: pii_redaction_and_refusal

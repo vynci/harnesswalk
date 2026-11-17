@@ -15,7 +15,7 @@ def test_subpackages_import() -> None:
 
 def test_versions_are_set() -> None:
     assert harnesswalk.__version__
-    assert harnesswalk.SPEC_VERSION == "0.1.0"
+    assert harnesswalk.SPEC_VERSION == "0.2.0"
 
 
 def test_main_without_a_command_prints_help(capsys) -> None:

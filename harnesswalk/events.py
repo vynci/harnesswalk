@@ -27,7 +27,7 @@ import jsonschema
 from harnesswalk import diagram
 from harnesswalk.paths import spec_dir
 
-SCHEMA_VERSION = "0.1.0"
+SCHEMA_VERSION = "0.2.0"
 POINT_TYPES = frozenset(
     {
         "approval_requested",

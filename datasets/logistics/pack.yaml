@@ -4,6 +4,7 @@ domain: logistics
 summary: An operations desk assistant for a regional freight forwarder that tracks, checks and reroutes
   shipments one tool at a time.
 tier: domain
+profile: governed
 feature: Multi-step tool use
 demonstrates:
   id: multi_step_tools

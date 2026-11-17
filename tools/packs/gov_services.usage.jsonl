@@ -1,0 +1,4 @@
+{"stage": "docs[heating_rebate_en,remise_chauffage_fr,child_activity_credit_en,credit_activites_enfants_fr]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 11045, "output_tokens": 2656, "usd": 0.0024}
+{"stage": "docs[senior_transit_pass_en,laissez_passer_aines_fr,proof_of_residence_en,preuve_residence_fr]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 10937, "output_tokens": 2934, "usd": 0.0026}
+{"stage": "docs[privacy_notice_en,avis_confidentialite_fr,heating_rebate_guide,guide_remise_chauffage]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 10958, "output_tokens": 5340, "usd": 0.0038}
+{"stage": "docs[child_activity_credit_en,credit_activites_enfants_fr,proof_of_residence_en,preuve_residence_fr]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 11053, "output_tokens": 4762, "usd": 0.0035}

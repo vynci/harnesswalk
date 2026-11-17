@@ -142,3 +142,26 @@ describe('mock packs', () => {
     expect(server.getTurn(t.turn_id)!.events.find((e) => e.type === 'node_resumed')?.summary).toMatchObject({ mode: 'step_over' })
   })
 })
+
+describe('harness profiles in the mock (0.2.0)', () => {
+  it('serves the six profiles of config/profiles and each pack names its card profile', async () => {
+    const { api } = setup()
+    const { profiles, default: fallback } = await api.profiles()
+    expect(fallback).toBe('operated')
+    expect(profiles.map((p) => p.rung)).toEqual([1, 2, 3, 4, 5, 6])
+    expect(profiles.at(-1)!.off).toEqual([])
+    for (let i = 1; i < profiles.length; i++) {
+      for (const id of profiles[i]!.off) expect(profiles[i - 1]!.off).toContain(id)
+    }
+    const packs = await api.packs()
+    expect(Object.fromEntries(packs.map((p) => [p.id, p.profile]))).toMatchObject({ _starter: 'operated', healthcare: 'grounded', ecommerce: 'governed' })
+  })
+
+  it('keeps the controls on in public mode', async () => {
+    const server = new MockServer({ stepMs: 0, public: {} })
+    const { profiles } = await createApi(server.transport()).profiles()
+    const minimal = profiles[0]!
+    expect(minimal.off.length).toBeLessThan(minimal.disable.length)
+    expect(minimal.off).not.toContain('policy')
+  })
+})

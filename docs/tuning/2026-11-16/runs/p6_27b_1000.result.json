@@ -1,0 +1,68 @@
+{
+  "run_id": "tr_1",
+  "metrics": {
+    "steps": 726,
+    "train_loss": 0.116,
+    "eval_loss": 0.0799,
+    "wall_s": 11192.2,
+    "trained_tokens": 233985,
+    "tokens": 8444602,
+    "max_tokens": 4274,
+    "examples": {
+      "train": 2899,
+      "val": 276
+    },
+    "dropped_too_long": {
+      "train": 0,
+      "val": 0
+    },
+    "trainable_params": 32464896,
+    "peak_gpu_gib": 10.56,
+    "gpu": "NVIDIA GeForce RTX 3090",
+    "pipeline_wall_s": 11246.9
+  },
+  "weights": {
+    "location": "homelab:~/harnesswalk-lab/p6/lab-train-27b/runs/tr_1/adapter",
+    "sha256": "1067b2c94b7a1005ab33b61fa93e4392c01cfb1c929a8f5eb5c7a4cf38a8226c",
+    "bytes": 129927008
+  },
+  "serve": {
+    "provider": "ollama",
+    "tag": "hw-p6-27b-1000:tr_1",
+    "digest": "b8c508f256329fc07cdeeb5b56d15342061b3bf85fb5d66bc7c7d34485c966b2",
+    "method": "merged_gguf",
+    "gguf_sha256": "9d3c4f8bd7482570705bc61c941d2f7f6d7510e2be26318544d150914094c8dd",
+    "gguf_bytes": 2708804096,
+    "quantization": "Q4_K_M",
+    "gguf_location": "homelab:~/harnesswalk-lab/p6/lab-train-27b/runs/tr_1/model-q4_k_m.gguf"
+  },
+  "modelfile": "# harnesswalk tune run tr_1: p6_27b_1000\n# base Qwen/Qwen3.5-4B (main)\nFROM /tmp/hw-import/model-q4_k_m.gguf\nTEMPLATE {{ .Prompt }}\nRENDERER qwen3.5\nPARSER qwen3.5\nPARAMETER presence_penalty 1.5\nPARAMETER temperature 1\nPARAMETER top_k 20\nPARAMETER top_p 0.95\n",
+  "template_check": {
+    "same_prompt_tokens": true,
+    "examples": [
+      {
+        "rendered_prompt_tokens": 3319,
+        "raw_prompt_tokens": 3319,
+        "chat_prompt_tokens": 3319,
+        "raw_reply": "Perfect! The reroute has been successfully approved and completed. \n\n**Summary:**\n- Shipment TG-636829 has been moved from Wyncliff (WYN) to its alternate hub Tarnwick Gate Depot (TRB)\n- New estimated arrival: October 17, 2026 between 16:00 and 20:00\n- The shipment will now continue its journey via ",
+        "chat_reply": "Perfect! The reroute has been successfully approved and completed. \n\n**Summary:**\n- Shipment TG-636829 has been moved from Wyncliff (WYN) to its alternate hub Tarnwick Gate Depot (TRB)\n- New estimated arrival: October 17, 2026 between 16:00 and 20:00\n- The shipment will now continue its journey via ",
+        "chat_tool_calls": null,
+        "expected": "Perfect! The reroute has been successfully approved and completed. \n\n**Shipment TG-636829 has been rerouted from Wyncliff (WYN) to Tarnwick Gate Depot (TRB).**\n\nThe shipment will now continue its journey via TRB with a new estimated arrival window of **October 17, 2026 between 16:00 and 20:00** at Q"
+      },
+      {
+        "rendered_prompt_tokens": 3319,
+        "raw_prompt_tokens": 3319,
+        "chat_prompt_tokens": 3319,
+        "raw_reply": "Perfect! The reroute has been successfully approved and completed. \n\n**Summary:**\n- Shipment TG-636829 has been moved from Wyncliff (WYN) to its alternate hub Tarnwick Gate Depot (TRB)\n- New estimated arrival: October 17, 2026 between 16:00 and 20:00\n- The shipment will now continue its journey via ",
+        "chat_reply": "Perfect! The reroute has been successfully approved and completed. \n\n**Summary:**\n- Shipment TG-636829 has been moved from Wyncliff (WYN) to its alternate hub Tarnwick Gate Depot (TRB)\n- New estimated arrival: October 17, 2026 between 16:00 and 20:00\n- The shipment will now continue its journey via ",
+        "chat_tool_calls": null,
+        "expected": "Perfect! The reroute has been successfully approved and completed. \n\n**Shipment TG-636829 has been rerouted from Wyncliff (WYN) to Tarnwick Gate Depot (TRB).**\n\nThe shipment will now continue its journey via TRB with a new estimated arrival window of **October 17, 2026 between 16:00 and 20:00** at Q"
+      }
+    ]
+  },
+  "adapter_route": {
+    "ok": false,
+    "error": "RuntimeError: docker failed: \u001b[?2026h\u001b[?25l\u001b[1G\u001b[?25h\u001b[?2026l\nError: LoRA adapters are no longer supported\n"
+  },
+  "base_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+}

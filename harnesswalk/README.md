@@ -38,10 +38,12 @@ does not exist yet and the node is served with `implemented: false`.
 | `ops` | `cost.py` | `cost` | `tracer.md` | implemented |
 | `ops` | `eval/__init__.py` | `eval` | `evaluator.md` | implemented (P4: golden runs, judge, online scores, feedback) |
 | `ops` | `eval/online.py` | `online_eval` | `evaluator.md` | implemented (sampled judge, thumbs and notes) |
-| `ops` | `eval/offline.py` | `offline_eval` | `evaluator.md` | implemented (golden runs, scorers, diff against the previous run) |
+| `ops` | `eval/offline.py` | `offline_eval` | `evaluator.md` | implemented (golden, judge and model runs, scorers, diff against the previous run) |
 | `ops` | `eval/diagnose.py` | `diagnose` | `evaluator.md` | implemented (P5: a failed case or a bad turn mapped to the layer at fault from the trace; automatic on regression) |
 | `ops` | `release.py` | `release` | `release.md` | implemented (P4: served set, edits, releases, rollback, reload; P5: the eval gate on release) |
-| `ops` | `artifacts.py` | `artifacts` | `release.md` | implemented (versions, the release and activation hash chains and the served-set index in `data/releases.db`) |
+| `ops` | `artifacts.py` | `artifacts` | `release.md` | implemented (versions, the release and activation hash chains and the served-set index in `data/releases.db`; 0.2.0: the `dataset`, `adapter` and `model` kinds in the `@tune` scope) |
+| `ops` | `tune/curate.py` | `curate` | `tuning.md` | implemented (0.2.0: teacher traffic through the harness on golden prompts and rewrites, kept when every deterministic scorer passed, exported as chat examples) |
+| `ops` | `tune/__init__.py` (`trainers.py`, `store.py`, `models_edit.py`, `cli.py`) | `tune` | `tuning.md` | implemented (0.2.0: trainers `fake`, `homelab-trl` over ssh, `local-mlx` stub; compare with the prompt arm, promote through `router.canary`, rollback) |
 
 Modules that are not nodes:
 
@@ -55,7 +57,8 @@ Modules that are not nodes:
 | (root) | `inspectors.py` | What `GET /v1/nodes/{id}` shows per node kind, and the code peek of `GET /v1/nodes/{id}/source` |
 | (root) | `turns.py` | Turn summaries read off the stored events: `GET /v1/turns/{id}` and `GET /v1/sessions/{id}/turns` |
 | (root) | `paths.py` | Where `config/`, `spec/` and `datasets/` live (`HARNESSWALK_ROOT`) |
-| (root) | `__main__.py` | The `harnesswalk` command: `serve`, `turn`, `events`, `turns`, `ingest`, `eval`, `release`, `sweep` |
+| (root) | `profiles.py` | 0.2.0: harness profiles (`config/profiles/*.yaml`): parse and validate, what a profile switches off in each mode, the ladder |
+| (root) | `__main__.py` | The `harnesswalk` command: `serve`, `turn`, `events`, `turns`, `ingest`, `eval`, `release`, `scorecard`, `sweep`, `tune` |
 | `config` | `loader.py` | Loads `config/*.yaml` and profiles through release, applies env and overrides |
 | `control` | `http_api.py` | The FastAPI app for `spec/contracts/http_api.md`, plus the built web app (`web/dist`) and dev-mode CORS |
 | `context` | `tokens.py` | The `chars_div_4` token estimator |
@@ -77,11 +80,13 @@ Modules that are not nodes:
 | `ops` | `sweep.py` | P6: the TTL sweeper that hard-deletes every row of an expired public tenant (`harnesswalk sweep`) |
 | `ops` | `logs.py` | P6: one JSON line per request when `logging.format: json` |
 | `control` | `http_ops.py` | P4 LLM Ops routes: eval runs, feedback, artifacts and releases, the trace query, and `GET /v1/events` (the tenant's ops events, live) |
+| `control` | `http_tune.py` | 0.2.0 tuning routes under `/v1/tune`: curations, runs, comparisons, promote, rollback, the canary; a recorded replay in public mode |
 | `ops` | `ops_events.py` | P4 ops event streams: events outside turns (eval progress, feedback, releases), and the tenant tail behind `GET /v1/events` |
 | `ops` | `otel.py` | P4 OpenTelemetry mapping and OTLP export (optional extra `otel`) |
 | (top) | `packs.py` | P5 dataset packs, the one discovery module behind `GET /v1/packs`, sessions, eval runs, releases, the CLI and the validator; the `pack.yaml` schema and the pack validator |
 | `ops` | `lease.py` | P4 `data/owner.lock`: one `serve` per data directory, `--takeover` |
 | `ops` | `eval/golden.py`, `eval/scorers.py`, `eval/judge.py`, `eval/store.py` | P4 golden sets, deterministic scorers, the judge, `data/evals.db` |
+| `ops` | `eval/scorecard.py` | The model ladder scorecard: Ollama probes, the pack x model matrix of `model` runs, its Markdown (`harnesswalk scorecard`) |
 | `adapters` | `storage/sqlite.py` | The SQLite helper behind the trace, session, audit and approval stores |
 | `adapters` | `storage/vectors.py` | Vector indexes: `sqlite` (brute-force cosine) and `pgvector`, chosen by `storage.vectors` |
 | `adapters` | `mcp/` | MCP client that registers server tools (later phase) |

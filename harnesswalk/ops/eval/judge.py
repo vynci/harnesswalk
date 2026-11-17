@@ -147,6 +147,7 @@ class Judge:
             tools=[],
             max_output_tokens=300,
             params=cfg.get("params"),
+            context_tokens=cfg.get("context_tokens"),
         )
         response = await provider.complete(request)
         usd, _ = price(cfg, response.usage.input_tokens, response.usage.output_tokens)

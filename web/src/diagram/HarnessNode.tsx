@@ -24,8 +24,13 @@ export interface HarnessNodeData extends Record<string, unknown> {
   hasChildren: boolean
   isChild: boolean
   current: boolean
-  /** `now`: the API serves the node disabled; `next`: switched off here for the next turn. */
-  off: 'now' | 'next' | null
+  /**
+   * `now`: the API serves the node disabled; `profile`: the session pack's profile switches it
+   * off (0.2.0, dimmed, never hidden); `next`: switched off here for the next turn.
+   */
+  off: 'now' | 'profile' | 'next' | null
+  /** The profile that switches the node off, when `off` is `profile`. */
+  profile?: string | null
   /** P4: a short alert chip, such as the regressions of the latest eval run. */
   alert?: { count: number; text: string; title: string }
   /** P4: a neutral ops chip: an eval run in progress, unreleased edits. */
@@ -74,14 +79,17 @@ function KindChip({ kind, small }: { kind: DiagramNode['kind']; small: boolean }
 }
 
 function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
-  const { node, state, stat, why, points, badges, expanded, hasChildren, isChild, current, off, alert, opsChip, pulse } = data
+  const { node, state, stat, why, points, badges, expanded, hasChildren, isChild, current, off, profile, alert, opsChip, pulse } = data
+  const profileText = `Off in profile ${profile ?? ''}`.trimEnd()
   const notYet = node.implemented === false
   return (
     <Card
       className={cn(
         'hw-node relative h-full w-full gap-0 rounded-lg bg-node-surface py-2 pr-2 pl-2.5 text-left text-node-surface-foreground',
         isChild && 'py-1.5 pr-1.5 pl-2',
+        off === 'profile' && 'hw-node-profile-off',
       )}
+      title={off === 'profile' ? profileText : undefined}
       style={planeStyle(node.group)}
       data-testid={`node-${node.id}`}
       data-state={state}
@@ -89,6 +97,7 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
       data-current={current ? 'true' : 'false'}
       data-node-kind={node.kind}
       data-pulse={pulse ? 'true' : undefined}
+      data-profile-off={off === 'profile' ? 'true' : undefined}
       data-points={points ? Object.entries(points).map(([k, v]) => `${k}:${v}`).join(' ') : undefined}
     >
       {SIDES.map(([pos, side]) => (
@@ -115,7 +124,12 @@ function HarnessNodeImpl({ data }: NodeProps<HarnessFlowNode>) {
               <span className="sr-only"> {alert.text.replace(/^\d+\s*/, '')}</span>
             </Badge>
           )}
-          {off && (
+          {off === 'profile' && (
+            <Badge variant="outline" className="h-4 px-1.5 font-normal text-muted-foreground" title={profileText} data-testid={`profile-off-${node.id}`}>
+              off
+            </Badge>
+          )}
+          {off && off !== 'profile' && (
             <Badge
               variant="destructive"
               className="h-4 px-1.5 font-normal"

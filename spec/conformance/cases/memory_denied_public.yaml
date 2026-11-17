@@ -3,6 +3,7 @@ title: In public mode a memory is proposed but never written
 spec_version: 0.1.0
 mode: public
 fixture: memory_denied_public
+requires: [memory_writer, semantic]
 turns:
   - send:
       message: Please remember that my preferred name is Sam.

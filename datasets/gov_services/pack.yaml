@@ -1,0 +1,34 @@
+id: gov_services
+title: Aldervale Services Desk
+domain: government
+summary: A bilingual (English and French) services desk for a fictional province that answers programme
+  questions from cited rules, checks an application's status by reference and keeps personal numbers and
+  addresses out of the model's sight.
+tier: domain
+profile: grounded
+feature: Bilingual grounded answers
+demonstrates:
+  id: bilingual_grounding
+  nodes:
+  - input_guardrails
+  - knowledge
+  - output_guardrails
+  summary: Every programme answer cites the rule it comes from, in the language the question was asked
+    in, and a social insurance number or a street address typed into a French or English sentence becomes
+    a placeholder before the model or the trace sees it. Nothing here can change anything, so the pack
+    runs on the grounded rung with no approvals.
+licence: CC0-1.0
+provenance:
+  card: provenance.md
+  generator:
+    model: claude-haiku-5-5
+    date: '2026-11-08'
+    prompt_hash: aedc395fd5e7b28e
+synthetic: true
+prompts:
+- Who is eligible for the Home Heating Rebate?
+- Qui est admissible à la remise pour le chauffage domestique?
+- What is the status of my application AV-K4417?
+- Quelles sont les heures du bureau du Port samedi?
+- Which documents count as proof of residence?
+- Résumez le guide complet de la remise pour le chauffage domestique.

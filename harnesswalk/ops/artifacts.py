@@ -22,6 +22,9 @@ One SQLite file (`data/releases.db`). A `generation` counter goes up on every wr
 server can see that another process (the CLI) changed the store and reload before its next
 turn.
 
+0.2.0: `dataset/<name>`, `adapter/<name>` and `model/<name>` (the tuning loop) are stored here
+too, under the scope `@tune`: versions and hashes as for every kind, outside every pack.
+
 P5: every served set a turn ran on is kept by its hash (`served_sets`), so diagnose can say
 which artifact versions a failing turn and its last passing run saw. A release carries its eval
 gate result (`release_gates`), and the gate is part of the release hash when present. The
@@ -54,6 +57,10 @@ KINDS = {
     "models": "global",
 }
 YAML_KINDS = ("policy", "context", "models", "tools")
+# 0.2.0: the tuning kinds (spec/contracts/artifacts.md). Versioned and hashed like every kind,
+# in a scope of their own that no pack's working set, served set or release includes.
+TUNE_KINDS = ("dataset", "adapter", "model")
+TUNE_SCOPE = "@tune"
 SKILL_NAME = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 GENESIS = "0" * 64
 
@@ -134,7 +141,10 @@ def unified_diff(before: str | None, after: str | None, label: str) -> str:
 
 
 def scope_of(kind: str, pack: str) -> str:
-    """The pack column of an artifact: the pack for pack kinds, '' for global ones."""
+    """The pack column of an artifact: the pack for pack kinds, '' for global ones, and the
+    tune scope for the tuning kinds (0.2.0)."""
+    if kind in TUNE_KINDS:
+        return TUNE_SCOPE
     return pack if KINDS[kind] == "pack" else ""
 
 
@@ -547,6 +557,19 @@ class ArtifactStore:
         if not chain["ok"]:
             return {"releases": len(rels), **chain}
         return {"ok": True, "releases": len(rels), "activations": chain["activations"]}
+
+    def tune_latest(self, kind: str | None = None) -> list[Version]:
+        """The latest version of every tune artifact (0.2.0), optionally of one kind."""
+        rows = self.db.query(
+            "SELECT v.* FROM artifact_versions v JOIN ("
+            " SELECT kind, name, MAX(version) AS version FROM artifact_versions"
+            " WHERE pack = ? GROUP BY kind, name) last"
+            " ON v.kind = last.kind AND v.name = last.name AND v.version = last.version"
+            " WHERE v.pack = ? ORDER BY v.kind, v.name",
+            (TUNE_SCOPE, TUNE_SCOPE),
+        )
+        out = [self._version(r) for r in rows]
+        return [v for v in out if kind is None or v.kind == kind]
 
     def close(self) -> None:
         self.db.close()

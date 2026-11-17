@@ -30,8 +30,9 @@ import yaml
 
 from harnesswalk import SPEC_VERSION, __version__
 from harnesswalk import packs as packs_mod
+from harnesswalk import profiles as profiles_mod
 from harnesswalk.adapters.storage.vectors import build_vectors
-from harnesswalk.config.loader import Settings, deep_merge, load_settings
+from harnesswalk.config.loader import Settings, deep_merge, load_settings, profile_for
 from harnesswalk.context.builder import ContextBuilder
 from harnesswalk.context.embeddings import build_embedder
 from harnesswalk.context.memory_writer import MemoryWriter, remember_tool
@@ -70,7 +71,7 @@ from harnesswalk.execution.providers.fake import (
 )
 from harnesswalk.execution.providers.health import ProviderHealth
 from harnesswalk.execution.registry import ToolRegistry
-from harnesswalk.execution.router import Router, RouteRequest
+from harnesswalk.execution.router import Router, RouteRequest, with_canary
 from harnesswalk.execution.sandbox import Sandbox
 from harnesswalk.execution.tools import Tools
 from harnesswalk.nodes import load_components
@@ -129,9 +130,10 @@ class PackParts:
                 raise ConfigError(f"model {alias} has an unknown provider {cfg.get('provider')!r}")
         health = self.provider_health
         out["router"] = router = Router(
-            s.get("models.router.rules", []),
+            with_canary(s.get("models.router.rules", []), s.get("models.router.canary", None)),
             models,
             lambda p: p in self.providers and health.ok(p),
+            configured=lambda p: p in self.providers,
         )
         out["model_layer"] = model_layer = ModelLayer(
             self.providers,
@@ -147,6 +149,8 @@ class PackParts:
             ledger=self.hosted_budget,
             budget_notice=str(s.get("loop.notices.budget_exhausted", "")),
             turn_keys=self.turn_keys,
+            pack=s.get("dataset", "_starter"),
+            eval_timeout_s=float(s.get("evals.model_timeout_s", 180)),
         )
         estimator = s.get("context.token_estimator", "chars_div_4")
         enabled = set(s.get("context.stores", ["procedural", "session"]))
@@ -165,7 +169,9 @@ class PackParts:
             self.semantic,
             self.episodic,
             policy,
-            episodes_enabled="episodic" in enabled,
+            # The turn's episode is proposed when episodic is configured, even when the
+            # profile has it off: a writer that is off then shows on the walk, skipped.
+            episodes_enabled="episodic" in (s.configured_stores or enabled),
             pii=self.input_guardrails.pii,
             audit=self.audit,
         )
@@ -320,6 +326,7 @@ class Harness(PackParts):
         self.budgets = Budgets(
             s.get("policy.budgets", {}),
             str(s.resolve(s.get("policy.budgets_sqlite_path", "data/budgets.db"))),
+            eval_case=s.get("evals.case_budget", None),
         )
         # P6: the shared daily hosted budget (next to the per-tenant ledger), the public
         # allowlist, and when each anonymous public tenant expires.
@@ -368,6 +375,9 @@ class Harness(PackParts):
                 self.ingest_report = {"error": f"{type(exc).__name__}: {exc}"}
         self.packs: dict[str, PackRuntime] = {}  # P5: other packs, built when first named
         self.evals = Evals(self)
+        from harnesswalk.ops.tune import Tuning
+
+        self.tune = Tuning(self)  # 0.2.0: curate, tune, compare, canary (contracts/tuning.md)
         self.otel = build_exporter(s, self.bus, self.ops)
         self._background: list[asyncio.Task] = []
         # Set when the server is shutting down (request_stop): every open event stream ends on
@@ -417,6 +427,32 @@ class Harness(PackParts):
             return view
         return PackRuntime(self, view.pack, working_set=True)
 
+    def candidate_view(self, pack: str, changes: dict[tuple[str, str], str]) -> Any:
+        """A throwaway view of a pack that serves its working set with `changes` in place
+        (0.2.0: the tuning loop's candidate model and prompt arm). Nothing is stored; the caller
+        closes it (`close()`)."""
+        self.view(pack)  # the pack exists and is seeded
+        return PackRuntime(self, pack, working_set=True, changes=changes)
+
+    def profile_of(self, pack: str | None = None) -> Any:
+        """The harness profile a pack runs with here (0.2.0), without building the pack."""
+        pack = pack or self.pack
+        if pack == self.pack:
+            return self.settings.profile
+        runtime = self.packs.get(pack)
+        if runtime is not None:
+            return runtime.settings.profile
+        return profile_for(self.settings, pack)
+
+    def profile_list(self) -> dict[str, Any]:
+        """GET /v1/profiles: the ladder, each profile with what it switches off in this mode."""
+        mode = self.settings.mode
+        return {
+            "default": profiles_mod.DEFAULT_PROFILE,
+            "override": self.settings.profile_override,
+            "profiles": [p.describe(mode) for p in profiles_mod.all_profiles(self.settings.root)],
+        }
+
     def pack_list(self) -> dict[str, Any]:
         """GET /v1/packs."""
         loaded = {self.pack, *self.packs}
@@ -425,6 +461,7 @@ class Harness(PackParts):
         items = [
             {
                 **info.summary(self.pack, info.id in loaded),
+                "profile": self._profile_id(info.id),
                 # The fixtures the pack ships (dev only, like capabilities.fixtures), so the
                 # UI's fixture menu can show the pack's own first.
                 "fixtures": list_fixtures([info.path / "fixtures" / "fake"]) if dev else [],
@@ -435,8 +472,15 @@ class Harness(PackParts):
             items.insert(0, {
                 "id": self.pack, "title": self.pack, "domain": None, "feature": None,
                 "prompts": [], "counts": {}, "default": True, "loaded": True, "fixtures": [],
+                "profile": self.settings.profile.id,
             })  # fmt: skip
         return {"default": self.pack, "packs": items}
+
+    def _profile_id(self, pack: str) -> str | None:
+        try:
+            return self.profile_of(pack).id
+        except ConfigError:  # a card naming an unknown profile: the validator reports it
+            return None
 
     async def start(self) -> dict[str, list[str]]:
         """Server start-up: recover unfinished turns, then the sweeper and health probes."""
@@ -444,6 +488,7 @@ class Harness(PackParts):
         self.stopping = asyncio.Event()
         recovered = self.gateway.recover()
         self.evals.offline.recover()  # runs a stopped process left `running` become `error`
+        self.tune.recover()  # and curations, tune runs and comparisons (0.2.0)
         self.approvals.sweep_expired()
         sweep_s = float(self.settings.get("approval.sweep_s", 30))
 
@@ -716,6 +761,7 @@ class Harness(PackParts):
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await task
+        await self.tune.aclose()
         await self.evals.aclose()
         await self.gateway.shutdown()
         if self.otel is not None:
@@ -759,12 +805,21 @@ class PackRuntime(PackParts):
     the mode, for the eval gate where the pack serves its active release.
     """
 
-    def __init__(self, harness: Harness, pack: str, *, working_set: bool = False) -> None:
+    def __init__(
+        self,
+        harness: Harness,
+        pack: str,
+        *,
+        working_set: bool = False,
+        changes: dict[tuple[str, str], str] | None = None,
+    ) -> None:
         self.harness = harness
         self.pack = pack
-        extra = {"release.use_working_set": True} if working_set else {}
+        extra = {"release.use_working_set": True} if working_set or changes else {}
         base = pack_settings(harness.settings, pack, **extra)
         self.release = ReleaseManager(base)
+        if changes:  # 0.2.0: a tuning candidate view (tuning.md, Compare)
+            self.release.override(changes)
         self.settings = s = base.reload(self.release.served)
         estimator = s.get("context.token_estimator", "chars_div_4")
         args = (harness.memory_db, harness.vectors, harness.embedder, pack)

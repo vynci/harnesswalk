@@ -1,0 +1,1 @@
+{"responses": [{"text": "Between 30 and 14 days before departure, 50 percent of the booking is refunded, and the partner hotel's own cancellation terms apply on top [1].", "usage": {"input_tokens": 420, "output_tokens": 52}, "expect": {"last_message_role": "user"}}]}

@@ -1,0 +1,53 @@
+{
+ "counts": {
+  "by_pack": {
+   "ecommerce": 133,
+   "logistics": 60
+  },
+  "deduplicated": 0,
+  "dropped": {
+   "answer_match": 165,
+   "citations": 13,
+   "path": 141,
+   "tool_calls": 4
+  },
+  "examples": 193,
+  "failed": 323,
+  "kept": 193,
+  "skipped": 0,
+  "train": 177,
+  "turns": 516,
+  "val": 16
+ },
+ "created_at": "2026-11-09T04:21:46.241Z",
+ "dataset": {
+  "hash": "6b987d2b8d4bf26dabfd24eed7bdfbbbe0071e3e9c540f94de307f834992715e",
+  "name": "approvals",
+  "version": 1
+ },
+ "ended_at": "2026-11-09T05:46:40.821Z",
+ "error": null,
+ "id": "cu_3",
+ "kind": "curation",
+ "request": {
+  "chunk": 24,
+  "name": "approvals",
+  "packs": [
+   "ecommerce",
+   "logistics"
+  ],
+  "seed": 7,
+  "teacher": "local-27b",
+  "teacher_prompt_arm": true,
+  "val_fraction": 0.1,
+  "variants": 10
+ },
+ "scenarios": {
+  "ecommerce": 259,
+  "logistics": 257
+ },
+ "status": "done",
+ "stream": "curate:cu_3",
+ "tenant_id": "dev",
+ "trace_id": "b15da7cb7632b4f79fd6d56ca8ea631d"
+}

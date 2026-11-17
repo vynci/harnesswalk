@@ -26,6 +26,9 @@ class ToolSchema:
     name: str
     description: str
     parameters: dict[str, Any]
+    # The tool's action class (0.2.0). Adapters never send it; only the fake provider's
+    # scripted students (`fake_style`, model_provider.md) read it.
+    action_class: str = "read"
 
 
 @dataclass
@@ -49,13 +52,22 @@ class ProviderRequest:
     api_key: str | None = field(default=None, repr=False)  # BYO key: one call, never logged
     turn: TurnRef | None = None
     params: dict[str, Any] | None = None  # extra provider fields from models.<alias>.params
+    # models.<alias>.context_tokens: the context window to ask for (Ollama `options.num_ctx`,
+    # so a model is not loaded with its full declared context). None: the provider's default.
+    context_tokens: int | None = None
 
 
 @dataclass
 class ProviderUsage:
     input_tokens: int = 0
     output_tokens: int = 0
-    cached_tokens: int = 0
+    cached_tokens: int = 0  # of input_tokens, read from a prompt cache
+    # P6: of input_tokens, written to a prompt cache (Anthropic's cache_creation_input_tokens)
+    cache_write_tokens: int = 0
+    # P5: the provider's own timing when it reports one (Ollama's `eval_duration` and
+    # `prompt_eval_duration`), in milliseconds; 0 when it does not.
+    gen_ms: float = 0.0
+    prompt_ms: float = 0.0
 
 
 @dataclass

@@ -75,9 +75,9 @@ conformance suite validates its events against the schema of that version.
 - The schema is JSON Schema 2020-12 and closed at the top level (`additionalProperties:
   false`), so every new top-level field is a schema change with a version bump, never an
   implementation's private addition. Implementation-specific data goes in `ext`.
-- `schema_version` is `const: "0.1.0"` today. The first minor release replaces the constant
-  with a pattern for the whole major (`^0\.[0-9]+\.[0-9]+$`), so streams recorded by older
-  producers still validate.
+- `schema_version` was `const: "0.1.0"` in 0.1.0. Since 0.2.0, the first minor release, it is a
+  pattern for the whole major (`^0\.[0-9]+\.[0-9]+$`), so streams recorded by older producers
+  still validate.
 - A new event type is a new value in `type`'s enum plus its own `if`/`then` branch; the
   branches of existing types are not loosened or tightened in a minor.
 - `required` never grows in a minor. A field that will become required is first added as

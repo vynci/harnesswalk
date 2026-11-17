@@ -1,0 +1,13 @@
+# Rung 2: minimal plus the input and output guardrails. The failure that motivates it: personal
+# data reaches the model and the trace, and an injected instruction has the user's authority.
+id: guarded
+title: Guarded
+summary: >-
+  Minimal plus deterministic checks on the way in (size, PII, injection) and on the way out
+  (schema, content, PII), so personal data never reaches the model.
+rung: 2
+disable: [knowledge, memory_writer, semantic, episodic, policy, approval, audit, eval,
+          online_eval, diagnose, release]
+stores: [procedural, session]
+overrides:
+  context.compaction.summarize: false

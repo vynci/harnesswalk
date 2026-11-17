@@ -1,5 +1,6 @@
 ---
 node: output_guardrails
+requires: [output_guardrails]
 try:
   pack: _starter
   disable: [output_guardrails]

@@ -81,7 +81,9 @@ export function openChapter(entry: OutlineEntry): void {
   if (!entry.nodeId) return
   if (entry.view === 'expert' && s.view !== 'expert') s.setView('expert')
   s.selectNode(entry.nodeId)
-  usePanels.getState().openGuide(entry.nodeId)
+  const node = s.diagram?.nodes.find((n) => n.id === entry.nodeId)
+  const own = lessonRef(node?.lesson_url)?.slug
+  usePanels.getState().openGuide(entry.nodeId, own && own !== entry.slug ? entry.slug : null)
   requestLessonFocus(entry.slug)
 }
 

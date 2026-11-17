@@ -16,6 +16,9 @@ there are proposals, so a slow gate never delays the answer. For each proposal i
 `memory_proposed`, then gates it:
 
     disabled                 dropped, counted as rejected (no events)
+    store off                a proposal to a store that is off for the turn is dropped before
+                             the gate (0.2.0); the turn's episode is still proposed when
+                             episodic is configured, so a writer that is off shows, skipped
     wrong tenant, bad shape  rejected
     over max_proposals       rejected (model proposals only; the turn event always counts)
     injection score          the prompt-injection heuristics (control/injection.py) score the
@@ -306,11 +309,15 @@ class MemoryWriter:
         """Gate this turn's proposals. `outcome` is the turn's exit when it is known: a failed
         turn (`error`) still records its episode, but no fact it proposed is written."""
         report = WriterReport()
+        if not ctx.is_disabled("memory_writer") and self.enabled:
+            # A store that is off for this turn takes no writes (0.2.0, harness.md section 10).
+            proposals = [p for p in proposals if not ctx.is_disabled(p.store)]
         if not proposals:
             return report
+        off = not self.enabled or ctx.is_disabled("memory_writer")
         ctx.emit.edge("loop_to_memory_writer")
         async with node(ctx, "memory_writer") as span:
-            if not self.enabled or ctx.is_disabled("memory_writer"):
+            if off:
                 report.proposed = report.rejected = len(proposals)
                 span.skip(
                     disabled=True,
@@ -530,17 +537,18 @@ class MemoryWriter:
             )
             return record
         record.status = "accepted"
-        self._audit_write(
-            ctx.tenant_id,
-            ctx.turn_id,
-            ctx.trace_id,
-            f"gate:{record.gate}",
-            proposal.store,
-            record.record_id,
-            record.op,
-            before,
-            after,
-        )
+        if "audit" not in getattr(ctx, "disabled_nodes", ()):  # off: no audit record
+            self._audit_write(
+                ctx.tenant_id,
+                ctx.turn_id,
+                ctx.trace_id,
+                f"gate:{record.gate}",
+                proposal.store,
+                record.record_id,
+                record.op,
+                before,
+                after,
+            )
         self.db.execute(
             "UPDATE memory_proposals SET status = 'accepted', record_id = ?, version = ?, op = ?,"
             " before = ?, after = ?, decided_at = ?, decided_by = ? WHERE proposal_id = ?",

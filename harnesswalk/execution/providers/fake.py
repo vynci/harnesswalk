@@ -116,6 +116,39 @@ def fake_embed(text: str, dims: int = 64) -> list[float]:
     return out[:dims]
 
 
+# Action classes a scripted `ask_first` student will not call: it asks in prose instead.
+ASKS_BEFORE = frozenset({"write", "destructive", "external"})
+
+
+def styled(style: str, response: dict[str, Any], request: ProviderRequest) -> dict[str, Any]:
+    """A fixture response as a scripted student would give it (0.2.0, the tuning loop).
+
+    - `ask_first`: a response that calls a tool of class write, destructive or external becomes
+      a prose question asking the user to approve, with no tool call (the failure the tuning
+      loop fixes: the approval node never gets to decide).
+    - `over_call`: the first call of a turn that answers without a tool calls the first offered
+      tool with no arguments instead (calling discipline lost: a tool when none is needed).
+    Any other style, or a response the style does not touch, is returned as it is."""
+    classes = {t.name: t.action_class for t in request.tools}
+    calls = response.get("tool_calls") or []
+    if style == "ask_first":
+        asked = [c["name"] for c in calls if classes.get(c["name"], "read") in ASKS_BEFORE]
+        if asked:
+            text = (
+                f"I can do that with {asked[0]}, but it changes your account, so I need your"
+                " approval first. Shall I go ahead?"
+            )
+            return {"text": text, "usage": response.get("usage", {})}
+    first_call = not any(m.role == "tool" for m in request.messages)
+    if style == "over_call" and not calls and request.tools and first_call:
+        first = request.tools[0].name
+        return {
+            "tool_calls": [{"call_id": "", "name": first, "arguments": {}}],
+            "usage": response.get("usage", {}),
+        }
+    return response
+
+
 class FakeProvider:
     name = "fake"
 
@@ -165,6 +198,9 @@ class FakeProvider:
         response = turns[index]["responses"][k]
         self._used.add((session_key, index, k))
         self._check_expect(response.get("expect", {}), request)
+        style = (request.params or {}).get("fake_style")
+        if style:  # 0.2.0: a scripted student (model_provider.md, "Fake styles")
+            response = styled(style, response, request)
         if response.get("latency_ms"):
             await asyncio.sleep(response["latency_ms"] / 1000)
 

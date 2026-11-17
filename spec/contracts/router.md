@@ -90,7 +90,10 @@ router:
 - **Health.** `model` is the first alias whose provider is configured and healthy. Health is a
   probe per provider every `router.health_check_s` (a cheap list-models call; `fake` is always
   healthy) plus a passive signal: a retryable failure marks the provider unhealthy until the
-  next probe. A provider never probed counts as healthy. `GET /healthz` reports it per provider.
+  next probe, or for `router.health_check_s` when no probe runs (a process without the probe
+  loop, such as the in-process scorecard, gets the provider back after one interval; 0.2.0
+  clarification). A probe result stands until the next probe. A provider never probed counts
+  as healthy. `GET /healthz` reports it per provider.
 - **Hints.** A turn MAY carry a model alias hint; it is used only if it is in the matched
   rule's `use` list and healthy.
 - **Cascade (documented option, off by default).** With `router.cascade.enabled`, a response
@@ -124,3 +127,58 @@ router:
   (`fake-small`), and the `model_layer` exit summary carries `notice: budget_exhausted` and
   `downgraded_from: <alias>`; the turn's notice reaches `turn_end.summary.notices`. A spent
   budget never fails a turn while a free alias is in the rule.
+
+## Model suite: the pinned router
+
+Additive (released in spec 0.2.0). An eval case turn of the `model` suite, or of a `judge` run that names
+a model (`evaluator.md`, "Model suite and the scorecard"), pins every model call to one alias.
+Rules are still evaluated in order and matched by `when`, and the first matching rule's id is
+what the `router` span reports, so rule checks stay meaningful. A rule's
+`max_price_out_per_mtok` does not apply to a pinned alias: the run chose the alias on purpose,
+and a cap that pushed a priced alias to the next rule would misreport the step (a hosted
+model's after-tool call as `default` instead of `lookup`). The rule's `use` list is not
+consulted: the route's `model` is the pinned alias and `alternatives` is empty (no fallback). A pinned alias
+whose provider is not configured fails the call with `provider_error` (health does not apply to
+a pinned router, see the end of the canary section). A retryable failure of a pinned call is
+raised as usual but does not mark the provider unhealthy: it is the eval run's own problem, as a
+BYO key's failure is the caller's, so an eval run never takes a provider down for other tenants
+(0.2.0). Pins are set only by the harness for its own eval turns, never from HTTP.
+
+
+## 0.2.0: the canary rule
+
+Additive (`tuning.md`, "Promote, canary, rollback"). A rule MAY carry `split` instead of `use`.
+The one the harness manages lives in `router.canary`, beside the ordered `rules`, not in them:
+
+```yaml
+router:
+  canary: { id: canary, when: { pack: [ecommerce, logistics] },
+            split: { base_alias: local-4b, candidate_alias: tuned-approvals_4b, fraction: 0.1 } }
+```
+
+The router evaluates `router.canary` right after the rule `public` (first when there is none),
+so promote and rollback never edit the ordered list and an overlay that replaces `rules` (the
+conformance profile) keeps the canary.
+
+- **`when.pack`** (a pack id or a list of them) matches the turn's pack. Any rule may use it.
+- **The split.** The turn's bucket is the first 8 hex digits of sha256(`turn_id`) read as an
+  integer over 2^32, so every call of a turn (summarize and classify too) lands on the same arm
+  and the split is reproducible from the trace. The arm is `candidate` when the bucket is below
+  `fraction`, else `base`; `fraction: 0` sends nothing to the candidate, `1` everything. The
+  route's `model` is the arm's alias, and `alternatives` is the other arm's alias, so a failing
+  candidate falls back to the base (visible as `fallback: true`). When the arm's alias is not
+  usable (provider not configured or unhealthy, outside the alias filter) the other arm answers;
+  when neither is, the rule does not apply and the next matching rule routes the call (a fake
+  server with an Ollama canary keeps working).
+- A hint never moves a turn across arms. Eval case turns (every suite, the release gate
+  included) and a **pinned** router (the `model` suite, `judge` with a model) skip every rule
+  with `split`: a gate measures the served set, never a share of it, and the scorecard is never
+  split.
+- The `router` span summary gains `arm` (`base` or `candidate`) and `bucket` (rounded to 4
+  digits) on a call the canary routed. `promote` and `rollback` change only `fraction`.
+- Validation: a rule has `use` or `split`, not both; both aliases exist; `fraction` is in [0, 1].
+
+A pinned router (above) asks only whether the alias's provider is configured: the passive
+health signal (a retryable failure marks a provider unhealthy until the next probe) does not
+apply to it, so a single timeout in an eval run does not make every later case answer
+`provider_error`, and a pinned call's failure never sets that signal (0.2.0).

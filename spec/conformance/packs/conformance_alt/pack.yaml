@@ -4,5 +4,6 @@ title: Conformance alternate pack
 domain: conformance
 feature: tenant data kept per pack
 licence: CC0-1.0
+profile: operated
 prompts:
   - What is my locker code?

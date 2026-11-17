@@ -12,7 +12,18 @@ returns `{value, pass, detail}`:
     answer_match  substring (all of them), exact, or regex
     checks        the case's `checks` (P5): the router rule of each model call, in order, and
                   a substring each named store put in context (from the context builder's
-                  stored detail)
+                  stored detail); P2: whether the context builder compacted the session, and
+                  a substring of the running summary in context
+
+A multi-turn case (P2) is scored per turn on that turn's events, and as a whole on the
+session: `session_actual` joins the turns' paths, tool calls and citations in order and keeps
+the last turn's reply.
+
+Grading modes (evaluator.md, "Grading modes"): `exact` (the `golden` and `judge` suites)
+compares as above; `model` (the `model` suite) grades a real model's behaviour, not the
+fixture's phrasing: `tool_calls` is `ordered` (the expected calls in order as a subsequence,
+extra calls to read tools allowed; a case may ask for `expect.tool_calls_mode: exact`), and
+`answer_match` compares normalized text (ops/eval/normalize.py).
 """
 
 from __future__ import annotations
@@ -26,6 +37,7 @@ import jsonschema
 
 from harnesswalk import diagram
 from harnesswalk.events import Event
+from harnesswalk.ops.eval import normalize as norm
 from harnesswalk.ops.eval.golden import GoldenCase
 
 DETERMINISTIC = (
@@ -38,11 +50,45 @@ DETERMINISTIC = (
     "checks",
 )
 JUDGED = ("faithfulness", "relevance")
+GRADING = ("exact", "model")
 
 
 def simple_path(events: list[Event]) -> list[str]:
     simple = {n["id"] for n in diagram.diagram()["nodes"] if n["view"] == "simple"}
     return [e["node_id"] for e in events if e["type"] == "node_enter" and e["node_id"] in simple]
+
+
+def timing_of(events: list[Event]) -> dict[str, Any]:
+    """P5: how long the turn took (`turn_end.duration_ms`) and what its model calls report:
+    calls, tokens, and the provider's own generation and prompt time where it reports them
+    (Ollama), so a scorecard can give seconds per case and tokens per second."""
+    end = next((e for e in reversed(events) if e["type"] == "turn_end"), None)
+    out: dict[str, Any] = {
+        "seconds": round(float((end or {}).get("duration_ms") or 0) / 1000, 3),
+        "model_calls": 0, "input_tokens": 0, "output_tokens": 0, "gen_ms": 0.0, "prompt_ms": 0.0,
+    }  # fmt: skip
+    for e in events:
+        if e["type"] != "node_exit" or e.get("node_id") != "model_layer":
+            continue
+        s, cost = e.get("summary") or {}, e.get("cost") or {}
+        out["model_calls"] += 1
+        out["input_tokens"] += int(cost.get("input_tokens") or 0)
+        out["output_tokens"] += int(cost.get("output_tokens") or 0)
+        out["gen_ms"] = round(out["gen_ms"] + float(s.get("gen_ms") or 0), 3)
+        out["prompt_ms"] = round(out["prompt_ms"] + float(s.get("prompt_ms") or 0), 3)
+    return out
+
+
+def sum_timing(items: list[dict[str, Any] | None]) -> dict[str, Any] | None:
+    """The timings of a multi-turn case's turns, added up."""
+    got = [t for t in items if t]
+    if not got:
+        return None
+    out: dict[str, Any] = {}
+    for t in got:
+        for k, v in t.items():
+            out[k] = round(out.get(k, 0) + v, 3)
+    return out
 
 
 def actual_of(events: list[Event]) -> dict[str, Any]:
@@ -73,7 +119,53 @@ def actual_of(events: list[Event]) -> dict[str, Any]:
             for e in events
             if e["type"] == "error"
         ],
+        "timing": timing_of(events),
     }
+
+
+def session_actual(turns: list[dict[str, Any]]) -> dict[str, Any]:
+    """A multi-turn case's `actual`: every turn's path, tool calls, citations and errors in
+    order, the last turn's reply, exit and status, the summed cost, and each turn's own."""
+    last = turns[-1]
+    cost: dict[str, Any] | None = None
+    for t in turns:
+        if t.get("cost"):
+            cost = cost or {}
+            for k, v in t["cost"].items():
+                if isinstance(v, (int, float)):
+                    cost[k] = round(cost.get(k, 0) + v, 6)
+    return {
+        "reply": last["reply"],
+        "exit": last["exit"],
+        "status": last["status"],
+        "path": [n for t in turns for n in t["path"]],
+        "citations": [c for t in turns for c in t["citations"]],
+        "tool_calls": [c for t in turns for c in t["tool_calls"]],
+        "cost": cost,
+        "errors": [e for t in turns for e in t["errors"]],
+        "timing": sum_timing([t.get("timing") for t in turns]),
+        "turns": turns,
+    }
+
+
+SUMMARY_BLOCK = re.compile(r'<retrieved_data kind="summary">\n(.*?)\n</retrieved_data>', re.S)
+
+
+def _context_details(events: list[Event], get_detail: Callable[[str], Any]) -> list[dict]:
+    return [
+        (get_detail(e["detail_ref"]) if e.get("detail_ref") else None) or {}
+        for e in events
+        if e["type"] == "node_exit" and e.get("node_id") == "context_builder"
+    ]
+
+
+def running_summary(detail: dict[str, Any]) -> str:
+    """The running session summary a context builder detail sent the model, or ""."""
+    for m in detail.get("messages") or []:
+        found = SUMMARY_BLOCK.search(m.get("content") or "")
+        if found:
+            return found.group(1)
+    return ""
 
 
 def _result(value: float, passed: bool, detail: str) -> dict[str, Any]:
@@ -108,10 +200,42 @@ def score_citations(expected: list[dict[str, Any]], actual: list[dict[str, Any]]
     )
 
 
-def score_tool_calls(expected: list[str], actual: list[str]) -> dict[str, Any]:
-    if list(expected) == list(actual):
-        return _result(1.0, True, f"called {actual or 'no tool'}")
-    return _result(0.0, False, f"expected {expected}, called {actual}")
+def score_tool_calls(
+    expected: list[str],
+    actual: list[str],
+    mode: str = "exact",
+    read_tools: frozenset[str] | set[str] = frozenset(),
+) -> dict[str, Any]:
+    """`exact`: the calls equal the expected list. `ordered`: the expected calls appear in
+    order as a subsequence and every other call is to a read tool; no call when none is
+    expected. An `ordered` detail starts with the rule that decided (`none expected`,
+    `ordered`); the model grading prefixes an `exact` one with `exact:`."""
+    expected, actual = list(expected), list(actual)
+    if mode != "ordered":
+        if expected == actual:
+            return _result(1.0, True, f"called {actual or 'no tool'}")
+        return _result(0.0, False, f"expected {expected}, called {actual}")
+    if not expected:
+        if not actual:
+            return _result(1.0, True, "none expected: called no tool")
+        return _result(0.0, False, f"none expected: called {actual}")
+    matched, extras = 0, []
+    for name in actual:
+        if matched < len(expected) and name == expected[matched]:
+            matched += 1
+        else:
+            extras.append(name)
+    if matched < len(expected):
+        return _result(
+            matched / len(expected),
+            False,
+            f"ordered: missing {expected[matched]!r} after {expected[:matched]}, called {actual}",
+        )
+    writes = [name for name in extras if name not in read_tools]
+    if writes:
+        return _result(0.0, False, f"ordered: extra non-read call(s) {writes}; expected {expected}")
+    allowed = f"; extra read calls {extras} allowed" if extras else ""
+    return _result(1.0, True, f"ordered: called {expected} in order{allowed}")
 
 
 def score_schema(schema: dict[str, Any], reply: str | None) -> dict[str, Any]:
@@ -136,7 +260,12 @@ def score_pii(detector: Any, prompt: str, reply: str | None) -> dict[str, Any]:
     return _result(len(leaks), False, f"{len(leaks)} leak(s): {sorted(set(leaks))}")
 
 
-def score_answer(expect: dict[str, Any], reply: str | None) -> dict[str, Any]:
+def score_answer(
+    expect: dict[str, Any], reply: str | None, grading: str = "exact"
+) -> dict[str, Any]:
+    if grading == "model":
+        ok, value, detail = norm.answer_match(expect, reply)
+        return _result(value, ok, detail)
     text = reply or ""
     if "answer_exact" in expect:
         ok = text.strip() == str(expect["answer_exact"]).strip()
@@ -166,17 +295,28 @@ def score_checks(
         if got != list(want_rules):
             problems.append(f"router rules {got}, expected {list(want_rules)}")
     retrieved = checks.get("retrieved") or {}
+    details = _context_details(events, get_detail) if retrieved or "summary" in checks else []
     if retrieved:
-        detail: dict[str, Any] = {}
-        for e in events:
-            if e["type"] == "node_exit" and e.get("node_id") == "context_builder":
-                detail = (get_detail(e["detail_ref"]) if e.get("detail_ref") else None) or {}
+        detail: dict[str, Any] = details[-1] if details else {}
         items = detail.get("items") or {}
         for store, needle in retrieved.items():
             texts = [h.get("text", "") for h in items.get(store) or []]
             if not any(needle in t for t in texts):
                 problems.append(f"{store} context has no {needle!r} (got {texts[:3]})")
-    total = (want_rules is not None) + len(retrieved)
+    if "compacted" in checks:  # P2: any context build of these events folded old turns
+        compacted = any(
+            (e.get("summary") or {}).get("compacted")
+            for e in events
+            if e["type"] == "node_exit" and e.get("node_id") == "context_builder"
+        )
+        if compacted != checks["compacted"]:
+            problems.append(f"compacted is {compacted}, expected {checks['compacted']}")
+    if "summary" in checks:  # P2: the running summary in the last context holds a substring
+        summary = running_summary(details[-1]) if details else ""
+        if checks["summary"].casefold() not in summary.casefold():  # a model may recase it
+            problems.append(f"summary has no {checks['summary']!r} (got {summary[:200]!r})")
+    total = (want_rules is not None) + len(retrieved) + ("compacted" in checks)
+    total += "summary" in checks
     if not problems:
         return _result(1.0, True, "every check holds")
     return _result(1 - len(problems) / max(1, total), False, "; ".join(problems))
@@ -190,9 +330,12 @@ def deterministic(
     *,
     events: list[Event] | None = None,
     get_detail: Callable[[str], Any] | None = None,
+    grading: str = "exact",
+    read_tools: frozenset[str] | set[str] = frozenset(),
 ) -> dict[str, dict[str, Any]]:
     """The applicable deterministic scorers among `names`, by name. `checks` needs the case
-    turn's `events` and a `get_detail` for its stored details."""
+    turn's `events` and a `get_detail` for its stored details. `grading` is `exact` or `model`
+    (the `model` suite); `read_tools` are the tools of action class `read` (model grading)."""
     e = case.expect
     out: dict[str, dict[str, Any]] = {}
     if "path" in names and e.get("path"):
@@ -200,13 +343,25 @@ def deterministic(
     if "citations" in names and "citations" in e:
         out["citations"] = score_citations(e["citations"], actual["citations"])
     if "tool_calls" in names and "tool_calls" in e:
-        out["tool_calls"] = score_tool_calls(e["tool_calls"], actual["tool_calls"])
+        mode = tool_calls_mode(e, grading)
+        calls = actual["tool_calls"]
+        out["tool_calls"] = score_tool_calls(e["tool_calls"], calls, mode, read_tools)
+        if grading == "model" and mode == "exact":
+            out["tool_calls"]["detail"] = "exact: " + out["tool_calls"]["detail"]
     if "schema" in names and case.output_schema is not None:
         out["schema"] = score_schema(case.output_schema, actual["reply"])
     if "pii_leak" in names:
         out["pii_leak"] = score_pii(detector, case.prompt, actual["reply"])
     if "answer_match" in names and {"answer_contains", "answer_exact", "answer_regex"} & set(e):
-        out["answer_match"] = score_answer(e, actual["reply"])
+        out["answer_match"] = score_answer(e, actual["reply"], grading)
     if "checks" in names and case.checks and events is not None:
         out["checks"] = score_checks(case.checks, events, get_detail or (lambda _ref: None))
     return out
+
+
+def tool_calls_mode(expect: dict[str, Any], grading: str) -> str:
+    """`exact` under exact grading; under model grading `ordered`, unless the case asks for
+    `expect.tool_calls_mode: exact`."""
+    if grading != "model":
+        return "exact"
+    return "exact" if expect.get("tool_calls_mode") == "exact" else "ordered"

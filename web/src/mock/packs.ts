@@ -1,7 +1,8 @@
 // The dataset packs of the in-browser mock (P5): the starter pack and the five domain packs, with
 // their cards, their files from the repo (bundled into mock builds only) and their own fake
 // fixtures (only finance has any: the other domain packs play the shared recorded streams), in the shapes of GET /v1/packs, GET /v1/packs/{id} and GET /v1/packs/{id}/files/{path}.
-import type { FixtureInfo, PackDetail, PackFile, PackSummary } from '@/api/types'
+import { parse } from 'yaml'
+import type { FixtureInfo, HarnessProfile, PackDetail, PackFile, PackSummary, ProfileList } from '@/api/types'
 import { repoFile, repoFilesUnder } from './repo'
 
 export const DEFAULT_PACK = '_starter'
@@ -161,7 +162,30 @@ export function packSummary(id: string, loaded: Set<string>): PackSummary | null
     default: p.id === DEFAULT_PACK,
     loaded: loaded.has(p.id),
     fixtures: [...p.fixtures],
+    profile: packProfile(p.id),
   }
+}
+
+/** 0.2.0: the profile a pack's card names (`pack.yaml` `profile`), else the default. */
+export function packProfile(id: string): string {
+  const card = parse(repoFile(`datasets/${id}/pack.yaml`) ?? '') as { profile?: unknown } | null
+  return typeof card?.profile === 'string' ? card.profile : DEFAULT_PROFILE
+}
+
+export const DEFAULT_PROFILE = 'operated'
+/**
+ * 0.2.0: GET /v1/profiles from the repo's config/profiles/*.yaml, by rung. A public site keeps
+ * `keep` on (the controls of spec/harness.md section 10.5, which the caller names).
+ */
+export function profileList(publicSite: boolean, keep: readonly string[] = []): ProfileList {
+  const profiles: HarnessProfile[] = repoFilesUnder('config/profiles')
+    .map(([, text]) => parse(text) as Omit<HarnessProfile, 'off'> & { overrides?: Record<string, unknown> })
+    .map((p) => {
+      const disable = [...(p.disable ?? [])].sort()
+      return { id: p.id, title: p.title, summary: String(p.summary).trim(), rung: p.rung, disable, off: publicSite ? disable.filter((n) => !keep.includes(n)) : disable, stores: p.stores ?? [], overrides: p.overrides ?? {} }
+    })
+    .sort((a, b) => a.rung - b.rung)
+  return { default: DEFAULT_PROFILE, override: null, profiles }
 }
 
 export function packDetail(id: string, loaded: Set<string>): PackDetail | null {

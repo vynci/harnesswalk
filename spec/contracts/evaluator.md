@@ -117,6 +117,7 @@ one case per line:
 | `checks` | P5: `{router_rules?: [rule id per model call, in order], retrieved?: {semantic \| episodic \| knowledge: substring}}`, scored by `checks` |
 | `modes` | P5 integration: the harness modes the case applies in (`dev`, `public`, `private`); absent means every mode. Outside them the case is `skipped` with a `detail`, and a skipped case does not count toward a pass rate |
 | `after` | P5 integration: the id of an earlier case whose memory writes this case reads (a remember and recall pair). Load fails when it is not an earlier case |
+| `turns`, `roles` | P2: a multi-turn case and the case identity's roles ("P2 additions: multi-turn cases" below) |
 
 The P0 keys (`input`, `path_includes`, `must_cite`, `judge.rubric`) are read as aliases of
 `prompt`, `path`, `citations: [{}]` (at least one) and `rubric`.
@@ -126,7 +127,8 @@ The P0 keys (`input`, `path_includes`, `must_cite`, `judge.rubric`) are read as 
 Fixed names, each `{value, pass, detail}`: `path`, `citations`, `tool_calls`, `schema`,
 `pii_leak`, `answer_match`, `checks` (deterministic, read from the case turn's events, stored
 details and reply only) and `faithfulness`, `relevance` (judged). `golden` runs the
-deterministic ones, `judge` runs `schema`, `pii_leak` and the judged ones. `checks` (P5
+deterministic ones, `judge` runs `schema`, `pii_leak` and the judged ones, and `model` (see
+"Model suite and the scorecard") runs the deterministic ones on a real model's answers. `checks` (P5
 integration) runs when the case has `checks`: the `router` node's `summary.rule` of each model
 call must equal `router_rules`, and each `retrieved` store's items in the context builder's
 stored detail must include the substring.
@@ -164,7 +166,7 @@ stream (`events.md` section 10). The diff against the previous run of the same t
 and suite lists `fixed`, `regressed`, `new` and `removed` case ids; `regression` is "failed
 or error now, passed before".
 
-CLI: `harnesswalk eval <pack> --suite golden|judge [--model ALIAS] [--case ID ...] [--json]`
+CLI: `harnesswalk eval <pack> --suite golden|judge|model [--model ALIAS] [--case ID ...] [--json]`
 prints one line per case and exits 1 when any case fails (CI runs the golden suite on the fake
 provider). P4 configuration keys:
 
@@ -264,3 +266,181 @@ tenant held the case turns either way.
 |---|---|---|
 | `evals.diagnose.auto` | `true` | Diagnose regressed cases when a run finishes |
 | `evals.scratch_tenant` | `true` | Case turns in a scratch tenant per run (P4) or in the caller's tenant |
+
+## Model suite and the scorecard
+
+Additive (released in spec 0.2.0). A third offline suite, `model`, answers every case
+from a real model and judges it with the deterministic scorers only, so "does this model pass
+the golden set" has an answer that needs no judge model and is reproducible from the trace.
+
+- **Request.** `suite: model` needs `model`: an alias from `config/models.yaml` (not an
+  embedding alias) whose provider the harness can use, else `400 invalid_request` (no alias,
+  unknown alias) or `422 provider_not_configured`. A `fake` alias is always usable.
+- **Answering.** Every model call of a case turn is pinned to the alias: the router still
+  matches its rule by the call's `when` (so a case's `checks.router_rules` keep their meaning),
+  but neither the rule's own `use` list nor its `max_price_out_per_mtok` is consulted and there
+  is no fallback (`router.md`, "Model suite: the pinned router"). A `judge` run that names a
+  `model` pins it the same way, so the cases answer on that model. A `fake` alias answers from
+  the case's fixture, so on `fake-small` the `model` suite reproduces `golden`; a case with no
+  fixture is then `skipped`.
+- **Scoring.** Every applicable deterministic scorer (`path`, `citations`, `tool_calls`,
+  `schema`, `pii_leak`, `answer_match`, `checks`) under **model grading** (see "Grading
+  modes"); no LLM judge, `judge_model` is `null`.
+- **Cost.** The answers' usage is summed on the run's `cost`, as on `judge`.
+- **Timing** (P5, optional, every suite). A case's `actual.timing` is `{seconds, model_calls,
+  input_tokens, output_tokens, gen_ms, prompt_ms}`: the turn's `turn_end.duration_ms` in
+  seconds and its `model_layer` exits added up (`gen_ms` and `prompt_ms` are 0 when the
+  provider reports no timing; `events.md`). A multi-turn case adds its turns up. The scorecard
+  keeps it per case and gives each model's median and p95 seconds per case and its decode
+  tokens per second (output tokens over `gen_ms`).
+- **Regressions.** The previous run of a `model` run is the last finished run of the same
+  tenant, pack, suite **and model**, so a 4B run is never compared with a 9B run; the diagnose
+  baseline ("the last pass") is keyed the same way. `golden` and `judge` keep their lookup.
+
+### Grading modes
+
+Two ways to read `tool_calls` and `answer_match`. Every other scorer reads the same in both.
+
+| Mode | Suites | `tool_calls` | `answer_match` |
+|---|---|---|---|
+| exact | `golden`, `judge` | the tool names called, in order, equal `expect.tool_calls` | substrings (all of them), `answer_exact` or `answer_regex` on the reply as it is |
+| model | `model` | `ordered` (below), or `exact` for a case with `expect.tool_calls_mode: exact` | the same checks on normalized text (below) |
+
+The golden suite answers from fixtures written for its expectations, so exact is right there;
+a real model words a right answer its own way and may read a skill or look a record up before
+it acts, so the `model` suite grades the behaviour, not the fixture's phrasing.
+
+`ordered` tool calls, in this order (the score's `detail` starts with the rule that decided):
+
+1. `none expected`: `expect.tool_calls: []` fails on any call.
+2. `ordered`: the expected calls must appear in order as a subsequence of the actual calls; a
+   missing one fails (`value` is the share found).
+3. Every other call must be to a tool of action class `read` (in the pack's tool declarations,
+   `read_skill`, `read_doc` and `calculator` included); an extra call to any other tool (a write,
+   destructive, external or memory tool, or an unknown one) fails.
+
+A case may set `expect.tool_calls_mode: exact` (or `ordered`, the default) when a model run must
+be strict; the `golden` suite ignores it and is always exact.
+
+Normalized `answer_match` applies to the reply and to each expectation alike, in this order:
+Unicode NFKC and case folding; markdown emphasis and code marks (`*`, `_`, backtick) removed;
+thousands separators dropped inside numbers; dates to `YYYY-MM-DD` (`October 14, 2026`,
+`Oct 14 2026`, `14 October 2026`, `2026-10-14`) and a date without a year to `MM-DD` (except
+after `may`, too often the verb), so it matches inside a full date; times on a 12-hour clock to
+24 hours (`2:30 pm` is `14:30`); amounts to `usd 6`, `eur 6`, `gbp 6` (`$6`, `6 dollars`,
+`USD 6.00`, `€6`, `6 euros`, `£6`) without trailing zeros; hyphens and dashes between words or
+numbers read as spaces (`2-year` is `2 year`); whitespace collapsed. An expectation that is a
+number after this matches when the reply holds that number, compared numerically (`129.00`
+matches `$129`). `answer_exact` compares the normalized texts; `answer_regex` runs on the reply
+case-insensitively. Deterministic, no model call; a different wording of the facts ("not
+found" for "could not find") still fails.
+
+### The scorecard
+
+`harnesswalk scorecard [--packs all|a,b] [--models a,b] [--out docs/scorecard.md]
+[--json PATH] [--tenant scorecard] [--case-timeout S] [--max-usd N] [--samples N]
+[--carry JSON --carry-models a,b]` runs `model`-suite runs per (pack, model), one cell at a
+time, model by model, in-process and in its own tenant (default `scorecard`, so the dev
+tenant's regression history is untouched). Each cell runs on the alias's provider only, with
+hash-vector embeddings (`stores.embeddings.provider: fake`) so every model sees the same
+retrieval, and at temperature 0 where the provider takes it (Ollama `options.temperature`;
+Anthropic gets no `temperature`, since its 5.5 models reject the field with HTTP 400; otherwise
+the provider's default, which the page says). A model call may take as long as the case turn:
+the hosted providers' call timeout (`models.providers.<name>.timeout_s`, Anthropic and
+OpenAI-compatible) and `evals.model_timeout_s` are raised to at least `--case-timeout` unless a
+`--set` names the key, and the page header says the timeouts used. `--samples N` runs each cell N times (default 1) and reports the
+mean pass count with its min and max. A cell that cannot run is `n/a` with the reason (the
+provider is not configured or not reachable, the model is not on the Ollama server, the model
+takes no tools, the spend cap is reached) and the matrix goes on. `--carry` takes the
+`--carry-models` columns from an earlier scorecard JSON and grades them again under model
+grading from the stored case results (no model call): `tool_calls` and `answer_match` from the
+stored calls and reply, `schema` from the answer the output guardrails received (the trace) with
+the JSON extraction, every other score as stored; a column whose stored runs are gone keeps its
+old grading, and the page says which.
+
+The Markdown has a header (date UTC, harness and spec version, Ollama host and version, the
+grading, samples and temperature, the models with their tags, parameter sizes and quantization
+from `/api/show`), the pass-count matrix (packs as rows, models as columns, `passed/scored`,
+with the range over samples), and per model the failed cases by scorer name, the `tool_calls`
+split (a call when none was expected, no call, an expected write tool not called, an expected
+read tool not called, an extra or wrong tool), the cases this model fails that at least half
+the other real (non-`fake`) models pass (a case counts as failed for a model when it failed in
+at least half its samples), and the tokens, cost and wall time. The JSON holds every cell's
+samples: run id, totals, cost, time and, per case, its status, failing scorers, error codes and
+`tool_calls` split.
+
+## P2 additions: multi-turn cases
+
+Additive (spec 0.2.0, `spec/packs.md` "Golden cases: `turns` and `roles`"). A case may carry
+`turns: [{user, expect?, checks?}]` in place of `prompt`; `fixture` is one name or a list
+aligned with the turns. The runner plays the turns in order, each a real turn through the
+whole harness, in one session of the case tenant (`sess_<run_id>_<case_id>`), so turn `n`
+has the earlier turns as history and compaction runs when the session slice passes its
+threshold. Each turn's approvals are decided with the case's `approval`.
+
+- **Scoring.** A turn with `expect` or `checks` is scored on that turn's events with the
+  deterministic scorers but `pii_leak`, each score named `turn<n>.<scorer>` (1-based). The
+  case's own `expect`, `checks` and `output_schema` are scored over the session: `path` and
+  `tool_calls` are the turns' in order, `citations` every turn's, `answer_match` and `schema`
+  the last turn's reply, `pii_leak` every reply against every user message, and `checks`
+  every turn's events (`router_rules` in order across the turns; `retrieved` and `summary`
+  from the last context). A case passes when every score passes, as before. On `judge`, the
+  judge reads the last user message, the last reply and the session's retrieved context.
+- **Run detail.** `actual` is the session's (the joined path, tool calls and citations, the
+  last reply) with `actual.turns`, each turn's own `actual`; `turn_id` is the last turn's and
+  `turn_ids` lists every turn's.
+- **`checks` for long sessions.** `compacted` (bool): a context build of the turn (or of any
+  turn, on the case) folded old turns into the running summary, read from the
+  `context_builder` exit summary's `compacted`. `summary` (substring, compared without case): the running
+  summary the last context sent the model holds it, read from the context builder's stored detail.
+- **`roles`.** The case identity's roles (default `["user"]`), so a golden case can prove a
+  role-scoped policy decision.
+
+## 0.2.0: eval switched off
+
+`eval`, `online_eval` and `diagnose` have `can_disable`. Under a profile that switches
+`online_eval` off, no turn of the pack is sampled for the online judge; with `diagnose` off, a
+run's regressed cases are not diagnosed on their own (`diagnoses` stays empty). `offline_eval`
+is never off: golden runs, `POST /v1/evals/runs` and `POST /v1/diagnose` work under every
+profile, because the golden set is how each rung is measured.
+
+## 0.2.0: golden sets per pack, the tune lever
+
+Additive, groundwork for the tuning loop (`tuning.md`).
+
+- **`evals.golden_paths`** (a map of pack id to path) names a pack's golden set over
+  `evals.golden_path`, so a conformance profile can give one pack a set of its own.
+- **Diagnose, the tune lever.** A new evidence kind and rule between rules 5 and 6 of the table
+  above: `tool_choice` (read from a failed `tool_calls` score of a `model`-suite case: an expected
+  tool of a class other than `read` was not called, or a tool was called when none was expected;
+  `split` is the scorecard bucket, `expected` and `actual` the calls) points at layer `model`.
+  Every diagnosis gains `levers`: for `model` it is `["prompt_or_skill", "tune"]` (try the
+  prompt or a skill first, then curate and tune), for the other layers the layer itself. The
+  suggestion names both commands.
+- **Internal runs** (not reachable from `POST /v1/evals/runs`): an eval run may carry its own
+  list of cases and a candidate view (the pack's working set with some artifact bodies
+  replaced, nothing stored), and its `model` may be an alias only that view defines.
+- **Eval case turns' budget and timeout.** A case turn (every suite, the release gate, the
+  tuning loop's runs) runs under `evals.case_budget` over the tenant's `policy.budgets` (default
+  200,000 tokens per turn, 5,000,000 per hour, 5,000 tool calls per hour; its `_per_turn` keys
+  replace the loop's own `loop.budget_*`, dollar limits still bind), and a model call of a
+  case turn may take `evals.model_timeout_s` (default 180) instead of `model_layer.timeout_s`.
+  A pinned run needs its alias's provider to be configured, not healthy (`router.md`), so one
+  timed-out call fails that case, not the rest of the run.
+
+## 0.2.0: tuning (curate, the model gate)
+
+Additive. Contract: `tuning.md`.
+
+- **`curate`** (expert child of `eval`, kind `code`, never switched off: it runs only when asked
+  for). It runs `model`-suite runs pinned to a teacher over a pack's golden cases and teacher
+  rewrites of them, keeps the case turns every deterministic scorer passed, and exports them as
+  a `dataset/<name>` (`artifacts.md`). An internal run may carry its own list of cases (the
+  rewrites) and a candidate view (the teacher with the control arm's addition); neither is
+  reachable from `POST /v1/evals/runs`. Those runs record `purpose: curate`.
+- **The model gate** (`tuning.md`, Compare) is the eval gate of a `model` artifact: model-suite
+  runs of three arms (base, candidate, prompt arm) on the target and canary packs, `purpose:
+  tune_gate` on each run. Its numbers are mean pass counts over the samples, so a gate of "beat
+  the base by 2 cases, lose at most 1 on a canary pack" reads directly off the scorecard shape.
+  A run's `model` may be an alias only the candidate view defines (the tuned alias before it is
+  promoted).

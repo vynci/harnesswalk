@@ -1,0 +1,9 @@
+# The tuning cases' forgetting canary (0.2.0): one plain answer that a model which calls tools
+# when none is needed fails. Its golden set comes from `evals.golden_paths` in profile.yaml.
+title: Conformance tuning canary
+domain: conformance
+feature: the tuning loop's forgetting canary
+licence: CC0-1.0
+profile: operated
+prompts:
+  - What are your support hours?

@@ -17,7 +17,7 @@ describe('mock lesson routes', () => {
     const ch = body.lessons.find((l) => l.slug === '02-input_guardrails')!
     expect(ch).toMatchObject({ n: 2, title: 'Input guardrails', covers: [ch.node_id], group: false, url: '/v1/lessons/02-input_guardrails' })
     expect(ch.words).toBeGreaterThan(600)
-    expect(Object.keys(ch).sort()).toEqual(['covers', 'group', 'hook', 'n', 'node_id', 'slug', 'title', 'url', 'words'])
+    expect(Object.keys(ch).sort()).toEqual(['covers', 'group', 'hook', 'n', 'node_id', 'requires', 'slug', 'title', 'url', 'words'])
   })
 
   it('serves one chapter without its front matter, with try and code links', async () => {
@@ -64,7 +64,10 @@ describe('lesson demonstrations (P5 integration)', () => {
     const lessons = new MockServer({ stepMs: 0 }).lessons
     expect(lessons.get('01-gateway')?.try?.pack).toBe('_starter')
     const writer = lessons.get('12-memory_writer')!
-    expect(writer.also).toEqual([expect.objectContaining({ pack: 'finance', disable: ['memory_writer'], fixture: 'mem_reporting_currency_set' })])
+    expect(writer.also).toEqual([
+      expect.objectContaining({ pack: 'finance', disable: ['memory_writer'], fixture: 'mem_reporting_currency_set' }),
+      expect.objectContaining({ pack: 'long_session', disable: ['memory_writer'], fixture: 'remember_aisle_seat' }),
+    ])
     expect(writer.also![0]!.note).toMatch(/Nothing is written/)
   })
 })

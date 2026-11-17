@@ -52,7 +52,7 @@ class ToolSpec:
     audit_before: str | None = None  # read tool that snapshots the state before a write
 
     def schema(self) -> ToolSchema:
-        return ToolSchema(self.name, self.description, self.parameters)
+        return ToolSchema(self.name, self.description, self.parameters, self.action_class)
 
 
 TABLE_ENTRYPOINT = "harnesswalk.execution.tool_impls:table_lookup"

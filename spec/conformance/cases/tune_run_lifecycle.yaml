@@ -1,0 +1,58 @@
+id: tune_run_lifecycle
+title: Curate a dataset from teacher traffic, train it on the fake trainer, and get an adapter and a served model chained to it
+spec_version: 0.2.0
+fixture: tune_run_lifecycle
+requires: [policy, approval, audit]
+turns:
+  - before:
+      - method: POST
+        path: /v1/tune/datasets
+        body: { name: approvals, packs: [conformance_tune], teacher: fake-small, variants: 1 }
+        status: 202
+        match: { kind: curation, status: running }
+        save: { curation: id }
+      - method: GET
+        path: /v1/tune/curations/${curation}
+        wait: { timeout_s: 30 }
+        match:
+          status: done
+          dataset: { name: approvals, version: 1 }
+          counts: { turns: 4, kept: 4, examples: 4, train: 3, val: 1 }
+          event_counts: { eval_run_started: 1, eval_case_finished: 4, eval_run_finished: 1 }
+      - method: GET
+        path: /v1/tune/artifacts/dataset/approvals
+        match: { kind: dataset, version: 1, manifest: { synthetic: true, teacher: fake-small, packs: [conformance_tune] } }
+      - method: POST
+        path: /v1/tune/runs
+        body: { dataset: approvals, trainer: fake, student: fake-student, name: approvals }
+        status: 202
+        save: { run: id }
+      - method: GET
+        path: /v1/tune/runs/${run}
+        wait: { timeout_s: 30 }
+        match:
+          status: done
+          adapter: { name: approvals, version: 1 }
+          model: { name: approvals, version: 1 }
+          last_step: { step: 2, total_steps: 2, phase: train }
+          event_counts: { tune_run_started: 1, tune_step: 2, tune_run_finished: 1 }
+      - method: GET
+        path: /v1/tune/artifacts/model/approvals
+        match:
+          version: 1
+          manifest: { alias: tuned-approvals, adapter: { name: approvals, version: 1 }, serve: { provider: fake }, gate: null }
+      - method: GET
+        path: /v1/tune/verify
+        match: { ok: true }
+      - method: POST
+        path: /v1/tune/runs
+        body: { dataset: approvals, trainer: local-mlx, student: fake-student }
+        status: 422
+        match: { error: { code: trainer_unavailable } }
+    send:
+      message: What are your support hours?
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, output_guardrails, gateway, trace]
+      statuses: done
+      events:
+        - { type: turn_end, status: done, summary: { exit: answered } }

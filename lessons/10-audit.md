@@ -1,5 +1,6 @@
 ---
 node: audit
+requires: [audit]
 try:
   pack: _starter
   fixture: cancel_order

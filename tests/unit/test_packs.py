@@ -27,9 +27,12 @@ ALL = list(packs.discover(ROOT).values())
 DOMAIN = [p.id for p in ALL if p.tier == "domain"]
 
 
-def test_discovery_finds_the_starter_and_five_domain_packs() -> None:
+def test_discovery_finds_the_starter_and_the_domain_packs() -> None:
     assert ALL[0].id == "_starter"
-    assert sorted(DOMAIN) == ["ecommerce", "finance", "healthcare", "logistics", "sports"]
+    assert sorted(DOMAIN) == [
+        "device_fleet", "ecommerce", "finance", "gov_services", "healthcare", "helpdesk_lite",
+        "logistics", "long_session", "sports",
+    ]  # fmt: skip
     for p in ALL:
         summary = p.card()
         assert summary["licence"] == "CC0-1.0" and summary["tools"], p.id

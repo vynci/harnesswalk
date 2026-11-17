@@ -1,0 +1,1 @@
+{"responses": [{"text": "You are eligible if you have lived in Aldervale for at least 12 months, the home is your principal residence, your household income for 2025 was under 58,000 dollars and your household pays for heating [1]. One rebate is paid per household per heating season.", "usage": {"input_tokens": 420, "output_tokens": 76}, "expect": {"last_message_role": "user"}}]}

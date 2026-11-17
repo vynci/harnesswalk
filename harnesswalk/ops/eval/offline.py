@@ -9,12 +9,22 @@ is part of the contract). Each case is a real turn through the whole
 harness (gateway to trace), in its own session, in a scratch tenant for the run
 (`evalrun-<run_id>`), so a run never reads or writes the caller's memory and every run starts
 from the same state. On the `golden` suite the case answers from its `fake` fixture; on
-`judge` it answers from the given model (or its fixture) and a judge model scores it. The
-runner decides any approval with the case's `approval` (default deny).
+`judge` it answers from the given model (or its fixture) and a judge model scores it; on
+`model` it answers from the given model alias, pinned for every call of the case turn (a `fake`
+alias answers from the case's fixture), and the deterministic scorers judge it under model
+grading (ordered tool calls with read calls allowed, normalized answer matching), no LLM judge.
+A `judge` run with a model pins it the same way.
+The runner decides any approval with the case's `approval` (default deny).
+
+P2 (additive): a multi-turn case (`turns`) runs its turns in order in one session, each a real
+turn; a turn with `expect` or `checks` is scored on its own events as `turn<n>.<scorer>`, and
+the case's own `expect` and `checks` are scored over the whole session (paths and tool calls
+in order across the turns, the last turn's reply). A case's `roles` are the case identity's.
 
 Progress is an ops stream (`eval:<run_id>`): `eval_run_started`, one `eval_case_finished` per
 case, `eval_run_finished`. The run is compared with the previous finished run of the same
-tenant, pack and suite: a case that passed then and fails now is a regression.
+tenant, pack and suite (and, on `model`, model): a case that passed then and fails now is a
+regression.
 
 P5: a run names any pack the harness can load and runs on that pack's view (or on a release
 candidate's, for the eval gate: `purpose: release_gate`); regressed cases are diagnosed before
@@ -25,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 import logging
 import time
 from typing import TYPE_CHECKING, Any
@@ -33,7 +44,7 @@ from harnesswalk.events import Event, iso, new_trace_id
 from harnesswalk.nodes import register
 from harnesswalk.ops.eval.golden import GoldenCase, GoldenError, golden_path, load_golden
 from harnesswalk.ops.eval.judge import Judge, context_of
-from harnesswalk.ops.eval.scorers import DETERMINISTIC, actual_of, deterministic
+from harnesswalk.ops.eval.scorers import DETERMINISTIC, actual_of, deterministic, session_actual
 from harnesswalk.ops.eval.store import EvalStore
 from harnesswalk.types import Identity, Usage
 
@@ -43,7 +54,7 @@ if TYPE_CHECKING:
 register("offline_eval", __name__)
 log = logging.getLogger("harnesswalk.eval")
 
-SUITES = ("golden", "judge")
+SUITES = ("golden", "judge", "model")
 JUDGE_DETERMINISTIC = ("schema", "pii_leak")
 
 
@@ -53,6 +64,11 @@ class EvalRequestError(Exception):
     def __init__(self, status: int, code: str, message: str) -> None:
         super().__init__(message)
         self.status, self.code, self.message = status, code, message
+
+
+def read_tools_of(view: Any) -> frozenset[str]:
+    """The tools of action class `read` in a pack view: the extra calls model grading allows."""
+    return frozenset(spec.name for spec in view.registry.all() if spec.action_class == "read")
 
 
 def scratch_tenant(run_id: str) -> str:
@@ -88,10 +104,10 @@ class OfflineRunner:
             settings = self.h.packs[pack].settings
         return load_golden(golden_path(settings, pack))
 
-    def _check_model(self, suite: str, model: str | None) -> None:
+    def _check_model(self, suite: str, model: str | None, settings: Any = None) -> None:
         if model is None:
             return
-        models = self.h.settings.get("models.models", {})
+        models = (settings or self.h.settings).get("models.models", {})
         cfg = models.get(model)
         if cfg is None or cfg.get("embedding"):
             raise EvalRequestError(400, "invalid_request", f"unknown model alias {model!r}")
@@ -99,6 +115,8 @@ class OfflineRunner:
             raise EvalRequestError(
                 400, "invalid_request", "the golden suite answers from fixtures (fake) only"
             )
+        if cfg.get("provider") == "fake":
+            return  # a fake alias answers from the case fixtures, on any harness
         if not self.judge.usable(cfg["provider"]):
             raise EvalRequestError(
                 422, "provider_not_configured", f"provider {cfg['provider']!r} is not configured"
@@ -115,17 +133,21 @@ class OfflineRunner:
         by: str = "user",
         purpose: str | None = None,
         runtime: Any = None,
+        cases: list[GoldenCase] | None = None,
     ) -> dict[str, Any]:
         """Validate, store the run, emit `eval_run_started` and schedule it. Returns the run.
 
         `runtime` (P5) is the pack view the case turns run on instead of the pack's own: the
-        eval gate's candidate built from the working set."""
+        eval gate's candidate built from the working set, or (0.2.0) a tuning candidate view.
+        `cases` (0.2.0, internal: curation's rewrites) replaces the pack's golden set."""
         if suite not in SUITES:
-            raise EvalRequestError(400, "invalid_request", "suite must be golden or judge")
+            raise EvalRequestError(400, "invalid_request", "suite must be golden, judge or model")
+        if suite == "model" and not model:
+            raise EvalRequestError(400, "invalid_request", "the model suite needs a model alias")
         if not self.h.pack_known(pack):
             raise EvalRequestError(422, "invalid_request", f"no dataset pack {pack!r}")
         try:
-            cases = self.golden(pack)
+            cases = list(cases) if cases is not None else self.golden(pack)
         except GoldenError as exc:
             raise EvalRequestError(422, "golden_unavailable", str(exc)) from exc
         if case_ids:
@@ -134,7 +156,7 @@ class OfflineRunner:
             if unknown:
                 raise EvalRequestError(400, "invalid_request", f"unknown case ids {unknown}")
             cases = [c for c in cases if c.id in set(case_ids)]
-        self._check_model(suite, model)
+        self._check_model(suite, model, runtime.settings if runtime is not None else None)
         judge_model = None
         if suite == "judge":
             judge_model = self.judge.resolve()
@@ -144,7 +166,9 @@ class OfflineRunner:
                 )
         if self.running(tenant_id):
             raise EvalRequestError(409, "eval_running", "an eval run is already running")
-        previous = self.store.previous_run(tenant_id, pack, suite)
+        previous = self.store.previous_run(
+            tenant_id, pack, suite, model=model if suite == "model" else None
+        )
         try:
             view = runtime or self.h.view(pack)
         except KeyError as exc:  # PackUnavailable
@@ -233,6 +257,16 @@ class OfflineRunner:
         finally:
             self._finish(run, results, previous, cost)
 
+    def _diagnose_on(self, run: dict[str, Any]) -> bool:
+        """Automatic diagnosis runs unless the pack's profile switches `diagnose` off (0.2.0)."""
+        from harnesswalk.config.loader import profile_for
+
+        try:
+            profile = profile_for(self.h.settings, run["pack"])
+        except Exception:  # an unreadable profile never stops a run
+            return True
+        return profile.enabled("diagnose", self.h.settings.mode)
+
     def _finish(
         self, run: dict[str, Any], results: list[dict], previous: dict[str, str], cost: Usage
     ) -> None:
@@ -241,7 +275,7 @@ class OfflineRunner:
             key = {"passed": "passed", "skipped": "skipped"}.get(r["status"], "failed")
             totals[key] += 1
         regressed = [r["case_id"] for r in results if r["regression"]]
-        if regressed and self.diagnoser is not None:  # P5: automatic on regression
+        if regressed and self.diagnoser is not None and self._diagnose_on(run):  # P5
             try:
                 run["diagnoses"] = self.diagnoser.after_run(run, regressed)
             except Exception:  # a diagnosis never fails the run
@@ -275,27 +309,40 @@ class OfflineRunner:
                 "previous_run_id": run["previous_run_id"],
             })  # fmt: skip
 
-    def _turn_request(self, run: dict[str, Any], case: GoldenCase) -> Any:
+    def _turn_request(self, run: dict[str, Any], case: GoldenCase, n: int = 0) -> Any:
+        """The request for turn `n` of the case (a one-prompt case has only turn 0)."""
         from harnesswalk.control.gateway import TurnRequest
 
         tenant = run.get("case_tenant") or scratch_tenant(run["run_id"])
         view, candidate = self._views.get(run["run_id"], (None, False))
-        provider = fixture = model = None
-        if run["suite"] == "judge" and run["model"]:
-            model = run["model"]
-            provider = self.h.settings.get(f"models.models.{model}.provider")
-        elif case.fixture:
-            provider, fixture = "fake", case.fixture
+        provider = fixture = model = pin = None
+        case_fixture = case.fixture_for(n)
+        settings = view.settings if view is not None else self.h.settings
+        if run["suite"] == "model":
+            pin = run["model"]
+            provider = settings.get(f"models.models.{pin}.provider")
+            if provider == "fake":  # a scripted alias: the case's fixture is its answer
+                if not case_fixture:
+                    return None
+                fixture = case_fixture
+        elif run["suite"] == "judge" and run["model"]:
+            # Pinned as on `model` (a hint alone only picks among the matched rule's aliases,
+            # so `--model local-4b` answered on local-8b before).
+            model = pin = run["model"]
+            provider = settings.get(f"models.models.{model}.provider")
+        elif case_fixture:
+            provider, fixture = "fake", case_fixture
         else:
             return None
         return TurnRequest(
-            message=case.prompt,
-            identity=Identity(tenant, None, ["user"], anonymous=False),
+            message=case.turns[n].user if case.turns else case.prompt,
+            identity=Identity(tenant, None, list(case.roles or ["user"]), anonymous=False),
             session_id=f"sess_{run['run_id']}_{case.id}"[:120],
             channel="eval",
             provider=provider,
             fixture=fixture,
             model=model,
+            pin_model=pin,
             output_schema=case.output_schema,
             internal=True,
             eval_run_id=run["run_id"],
@@ -326,6 +373,8 @@ class OfflineRunner:
         if not case.applies_in(mode):
             result["detail"] = f"applies in {', '.join(case.modes or [])} mode only, not {mode}"
             return result, Usage()
+        if case.multi_turn:
+            return await self._multi_turn_case(run, case, result)
         request = self._turn_request(run, case)
         if request is None:
             result["detail"] = "no fixture and no model to answer with"
@@ -338,12 +387,13 @@ class OfflineRunner:
             result["events_url"] = f"/v1/evals/runs/{run['run_id']}/cases/{case.id}/events"
             actual = actual_of(events)
             result["actual"] = actual
-            if run["suite"] == "judge" and run["model"] and actual.get("cost"):
+            if run["suite"] in ("judge", "model") and run["model"] and actual.get("cost"):
                 c = actual["cost"]
                 spent.add(Usage(c["input_tokens"], c["output_tokens"], 0, c["usd"]))
-            names = DETERMINISTIC if run["suite"] == "golden" else JUDGE_DETERMINISTIC
+            names = JUDGE_DETERMINISTIC if run["suite"] == "judge" else DETERMINISTIC
             view = self._views.get(run["run_id"], (self.h, False))[0]
             tenant = request.identity.tenant_id
+            model_grade = run["suite"] == "model"
             scores = deterministic(
                 case,
                 actual,
@@ -351,12 +401,89 @@ class OfflineRunner:
                 names,
                 events=events,
                 get_detail=lambda ref: self.h.tracer.get_detail(tenant, ref),
+                grading="model" if model_grade else "exact",
+                read_tools=read_tools_of(view) if model_grade else frozenset(),
             )
             if run["suite"] == "judge":
                 verdict = await self.judge.judge(
                     case.prompt,
                     actual.get("reply") or "",
                     context_of(self.h, request.identity.tenant_id, events),
+                    case.rubric,
+                )
+                if verdict is not None:
+                    scores.update(verdict.scores)
+                    spent.add(verdict.usage)
+            result["scores"] = scores
+            result["status"] = "passed" if all(s["pass"] for s in scores.values()) else "failed"
+        except Exception as exc:
+            result["status"] = "error"
+            result["error"] = {"code": getattr(exc, "code", "internal"), "message": str(exc)[:500]}
+        return result, spent
+
+    async def _multi_turn_case(
+        self, run: dict[str, Any], case: GoldenCase, result: dict[str, Any]
+    ) -> tuple[dict[str, Any], Usage]:
+        """Every turn of the case in one session, in order; each scored where it has `expect`
+        or `checks`, then the case's own expectations over the whole session."""
+        requests = [self._turn_request(run, case, n) for n in range(len(case.turns))]
+        if any(r is None for r in requests):
+            result["detail"] = "no fixture and no model to answer with"
+            return result, Usage()
+        spent = Usage()
+        view = self._views.get(run["run_id"], (self.h, False))[0]
+        tenant = requests[0].identity.tenant_id
+
+        def get_detail(ref: str) -> Any:
+            return self.h.tracer.get_detail(tenant, ref)
+
+        model_grade = run["suite"] == "model"
+        grading = {
+            "grading": "model" if model_grade else "exact",
+            "read_tools": read_tools_of(view) if model_grade else frozenset(),
+        }
+
+        names = JUDGE_DETERMINISTIC if run["suite"] == "judge" else DETERMINISTIC
+        per_turn = tuple(n for n in names if n != "pii_leak")  # scored once, on the session
+        scores: dict[str, dict[str, Any]] = {}
+        actuals: list[dict[str, Any]] = []
+        session_events: list[Event] = []
+        try:
+            for n, (turn, request) in enumerate(zip(case.turns, requests, strict=True)):
+                events = await self._play(request, case)
+                actual = actual_of(events)
+                actuals.append(actual)
+                session_events += events
+                result["turn_id"] = events[0]["turn_id"]
+                result.setdefault("turn_ids", []).append(events[0]["turn_id"])
+                if run["suite"] in ("judge", "model") and run["model"] and actual.get("cost"):
+                    c = actual["cost"]
+                    spent.add(Usage(c["input_tokens"], c["output_tokens"], 0, c["usd"]))
+                if turn.expect or turn.checks:
+                    one = dataclasses.replace(
+                        case, prompt=turn.user, expect=turn.expect, checks=turn.checks,
+                        output_schema=None, turns=[],
+                    )  # fmt: skip
+                    got = deterministic(
+                        one, actual, view.input_guardrails.pii, per_turn, events=events,
+                        get_detail=get_detail, **grading,
+                    )  # fmt: skip
+                    scores.update({f"turn{n + 1}.{k}": v for k, v in got.items()})
+            result["events_url"] = f"/v1/evals/runs/{run['run_id']}/cases/{case.id}/events"
+            actual = session_actual(actuals)
+            result["actual"] = actual
+            whole = dataclasses.replace(case, prompt="\n".join(t.user for t in case.turns))
+            scores.update(
+                deterministic(
+                    whole, actual, view.input_guardrails.pii, names, events=session_events,
+                    get_detail=get_detail, **grading,
+                )
+            )  # fmt: skip
+            if run["suite"] == "judge":
+                verdict = await self.judge.judge(
+                    case.turns[-1].user,
+                    actual.get("reply") or "",
+                    context_of(self.h, tenant, session_events),
                     case.rubric,
                 )
                 if verdict is not None:

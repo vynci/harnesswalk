@@ -1,0 +1,32 @@
+id: helpdesk_lite
+title: Pebblebrook IT Helpdesk
+domain: helpdesk
+summary: A small office IT helpdesk that answers short questions by looking up a ticket, a service's status
+  or an office's IT details, light enough for a small local model.
+tier: domain
+profile: minimal
+feature: Short lookups on the lowest rung
+demonstrates:
+  id: small_model_lookups
+  nodes:
+  - loop
+  - tools
+  - model_layer
+  summary: Every question is one read-only lookup and a one-sentence answer, so the smallest harness (the
+    loop, the model and the tools, with the system prompt and the session) is enough, and a 4B local model
+    can pass the golden set. The learner sees every other node dimmed and still in its place.
+licence: CC0-1.0
+provenance:
+  card: provenance.md
+  generator:
+    model: claude-haiku-5-5
+    date: '2026-11-08'
+    prompt_hash: 82159dd9943d5b51
+synthetic: true
+prompts:
+- What is the status of ticket HD-1042?
+- Is the VPN down?
+- Is email working right now?
+- What is the guest wifi network at the harbour office?
+- When is the IT desk open?
+- What is happening with my ticket HD-1077?

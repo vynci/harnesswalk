@@ -1,0 +1,25 @@
+id: approval_off
+title: With approval switched off, an action that needs a human is denied, never run
+spec_version: 0.2.0
+fixture: approval_deny
+requires: [input_guardrails, output_guardrails, policy, audit]
+turns:
+  - send:
+      message: Please cancel order A-1002.
+      options: { disable: [approval] }
+    expect:
+      path: [gateway, input_guardrails, context_builder, memory, loop, model_layer, tools, policy, audit, approval, audit, model_layer, output_guardrails, gateway, trace]
+      statuses: [done, done, done, done, done, done, done, done, done, skipped, done, done, done, done, done]
+      events:
+        - { type: turn_start, status: active, summary: { disabled: [approval] } }
+        - { type: node_exit, node_id: policy, summary: { decision: needs_approval } }
+        - { type: node_exit, node_id: approval, status: skipped, summary: { disabled: true, decision: deny } }
+        - { type: node_exit, node_id: audit, summary: { action: approval_decision, decision: deny } }
+        - { type: node_exit, node_id: tools, summary: { tool: cancel_order, outcome: denied, executed: false } }
+        - { type: turn_end, status: done, summary: { exit: answered } }
+      absent:
+        - { type: approval_requested }
+        - { type: node_paused, summary: { reason: approval } }
+        - { type: node_exit, node_id: sandbox, summary: { executed: true } }
+        - { type: node_exit, node_id: tools, summary: { executed: true } }
+      reply_contains: [not approved]

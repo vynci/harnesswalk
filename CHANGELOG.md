@@ -10,6 +10,188 @@ rules ([spec/VERSIONING.md](spec/VERSIONING.md)).
 
 ## [Unreleased]
 
+### Added
+
+- **The evidence round (P5, 2026-11-15).** Two reruns of the first adapter's recipe, a second
+  adapter from three governed packs without their golden cases (`tune curate --no-golden`), and
+  every arm beside the untuned 9B and Claude Haiku 5.5 on four and on ten packs, with GPU traces
+  of curation, training and inference (`deploy/homelab/gpulog.py`). Eval cases now keep
+  `timing` (seconds per case, Ollama's own generation time) and the scorecard reports median
+  and p95 seconds per case and decode tokens per second. The homelab worker takes
+  `tail_logits: true`, so 5k-token governed samples train on one card. Results and raw data in
+  `docs/tuning.md` and `docs/tuning/2026-11-15/`.
+- **The first real tuned model (P3b).** `tuned-approvals-4b`: a LoRA adapter for qwen3.5:4b
+  trained on the homelab from 193 passing turns of qwen3.5:27b on `ecommerce` and `logistics`,
+  served as a Q4_K_M merge. Against the base on the same day it goes from 4 to 14 of 24 on
+  ecommerce and from 4.5 to 8 on logistics, "write tool not called" from 12.5 cases to 0, with
+  the canary packs unchanged or better; the prompt-only control arm gains one case. Canaried at
+  0.5, widened and rolled back for real. `docs/tuning.md` has the numbers and the recipe; the
+  public site replays this run (`config/fixtures/tune_replay_homelab.json`).
+
+### Fixed
+
+- The homelab worker trains on the prompt exactly as Ollama renders it (a port of its `qwen3.5`
+  renderer; the Hugging Face template differs in the tools block and the think blocks), one
+  sample per model call; converts without the multi-token prediction layer Ollama's qwen3.5 does
+  not have; and uses expandable CUDA segments (a long sample ran a 24 GiB card out of memory).
+
+- **The tuning loop (P3).** `harnesswalk tune curate | run | compare | promote | rollback |
+  status`, and the same under `/v1/tune`: a teacher model answers a pack's golden prompts and
+  rewrites of them through the whole harness, the turns every deterministic scorer passed
+  become a versioned dataset (`dataset/<name>`, chat examples with the exact context, packs
+  only, files under `data/tune`), a trainer turns it into an adapter and the model Ollama will
+  serve (`adapter/<name>`, `model/<name>`, hashes only, never weights), the model gate compares
+  base, tuned model and a prompt-only control arm on target and canary packs, and promote
+  canaries it through the router (`router.canary`, a split by turn id) before rollback or the
+  whole pack. Trainers in `config/trainers.yaml`: `fake` (instant, CI and the Guide),
+  `homelab-trl` (a GPU worker over ssh, `deploy/homelab/`), `local-mlx` (stub). Aliases
+  `local-27b` (the in-family teacher, in no router rule) and `fake-student` (a scripted student
+  that asks for approval in prose). Diagnose names the `tune` lever on a `model` failure.
+  Public mode replays a recorded run (`config/fixtures/tune_replay.json`) and refuses every
+  tuning action.
+- **The generator (P4b): the governed template set, `harnesswalk upgrade`, `gen diff`.**
+  Templates for input and output guardrails (PII placeholders restored in dev, schema repair,
+  citations, leaks), policy (allowlist, roles, the per-turn tool-call budget), approval (a
+  restart re-attaches a paused turn), audit (a per-tenant hash chain the storage keeps
+  append-only), the semantic, episodic and knowledge stores (BM25 over SQLite FTS5 fused with
+  hash vectors; PDF text extracted at generation time), the memory writer, the release chain
+  (artifacts, releases, rollback over HTTP), the Anthropic provider and, with `--tune`, the
+  tuning loop's curate and trainer hand-off in miniature. Profiles `guarded` to `governed`
+  generate; `operated` and public mode stay refused. A generated `governed` repo (device_fleet,
+  about 3,400 lines in `harness/`) passes 21 of 21 applicable conformance cases (approvals, a
+  restart while paused, the audit chain, budgets, knowledge citations, memory, releases and
+  rollback, step mode, cancel) through the vendored runner and the `--command` runner, and 28
+  of 28 golden cases, on the fake provider; the three `/v1/tune` cases are skipped (the tuning
+  HTTP API is not generated). The Harnesswalk web app drives it (`docs/screenshots/
+  generated-governed.png`). `harnesswalk upgrade` three-way merges a newer template set into
+  the managed files on a new branch (conflicts marked and listed, owned folders untouched,
+  codemods keyed to `harness.lock`); `harnesswalk gen diff` shows your edits to managed files.
+  The README's third verb, "Your own agent" in `docs/your-own-data.md`, the rest of
+  `docs/generator.md` and Guide chapter 25 "Generate your harness".
+- **The generator (P4a): `harnesswalk init`.** The third verb: from a profile (the node set),
+  a pack (the content) and a generator manifest (`--provider ollama|fake`, `--transport
+  http|cli`, `--storage sqlite|files`, the file release door), `init` writes a repository you own
+  with no runtime dependency on Harnesswalk: plain Python (the standard library plus `pyyaml`),
+  one file per node in `harness/core/`, the pack's prompt, skills, policy and tools in folders
+  you own, its golden set and a CI job, the conformance suite vendored with its runner, a
+  compose file and Modelfile for a local model, `harness.lock`, pristine copies and
+  `GENERATION_NOTES.md`. Template-first: `harnesswalk/gen/templates/python/` (a TypeScript set
+  would sit beside it), with `#%` directives and one `off_node` seam for every switched-off
+  node, so the walk keeps its shape. This first set covers the `minimal` rung: a generated
+  helpdesk_lite repo (about 2,300 lines in `harness/`) passes 2 of 2 applicable conformance
+  cases (the rest need switched-off nodes or public mode, never generated) through the vendored
+  runner and this repository's `--command` runner, and 21 of 21 golden cases, on the fake
+  provider. Drift tests tie the template set to the spec version, the diagram's nodes and the
+  event schema. `docs/generator.md`.
+- **Groundwork for the tuning loop (P3).** The router's canary rule: `router.canary`, a rule
+  with `split: {base_alias, candidate_alias, fraction}` instead of `use`, evaluated right after
+  `public`, sends a share of a pack's turns (`when.pack`) to a candidate alias by the hash of
+  the turn id; eval case turns and pinned runs are never split, and the `router` span reports
+  `arm` and `bucket`. Scripted students for the fake provider (`params.fake_style`: `ask_first`
+  asks for approval in prose instead of calling a write tool, `over_call` calls a tool when
+  none is needed) and the alias `fake-student`; the teacher alias `local-27b` (qwen3.5:27b,
+  thinking off, in no router rule). Candidate views (`Harness.candidate_view`: a pack's
+  working set with artifact bodies replaced, nothing stored) that internal eval runs can use,
+  with their own case list. `evals.golden_paths`. Diagnose's `tool_choice` evidence and
+  `levers` (`["prompt_or_skill", "tune"]` for a `model` failure).
+
+### Fixed
+
+- **Hosted scorecard cells.** The scorecard no longer sends `temperature` to Anthropic (the
+  5.5 models answer HTTP 400 "temperature is deprecated for this model", which scored
+  `hosted-haiku` 0/232); the page's Temperature column says the provider default is used. A
+  provider's HTTP error now carries the API's own message (`error.message`, capped at 200
+  characters, key headers and key-shaped strings masked) instead of a bare status. The
+  scorecard raises the Anthropic and OpenAI-compatible call timeout to at least
+  `--case-timeout` unless a `--set` names it. A passive health mark expires after
+  `router.health_check_s` when no probe refreshes it, and a pinned eval call's failure no
+  longer marks its provider unhealthy for other tenants.
+- Eval case turns no longer end on a chat tenant's budget or a chat turn's timeout: they run
+  under `evals.case_budget` (200,000 tokens per turn, 5,000,000 per hour by default) and
+  `evals.model_timeout_s` (180 s), and a pinned run keeps its alias after one timed-out call
+  (it used to answer "the pinned model has no configured provider" for the rest of the run).
+  The Ollama provider's own timeout is 300 s.
+- **Four packs on the empty rungs (P2).** `device_fleet` (Kestrelway Field Services,
+  `governed`): a telematics fleet desk on a real platform's API shapes, twelve tools split by
+  risk, approvals on power-off, SMS clear and purge, a viewer's and an operator's reboot denied
+  by policy (new `viewer` and `operator` roles and rule `fleet.admins_only` in
+  `config/policy.yaml`), and its business rules in `skills/policy.md`. `gov_services`
+  (Aldervale Services Desk, `grounded`): English and French programme rules cited in the
+  language of the question, a SIN or a street address in a sentence redacted, read-only tools.
+  `long_session` (Fernhollow Journeys, `remembered`): long multi-turn chats that cross the
+  compaction threshold, checked with `checks.compacted` and `checks.summary`, and a remembered
+  preference recalled in a later session. `helpdesk_lite` (Pebblebrook IT Helpdesk, `minimal`):
+  one read-only lookup per question, so the lowest rung has a pack a small local model can
+  pass. The Guide's domain demos gain the new packs.
+- **Multi-turn golden cases and pack format additions (P2).** A golden case may script a
+  whole conversation (`turns`), run in one session so memory and compaction are testable,
+  with expectations on any turn and on the case; `roles` runs a case as a given role;
+  `checks.compacted` and `checks.summary` check what survives compaction; a pack may ship
+  `skills/policy.md`, its business rules in words; `pack.yaml` `provenance` may name the
+  generator model. `tools/gen_pack.py` gains `--model haiku` and `--only`, writes the
+  generator block and resolves citations turn by turn.
+- **The model ladder scorecard.** `harnesswalk scorecard` runs every pack's golden set on each
+  model alias you list (one `model`-suite eval run per cell, one model at a time) and writes a
+  pack x model pass matrix with a failure breakdown by scorer to `docs/scorecard.md`, plus the
+  cell data as JSON. A model that cannot run is `n/a` with the reason. The published matrix
+  covers `fake-small`, five local models on a homelab Ollama and two hosted models.
+- **The `model` eval suite.** `harnesswalk eval <pack> --suite model --model <alias>` (and
+  `POST /v1/evals/runs` with `suite: model`) answers every case on that alias, pinned for every
+  model call, and scores it with the deterministic scorers only. Its regression diff compares
+  runs of the same model.
+- Model aliases `local-2b` (qwen3.5:2b), `local-4b` (qwen3.5:4b), `local-9b` (qwen3.5:9b) and
+  `local-e4b` (gemma4:e4b), with thinking off. The Ollama adapter sends an alias's `params`
+  (for example `think: false`), and `models.providers.ollama.base_url_env` names the variable
+  that overrides `base_url` (`HARNESSWALK_OLLAMA_URL`, as before).
+- **Harness profiles and spec 0.2.0.** A profile is a named harness shape: the nodes it
+  switches off and the config that goes with it. Six ship in `config/profiles/` as a ladder,
+  `minimal`, `guarded`, `grounded`, `remembered`, `governed` and `operated` (every node on, the
+  0.1 harness and the default). Each pack names its profile in `pack.yaml` (`profile`, now
+  required): `healthcare` and `sports` run on `grounded`, `ecommerce` and `logistics` on
+  `governed`, `finance` and `_starter` on `operated`, each measured as the lowest rung its golden
+  set passes on (or higher). `HARNESSWALK_PROFILE` or `--profile` (a name or a path) runs every
+  pack on one profile. Spec 0.2.0 is the first minor release of the spec: see
+  `spec/CHANGELOG.md`.
+- Switched-off nodes are dimmed, never hidden: the diagram keeps every node in place, faded with
+  a dashed border and an "off" chip, the edges to them fade too, and the tooltip names the
+  profile. The profile chip beside the pack picker shows the id and the rung; the pack menu
+  names each pack's profile. A turn still enters a switched-off node where it would run and
+  shows it `skipped`.
+- 13 nodes can be switched off, up from 4: approval (fail closed, a needed approval is a
+  deny), audit, the knowledge, semantic and episodic stores, eval, online eval, diagnose and
+  release (ungated) join the guardrails, policy and the memory writer.
+- `GET /v1/profiles`, `GET /v1/diagram?pack=`, `profile` on `GET /v1/packs` items and
+  `turn_start.summary.profile`. Guide chapters declare `requires`, and a chapter whose node is
+  off under the current pack's profile is greyed with the rung that has it.
+- The pack validator checks a pack against its profile (demonstrated nodes on, golden cases
+  reachable, no tool that needs a human without approval), and the conformance runner runs the
+  suite under each profile (`--profile`, `--all-profiles`; cases declare `requires` and are
+  skipped, not failed). `make conformance` and CI run every profile.
+- **Model grading.** The `model` suite grades `tool_calls` as ordered (the expected calls in
+  order, extra calls to read tools allowed; `expect.tool_calls_mode: exact` keeps a case
+  strict) and `answer_match` on normalized text (case, Unicode, whitespace, dates, times,
+  amounts, numbers). The `golden` suite stays exact.
+- **Scorecard samples and carried columns.** `--samples N` repeats each cell (mean, min and
+  max); every cell runs at temperature 0 where the provider takes it; the page adds a
+  `tool_calls` split and the cases a model fails that most other models pass; `--carry` with
+  `--carry-models` re-grades columns of an earlier scorecard from their stored results without
+  calling the model. The published scorecard re-runs the local columns with two samples and
+  carries the hosted ones from 2026-11-08, re-graded.
+
+### Fixed
+
+- A structured reply (`output_schema`) written as prose and a fenced JSON block, as real models
+  do after a tool call, is repaired to its valid JSON value instead of replaced with "I could
+  not produce a reply in the required format."
+- `harnesswalk eval --suite judge --model <alias>` answers on that alias. A hint outside the
+  matched router rule's aliases was ignored, so `--model local-4b` answered on `local-8b`.
+- A model pinned by an eval run is no longer moved to another router rule by a rule's price
+  cap, so a hosted model's after-tool call reports the `lookup` rule as it should.
+
+- The Ollama adapter asks for the alias's `context_tokens` as `options.num_ctx`, so a model is
+  no longer loaded with its full declared context (up to 262144 tokens) and several models fit
+  on the GPUs at once. An alias without `context_tokens` keeps Ollama's default.
+
 ### Changed
 
 - The README is a short front door; the detail moved to `docs/quickstart.md`, `docs/walkthrough.md`, `docs/architecture.md` and `docs/repository.md`, with `docs/README.md` as the index.

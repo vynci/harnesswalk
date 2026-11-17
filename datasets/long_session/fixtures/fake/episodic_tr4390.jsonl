@@ -1,0 +1,1 @@
+{"responses": [{"text": "TR-4390 to the Brannock Highlands ended on 22 September; you found the Brannock Lodge cold and the breakfast too far away, and asked for a warmer hotel next time.", "usage": {"input_tokens": 420, "output_tokens": 52}, "expect": {"last_message_role": "user"}}]}

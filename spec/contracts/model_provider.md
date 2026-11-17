@@ -34,7 +34,7 @@ record ModelRequest {
 }
 
 record ProviderRequest  { model: string, messages: [Message], tools: [ToolSchema], output_schema?: JSONSchema, max_output_tokens: int, api_key?: secret }
-record ProviderResponse { text: string | null, tool_calls: [ToolCall], finish_reason: "stop" | "tool_calls" | "length", usage: { input_tokens: int, output_tokens: int, cached_tokens?: int } }
+record ProviderResponse { text: string | null, tool_calls: [ToolCall], finish_reason: "stop" | "tool_calls" | "length", usage: { input_tokens: int, output_tokens: int, cached_tokens?: int, gen_ms?: number, prompt_ms?: number } }
 record ModelResponse    { text: string | null, tool_calls: [ToolCall], finish_reason: string, provider: string, model: string, fallback: bool, usage: Usage }
 record ModelInfo        { name: string, context_tokens: int, price_in_per_mtok: number, price_out_per_mtok: number, modalities: [string], tools: bool }
 ```
@@ -158,3 +158,18 @@ models:
 - **Anthropic.** Two user messages in a row (the quoted retrieved data, then the new input,
   context_builder.md P6) are sent as one user message with two text blocks. In public mode a
   provider built without the site's key answers only BYO-key calls and is not probed.
+
+## 0.2.0: fake styles (scripted students)
+
+Additive, for the tuning loop (`tuning.md`). A `fake` alias MAY carry `params.fake_style`; the
+fake provider then answers from the fixture as always, but changes a response the style names,
+deterministically:
+
+| Style | Changes | Into |
+|---|---|---|
+| `ask_first` | A response that calls a tool whose action class is `write`, `destructive` or `external` | A text-only reply asking the user to approve first, naming the tool; no tool call. The approval node never decides |
+| `over_call` | The first call of a turn (no tool result yet) when it answers without a tool and tools are offered | A call to the first offered tool with empty arguments (a tool when none is needed) |
+
+`ToolSchema` gains `action_class` (default `read`) so the provider can tell; adapters never
+send it. Any other style is ignored. The conformance profile and `config/models.yaml` define
+`fake-student` (`ask_first`); the fake trainer's `forgets` outcome serves an `over_call` alias.

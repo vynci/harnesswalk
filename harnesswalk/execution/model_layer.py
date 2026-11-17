@@ -8,7 +8,8 @@ assign `call_<n>` ids to tool calls that lack one, and price the usage from conf
 The exit summary says which provider and model answered and whether it was a fallback; the
 exit carries the call's `cost`.
 
-P3: a retryable failure marks the provider unhealthy for the router (passive health). The
+P3: a retryable failure marks the provider unhealthy for the router (passive health), except
+on a pinned eval call (0.2.0: the eval run's own problem, like a BYO key's). The
 cascade (`router.cascade`, off by default) retries a low-confidence answer from a local model on
 the next hosted alternative; confidence is a deterministic signal, see `confidence()`.
 
@@ -84,6 +85,9 @@ class ModelResponse:
     usage: Usage = field(default_factory=Usage)
     cascade: str | None = None  # why a later alias answered: low_confidence
     budget_refused: str | None = None  # P6: the priced alias the ledger could not hold first
+    # P5: the provider's generation and prompt-processing time (ms) when it reports them.
+    gen_ms: float = 0.0
+    prompt_ms: float = 0.0
 
 
 HEDGES = re.compile(
@@ -103,12 +107,29 @@ def confidence(text: str | None, calls: list[ToolCall], finish: str, offered: se
     return 1.0
 
 
-def price(model_cfg: dict[str, Any], input_tokens: int, output_tokens: int) -> tuple[float, bool]:
-    """Dollars for one call, and whether the price was known (unknown means 0)."""
+def price(
+    model_cfg: dict[str, Any],
+    input_tokens: int,
+    output_tokens: int,
+    cached_tokens: int = 0,
+    cache_write_tokens: int = 0,
+) -> tuple[float, bool]:
+    """Dollars for one call, and whether the price was known (unknown means 0).
+
+    P6: `input_tokens` is every prompt token; of those, `cached_tokens` were read from a
+    prompt cache and `cache_write_tokens` written to one. They are priced at the input price
+    times `cache_read_multiplier` (default 1: a provider whose cache discount is not
+    configured is never undercounted) and `cache_write_multiplier` (default 1.25)."""
     p_in, p_out = model_cfg.get("price_in_per_mtok"), model_cfg.get("price_out_per_mtok")
     if p_in is None or p_out is None:
         return 0.0, False
-    return (p_in * input_tokens + p_out * output_tokens) / 1_000_000, True
+    read = min(max(0, int(cached_tokens or 0)), int(input_tokens or 0))
+    write = min(max(0, int(cache_write_tokens or 0)), int(input_tokens or 0) - read)
+    plain = int(input_tokens or 0) - read - write
+    r_mult = float(model_cfg.get("cache_read_multiplier", 1.0))
+    w_mult = float(model_cfg.get("cache_write_multiplier", 1.25))
+    prompt = plain + read * r_mult + write * w_mult
+    return (p_in * prompt + p_out * output_tokens) / 1_000_000, True
 
 
 class ModelLayer:
@@ -128,7 +149,13 @@ class ModelLayer:
         ledger: Any = None,
         budget_notice: str = "",
         turn_keys: dict[str, str] | None = None,
+        pack: str | None = None,
+        eval_timeout_s: float | None = None,
     ) -> None:
+        # 0.2.0: an eval case turn waits this long per call instead (`evals.model_timeout_s`):
+        # a cold local model on a long prompt can take more than a chat turn's limit.
+        self.eval_timeout_s = eval_timeout_s
+        self.pack = pack  # 0.2.0: the pack this model layer serves (`when.pack`, the canary)
         self.providers = providers
         self.router = router
         self.models = models
@@ -158,9 +185,13 @@ class ModelLayer:
         sent with the reader's key (default: the turn has one); `spent`: route as if the shared
         budget were spent (a reservation was refused)."""
         router = self.router
+        if ctx.model_pin is not None:  # the eval model suite
+            router = router.pinned(ctx.model_pin)
         if ctx.providers is not None:
             chosen, health = ctx.providers, self.health
-            router = router.restricted(lambda p: p in chosen and (health is None or health.ok(p)))
+            router = router.restricted(
+                lambda p: p in chosen and (health is None or health.ok(p)), lambda p: p in chosen
+            )
         if self.public is not None and ctx.mode == "public":
             if byo is None:
                 byo = bool(self.key_for(ctx))
@@ -203,6 +234,9 @@ class ModelLayer:
                 mode=ctx.mode,
                 cost=request.cost,
                 hint=ctx.model_hint,
+                pack=self.pack,
+                turn_id=ctx.turn_id,
+                internal=ctx.internal,
             )
             api_key = self.key_for(ctx, api_key)
             byo = bool(api_key)
@@ -239,6 +273,8 @@ class ModelLayer:
             )
             if response.usage.cached_tokens:
                 span.set(cached_tokens=response.usage.cached_tokens)
+            if response.gen_ms:
+                span.set(gen_ms=response.gen_ms, prompt_ms=response.prompt_ms)
             if response.cascade:
                 span.set(cascade=response.cascade)
             if self.capture_content:
@@ -312,6 +348,7 @@ class ModelLayer:
                     ctx.tenant_id, ctx.session_id, ctx.turn_id, ctx.turn_index, ctx.model_calls
                 ),
                 params=cfg.get("params"),
+                context_tokens=cfg.get("context_tokens"),
             )
             hold = None
             site_paid = price(cfg, 0, 1)[0] > 0 or price(cfg, 1, 0)[0] > 0
@@ -324,10 +361,13 @@ class ModelLayer:
                 async with node(ctx, "providers") as pspan:
                     pspan.set(provider=provider.name, model=alias, attempt=attempt)
                     try:
-                        result = await asyncio.wait_for(provider.complete(preq), self.timeout_s)
+                        limit = self.timeout_s
+                        if ctx.internal and self.eval_timeout_s:
+                            limit = max(limit, self.eval_timeout_s)
+                        result = await asyncio.wait_for(provider.complete(preq), limit)
                     except TimeoutError as exc:
                         raise ProviderError(
-                            "provider_timeout", f"{alias} timed out after {self.timeout_s}s"
+                            "provider_timeout", f"{alias} timed out after {limit}s"
                         ) from exc
             except BaseException as exc:
                 if self.ledger is not None:
@@ -339,7 +379,9 @@ class ModelLayer:
                     raise
                 # A caller's own key (BYO) or a refused request is not the provider's health:
                 # one bad key must not take the provider down for every tenant (P3 review).
-                if self.health is not None and not preq.api_key and not exc.client_error:
+                # Nor is a pinned eval call's failure: it is the eval run's own problem (0.2.0).
+                own = preq.api_key or exc.client_error or ctx.model_pin is not None
+                if self.health is not None and not own:
                     self.health.mark_failed(cfg["provider"], exc.code)
                 continue
             calls = []
@@ -347,7 +389,13 @@ class ModelLayer:
             for call in result.tool_calls:
                 issued += 1
                 calls.append(ToolCall(call.call_id or f"call_{issued}", call.name, call.arguments))
-            usd, _ = price(cfg, result.usage.input_tokens, result.usage.output_tokens)
+            usd, _ = price(
+                cfg,
+                result.usage.input_tokens,
+                result.usage.output_tokens,
+                result.usage.cached_tokens,
+                getattr(result.usage, "cache_write_tokens", 0),
+            )
             if self.ledger is not None and hold is not None:
                 with contextlib.suppress(Exception):
                     self.ledger.settle(hold, usd)
@@ -369,6 +417,8 @@ class ModelLayer:
                     result.usage.cached_tokens,
                     usd,
                 ),
+                gen_ms=float(getattr(result.usage, "gen_ms", 0.0) or 0.0),
+                prompt_ms=float(getattr(result.usage, "prompt_ms", 0.0) or 0.0),
             )
             if low_confidence is not None:
                 response.usage.add(low_confidence.usage)  # both calls were paid for

@@ -15,6 +15,11 @@ from typing import Any
 from harnesswalk.adapters.storage.sqlite import Database
 from harnesswalk.events import iso
 
+
+def _model_filter(model: str | None) -> tuple[str, tuple[str, ...]]:
+    return (" AND model = ?", (model,)) if model is not None else ("", ())
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS eval_runs (
     seq INTEGER PRIMARY KEY,
@@ -144,15 +149,24 @@ class EvalStore:
         return run
 
     def runs_before(
-        self, tenant_id: str, pack: str, suite: str, run_id: str, limit: int = 50
+        self,
+        tenant_id: str,
+        pack: str,
+        suite: str,
+        run_id: str,
+        limit: int = 50,
+        *,
+        model: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Finished runs of the same tenant, pack and suite older than `run_id`, newest first."""
+        """Finished runs of the same tenant, pack and suite older than `run_id`, newest first.
+        With `model` (the `model` suite), of that model alias only."""
         row = self.db.one("SELECT seq FROM eval_runs WHERE run_id = ?", (run_id,))
         before = int(row["seq"]) if row else 1 << 62
+        where, params = _model_filter(model)
         rows = self.db.query(
             "SELECT body FROM eval_runs WHERE tenant_id = ? AND pack = ? AND suite = ?"
-            " AND status = 'done' AND seq < ? ORDER BY seq DESC LIMIT ?",
-            (tenant_id, pack, suite, before, limit),
+            f" AND status = 'done' AND seq < ?{where} ORDER BY seq DESC LIMIT ?",
+            (tenant_id, pack, suite, before, *params, limit),
         )
         return [json.loads(r["body"]) for r in rows]
 
@@ -161,11 +175,16 @@ class EvalStore:
         row = self.db.one("SELECT body FROM eval_runs WHERE run_id = ?", (run_id,))
         return json.loads(row["body"]) if row else None
 
-    def previous_run(self, tenant_id: str, pack: str, suite: str) -> dict[str, Any] | None:
+    def previous_run(
+        self, tenant_id: str, pack: str, suite: str, *, model: str | None = None
+    ) -> dict[str, Any] | None:
+        """The last finished run of the same tenant, pack and suite; with `model` (the `model`
+        suite), of that model alias too, so a 4B run is never compared with a 9B run."""
+        where, params = _model_filter(model)
         row = self.db.one(
             "SELECT body FROM eval_runs WHERE tenant_id = ? AND pack = ? AND suite = ?"
-            " AND status = 'done' ORDER BY seq DESC LIMIT 1",
-            (tenant_id, pack, suite),
+            f" AND status = 'done'{where} ORDER BY seq DESC LIMIT 1",
+            (tenant_id, pack, suite, *params),
         )
         return json.loads(row["body"]) if row else None
 

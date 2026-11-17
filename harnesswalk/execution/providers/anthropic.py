@@ -6,6 +6,12 @@ into one user message, as the API requires). Content is read by block type, so `
 blocks are skipped; the harness does not replay them, so models in config/models.yaml set
 `params.thinking` to a mode that needs no replay (`disabled` for Haiku 5.5). The health probe
 is `GET /v1/models`.
+
+P6: `params.prompt_cache: true` (off by default; the scaled curation turns it on for its
+teacher) marks the tool definitions and the system prompt with `cache_control`, so the calls
+of a pack that share them read that prefix from the cache. The usage then reports every
+prompt token as `input_tokens`, with the cached and the written ones counted apart, and the
+model layer prices them with the alias's `cache_read_multiplier` and `cache_write_multiplier`.
 """
 
 from __future__ import annotations
@@ -108,14 +114,22 @@ class AnthropicProvider:
             "max_tokens": request.max_output_tokens,
             "messages": messages,
         }
+        params = dict(request.params or {})
+        cache = bool(params.pop("prompt_cache", False))
         if system:
-            body["system"] = system
+            body["system"] = (
+                [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+                if cache
+                else system
+            )
         if request.tools:
             body["tools"] = [
                 {"name": t.name, "description": t.description, "input_schema": t.parameters}
                 for t in request.tools
             ]
-        for name, value in (request.params or {}).items():  # models.<alias>.params
+            if cache:
+                body["tools"][-1]["cache_control"] = {"type": "ephemeral"}
+        for name, value in params.items():  # models.<alias>.params
             body.setdefault(name, value)
         headers = {"x-api-key": key, "anthropic-version": API_VERSION}
         data = await post_json(
@@ -134,13 +148,16 @@ class AnthropicProvider:
         stop = data.get("stop_reason")
         finish = "tool_calls" if calls else ("length" if stop == "max_tokens" else "stop")
         usage = data.get("usage") or {}
+        read = int(usage.get("cache_read_input_tokens") or 0)
+        written = int(usage.get("cache_creation_input_tokens") or 0)
         return ProviderResponse(
             text="".join(texts) or None,
             tool_calls=calls,
             finish_reason=finish,
             usage=ProviderUsage(
-                usage.get("input_tokens", 0),
+                int(usage.get("input_tokens") or 0) + read + written,  # every prompt token
                 usage.get("output_tokens", 0),
-                usage.get("cache_read_input_tokens", 0),
+                read,
+                cache_write_tokens=written,
             ),
         )

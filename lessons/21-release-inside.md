@@ -1,6 +1,7 @@
 ---
 node: release
 covers: [artifacts]
+requires: [release]
 try:
   pack: _starter
   fixture: golden_returns_window

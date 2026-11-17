@@ -1,0 +1,15 @@
+{"key": "official languages", "value": "Aldervale serves the public in English and French; every programme document exists in both languages with the same rules."}
+{"key": "programmes", "value": "The desk answers for three programmes: the Home Heating Rebate (HHR), the Child Activity Credit (CAC) and the Senior Transit Pass (STP)."}
+{"key": "reference format", "value": "Application references are AV- followed by a letter and four digits, for example AV-K4417."}
+{"key": "AV-K4502 note", "value": "Application AV-K4502 is waiting for a proof of residence; the applicant was told by letter on 2026-10-12.", "entities": ["AV-K4502"]}
+{"key": "AV-K4805 note", "value": "Application AV-K4805 was refused for income above the limit; an appeal is possible until 2026-11-21.", "entities": ["AV-K4805"]}
+{"key": "harbour renovation", "value": "The Harbour Service Office (ALV-PORT) closes for renovation from 2026-11-16 to 2026-11-20.", "entities": ["ALV-PORT"]}
+{"key": "Remembrance Day", "value": "Service offices close on 11 November 2026 for Remembrance Day.", "entities": ["ALV-CTR"]}
+{"key": "online portal", "value": "Applications, document uploads and changes of address can be made on the Aldervale online portal at any time."}
+{"key": "mobile unit", "value": "The Mobile Service Unit (ALV-MOB) visits the northern villages on a monthly route and takes documents and transit pass photos.", "entities": ["ALV-MOB"]}
+{"key": "decision times", "value": "Most Home Heating Rebate decisions are made within 25 business days of a complete application."}
+{"key": "photo checks", "value": "Senior Transit Pass photos are taken at the Downtown and Harbour offices and by the mobile unit."}
+{"key": "payment method", "value": "Approved rebates and credits are paid by direct deposit to the account on the applicant's file."}
+{"key": "privacy contact", "value": "Questions about personal information go to the desk's privacy officer through the online portal's contact form."}
+{"key": "appeal window", "value": "A refused application can be appealed within 30 days of the decision letter."}
+{"key": "no SIN in chat", "value": "The desk never needs a social insurance number in chat; a reference number finds an application."}

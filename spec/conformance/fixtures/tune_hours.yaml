@@ -1,0 +1,7 @@
+fixture: tune_hours
+description: 0.2.0 tuning plain case. Answers without a tool. A model that calls a tool when none is needed (fake_style over_call) runs out of responses here.
+model: fake-small
+turns:
+  - responses:
+      - text: Support hours are 9am to 5pm Eastern, Monday to Friday.
+        usage: { input_tokens: 380, output_tokens: 15 }

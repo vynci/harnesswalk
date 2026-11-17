@@ -1,0 +1,11 @@
+# Rung 5: remembered plus governance: policy on every tool call, a human approval for risky
+# actions, and the append-only audit log. The failure that motivates it: a cancel runs with no
+# human in the loop and nobody can say who allowed it.
+id: governed
+title: Governed
+summary: >-
+  Remembered plus policy on every tool call, a human approval before a risky action runs, and
+  an append-only audit of every decision.
+rung: 5
+disable: [eval, online_eval, diagnose, release]
+stores: [procedural, session, semantic, episodic, knowledge]

@@ -1,0 +1,1 @@
+{"responses": [{"text": "The IT desk is open 08:00 to 18:00, Monday to Friday; urgent outages outside those hours go to the on-call technician through the support form.", "usage": {"input_tokens": 420, "output_tokens": 48}, "expect": {"last_message_role": "user"}}]}

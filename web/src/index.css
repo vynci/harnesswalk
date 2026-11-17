@@ -409,6 +409,13 @@
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
+/* 0.2.0: a node the session pack's profile switches off is dimmed, never hidden. It keeps its
+   place and its label; a turn still shows it skipped. */
+.hw-node[data-profile-off='true'] {
+  opacity: 0.45;
+  filter: saturate(0.3);
+  border-style: dashed;
+}
 
 /* Node kind: [data-kind] sets --kind for whatever draws it (the Badge `kind` variant, trace icons). */
 [data-kind] {
@@ -469,6 +476,9 @@
 }
 .hw-edge[data-state='visited'] {
   opacity: 0.7;
+}
+.hw-edge[data-dim='true'] {
+  opacity: 0.15;
 }
 .hw-edge[data-state='active'] {
   opacity: 1;

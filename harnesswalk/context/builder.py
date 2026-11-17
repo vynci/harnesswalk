@@ -21,7 +21,8 @@ and the output guardrails can check the answer against it.
 Each slice has a budget from config/context.yaml. When the session slice passes
 `compaction.threshold` of its budget, the oldest turns (all but `keep_recent_turns`) fold into
 the running summary. The summary is written by a model when the router has a `summarize`
-model, and by plain truncation otherwise (always with the fake provider). Skill bodies stay
+model, and by plain truncation otherwise (always with the fake provider, and whenever
+`compaction.summarize` is false, as the profiles below `remembered` set it). Skill bodies stay
 out: the model reads them on demand with `read_skill`, and full documents with `read_doc`.
 
 The exit summary reports tokens per slice; the full assembled context goes to the trace as a
@@ -168,7 +169,7 @@ class ContextBuilder:
                     trimmed[kind] += 1
 
             always = retrieved.procedural
-            docs_index = self._docs_index()
+            docs_index = self._docs_index(ctx)
             if docs_index:
                 always = always + "\n\n" + docs_index
             always = always + "\n\n" + DATA_RULE
@@ -241,7 +242,7 @@ class ContextBuilder:
             ctx.citations = citations
             ctx.recalled = [h.text for h in hits["semantic"]]  # facts the answer may use uncited
             on_demand = sorted(self.memory.procedural.skills)
-            if self.memory.knowledge is not None:
+            if self._knowledge(ctx) is not None:
                 on_demand += [f"doc:{d}" for d, _ in self.memory.knowledge.pack_index()]
             assembled = AssembledContext(
                 messages=messages,
@@ -382,8 +383,12 @@ class ContextBuilder:
             )
         return out
 
-    def _docs_index(self) -> str:
-        knowledge = self.memory.knowledge
+    def _knowledge(self, ctx: TurnContext) -> Any:
+        """The knowledge store, or None when it is not configured or is off for this turn."""
+        return None if ctx.is_disabled("knowledge") else self.memory.knowledge
+
+    def _docs_index(self, ctx: TurnContext) -> str:
+        knowledge = self._knowledge(ctx)
         if knowledge is None:
             return ""
         docs = knowledge.pack_index()
@@ -418,7 +423,7 @@ class ContextBuilder:
         if not old:
             return summary, through, turns, None
         text, method = None, "truncation"
-        if self.summarizer is not None:
+        if self.summarizer is not None and self.cfg.get("compaction", {}).get("summarize", True):
             text = await self.summarizer(ctx, summary, old)
             method = "model" if text else method
         max_chars = max(0, (max_summary - header) * 4)

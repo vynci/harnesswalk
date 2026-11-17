@@ -3,7 +3,8 @@
 # Keys are referenced by environment variable name only, never by value.
 providers:
   fake: { fixture: plain_answer }
-  ollama: { base_url: http://localhost:11434, timeout_s: 120 }
+  # HARNESSWALK_OLLAMA_URL, when set, wins over base_url (a remote Ollama needs no --set).
+  ollama: { base_url: http://localhost:11434, base_url_env: HARNESSWALK_OLLAMA_URL, timeout_s: 300 }
   # Hosted providers are off unless selected (HARNESSWALK_PROVIDER) or enabled here, so a key in
   # your shell never turns into a paid fallback by accident.
   anthropic: { enabled: false, base_url: https://api.anthropic.com, api_key_env: ANTHROPIC_API_KEY, timeout_s: 60 }
@@ -13,11 +14,45 @@ models:
   fake-small:   { provider: fake, label: Fake model (scripted), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
   local-8b:     { provider: ollama, name: "llama3.1:8b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
   local-small:  { provider: ollama, name: "llama3.2:3b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true }
+  # The model ladder (docs/scorecard.md): small local models an eval run pins with --model.
+  # Thinking off, as for the hosted aliases: the harness does not replay thinking.
+  local-2b:     { provider: ollama, name: "qwen3.5:2b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  local-4b:     { provider: ollama, name: "qwen3.5:4b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  local-9b:     { provider: ollama, name: "qwen3.5:9b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  local-e4b:    { provider: ollama, name: "gemma4:e4b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  # 0.2.0, the tuning loop (spec/contracts/tuning.md): the in-family local teacher (in no router
+  # rule), and a scripted student for the fake trainer's loop: it asks for approval in prose
+  # instead of calling a write tool, the failure a tuned model fixes.
+  local-27b:    { provider: ollama, name: "qwen3.5:27b", context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  # The tuned student of docs/tuning.md: model/approvals_4b, the Q4_K_M merge a homelab tune run
+  # created in Ollama (`ollama create`), so it answers only where that tag exists. In no router
+  # rule: `tune promote` routes it through router.canary in the release store.
+  tuned-approvals-4b: { provider: ollama, name: "hw-approvals-4b:tr_2", label: Tuned approvals_4b (qwen3.5:4b LoRA), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  # The 2026-11-15 evidence round (docs/tuning.md): the same recipe retrained on the same dataset
+  # (r1 seed 7 as before, r2 seed 11), and v2 from three governed packs without their golden
+  # cases. Like the alias above, each answers only where its Ollama tag exists.
+  tuned-approvals-4b-r1: { provider: ollama, name: "hw-approvals-4b-r1:tr_3", label: Tuned approvals_4b rerun 1 (seed 7), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  tuned-approvals-4b-r2: { provider: ollama, name: "hw-approvals-4b-r2:tr_4", label: Tuned approvals_4b rerun 2 (seed 11), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  tuned-approvals-v2-4b: { provider: ollama, name: "hw-approvals-v2-4b:tr_5", label: Tuned approvals_v2_4b (three governed packs, no golden cases), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  # v2 again with max_seq_len 6144 and tail_logits: at 4096 the worker dropped 38 of v2's 52
+  # device_fleet train examples (their prompts run to 5,200 tokens), and a 6k cap with logits
+  # over the whole prompt ran the card out of memory (run tr_6).
+  tuned-approvals-v2l-4b: { provider: ollama, name: "hw-approvals-v2l-4b:tr_7", label: Tuned approvals_v2l_4b (v2 data, 6k sequence cap, tail logits), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  # P6 (2026-11-16, docs/tuning.md): the size curve on Haiku 5.5's examples, and the 27B-teacher arm.
+  tuned-p6-haiku-200: { provider: ollama, name: "hw-p6-haiku-200:tr_1", label: Tuned 4B on 200 Haiku examples, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  tuned-p6-haiku-1000: { provider: ollama, name: "hw-p6-haiku-1000:tr_2", label: Tuned 4B on 1000 Haiku examples, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  tuned-p6-haiku-5000: { provider: ollama, name: "hw-p6-haiku-5000:tr_3", label: Tuned 4B on 5000 Haiku examples, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  tuned-p6-27b-1000: { provider: ollama, name: "hw-p6-27b-1000:tr_1", label: Tuned 4B on 1000 qwen3.5 27B examples, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  tuned-p6-haiku-1000-s11: { provider: ollama, name: "hw-p6-haiku-1000-s11:tr_4", label: Tuned 4B on 1000 Haiku examples (seed 11), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  tuned-p6-haiku-1000-s13: { provider: ollama, name: "hw-p6-haiku-1000-s13:tr_1", label: Tuned 4B on 1000 Haiku examples (seed 13), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  tuned-p6-haiku-5000-s11: { provider: ollama, name: "hw-p6-haiku-5000-s11:tr_5", label: Tuned 4B on 5000 Haiku examples (seed 11), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  tuned-p6-9b-haiku-1000: { provider: ollama, name: "hw-p6-9b-haiku-1000:tr_2", label: Tuned 9B on 1000 Haiku examples, context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { think: false } }
+  fake-student: { provider: fake, label: Fake student (asks first), context_tokens: 32000, price_in_per_mtok: 0, price_out_per_mtok: 0, tools: true, params: { fake_style: ask_first } }
   # Pinned Anthropic ids (PLAN section 13). Prices per million tokens, first-party API, prompts
   # up to 100K tokens for Haiku. The harness does not replay thinking blocks, so each model
   # runs with a thinking mode that needs none.
-  hosted-haiku:  { provider: anthropic, name: claude-haiku-5-5, label: Claude Haiku 5.5, context_tokens: 1000000, price_in_per_mtok: 0.10, price_out_per_mtok: 0.50, tools: true, params: { thinking: { type: disabled } } }
-  hosted-sonnet: { provider: anthropic, name: claude-sonnet-5-5, label: Claude Sonnet 5.5, context_tokens: 1000000, price_in_per_mtok: 2.0, price_out_per_mtok: 10.0, tools: true, modalities: [text, image], params: { thinking: { type: between_tools } } }
+  hosted-haiku:  { provider: anthropic, name: claude-haiku-5-5, label: Claude Haiku 5.5, context_tokens: 1000000, price_in_per_mtok: 0.10, price_out_per_mtok: 0.50, cache_read_multiplier: 0.1, cache_write_multiplier: 1.25, tools: true, params: { thinking: { type: disabled } } }
+  hosted-sonnet: { provider: anthropic, name: claude-sonnet-5-5, label: Claude Sonnet 5.5, context_tokens: 1000000, price_in_per_mtok: 2.0, price_out_per_mtok: 10.0, cache_read_multiplier: 0.05, cache_write_multiplier: 1.25, tools: true, modalities: [text, image], params: { thinking: { type: between_tools } } }
   compat-default: { provider: openai_compatible, name: default, context_tokens: 32000, tools: true }
   local-embed:  { provider: ollama, name: nomic-embed-text, embedding: true }
 

@@ -1,0 +1,34 @@
+id: long_session
+title: Fernhollow Journeys
+domain: travel
+summary: A travel planning desk for a small fictional agency where planning chats run long, so old turns
+  are folded into a running summary, and a traveller's standing preferences are remembered for the next
+  session.
+tier: domain
+profile: remembered
+feature: Compaction and durable memory
+demonstrates:
+  id: compaction_and_memory
+  nodes:
+  - context_builder
+  - memory
+  - memory_writer
+  summary: Long planning chats cross the session budget, so the context builder folds the oldest turns
+    into a running summary while the last four stay verbatim; a booking reference said at the start survives,
+    a detail buried in old notes may not. A preference saved with remember is written after the reply
+    and recalled in a later session.
+licence: CC0-1.0
+provenance:
+  card: provenance.md
+  generator:
+    model: claude-haiku-5-5
+    date: '2026-11-08'
+    prompt_hash: 8a7265252c8f0509
+synthetic: true
+prompts:
+- What is the status of trip TR-4471?
+- When do the ferries from Mirelake to the Isle of Carrow leave?
+- Please remember that I always want an aisle seat on trains.
+- What is the cancellation policy at the Carrow Harbour Inn (HT-12)?
+- What are the luggage limits on the Carrow ferry?
+- What happened with my last trip, TR-4390?

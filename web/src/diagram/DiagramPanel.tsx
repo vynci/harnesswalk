@@ -8,7 +8,8 @@ import {
   useReactFlow,
   type NodeMouseHandler,
 } from '@xyflow/react'
-import { useDisplayTurn } from '@/state/hooks'
+import { useDisplayTurn, useProfile } from '@/state/hooks'
+import { offSet } from '@/state/profiles'
 import { useApp } from '@/state/store'
 import { FlowEdge } from './FlowEdge'
 import { HarnessNode } from './HarnessNode'
@@ -68,9 +69,13 @@ function Flow() {
     [diagram, view, collapsedList],
   )
   const disabled = useMemo(() => new Set(disabledList), [disabledList])
+  // 0.2.0: the session pack's profile dims what it switches off (same layout, every node drawn).
+  const profile = useProfile()
+  const profileOff = useMemo(() => offSet(profile), [profile])
+  const profileId = profile?.id ?? null
   const { nodes, edges } = useMemo(
-    () => toFlow(diagram, layout, turn, { disabled, onToggle: toggleCollapsed, showOps: true, hovered, alerts, opsChips, pulse }),
-    [diagram, layout, turn, disabled, toggleCollapsed, hovered, alerts, opsChips, pulse],
+    () => toFlow(diagram, layout, turn, { disabled, profileOff, profileId, onToggle: toggleCollapsed, showOps: true, hovered, alerts, opsChips, pulse }),
+    [diagram, layout, turn, disabled, profileOff, profileId, toggleCollapsed, hovered, alerts, opsChips, pulse],
   )
 
   useEffect(() => {

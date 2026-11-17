@@ -1,0 +1,1 @@
+{"responses": [{"text": "A foot passenger takes two bags of up to 23 kg each for free, and a bicycle costs 6.00 and must be booked ahead [1].", "usage": {"input_tokens": 420, "output_tokens": 47}, "expect": {"last_message_role": "user"}}]}

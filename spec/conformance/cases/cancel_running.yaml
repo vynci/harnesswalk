@@ -2,6 +2,7 @@ id: cancel_running
 title: A step-mode turn cancelled while paused stops at once and ends with exit cancelled
 spec_version: 0.1.0
 fixture: cancel_running
+requires: [input_guardrails]
 turns:
   - send:
       message: Where is order A-1001?

@@ -1,0 +1,6 @@
+# The served model for this harness (compose.yaml builds it as `harness-model`). To serve a
+# tuned adapter instead, add `ADAPTER ./adapter.gguf` and point config/harness.yaml's `local`
+# model at harness-model.
+FROM @@ollama_model@@
+PARAMETER temperature 0
+PARAMETER num_ctx 16384

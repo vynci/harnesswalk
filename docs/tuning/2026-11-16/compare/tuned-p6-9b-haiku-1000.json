@@ -1,0 +1,4675 @@
+{
+  "generated_at": "2026-11-17 14:40",
+  "harness_version": "0.1.1",
+  "spec_version": "0.2.0",
+  "tenant": "scorecard",
+  "ollama": {
+    "host": "http://127.0.0.1:11434",
+    "version": "0.34.1",
+    "reachable": true,
+    "error": null
+  },
+  "packs": [
+    "ecommerce",
+    "logistics",
+    "device_fleet",
+    "_starter"
+  ],
+  "models": [
+    {
+      "alias": "tuned-p6-9b-haiku-1000",
+      "provider": "ollama",
+      "name": "hw-p6-9b-haiku-1000:tr_2",
+      "label": "Tuned 9B on 1000 Haiku examples",
+      "details": {
+        "family": "qwen35",
+        "parameter_size": "9.0B",
+        "quantization_level": "Q4_K_M",
+        "format": "gguf"
+      },
+      "digest": "a6706ed4f497",
+      "params": {
+        "think": false
+      },
+      "price_in_per_mtok": 0,
+      "price_out_per_mtok": 0,
+      "temperature": "0"
+    }
+  ],
+  "cells": [
+    {
+      "pack": "ecommerce",
+      "model": "tuned-p6-9b-haiku-1000",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0001",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 24,
+            "passed": 17,
+            "failed": 7,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 143363,
+            "output_tokens": 4241,
+            "usd": 0.0
+          },
+          "seconds": 50.6,
+          "cases": [
+            {
+              "case_id": "cancel_approved_qf20430",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.697,
+                "model_calls": 3,
+                "input_tokens": 7400,
+                "output_tokens": 238,
+                "gen_ms": 2151.788,
+                "prompt_ms": 417.815
+              }
+            },
+            {
+              "case_id": "cancel_approved_qf20433",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.417,
+                "model_calls": 3,
+                "input_tokens": 7237,
+                "output_tokens": 212,
+                "gen_ms": 1911.935,
+                "prompt_ms": 399.534
+              }
+            },
+            {
+              "case_id": "cancel_denied_qf20430",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.458,
+                "model_calls": 3,
+                "input_tokens": 6489,
+                "output_tokens": 226,
+                "gen_ms": 2040.532,
+                "prompt_ms": 339.374
+              }
+            },
+            {
+              "case_id": "cancel_denied_qf20433",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.628,
+                "model_calls": 3,
+                "input_tokens": 7834,
+                "output_tokens": 230,
+                "gen_ms": 2064.032,
+                "prompt_ms": 452.196
+              }
+            },
+            {
+              "case_id": "refund_approved_qf20388",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 3.253,
+                "model_calls": 3,
+                "input_tokens": 8997,
+                "output_tokens": 287,
+                "gen_ms": 2590.078,
+                "prompt_ms": 552.225
+              }
+            },
+            {
+              "case_id": "refund_approved_qf20402",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 3.254,
+                "model_calls": 3,
+                "input_tokens": 8732,
+                "output_tokens": 278,
+                "gen_ms": 2508.505,
+                "prompt_ms": 534.516
+              }
+            },
+            {
+              "case_id": "refund_denied_qf20388",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 3.38,
+                "model_calls": 3,
+                "input_tokens": 9458,
+                "output_tokens": 280,
+                "gen_ms": 2542.467,
+                "prompt_ms": 586.037
+              }
+            },
+            {
+              "case_id": "refund_denied_qf20402",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 4.33,
+                "model_calls": 4,
+                "input_tokens": 13497,
+                "output_tokens": 373,
+                "gen_ms": 3397.276,
+                "prompt_ms": 688.719
+              }
+            },
+            {
+              "case_id": "lookup_then_cancel_approved",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.835,
+                "model_calls": 3,
+                "input_tokens": 8197,
+                "output_tokens": 237,
+                "gen_ms": 2104.453,
+                "prompt_ms": 477.314
+              }
+            },
+            {
+              "case_id": "lookup_then_refund_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 3.197,
+                "model_calls": 3,
+                "input_tokens": 9677,
+                "output_tokens": 275,
+                "gen_ms": 2482.595,
+                "prompt_ms": 602.723
+              }
+            },
+            {
+              "case_id": "cancel_shipped_order_approved",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called",
+              "timing": {
+                "seconds": 1.77,
+                "model_calls": 2,
+                "input_tokens": 5406,
+                "output_tokens": 132,
+                "gen_ms": 1179.939,
+                "prompt_ms": 391.906
+              }
+            },
+            {
+              "case_id": "order_lookup_qf20417",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.495,
+                "model_calls": 2,
+                "input_tokens": 5196,
+                "output_tokens": 121,
+                "gen_ms": 1077.712,
+                "prompt_ms": 363.734
+              }
+            },
+            {
+              "case_id": "order_lookup_qf20402",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.497,
+                "model_calls": 2,
+                "input_tokens": 5843,
+                "output_tokens": 108,
+                "gen_ms": 961.274,
+                "prompt_ms": 452.402
+              }
+            },
+            {
+              "case_id": "track_qt58120394",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.635,
+                "model_calls": 2,
+                "input_tokens": 4344,
+                "output_tokens": 147,
+                "gen_ms": 1308.996,
+                "prompt_ms": 270.698
+              }
+            },
+            {
+              "case_id": "track_qt58119870",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.921,
+                "model_calls": 2,
+                "input_tokens": 5105,
+                "output_tokens": 162,
+                "gen_ms": 1461.282,
+                "prompt_ms": 370.024
+              }
+            },
+            {
+              "case_id": "order_not_found_qf99999",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.418,
+                "model_calls": 2,
+                "input_tokens": 5608,
+                "output_tokens": 106,
+                "gen_ms": 947.289,
+                "prompt_ms": 409.995
+              }
+            },
+            {
+              "case_id": "skill_order_status_qf20430",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 1.722,
+                "model_calls": 2,
+                "input_tokens": 5140,
+                "output_tokens": 142,
+                "gen_ms": 1271.668,
+                "prompt_ms": 368.049
+              }
+            },
+            {
+              "case_id": "skill_shipping_questions_track",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 1.185,
+                "model_calls": 2,
+                "input_tokens": 3691,
+                "output_tokens": 106,
+                "gen_ms": 941.295,
+                "prompt_ms": 192.42
+              }
+            },
+            {
+              "case_id": "kb_opened_electronics_window",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.709,
+                "model_calls": 1,
+                "input_tokens": 2458,
+                "output_tokens": 150,
+                "gen_ms": 1363.746,
+                "prompt_ms": 282.283
+              }
+            },
+            {
+              "case_id": "kb_return_label_fee",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.013,
+                "model_calls": 1,
+                "input_tokens": 3198,
+                "output_tokens": 59,
+                "gen_ms": 532.619,
+                "prompt_ms": 444.813
+              }
+            },
+            {
+              "case_id": "kb_free_shipping_threshold",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.259,
+                "model_calls": 1,
+                "input_tokens": 2513,
+                "output_tokens": 90,
+                "gen_ms": 812.442,
+                "prompt_ms": 283.096
+              }
+            },
+            {
+              "case_id": "kb_tent_warranty",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.512,
+                "model_calls": 1,
+                "input_tokens": 2648,
+                "output_tokens": 128,
+                "gen_ms": 1160.624,
+                "prompt_ms": 312.186
+              }
+            },
+            {
+              "case_id": "kb_quillridge_tent_weight",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.596,
+                "model_calls": 1,
+                "input_tokens": 2543,
+                "output_tokens": 31,
+                "gen_ms": 273.31,
+                "prompt_ms": 289.017
+              }
+            },
+            {
+              "case_id": "kb_price_adjustment_window",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.368,
+                "model_calls": 1,
+                "input_tokens": 2152,
+                "output_tokens": 123,
+                "gen_ms": 1114.866,
+                "prompt_ms": 187.979
+              }
+            }
+          ]
+        },
+        {
+          "run_id": "run_0002",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 24,
+            "passed": 17,
+            "failed": 7,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 139693,
+            "output_tokens": 4294,
+            "usd": 0.0
+          },
+          "seconds": 50.4,
+          "cases": [
+            {
+              "case_id": "cancel_approved_qf20430",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.65,
+                "model_calls": 3,
+                "input_tokens": 7400,
+                "output_tokens": 238,
+                "gen_ms": 2131.135,
+                "prompt_ms": 406.878
+              }
+            },
+            {
+              "case_id": "cancel_approved_qf20433",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.374,
+                "model_calls": 3,
+                "input_tokens": 7237,
+                "output_tokens": 213,
+                "gen_ms": 1901.219,
+                "prompt_ms": 390.947
+              }
+            },
+            {
+              "case_id": "cancel_denied_qf20430",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.453,
+                "model_calls": 3,
+                "input_tokens": 6489,
+                "output_tokens": 226,
+                "gen_ms": 2019.525,
+                "prompt_ms": 334.794
+              }
+            },
+            {
+              "case_id": "cancel_denied_qf20433",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.633,
+                "model_calls": 3,
+                "input_tokens": 7828,
+                "output_tokens": 232,
+                "gen_ms": 2085.307,
+                "prompt_ms": 442.347
+              }
+            },
+            {
+              "case_id": "refund_approved_qf20388",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 3.208,
+                "model_calls": 3,
+                "input_tokens": 9003,
+                "output_tokens": 287,
+                "gen_ms": 2576.366,
+                "prompt_ms": 546.155
+              }
+            },
+            {
+              "case_id": "refund_approved_qf20402",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 3.347,
+                "model_calls": 3,
+                "input_tokens": 8738,
+                "output_tokens": 289,
+                "gen_ms": 2591.441,
+                "prompt_ms": 529.398
+              }
+            },
+            {
+              "case_id": "refund_denied_qf20388",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 3.288,
+                "model_calls": 3,
+                "input_tokens": 9464,
+                "output_tokens": 281,
+                "gen_ms": 2526.46,
+                "prompt_ms": 497.364
+              }
+            },
+            {
+              "case_id": "refund_denied_qf20402",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 3.553,
+                "model_calls": 3,
+                "input_tokens": 9837,
+                "output_tokens": 302,
+                "gen_ms": 2720.189,
+                "prompt_ms": 587.453
+              }
+            },
+            {
+              "case_id": "lookup_then_cancel_approved",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.781,
+                "model_calls": 3,
+                "input_tokens": 8197,
+                "output_tokens": 237,
+                "gen_ms": 2091.539,
+                "prompt_ms": 469.341
+              }
+            },
+            {
+              "case_id": "lookup_then_refund_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 3.478,
+                "model_calls": 3,
+                "input_tokens": 9677,
+                "output_tokens": 306,
+                "gen_ms": 2772.643,
+                "prompt_ms": 594.78
+              }
+            },
+            {
+              "case_id": "cancel_shipped_order_approved",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called",
+              "timing": {
+                "seconds": 2.452,
+                "model_calls": 2,
+                "input_tokens": 5372,
+                "output_tokens": 209,
+                "gen_ms": 1890.45,
+                "prompt_ms": 384.265
+              }
+            },
+            {
+              "case_id": "order_lookup_qf20417",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.525,
+                "model_calls": 2,
+                "input_tokens": 5202,
+                "output_tokens": 121,
+                "gen_ms": 1081.182,
+                "prompt_ms": 360.982
+              }
+            },
+            {
+              "case_id": "order_lookup_qf20402",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.47,
+                "model_calls": 2,
+                "input_tokens": 5843,
+                "output_tokens": 108,
+                "gen_ms": 960.791,
+                "prompt_ms": 451.366
+              }
+            },
+            {
+              "case_id": "track_qt58120394",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.661,
+                "model_calls": 2,
+                "input_tokens": 4344,
+                "output_tokens": 147,
+                "gen_ms": 1310.558,
+                "prompt_ms": 273.62
+              }
+            },
+            {
+              "case_id": "track_qt58119870",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.885,
+                "model_calls": 2,
+                "input_tokens": 5105,
+                "output_tokens": 162,
+                "gen_ms": 1453.834,
+                "prompt_ms": 370.396
+              }
+            },
+            {
+              "case_id": "order_not_found_qf99999",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.422,
+                "model_calls": 2,
+                "input_tokens": 5612,
+                "output_tokens": 106,
+                "gen_ms": 937.99,
+                "prompt_ms": 405.732
+              }
+            },
+            {
+              "case_id": "skill_order_status_qf20430",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 1.69,
+                "model_calls": 2,
+                "input_tokens": 5142,
+                "output_tokens": 143,
+                "gen_ms": 1270.723,
+                "prompt_ms": 359.882
+              }
+            },
+            {
+              "case_id": "skill_shipping_questions_track",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 1.193,
+                "model_calls": 2,
+                "input_tokens": 3691,
+                "output_tokens": 106,
+                "gen_ms": 930.804,
+                "prompt_ms": 193.128
+              }
+            },
+            {
+              "case_id": "kb_opened_electronics_window",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.666,
+                "model_calls": 1,
+                "input_tokens": 2458,
+                "output_tokens": 150,
+                "gen_ms": 1348.796,
+                "prompt_ms": 278.836
+              }
+            },
+            {
+              "case_id": "kb_return_label_fee",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.021,
+                "model_calls": 1,
+                "input_tokens": 3198,
+                "output_tokens": 59,
+                "gen_ms": 526.236,
+                "prompt_ms": 440.729
+              }
+            },
+            {
+              "case_id": "kb_free_shipping_threshold",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.133,
+                "model_calls": 1,
+                "input_tokens": 2513,
+                "output_tokens": 90,
+                "gen_ms": 805.802,
+                "prompt_ms": 287.76
+              }
+            },
+            {
+              "case_id": "kb_tent_warranty",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.534,
+                "model_calls": 1,
+                "input_tokens": 2648,
+                "output_tokens": 128,
+                "gen_ms": 1158.776,
+                "prompt_ms": 309.584
+              }
+            },
+            {
+              "case_id": "kb_quillridge_tent_weight",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.61,
+                "model_calls": 1,
+                "input_tokens": 2543,
+                "output_tokens": 31,
+                "gen_ms": 272.431,
+                "prompt_ms": 286.317
+              }
+            },
+            {
+              "case_id": "kb_price_adjustment_window",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.342,
+                "model_calls": 1,
+                "input_tokens": 2152,
+                "output_tokens": 123,
+                "gen_ms": 1111.136,
+                "prompt_ms": 188.342
+              }
+            }
+          ]
+        },
+        {
+          "run_id": "run_0003",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 24,
+            "passed": 17,
+            "failed": 7,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 139693,
+            "output_tokens": 4294,
+            "usd": 0.0
+          },
+          "seconds": 49.2,
+          "cases": [
+            {
+              "case_id": "cancel_approved_qf20430",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.616,
+                "model_calls": 3,
+                "input_tokens": 7400,
+                "output_tokens": 238,
+                "gen_ms": 2116.676,
+                "prompt_ms": 402.352
+              }
+            },
+            {
+              "case_id": "cancel_approved_qf20433",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.405,
+                "model_calls": 3,
+                "input_tokens": 7237,
+                "output_tokens": 213,
+                "gen_ms": 1904.645,
+                "prompt_ms": 393.082
+              }
+            },
+            {
+              "case_id": "cancel_denied_qf20430",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.452,
+                "model_calls": 3,
+                "input_tokens": 6489,
+                "output_tokens": 226,
+                "gen_ms": 2025.621,
+                "prompt_ms": 332.988
+              }
+            },
+            {
+              "case_id": "cancel_denied_qf20433",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.582,
+                "model_calls": 3,
+                "input_tokens": 7828,
+                "output_tokens": 232,
+                "gen_ms": 2064.575,
+                "prompt_ms": 443.948
+              }
+            },
+            {
+              "case_id": "refund_approved_qf20388",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 3.211,
+                "model_calls": 3,
+                "input_tokens": 9003,
+                "output_tokens": 287,
+                "gen_ms": 2568.33,
+                "prompt_ms": 541.565
+              }
+            },
+            {
+              "case_id": "refund_approved_qf20402",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.974,
+                "model_calls": 3,
+                "input_tokens": 8738,
+                "output_tokens": 289,
+                "gen_ms": 2587.072,
+                "prompt_ms": 252.65
+              }
+            },
+            {
+              "case_id": "refund_denied_qf20388",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.988,
+                "model_calls": 3,
+                "input_tokens": 9464,
+                "output_tokens": 281,
+                "gen_ms": 2510.387,
+                "prompt_ms": 239.779
+              }
+            },
+            {
+              "case_id": "refund_denied_qf20402",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 3.179,
+                "model_calls": 3,
+                "input_tokens": 9837,
+                "output_tokens": 302,
+                "gen_ms": 2708.772,
+                "prompt_ms": 245.98
+              }
+            },
+            {
+              "case_id": "lookup_then_cancel_approved",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.771,
+                "model_calls": 3,
+                "input_tokens": 8197,
+                "output_tokens": 237,
+                "gen_ms": 2087.768,
+                "prompt_ms": 468.785
+              }
+            },
+            {
+              "case_id": "lookup_then_refund_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 3.453,
+                "model_calls": 3,
+                "input_tokens": 9677,
+                "output_tokens": 306,
+                "gen_ms": 2751.459,
+                "prompt_ms": 595.117
+              }
+            },
+            {
+              "case_id": "cancel_shipped_order_approved",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called",
+              "timing": {
+                "seconds": 2.345,
+                "model_calls": 2,
+                "input_tokens": 5372,
+                "output_tokens": 209,
+                "gen_ms": 1876.755,
+                "prompt_ms": 386.663
+              }
+            },
+            {
+              "case_id": "order_lookup_qf20417",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.49,
+                "model_calls": 2,
+                "input_tokens": 5202,
+                "output_tokens": 121,
+                "gen_ms": 1074.945,
+                "prompt_ms": 360.288
+              }
+            },
+            {
+              "case_id": "order_lookup_qf20402",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.494,
+                "model_calls": 2,
+                "input_tokens": 5843,
+                "output_tokens": 108,
+                "gen_ms": 957.624,
+                "prompt_ms": 449.581
+              }
+            },
+            {
+              "case_id": "track_qt58120394",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.645,
+                "model_calls": 2,
+                "input_tokens": 4344,
+                "output_tokens": 147,
+                "gen_ms": 1319.623,
+                "prompt_ms": 270.765
+              }
+            },
+            {
+              "case_id": "track_qt58119870",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.906,
+                "model_calls": 2,
+                "input_tokens": 5105,
+                "output_tokens": 162,
+                "gen_ms": 1457.996,
+                "prompt_ms": 367.586
+              }
+            },
+            {
+              "case_id": "order_not_found_qf99999",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.425,
+                "model_calls": 2,
+                "input_tokens": 5612,
+                "output_tokens": 106,
+                "gen_ms": 950.904,
+                "prompt_ms": 408.608
+              }
+            },
+            {
+              "case_id": "skill_order_status_qf20430",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 1.731,
+                "model_calls": 2,
+                "input_tokens": 5142,
+                "output_tokens": 143,
+                "gen_ms": 1279.808,
+                "prompt_ms": 363.519
+              }
+            },
+            {
+              "case_id": "skill_shipping_questions_track",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 1.191,
+                "model_calls": 2,
+                "input_tokens": 3691,
+                "output_tokens": 106,
+                "gen_ms": 944.523,
+                "prompt_ms": 196.657
+              }
+            },
+            {
+              "case_id": "kb_opened_electronics_window",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.704,
+                "model_calls": 1,
+                "input_tokens": 2458,
+                "output_tokens": 150,
+                "gen_ms": 1360.527,
+                "prompt_ms": 280.343
+              }
+            },
+            {
+              "case_id": "kb_return_label_fee",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.009,
+                "model_calls": 1,
+                "input_tokens": 3198,
+                "output_tokens": 59,
+                "gen_ms": 528.67,
+                "prompt_ms": 441.855
+              }
+            },
+            {
+              "case_id": "kb_free_shipping_threshold",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.158,
+                "model_calls": 1,
+                "input_tokens": 2513,
+                "output_tokens": 90,
+                "gen_ms": 807.844,
+                "prompt_ms": 287.146
+              }
+            },
+            {
+              "case_id": "kb_tent_warranty",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.508,
+                "model_calls": 1,
+                "input_tokens": 2648,
+                "output_tokens": 128,
+                "gen_ms": 1160.179,
+                "prompt_ms": 310.467
+              }
+            },
+            {
+              "case_id": "kb_quillridge_tent_weight",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.62,
+                "model_calls": 1,
+                "input_tokens": 2543,
+                "output_tokens": 31,
+                "gen_ms": 274.76,
+                "prompt_ms": 286.531
+              }
+            },
+            {
+              "case_id": "kb_price_adjustment_window",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.338,
+                "model_calls": 1,
+                "input_tokens": 2152,
+                "output_tokens": 123,
+                "gen_ms": 1106.99,
+                "prompt_ms": 189.268
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "logistics",
+      "model": "tuned-p6-9b-haiku-1000",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0004",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 24,
+            "passed": 6,
+            "failed": 18,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 156221,
+            "output_tokens": 5284,
+            "usd": 0.0
+          },
+          "seconds": 60.8,
+          "cases": [
+            {
+              "case_id": "reroute_three_tools",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 4.294,
+                "model_calls": 4,
+                "input_tokens": 13105,
+                "output_tokens": 376,
+                "gen_ms": 3353.59,
+                "prompt_ms": 697.862
+              }
+            },
+            {
+              "case_id": "reroute_four_tools",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 4.805,
+                "model_calls": 5,
+                "input_tokens": 16151,
+                "output_tokens": 429,
+                "gen_ms": 3853.007,
+                "prompt_ms": 708.232
+              }
+            },
+            {
+              "case_id": "reroute_denied_held",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 4.461,
+                "model_calls": 4,
+                "input_tokens": 13819,
+                "output_tokens": 387,
+                "gen_ms": 3517.084,
+                "prompt_ms": 699.188
+              }
+            },
+            {
+              "case_id": "reroute_denied_in_transit",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 3.956,
+                "model_calls": 4,
+                "input_tokens": 14289,
+                "output_tokens": 329,
+                "gen_ms": 2975.548,
+                "prompt_ms": 729.771
+              }
+            },
+            {
+              "case_id": "reroute_blocked_closed_hub",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 3.673,
+                "model_calls": 3,
+                "input_tokens": 11000,
+                "output_tokens": 302,
+                "gen_ms": 2699.683,
+                "prompt_ms": 717.048
+              }
+            },
+            {
+              "case_id": "track_then_eta_berth_queue",
+              "status": "failed",
+              "failed": [
+                "path",
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.92,
+                "model_calls": 2,
+                "input_tokens": 4126,
+                "output_tokens": 277,
+                "gen_ms": 2451.898,
+                "prompt_ms": 261.902
+              }
+            },
+            {
+              "case_id": "track_then_eta_driver_shortage",
+              "status": "failed",
+              "failed": [
+                "path",
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.734,
+                "model_calls": 2,
+                "input_tokens": 4520,
+                "output_tokens": 264,
+                "gen_ms": 2372.315,
+                "prompt_ms": 295.447
+              }
+            },
+            {
+              "case_id": "track_then_eta_in_transit",
+              "status": "failed",
+              "failed": [
+                "path",
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.727,
+                "model_calls": 2,
+                "input_tokens": 5736,
+                "output_tokens": 247,
+                "gen_ms": 2208.107,
+                "prompt_ms": 437.758
+              }
+            },
+            {
+              "case_id": "track_then_capacity_open_hub",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.782,
+                "model_calls": 3,
+                "input_tokens": 10383,
+                "output_tokens": 227,
+                "gen_ms": 2049.887,
+                "prompt_ms": 630.934
+              }
+            },
+            {
+              "case_id": "track_then_capacity_second_hub",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.97,
+                "model_calls": 3,
+                "input_tokens": 10601,
+                "output_tokens": 237,
+                "gen_ms": 2112.354,
+                "prompt_ms": 665.996
+              }
+            },
+            {
+              "case_id": "track_delivered",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.799,
+                "model_calls": 1,
+                "input_tokens": 2057,
+                "output_tokens": 58,
+                "gen_ms": 514.022,
+                "prompt_ms": 169.552
+              }
+            },
+            {
+              "case_id": "eta_single",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.199,
+                "model_calls": 2,
+                "input_tokens": 4428,
+                "output_tokens": 100,
+                "gen_ms": 884.262,
+                "prompt_ms": 259.68
+              }
+            },
+            {
+              "case_id": "hub_capacity_single",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.442,
+                "model_calls": 2,
+                "input_tokens": 5959,
+                "output_tokens": 102,
+                "gen_ms": 907.055,
+                "prompt_ms": 452.26
+              }
+            },
+            {
+              "case_id": "track_unknown_shipment",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.036,
+                "model_calls": 2,
+                "input_tokens": 3359,
+                "output_tokens": 95,
+                "gen_ms": 837.275,
+                "prompt_ms": 146.875
+              }
+            },
+            {
+              "case_id": "skill_delay_handling",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 3.383,
+                "model_calls": 2,
+                "input_tokens": 5162,
+                "output_tokens": 322,
+                "gen_ms": 2912.52,
+                "prompt_ms": 387.556
+              }
+            },
+            {
+              "case_id": "skill_rerouting_congested",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 3.779,
+                "model_calls": 3,
+                "input_tokens": 11086,
+                "output_tokens": 326,
+                "gen_ms": 2945.099,
+                "prompt_ms": 714.923
+              }
+            },
+            {
+              "case_id": "kb_escalation_time",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.556,
+                "model_calls": 1,
+                "input_tokens": 2499,
+                "output_tokens": 237,
+                "gen_ms": 2121.849,
+                "prompt_ms": 284.914
+              }
+            },
+            {
+              "case_id": "kb_claim_window",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.159,
+                "model_calls": 1,
+                "input_tokens": 2243,
+                "output_tokens": 208,
+                "gen_ms": 1868.939,
+                "prompt_ms": 221.346
+              }
+            },
+            {
+              "case_id": "kb_cc22_liability",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 0.808,
+                "model_calls": 1,
+                "input_tokens": 2414,
+                "output_tokens": 59,
+                "gen_ms": 522.175,
+                "prompt_ms": 250.928
+              }
+            },
+            {
+              "case_id": "kb_hub_cutoff",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.847,
+                "model_calls": 1,
+                "input_tokens": 3322,
+                "output_tokens": 36,
+                "gen_ms": 316.249,
+                "prompt_ms": 466.262
+              }
+            },
+            {
+              "case_id": "kb_dangerous_goods_refused",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.888,
+                "model_calls": 1,
+                "input_tokens": 2413,
+                "output_tokens": 167,
+                "gen_ms": 1517.949,
+                "prompt_ms": 251.014
+              }
+            },
+            {
+              "case_id": "kb_pallet_height",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.84,
+                "model_calls": 1,
+                "input_tokens": 2214,
+                "output_tokens": 63,
+                "gen_ms": 562.911,
+                "prompt_ms": 211.586
+              }
+            },
+            {
+              "case_id": "kb_peak_surcharge",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.725,
+                "model_calls": 1,
+                "input_tokens": 2353,
+                "output_tokens": 267,
+                "gen_ms": 2431.473,
+                "prompt_ms": 246.025
+              }
+            },
+            {
+              "case_id": "kb_holiday_closure",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.968,
+                "model_calls": 1,
+                "input_tokens": 2982,
+                "output_tokens": 169,
+                "gen_ms": 1512.854,
+                "prompt_ms": 392.409
+              }
+            }
+          ]
+        },
+        {
+          "run_id": "run_0005",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 24,
+            "passed": 6,
+            "failed": 18,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 156221,
+            "output_tokens": 5284,
+            "usd": 0.0
+          },
+          "seconds": 58.4,
+          "cases": [
+            {
+              "case_id": "reroute_three_tools",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 4.195,
+                "model_calls": 4,
+                "input_tokens": 13105,
+                "output_tokens": 376,
+                "gen_ms": 3359.365,
+                "prompt_ms": 700.328
+              }
+            },
+            {
+              "case_id": "reroute_four_tools",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 4.501,
+                "model_calls": 5,
+                "input_tokens": 16151,
+                "output_tokens": 429,
+                "gen_ms": 3854.91,
+                "prompt_ms": 355.422
+              }
+            },
+            {
+              "case_id": "reroute_denied_held",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 4.051,
+                "model_calls": 4,
+                "input_tokens": 13819,
+                "output_tokens": 387,
+                "gen_ms": 3514.053,
+                "prompt_ms": 270.915
+              }
+            },
+            {
+              "case_id": "reroute_denied_in_transit",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 3.572,
+                "model_calls": 4,
+                "input_tokens": 14289,
+                "output_tokens": 329,
+                "gen_ms": 2979.859,
+                "prompt_ms": 343.149
+              }
+            },
+            {
+              "case_id": "reroute_blocked_closed_hub",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 3.219,
+                "model_calls": 3,
+                "input_tokens": 11000,
+                "output_tokens": 302,
+                "gen_ms": 2712.3,
+                "prompt_ms": 267.128
+              }
+            },
+            {
+              "case_id": "track_then_eta_berth_queue",
+              "status": "failed",
+              "failed": [
+                "path",
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.9,
+                "model_calls": 2,
+                "input_tokens": 4126,
+                "output_tokens": 277,
+                "gen_ms": 2468.41,
+                "prompt_ms": 261.936
+              }
+            },
+            {
+              "case_id": "track_then_eta_driver_shortage",
+              "status": "failed",
+              "failed": [
+                "path",
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.764,
+                "model_calls": 2,
+                "input_tokens": 4520,
+                "output_tokens": 264,
+                "gen_ms": 2377.356,
+                "prompt_ms": 297.486
+              }
+            },
+            {
+              "case_id": "track_then_eta_in_transit",
+              "status": "failed",
+              "failed": [
+                "path",
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.706,
+                "model_calls": 2,
+                "input_tokens": 5736,
+                "output_tokens": 247,
+                "gen_ms": 2198.741,
+                "prompt_ms": 439.718
+              }
+            },
+            {
+              "case_id": "track_then_capacity_open_hub",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.807,
+                "model_calls": 3,
+                "input_tokens": 10383,
+                "output_tokens": 227,
+                "gen_ms": 2050.363,
+                "prompt_ms": 629.506
+              }
+            },
+            {
+              "case_id": "track_then_capacity_second_hub",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.479,
+                "model_calls": 3,
+                "input_tokens": 10601,
+                "output_tokens": 237,
+                "gen_ms": 2103.758,
+                "prompt_ms": 233.022
+              }
+            },
+            {
+              "case_id": "track_delivered",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.796,
+                "model_calls": 1,
+                "input_tokens": 2057,
+                "output_tokens": 58,
+                "gen_ms": 509.533,
+                "prompt_ms": 168.34
+              }
+            },
+            {
+              "case_id": "eta_single",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.207,
+                "model_calls": 2,
+                "input_tokens": 4428,
+                "output_tokens": 100,
+                "gen_ms": 877.433,
+                "prompt_ms": 258.663
+              }
+            },
+            {
+              "case_id": "hub_capacity_single",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.411,
+                "model_calls": 2,
+                "input_tokens": 5959,
+                "output_tokens": 102,
+                "gen_ms": 905.561,
+                "prompt_ms": 447.61
+              }
+            },
+            {
+              "case_id": "track_unknown_shipment",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.049,
+                "model_calls": 2,
+                "input_tokens": 3359,
+                "output_tokens": 95,
+                "gen_ms": 832.681,
+                "prompt_ms": 145.064
+              }
+            },
+            {
+              "case_id": "skill_delay_handling",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 3.373,
+                "model_calls": 2,
+                "input_tokens": 5162,
+                "output_tokens": 322,
+                "gen_ms": 2894.014,
+                "prompt_ms": 386.159
+              }
+            },
+            {
+              "case_id": "skill_rerouting_congested",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 3.762,
+                "model_calls": 3,
+                "input_tokens": 11086,
+                "output_tokens": 326,
+                "gen_ms": 2951.817,
+                "prompt_ms": 715.036
+              }
+            },
+            {
+              "case_id": "kb_escalation_time",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.482,
+                "model_calls": 1,
+                "input_tokens": 2499,
+                "output_tokens": 237,
+                "gen_ms": 2124.268,
+                "prompt_ms": 284.405
+              }
+            },
+            {
+              "case_id": "kb_claim_window",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.169,
+                "model_calls": 1,
+                "input_tokens": 2243,
+                "output_tokens": 208,
+                "gen_ms": 1873.536,
+                "prompt_ms": 224.439
+              }
+            },
+            {
+              "case_id": "kb_cc22_liability",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 0.809,
+                "model_calls": 1,
+                "input_tokens": 2414,
+                "output_tokens": 59,
+                "gen_ms": 522.245,
+                "prompt_ms": 250.041
+              }
+            },
+            {
+              "case_id": "kb_hub_cutoff",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.82,
+                "model_calls": 1,
+                "input_tokens": 3322,
+                "output_tokens": 36,
+                "gen_ms": 314.567,
+                "prompt_ms": 465.042
+              }
+            },
+            {
+              "case_id": "kb_dangerous_goods_refused",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.823,
+                "model_calls": 1,
+                "input_tokens": 2413,
+                "output_tokens": 167,
+                "gen_ms": 1502.53,
+                "prompt_ms": 252.553
+              }
+            },
+            {
+              "case_id": "kb_pallet_height",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.802,
+                "model_calls": 1,
+                "input_tokens": 2214,
+                "output_tokens": 63,
+                "gen_ms": 555.99,
+                "prompt_ms": 205.866
+              }
+            },
+            {
+              "case_id": "kb_peak_surcharge",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.712,
+                "model_calls": 1,
+                "input_tokens": 2353,
+                "output_tokens": 267,
+                "gen_ms": 2395.455,
+                "prompt_ms": 244.537
+              }
+            },
+            {
+              "case_id": "kb_holiday_closure",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.934,
+                "model_calls": 1,
+                "input_tokens": 2982,
+                "output_tokens": 169,
+                "gen_ms": 1509.318,
+                "prompt_ms": 384.615
+              }
+            }
+          ]
+        },
+        {
+          "run_id": "run_0006",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 24,
+            "passed": 6,
+            "failed": 18,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 156221,
+            "output_tokens": 5284,
+            "usd": 0.0
+          },
+          "seconds": 58.2,
+          "cases": [
+            {
+              "case_id": "reroute_three_tools",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 4.215,
+                "model_calls": 4,
+                "input_tokens": 13105,
+                "output_tokens": 376,
+                "gen_ms": 3353.308,
+                "prompt_ms": 703.243
+              }
+            },
+            {
+              "case_id": "reroute_four_tools",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 4.502,
+                "model_calls": 5,
+                "input_tokens": 16151,
+                "output_tokens": 429,
+                "gen_ms": 3862.023,
+                "prompt_ms": 352.325
+              }
+            },
+            {
+              "case_id": "reroute_denied_held",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 3.999,
+                "model_calls": 4,
+                "input_tokens": 13819,
+                "output_tokens": 387,
+                "gen_ms": 3470.853,
+                "prompt_ms": 265.197
+              }
+            },
+            {
+              "case_id": "reroute_denied_in_transit",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 3.535,
+                "model_calls": 4,
+                "input_tokens": 14289,
+                "output_tokens": 329,
+                "gen_ms": 2947.581,
+                "prompt_ms": 333.744
+              }
+            },
+            {
+              "case_id": "reroute_blocked_closed_hub",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 3.187,
+                "model_calls": 3,
+                "input_tokens": 11000,
+                "output_tokens": 302,
+                "gen_ms": 2692.088,
+                "prompt_ms": 262.255
+              }
+            },
+            {
+              "case_id": "track_then_eta_berth_queue",
+              "status": "failed",
+              "failed": [
+                "path",
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.904,
+                "model_calls": 2,
+                "input_tokens": 4126,
+                "output_tokens": 277,
+                "gen_ms": 2443.717,
+                "prompt_ms": 261.048
+              }
+            },
+            {
+              "case_id": "track_then_eta_driver_shortage",
+              "status": "failed",
+              "failed": [
+                "path",
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.728,
+                "model_calls": 2,
+                "input_tokens": 4520,
+                "output_tokens": 264,
+                "gen_ms": 2369.209,
+                "prompt_ms": 294.003
+              }
+            },
+            {
+              "case_id": "track_then_eta_in_transit",
+              "status": "failed",
+              "failed": [
+                "path",
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.713,
+                "model_calls": 2,
+                "input_tokens": 5736,
+                "output_tokens": 247,
+                "gen_ms": 2193.419,
+                "prompt_ms": 436.076
+              }
+            },
+            {
+              "case_id": "track_then_capacity_open_hub",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.794,
+                "model_calls": 3,
+                "input_tokens": 10383,
+                "output_tokens": 227,
+                "gen_ms": 2054.901,
+                "prompt_ms": 627.521
+              }
+            },
+            {
+              "case_id": "track_then_capacity_second_hub",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.473,
+                "model_calls": 3,
+                "input_tokens": 10601,
+                "output_tokens": 237,
+                "gen_ms": 2117.648,
+                "prompt_ms": 234.777
+              }
+            },
+            {
+              "case_id": "track_delivered",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.825,
+                "model_calls": 1,
+                "input_tokens": 2057,
+                "output_tokens": 58,
+                "gen_ms": 513.888,
+                "prompt_ms": 169.416
+              }
+            },
+            {
+              "case_id": "eta_single",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.196,
+                "model_calls": 2,
+                "input_tokens": 4428,
+                "output_tokens": 100,
+                "gen_ms": 887.025,
+                "prompt_ms": 259.686
+              }
+            },
+            {
+              "case_id": "hub_capacity_single",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.42,
+                "model_calls": 2,
+                "input_tokens": 5959,
+                "output_tokens": 102,
+                "gen_ms": 895.04,
+                "prompt_ms": 448.464
+              }
+            },
+            {
+              "case_id": "track_unknown_shipment",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.02,
+                "model_calls": 2,
+                "input_tokens": 3359,
+                "output_tokens": 95,
+                "gen_ms": 832.347,
+                "prompt_ms": 140.553
+              }
+            },
+            {
+              "case_id": "skill_delay_handling",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 3.377,
+                "model_calls": 2,
+                "input_tokens": 5162,
+                "output_tokens": 322,
+                "gen_ms": 2901.102,
+                "prompt_ms": 382.173
+              }
+            },
+            {
+              "case_id": "skill_rerouting_congested",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 3.765,
+                "model_calls": 3,
+                "input_tokens": 11086,
+                "output_tokens": 326,
+                "gen_ms": 2948.745,
+                "prompt_ms": 712.445
+              }
+            },
+            {
+              "case_id": "kb_escalation_time",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.449,
+                "model_calls": 1,
+                "input_tokens": 2499,
+                "output_tokens": 237,
+                "gen_ms": 2113.763,
+                "prompt_ms": 286.914
+              }
+            },
+            {
+              "case_id": "kb_claim_window",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.146,
+                "model_calls": 1,
+                "input_tokens": 2243,
+                "output_tokens": 208,
+                "gen_ms": 1861.813,
+                "prompt_ms": 224.402
+              }
+            },
+            {
+              "case_id": "kb_cc22_liability",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 0.804,
+                "model_calls": 1,
+                "input_tokens": 2414,
+                "output_tokens": 59,
+                "gen_ms": 519.41,
+                "prompt_ms": 249.897
+              }
+            },
+            {
+              "case_id": "kb_hub_cutoff",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.845,
+                "model_calls": 1,
+                "input_tokens": 3322,
+                "output_tokens": 36,
+                "gen_ms": 317.901,
+                "prompt_ms": 463.504
+              }
+            },
+            {
+              "case_id": "kb_dangerous_goods_refused",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.803,
+                "model_calls": 1,
+                "input_tokens": 2413,
+                "output_tokens": 167,
+                "gen_ms": 1506.965,
+                "prompt_ms": 252.431
+              }
+            },
+            {
+              "case_id": "kb_pallet_height",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.826,
+                "model_calls": 1,
+                "input_tokens": 2214,
+                "output_tokens": 63,
+                "gen_ms": 556.078,
+                "prompt_ms": 207.961
+              }
+            },
+            {
+              "case_id": "kb_peak_surcharge",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.687,
+                "model_calls": 1,
+                "input_tokens": 2353,
+                "output_tokens": 267,
+                "gen_ms": 2400.725,
+                "prompt_ms": 245.049
+              }
+            },
+            {
+              "case_id": "kb_holiday_closure",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.956,
+                "model_calls": 1,
+                "input_tokens": 2982,
+                "output_tokens": 169,
+                "gen_ms": 1510.742,
+                "prompt_ms": 385.709
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "device_fleet",
+      "model": "tuned-p6-9b-haiku-1000",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0007",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 28,
+            "passed": 10,
+            "failed": 18,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 243239,
+            "output_tokens": 5462,
+            "usd": 0.0
+          },
+          "seconds": 71.7,
+          "cases": [
+            {
+              "case_id": "failed_sync_lookup",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 3.051,
+                "model_calls": 2,
+                "input_tokens": 8809,
+                "output_tokens": 188,
+                "gen_ms": 1707.335,
+                "prompt_ms": 1198.51
+              }
+            },
+            {
+              "case_id": "offline_asset_status",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.345,
+                "model_calls": 2,
+                "input_tokens": 8076,
+                "output_tokens": 133,
+                "gen_ms": 1194.114,
+                "prompt_ms": 1065.462
+              }
+            },
+            {
+              "case_id": "insights_s7201",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.38,
+                "model_calls": 2,
+                "input_tokens": 7011,
+                "output_tokens": 151,
+                "gen_ms": 1356.89,
+                "prompt_ms": 961.222
+              }
+            },
+            {
+              "case_id": "insights_s7202_stops",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.58,
+                "model_calls": 2,
+                "input_tokens": 8571,
+                "output_tokens": 209,
+                "gen_ms": 1885.891,
+                "prompt_ms": 593.496
+              }
+            },
+            {
+              "case_id": "score_kw0012",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.609,
+                "model_calls": 2,
+                "input_tokens": 8867,
+                "output_tokens": 212,
+                "gen_ms": 1922.371,
+                "prompt_ms": 618.894
+              }
+            },
+            {
+              "case_id": "score_too_short",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.708,
+                "model_calls": 1,
+                "input_tokens": 3759,
+                "output_tokens": 137,
+                "gen_ms": 1250.73,
+                "prompt_ms": 392.858
+              }
+            },
+            {
+              "case_id": "score_formula_explained",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.963,
+                "model_calls": 1,
+                "input_tokens": 3610,
+                "output_tokens": 280,
+                "gen_ms": 2569.058,
+                "prompt_ms": 349.1
+              }
+            },
+            {
+              "case_id": "triage_ev9101_implausible",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.837,
+                "model_calls": 1,
+                "input_tokens": 4330,
+                "output_tokens": 136,
+                "gen_ms": 1252.659,
+                "prompt_ms": 524.895
+              }
+            },
+            {
+              "case_id": "triage_ev9102_held_limit",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 3.154,
+                "model_calls": 2,
+                "input_tokens": 9963,
+                "output_tokens": 241,
+                "gen_ms": 2187.71,
+                "prompt_ms": 895.413
+              }
+            },
+            {
+              "case_id": "triage_ev9103_keep",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 2.056,
+                "model_calls": 1,
+                "input_tokens": 4810,
+                "output_tokens": 137,
+                "gen_ms": 1264.539,
+                "prompt_ms": 646.252
+              }
+            },
+            {
+              "case_id": "power_off_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.569,
+                "model_calls": 3,
+                "input_tokens": 14235,
+                "output_tokens": 186,
+                "gen_ms": 1683.697,
+                "prompt_ms": 756.837
+              }
+            },
+            {
+              "case_id": "power_off_approved",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.802,
+                "model_calls": 3,
+                "input_tokens": 13411,
+                "output_tokens": 218,
+                "gen_ms": 1983.39,
+                "prompt_ms": 720.956
+              }
+            },
+            {
+              "case_id": "viewer_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.623,
+                "model_calls": 3,
+                "input_tokens": 12217,
+                "output_tokens": 208,
+                "gen_ms": 1897.841,
+                "prompt_ms": 607.653
+              }
+            },
+            {
+              "case_id": "operator_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.537,
+                "model_calls": 3,
+                "input_tokens": 14766,
+                "output_tokens": 179,
+                "gen_ms": 1624.397,
+                "prompt_ms": 805.731
+              }
+            },
+            {
+              "case_id": "admin_reboot_queued",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 2.251,
+                "model_calls": 1,
+                "input_tokens": 4702,
+                "output_tokens": 173,
+                "gen_ms": 1572.27,
+                "prompt_ms": 624.983
+              }
+            },
+            {
+              "case_id": "operator_obd_scan",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.539,
+                "model_calls": 2,
+                "input_tokens": 8170,
+                "output_tokens": 103,
+                "gen_ms": 923.586,
+                "prompt_ms": 526.002
+              }
+            },
+            {
+              "case_id": "obd_scan_rate_limited",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.912,
+                "model_calls": 2,
+                "input_tokens": 9104,
+                "output_tokens": 129,
+                "gen_ms": 1174.22,
+                "prompt_ms": 642.826
+              }
+            },
+            {
+              "case_id": "obd_scan_no_obd",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.878,
+                "model_calls": 2,
+                "input_tokens": 9280,
+                "output_tokens": 127,
+                "gen_ms": 1142.216,
+                "prompt_ms": 671.188
+              }
+            },
+            {
+              "case_id": "sms_contents_refused",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.402,
+                "model_calls": 1,
+                "input_tokens": 3867,
+                "output_tokens": 102,
+                "gen_ms": 931.901,
+                "prompt_ms": 413.006
+              }
+            },
+            {
+              "case_id": "clear_sms_approved",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.71,
+                "model_calls": 3,
+                "input_tokens": 12694,
+                "output_tokens": 215,
+                "gen_ms": 1957.888,
+                "prompt_ms": 651.674
+              }
+            },
+            {
+              "case_id": "purge_denied",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called",
+              "timing": {
+                "seconds": 4.652,
+                "model_calls": 4,
+                "input_tokens": 18657,
+                "output_tokens": 398,
+                "gen_ms": 3646.413,
+                "prompt_ms": 856.835
+              }
+            },
+            {
+              "case_id": "incident_stuck_runs",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 3.259,
+                "model_calls": 1,
+                "input_tokens": 4185,
+                "output_tokens": 280,
+                "gen_ms": 2577.219,
+                "prompt_ms": 494.38
+              }
+            },
+            {
+              "case_id": "toggle_harsh_1hz",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 2.953,
+                "model_calls": 2,
+                "input_tokens": 8687,
+                "output_tokens": 245,
+                "gen_ms": 2230.802,
+                "prompt_ms": 630.584
+              }
+            },
+            {
+              "case_id": "window_not_classified_by_model",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 3.92,
+                "model_calls": 2,
+                "input_tokens": 8388,
+                "output_tokens": 351,
+                "gen_ms": 3205.154,
+                "prompt_ms": 652.006
+              }
+            },
+            {
+              "case_id": "policy_operator_power_off",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.531,
+                "model_calls": 1,
+                "input_tokens": 4446,
+                "output_tokens": 99,
+                "gen_ms": 906.428,
+                "prompt_ms": 558.072
+              }
+            },
+            {
+              "case_id": "command_preconditions_kb",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.77,
+                "model_calls": 1,
+                "input_tokens": 3889,
+                "output_tokens": 143,
+                "gen_ms": 1304.606,
+                "prompt_ms": 416.369
+              }
+            },
+            {
+              "case_id": "offline_then_power_off",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called",
+              "timing": {
+                "seconds": 3.418,
+                "model_calls": 3,
+                "input_tokens": 12435,
+                "output_tokens": 238,
+                "gen_ms": 2145.426,
+                "prompt_ms": 1145.262
+              }
+            },
+            {
+              "case_id": "score_then_worst_event",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 3.256,
+                "model_calls": 3,
+                "input_tokens": 12300,
+                "output_tokens": 244,
+                "gen_ms": 2207.012,
+                "prompt_ms": 925.164
+              }
+            }
+          ]
+        },
+        {
+          "run_id": "run_0008",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 28,
+            "passed": 12,
+            "failed": 16,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 247588,
+            "output_tokens": 5966,
+            "usd": 0.0
+          },
+          "seconds": 74.7,
+          "cases": [
+            {
+              "case_id": "failed_sync_lookup",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.574,
+                "model_calls": 2,
+                "input_tokens": 8809,
+                "output_tokens": 202,
+                "gen_ms": 1834.071,
+                "prompt_ms": 642.44
+              }
+            },
+            {
+              "case_id": "offline_asset_status",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.791,
+                "model_calls": 2,
+                "input_tokens": 8076,
+                "output_tokens": 134,
+                "gen_ms": 1205.984,
+                "prompt_ms": 520.498
+              }
+            },
+            {
+              "case_id": "insights_s7201",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.762,
+                "model_calls": 2,
+                "input_tokens": 7001,
+                "output_tokens": 141,
+                "gen_ms": 1265.99,
+                "prompt_ms": 410.38
+              }
+            },
+            {
+              "case_id": "insights_s7202_stops",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.556,
+                "model_calls": 2,
+                "input_tokens": 8574,
+                "output_tokens": 207,
+                "gen_ms": 1888.884,
+                "prompt_ms": 601.807
+              }
+            },
+            {
+              "case_id": "score_kw0012",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.542,
+                "model_calls": 2,
+                "input_tokens": 8837,
+                "output_tokens": 200,
+                "gen_ms": 1834.59,
+                "prompt_ms": 623.327
+              }
+            },
+            {
+              "case_id": "score_too_short",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.233,
+                "model_calls": 1,
+                "input_tokens": 3758,
+                "output_tokens": 88,
+                "gen_ms": 807.188,
+                "prompt_ms": 383.559
+              }
+            },
+            {
+              "case_id": "score_formula_explained",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 3.02,
+                "model_calls": 1,
+                "input_tokens": 3609,
+                "output_tokens": 284,
+                "gen_ms": 2604.926,
+                "prompt_ms": 350.096
+              }
+            },
+            {
+              "case_id": "triage_ev9101_implausible",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 2.235,
+                "model_calls": 1,
+                "input_tokens": 4314,
+                "output_tokens": 180,
+                "gen_ms": 1665.712,
+                "prompt_ms": 523.865
+              }
+            },
+            {
+              "case_id": "triage_ev9102_held_limit",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 3.026,
+                "model_calls": 2,
+                "input_tokens": 9915,
+                "output_tokens": 226,
+                "gen_ms": 2042.074,
+                "prompt_ms": 897.284
+              }
+            },
+            {
+              "case_id": "triage_ev9103_keep",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 2.221,
+                "model_calls": 1,
+                "input_tokens": 4790,
+                "output_tokens": 155,
+                "gen_ms": 1424.109,
+                "prompt_ms": 645.07
+              }
+            },
+            {
+              "case_id": "power_off_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.934,
+                "model_calls": 3,
+                "input_tokens": 14684,
+                "output_tokens": 218,
+                "gen_ms": 1996.276,
+                "prompt_ms": 816.397
+              }
+            },
+            {
+              "case_id": "power_off_approved",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.849,
+                "model_calls": 3,
+                "input_tokens": 13411,
+                "output_tokens": 218,
+                "gen_ms": 1988.758,
+                "prompt_ms": 726.068
+              }
+            },
+            {
+              "case_id": "viewer_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.608,
+                "model_calls": 3,
+                "input_tokens": 12217,
+                "output_tokens": 210,
+                "gen_ms": 1895.642,
+                "prompt_ms": 604.349
+              }
+            },
+            {
+              "case_id": "operator_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.535,
+                "model_calls": 3,
+                "input_tokens": 14691,
+                "output_tokens": 180,
+                "gen_ms": 1629.725,
+                "prompt_ms": 800.981
+              }
+            },
+            {
+              "case_id": "admin_reboot_queued",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 2.279,
+                "model_calls": 1,
+                "input_tokens": 4692,
+                "output_tokens": 177,
+                "gen_ms": 1612.472,
+                "prompt_ms": 618.987
+              }
+            },
+            {
+              "case_id": "operator_obd_scan",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.085,
+                "model_calls": 2,
+                "input_tokens": 8172,
+                "output_tokens": 162,
+                "gen_ms": 1471.12,
+                "prompt_ms": 527.375
+              }
+            },
+            {
+              "case_id": "obd_scan_rate_limited",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.859,
+                "model_calls": 2,
+                "input_tokens": 9108,
+                "output_tokens": 126,
+                "gen_ms": 1141.907,
+                "prompt_ms": 644.653
+              }
+            },
+            {
+              "case_id": "obd_scan_no_obd",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.715,
+                "model_calls": 2,
+                "input_tokens": 9255,
+                "output_tokens": 108,
+                "gen_ms": 958.922,
+                "prompt_ms": 661.772
+              }
+            },
+            {
+              "case_id": "sms_contents_refused",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.908,
+                "model_calls": 1,
+                "input_tokens": 3867,
+                "output_tokens": 51,
+                "gen_ms": 455.243,
+                "prompt_ms": 408.489
+              }
+            },
+            {
+              "case_id": "clear_sms_approved",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.544,
+                "model_calls": 3,
+                "input_tokens": 12682,
+                "output_tokens": 196,
+                "gen_ms": 1771.239,
+                "prompt_ms": 645.01
+              }
+            },
+            {
+              "case_id": "purge_denied",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 5.911,
+                "model_calls": 4,
+                "input_tokens": 18238,
+                "output_tokens": 538,
+                "gen_ms": 4893.352,
+                "prompt_ms": 829.014
+              }
+            },
+            {
+              "case_id": "incident_stuck_runs",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 3.051,
+                "model_calls": 1,
+                "input_tokens": 4187,
+                "output_tokens": 271,
+                "gen_ms": 2482.803,
+                "prompt_ms": 495.063
+              }
+            },
+            {
+              "case_id": "toggle_harsh_1hz",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 3.043,
+                "model_calls": 2,
+                "input_tokens": 8713,
+                "output_tokens": 256,
+                "gen_ms": 2320.981,
+                "prompt_ms": 628.197
+              }
+            },
+            {
+              "case_id": "window_not_classified_by_model",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 6.072,
+                "model_calls": 3,
+                "input_tokens": 12961,
+                "output_tokens": 569,
+                "gen_ms": 5198.78,
+                "prompt_ms": 779.935
+              }
+            },
+            {
+              "case_id": "policy_operator_power_off",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.664,
+                "model_calls": 1,
+                "input_tokens": 4446,
+                "output_tokens": 103,
+                "gen_ms": 946.344,
+                "prompt_ms": 549.448
+              }
+            },
+            {
+              "case_id": "command_preconditions_kb",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.768,
+                "model_calls": 1,
+                "input_tokens": 3889,
+                "output_tokens": 143,
+                "gen_ms": 1310.06,
+                "prompt_ms": 410.209
+              }
+            },
+            {
+              "case_id": "offline_then_power_off",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called",
+              "timing": {
+                "seconds": 3.715,
+                "model_calls": 3,
+                "input_tokens": 12309,
+                "output_tokens": 275,
+                "gen_ms": 2501.576,
+                "prompt_ms": 1085.044
+              }
+            },
+            {
+              "case_id": "score_then_worst_event",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 4.173,
+                "model_calls": 3,
+                "input_tokens": 12383,
+                "output_tokens": 348,
+                "gen_ms": 3167.144,
+                "prompt_ms": 881.469
+              }
+            }
+          ]
+        },
+        {
+          "run_id": "run_0009",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 28,
+            "passed": 10,
+            "failed": 18,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 243731,
+            "output_tokens": 5758,
+            "usd": 0.0
+          },
+          "seconds": 71.4,
+          "cases": [
+            {
+              "case_id": "failed_sync_lookup",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.494,
+                "model_calls": 2,
+                "input_tokens": 8809,
+                "output_tokens": 199,
+                "gen_ms": 1813.485,
+                "prompt_ms": 597.606
+              }
+            },
+            {
+              "case_id": "offline_asset_status",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.739,
+                "model_calls": 2,
+                "input_tokens": 8076,
+                "output_tokens": 133,
+                "gen_ms": 1195.102,
+                "prompt_ms": 487.433
+              }
+            },
+            {
+              "case_id": "insights_s7201",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.011,
+                "model_calls": 2,
+                "input_tokens": 7001,
+                "output_tokens": 173,
+                "gen_ms": 1551.377,
+                "prompt_ms": 373.322
+              }
+            },
+            {
+              "case_id": "insights_s7202_stops",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.527,
+                "model_calls": 2,
+                "input_tokens": 8571,
+                "output_tokens": 209,
+                "gen_ms": 1886.91,
+                "prompt_ms": 552.747
+              }
+            },
+            {
+              "case_id": "score_kw0012",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.297,
+                "model_calls": 2,
+                "input_tokens": 8867,
+                "output_tokens": 183,
+                "gen_ms": 1651.89,
+                "prompt_ms": 583.911
+              }
+            },
+            {
+              "case_id": "score_too_short",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.641,
+                "model_calls": 1,
+                "input_tokens": 3759,
+                "output_tokens": 137,
+                "gen_ms": 1249.122,
+                "prompt_ms": 349.918
+              }
+            },
+            {
+              "case_id": "score_formula_explained",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.928,
+                "model_calls": 1,
+                "input_tokens": 3610,
+                "output_tokens": 281,
+                "gen_ms": 2543.32,
+                "prompt_ms": 311.989
+              }
+            },
+            {
+              "case_id": "triage_ev9101_implausible",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.791,
+                "model_calls": 1,
+                "input_tokens": 4330,
+                "output_tokens": 136,
+                "gen_ms": 1238.708,
+                "prompt_ms": 485.947
+              }
+            },
+            {
+              "case_id": "triage_ev9102_held_limit",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.757,
+                "model_calls": 2,
+                "input_tokens": 9964,
+                "output_tokens": 203,
+                "gen_ms": 1826.565,
+                "prompt_ms": 862.915
+              }
+            },
+            {
+              "case_id": "triage_ev9103_keep",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 2.368,
+                "model_calls": 1,
+                "input_tokens": 4799,
+                "output_tokens": 174,
+                "gen_ms": 1596.035,
+                "prompt_ms": 600.669
+              }
+            },
+            {
+              "case_id": "power_off_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.812,
+                "model_calls": 3,
+                "input_tokens": 14706,
+                "output_tokens": 213,
+                "gen_ms": 1940.429,
+                "prompt_ms": 778.603
+              }
+            },
+            {
+              "case_id": "power_off_approved",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.783,
+                "model_calls": 3,
+                "input_tokens": 13411,
+                "output_tokens": 218,
+                "gen_ms": 1987.406,
+                "prompt_ms": 680.218
+              }
+            },
+            {
+              "case_id": "viewer_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.565,
+                "model_calls": 3,
+                "input_tokens": 12217,
+                "output_tokens": 208,
+                "gen_ms": 1874.498,
+                "prompt_ms": 570.824
+              }
+            },
+            {
+              "case_id": "operator_reboot_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 2.558,
+                "model_calls": 3,
+                "input_tokens": 14730,
+                "output_tokens": 186,
+                "gen_ms": 1674.198,
+                "prompt_ms": 764.35
+              }
+            },
+            {
+              "case_id": "admin_reboot_queued",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.907,
+                "model_calls": 1,
+                "input_tokens": 4690,
+                "output_tokens": 140,
+                "gen_ms": 1284.241,
+                "prompt_ms": 580.894
+              }
+            },
+            {
+              "case_id": "operator_obd_scan",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.004,
+                "model_calls": 2,
+                "input_tokens": 8170,
+                "output_tokens": 159,
+                "gen_ms": 1431.544,
+                "prompt_ms": 484.108
+              }
+            },
+            {
+              "case_id": "obd_scan_rate_limited",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.793,
+                "model_calls": 2,
+                "input_tokens": 9126,
+                "output_tokens": 126,
+                "gen_ms": 1132.233,
+                "prompt_ms": 599.555
+              }
+            },
+            {
+              "case_id": "obd_scan_no_obd",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.77,
+                "model_calls": 2,
+                "input_tokens": 9256,
+                "output_tokens": 116,
+                "gen_ms": 1044.37,
+                "prompt_ms": 622.399
+              }
+            },
+            {
+              "case_id": "sms_contents_refused",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.882,
+                "model_calls": 1,
+                "input_tokens": 3867,
+                "output_tokens": 51,
+                "gen_ms": 460.711,
+                "prompt_ms": 379.401
+              }
+            },
+            {
+              "case_id": "clear_sms_approved",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 2.747,
+                "model_calls": 3,
+                "input_tokens": 12686,
+                "output_tokens": 219,
+                "gen_ms": 1994.349,
+                "prompt_ms": 622.422
+              }
+            },
+            {
+              "case_id": "purge_denied",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 4.509,
+                "model_calls": 4,
+                "input_tokens": 18569,
+                "output_tokens": 394,
+                "gen_ms": 3574.47,
+                "prompt_ms": 790.234
+              }
+            },
+            {
+              "case_id": "incident_stuck_runs",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 3.352,
+                "model_calls": 1,
+                "input_tokens": 4196,
+                "output_tokens": 304,
+                "gen_ms": 2790.377,
+                "prompt_ms": 467.553
+              }
+            },
+            {
+              "case_id": "toggle_harsh_1hz",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 2.87,
+                "model_calls": 2,
+                "input_tokens": 8709,
+                "output_tokens": 244,
+                "gen_ms": 2192.451,
+                "prompt_ms": 587.405
+              }
+            },
+            {
+              "case_id": "window_not_classified_by_model",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 4.963,
+                "model_calls": 2,
+                "input_tokens": 8467,
+                "output_tokens": 467,
+                "gen_ms": 4274.381,
+                "prompt_ms": 615.645
+              }
+            },
+            {
+              "case_id": "policy_operator_power_off",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.493,
+                "model_calls": 1,
+                "input_tokens": 4446,
+                "output_tokens": 99,
+                "gen_ms": 903.438,
+                "prompt_ms": 524.123
+              }
+            },
+            {
+              "case_id": "command_preconditions_kb",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.757,
+                "model_calls": 1,
+                "input_tokens": 4004,
+                "output_tokens": 143,
+                "gen_ms": 1305.415,
+                "prompt_ms": 406.415
+              }
+            },
+            {
+              "case_id": "offline_then_power_off",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "write tool not called",
+              "timing": {
+                "seconds": 3.867,
+                "model_calls": 3,
+                "input_tokens": 12308,
+                "output_tokens": 295,
+                "gen_ms": 2676.455,
+                "prompt_ms": 1058.402
+              }
+            },
+            {
+              "case_id": "score_then_worst_event",
+              "status": "failed",
+              "failed": [
+                "turn2.path",
+                "turn2.tool_calls",
+                "turn2.answer_match",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 4.179,
+                "model_calls": 3,
+                "input_tokens": 12387,
+                "output_tokens": 348,
+                "gen_ms": 3153.443,
+                "prompt_ms": 885.618
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pack": "_starter",
+      "model": "tuned-p6-9b-haiku-1000",
+      "status": "ok",
+      "reason": null,
+      "suite": "model",
+      "samples": [
+        {
+          "run_id": "run_0010",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 16,
+            "passed": 8,
+            "failed": 8,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 28549,
+            "output_tokens": 1355,
+            "usd": 0.0
+          },
+          "seconds": 17.1,
+          "cases": [
+            {
+              "case_id": "support_hours",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.754,
+                "model_calls": 1,
+                "input_tokens": 1059,
+                "output_tokens": 39,
+                "gen_ms": 343.013,
+                "prompt_ms": 289.606
+              }
+            },
+            {
+              "case_id": "order_status",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.738,
+                "model_calls": 1,
+                "input_tokens": 1143,
+                "output_tokens": 46,
+                "gen_ms": 404.022,
+                "prompt_ms": 304.79
+              }
+            },
+            {
+              "case_id": "order_status_skill",
+              "status": "failed",
+              "failed": [
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 1.414,
+                "model_calls": 2,
+                "input_tokens": 3120,
+                "output_tokens": 102,
+                "gen_ms": 899.898,
+                "prompt_ms": 440.756
+              }
+            },
+            {
+              "case_id": "three_orders",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.428,
+                "model_calls": 1,
+                "input_tokens": 1376,
+                "output_tokens": 128,
+                "gen_ms": 1146.11,
+                "prompt_ms": 251.842
+              }
+            },
+            {
+              "case_id": "calculator",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.726,
+                "model_calls": 2,
+                "input_tokens": 1875,
+                "output_tokens": 52,
+                "gen_ms": 446.562,
+                "prompt_ms": 212.781
+              }
+            },
+            {
+              "case_id": "returns_skill",
+              "status": "failed",
+              "failed": [
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.877,
+                "model_calls": 1,
+                "input_tokens": 1588,
+                "output_tokens": 171,
+                "gen_ms": 1538.222,
+                "prompt_ms": 302.286
+              }
+            },
+            {
+              "case_id": "returns_window",
+              "status": "failed",
+              "failed": [
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.756,
+                "model_calls": 1,
+                "input_tokens": 1722,
+                "output_tokens": 46,
+                "gen_ms": 405.306,
+                "prompt_ms": 321.147
+              }
+            },
+            {
+              "case_id": "trailhead_cited",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.362,
+                "model_calls": 1,
+                "input_tokens": 1797,
+                "output_tokens": 111,
+                "gen_ms": 996.15,
+                "prompt_ms": 300.151
+              }
+            },
+            {
+              "case_id": "return_window_cited",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.697,
+                "model_calls": 1,
+                "input_tokens": 1362,
+                "output_tokens": 44,
+                "gen_ms": 387.43,
+                "prompt_ms": 180.636
+              }
+            },
+            {
+              "case_id": "warranty_doc",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.803,
+                "model_calls": 1,
+                "input_tokens": 1522,
+                "output_tokens": 59,
+                "gen_ms": 522.746,
+                "prompt_ms": 223.164
+              }
+            },
+            {
+              "case_id": "remember_name",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.827,
+                "model_calls": 2,
+                "input_tokens": 1876,
+                "output_tokens": 73,
+                "gen_ms": 632.078,
+                "prompt_ms": 142.616
+              }
+            },
+            {
+              "case_id": "cancel_needs_approval",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.628,
+                "model_calls": 2,
+                "input_tokens": 2891,
+                "output_tokens": 145,
+                "gen_ms": 1288.678,
+                "prompt_ms": 253.149
+              }
+            },
+            {
+              "case_id": "pii_redacted",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.206,
+                "model_calls": 1,
+                "input_tokens": 1390,
+                "output_tokens": 110,
+                "gen_ms": 985.804,
+                "prompt_ms": 186.132
+              }
+            },
+            {
+              "case_id": "pii_leak_repaired",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.85,
+                "model_calls": 1,
+                "input_tokens": 1472,
+                "output_tokens": 65,
+                "gen_ms": 574.834,
+                "prompt_ms": 218.356
+              }
+            },
+            {
+              "case_id": "structured_status",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.738,
+                "model_calls": 1,
+                "input_tokens": 1311,
+                "output_tokens": 61,
+                "gen_ms": 536.232,
+                "prompt_ms": 168.25
+              }
+            },
+            {
+              "case_id": "unknown_order",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.268,
+                "model_calls": 2,
+                "input_tokens": 3045,
+                "output_tokens": 103,
+                "gen_ms": 908.876,
+                "prompt_ms": 287.566
+              }
+            }
+          ]
+        },
+        {
+          "run_id": "run_0011",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 16,
+            "passed": 8,
+            "failed": 8,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 28549,
+            "output_tokens": 1355,
+            "usd": 0.0
+          },
+          "seconds": 16.2,
+          "cases": [
+            {
+              "case_id": "support_hours",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.491,
+                "model_calls": 1,
+                "input_tokens": 1059,
+                "output_tokens": 39,
+                "gen_ms": 341.3,
+                "prompt_ms": 119.231
+              }
+            },
+            {
+              "case_id": "order_status",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.567,
+                "model_calls": 1,
+                "input_tokens": 1143,
+                "output_tokens": 46,
+                "gen_ms": 405.437,
+                "prompt_ms": 135.082
+              }
+            },
+            {
+              "case_id": "order_status_skill",
+              "status": "failed",
+              "failed": [
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 1.262,
+                "model_calls": 2,
+                "input_tokens": 3120,
+                "output_tokens": 102,
+                "gen_ms": 900.35,
+                "prompt_ms": 292.32
+              }
+            },
+            {
+              "case_id": "three_orders",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.368,
+                "model_calls": 1,
+                "input_tokens": 1376,
+                "output_tokens": 128,
+                "gen_ms": 1146.618,
+                "prompt_ms": 188.664
+              }
+            },
+            {
+              "case_id": "calculator",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.659,
+                "model_calls": 2,
+                "input_tokens": 1875,
+                "output_tokens": 52,
+                "gen_ms": 446.948,
+                "prompt_ms": 144.679
+              }
+            },
+            {
+              "case_id": "returns_skill",
+              "status": "failed",
+              "failed": [
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.817,
+                "model_calls": 1,
+                "input_tokens": 1588,
+                "output_tokens": 171,
+                "gen_ms": 1538.217,
+                "prompt_ms": 244.137
+              }
+            },
+            {
+              "case_id": "returns_window",
+              "status": "failed",
+              "failed": [
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.73,
+                "model_calls": 1,
+                "input_tokens": 1722,
+                "output_tokens": 46,
+                "gen_ms": 406.44,
+                "prompt_ms": 278.639
+              }
+            },
+            {
+              "case_id": "trailhead_cited",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.345,
+                "model_calls": 1,
+                "input_tokens": 1797,
+                "output_tokens": 111,
+                "gen_ms": 1003.975,
+                "prompt_ms": 283.447
+              }
+            },
+            {
+              "case_id": "return_window_cited",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.603,
+                "model_calls": 1,
+                "input_tokens": 1362,
+                "output_tokens": 44,
+                "gen_ms": 388.383,
+                "prompt_ms": 184.734
+              }
+            },
+            {
+              "case_id": "warranty_doc",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.806,
+                "model_calls": 1,
+                "input_tokens": 1522,
+                "output_tokens": 59,
+                "gen_ms": 523.356,
+                "prompt_ms": 226.246
+              }
+            },
+            {
+              "case_id": "remember_name",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.825,
+                "model_calls": 2,
+                "input_tokens": 1876,
+                "output_tokens": 73,
+                "gen_ms": 634.762,
+                "prompt_ms": 143.088
+              }
+            },
+            {
+              "case_id": "cancel_needs_approval",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.627,
+                "model_calls": 2,
+                "input_tokens": 2891,
+                "output_tokens": 145,
+                "gen_ms": 1287.175,
+                "prompt_ms": 253.939
+              }
+            },
+            {
+              "case_id": "pii_redacted",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.206,
+                "model_calls": 1,
+                "input_tokens": 1390,
+                "output_tokens": 110,
+                "gen_ms": 986.856,
+                "prompt_ms": 185.922
+              }
+            },
+            {
+              "case_id": "pii_leak_repaired",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.856,
+                "model_calls": 1,
+                "input_tokens": 1472,
+                "output_tokens": 65,
+                "gen_ms": 578.161,
+                "prompt_ms": 220.991
+              }
+            },
+            {
+              "case_id": "structured_status",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.739,
+                "model_calls": 1,
+                "input_tokens": 1311,
+                "output_tokens": 61,
+                "gen_ms": 538.284,
+                "prompt_ms": 171.617
+              }
+            },
+            {
+              "case_id": "unknown_order",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.273,
+                "model_calls": 2,
+                "input_tokens": 3045,
+                "output_tokens": 103,
+                "gen_ms": 909.055,
+                "prompt_ms": 288.455
+              }
+            }
+          ]
+        },
+        {
+          "run_id": "run_0012",
+          "status": "done",
+          "reason": null,
+          "totals": {
+            "cases": 16,
+            "passed": 8,
+            "failed": 8,
+            "skipped": 0
+          },
+          "cost": {
+            "input_tokens": 28549,
+            "output_tokens": 1355,
+            "usd": 0.0
+          },
+          "seconds": 16.2,
+          "cases": [
+            {
+              "case_id": "support_hours",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.491,
+                "model_calls": 1,
+                "input_tokens": 1059,
+                "output_tokens": 39,
+                "gen_ms": 342.38,
+                "prompt_ms": 118.272
+              }
+            },
+            {
+              "case_id": "order_status",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.567,
+                "model_calls": 1,
+                "input_tokens": 1143,
+                "output_tokens": 46,
+                "gen_ms": 404.507,
+                "prompt_ms": 134.672
+              }
+            },
+            {
+              "case_id": "order_status_skill",
+              "status": "failed",
+              "failed": [
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "read tool not called",
+              "timing": {
+                "seconds": 1.261,
+                "model_calls": 2,
+                "input_tokens": 3120,
+                "output_tokens": 102,
+                "gen_ms": 900.784,
+                "prompt_ms": 291.516
+              }
+            },
+            {
+              "case_id": "three_orders",
+              "status": "failed",
+              "failed": [
+                "path",
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.364,
+                "model_calls": 1,
+                "input_tokens": 1376,
+                "output_tokens": 128,
+                "gen_ms": 1146.662,
+                "prompt_ms": 185.749
+              }
+            },
+            {
+              "case_id": "calculator",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.656,
+                "model_calls": 2,
+                "input_tokens": 1875,
+                "output_tokens": 52,
+                "gen_ms": 447.432,
+                "prompt_ms": 144.839
+              }
+            },
+            {
+              "case_id": "returns_skill",
+              "status": "failed",
+              "failed": [
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 1.832,
+                "model_calls": 1,
+                "input_tokens": 1588,
+                "output_tokens": 171,
+                "gen_ms": 1546.165,
+                "prompt_ms": 245.943
+              }
+            },
+            {
+              "case_id": "returns_window",
+              "status": "failed",
+              "failed": [
+                "tool_calls",
+                "answer_match"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.749,
+                "model_calls": 1,
+                "input_tokens": 1722,
+                "output_tokens": 46,
+                "gen_ms": 411.773,
+                "prompt_ms": 280.32
+              }
+            },
+            {
+              "case_id": "trailhead_cited",
+              "status": "failed",
+              "failed": [
+                "answer_match"
+              ],
+              "errors": [],
+              "timing": {
+                "seconds": 1.327,
+                "model_calls": 1,
+                "input_tokens": 1797,
+                "output_tokens": 111,
+                "gen_ms": 1006.275,
+                "prompt_ms": 285.468
+              }
+            },
+            {
+              "case_id": "return_window_cited",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.608,
+                "model_calls": 1,
+                "input_tokens": 1362,
+                "output_tokens": 44,
+                "gen_ms": 389.708,
+                "prompt_ms": 186.036
+              }
+            },
+            {
+              "case_id": "warranty_doc",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.809,
+                "model_calls": 1,
+                "input_tokens": 1522,
+                "output_tokens": 59,
+                "gen_ms": 529.125,
+                "prompt_ms": 226.134
+              }
+            },
+            {
+              "case_id": "remember_name",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.828,
+                "model_calls": 2,
+                "input_tokens": 1876,
+                "output_tokens": 73,
+                "gen_ms": 634.604,
+                "prompt_ms": 146.795
+              }
+            },
+            {
+              "case_id": "cancel_needs_approval",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.619,
+                "model_calls": 2,
+                "input_tokens": 2891,
+                "output_tokens": 145,
+                "gen_ms": 1288.303,
+                "prompt_ms": 256.121
+              }
+            },
+            {
+              "case_id": "pii_redacted",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.208,
+                "model_calls": 1,
+                "input_tokens": 1390,
+                "output_tokens": 110,
+                "gen_ms": 987.264,
+                "prompt_ms": 187.791
+              }
+            },
+            {
+              "case_id": "pii_leak_repaired",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 0.853,
+                "model_calls": 1,
+                "input_tokens": 1472,
+                "output_tokens": 65,
+                "gen_ms": 576.8,
+                "prompt_ms": 219.145
+              }
+            },
+            {
+              "case_id": "structured_status",
+              "status": "failed",
+              "failed": [
+                "tool_calls"
+              ],
+              "errors": [],
+              "tool_split": "none called",
+              "timing": {
+                "seconds": 0.742,
+                "model_calls": 1,
+                "input_tokens": 1311,
+                "output_tokens": 61,
+                "gen_ms": 538.18,
+                "prompt_ms": 171.166
+              }
+            },
+            {
+              "case_id": "unknown_order",
+              "status": "passed",
+              "failed": [],
+              "errors": [],
+              "timing": {
+                "seconds": 1.264,
+                "model_calls": 2,
+                "input_tokens": 3045,
+                "output_tokens": 103,
+                "gen_ms": 909.269,
+                "prompt_ms": 287.584
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "embeddings": "fake (hash vectors, the same for every model)",
+  "case_timeout_s": 120.0,
+  "command": "HARNESSWALK_OLLAMA_URL=http://127.0.0.1:11434 uv run harnesswalk scorecard --models tuned-p6-9b-haiku-1000 --packs ecommerce,logistics,device_fleet,_starter --out docs/scorecard.md --json ~/harnesswalk-lab/p6/scorecards/compare-tuned-p6-9b-haiku-1000.json --samples 3",
+  "json_path": "~/harnesswalk-lab/p6/scorecards/compare-tuned-p6-9b-haiku-1000.json",
+  "provider_timeouts": {},
+  "grading": "model",
+  "samples": 3,
+  "carried": null,
+  "pack_profiles": {
+    "ecommerce": "governed",
+    "logistics": "governed",
+    "device_fleet": "governed",
+    "_starter": "operated"
+  },
+  "temperature": "0"
+}

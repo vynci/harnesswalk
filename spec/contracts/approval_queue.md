@@ -1,6 +1,6 @@
 # Contract: Approval queue
 
-Node: `approval` (control plane, kind `queue`).
+Node: `approval` (control plane, kind `queue`; can be switched off since 0.2.0).
 
 ## Purpose
 
@@ -105,3 +105,13 @@ record ApprovalDecision { approval_id: string, decision: "approve" | "deny" | "e
 | Key | Default | Meaning |
 |---|---|---|
 | `approval.sweep_s` | `30` | Expiry sweeper period |
+
+## 0.2.0: approval switched off
+
+When `approval` is off for a turn (a profile, or the request's `disable` in dev and private), a
+`needs_approval` decision is a deny and the queue is not used: the `approval` span opens and
+exits `skipped` with `disabled: true`, `tool` and `decision: deny`; no `approval_requested`, no
+`node_paused`, no approval record. The tools node then audits an `approval_decision` with
+`decision: deny`, `actor: system`, `executed: false` and the note `denied: approval is off, so
+nobody could approve` (when audit is on), skips the sandbox and returns a denial observation.
+Conformance case `approval_off`.

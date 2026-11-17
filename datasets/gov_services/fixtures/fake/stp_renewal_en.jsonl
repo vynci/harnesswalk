@@ -1,0 +1,1 @@
+{"responses": [{"text": "The pass is valid for 2 years, and you can renew it up to 60 days before it expires [1].", "usage": {"input_tokens": 420, "output_tokens": 43}, "expect": {"last_message_role": "user"}}]}

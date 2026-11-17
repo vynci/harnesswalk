@@ -1,0 +1,259 @@
+{
+  "shards": 4,
+  "cases": 185,
+  "usd": 0.2944,
+  "usd_per_case": 0.001592,
+  "examples": 171,
+  "usd_per_example": 0.001722,
+  "all": {
+    "n": 185,
+    "passed": 164,
+    "rate": 0.8865,
+    "ci95": [
+      0.8327,
+      0.9245
+    ]
+  },
+  "by_pack": {
+    "ecommerce": {
+      "n": 94,
+      "passed": 84,
+      "rate": 0.8936,
+      "ci95": [
+        0.8151,
+        0.9412
+      ]
+    },
+    "logistics": {
+      "n": 91,
+      "passed": 80,
+      "rate": 0.8791,
+      "ci95": [
+        0.7964,
+        0.9311
+      ]
+    }
+  },
+  "by_kind": {
+    "cancel_approve": {
+      "n": 14,
+      "passed": 14,
+      "rate": 1.0,
+      "ci95": [
+        0.7847,
+        1.0
+      ]
+    },
+    "cancel_deny": {
+      "n": 10,
+      "passed": 10,
+      "rate": 1.0,
+      "ci95": [
+        0.7225,
+        1.0
+      ]
+    },
+    "conditional_no_cancel": {
+      "n": 6,
+      "passed": 6,
+      "rate": 1.0,
+      "ci95": [
+        0.6097,
+        1.0
+      ]
+    },
+    "eta": {
+      "n": 4,
+      "passed": 4,
+      "rate": 1.0,
+      "ci95": [
+        0.5101,
+        1.0
+      ]
+    },
+    "kb": {
+      "n": 10,
+      "passed": 10,
+      "rate": 1.0,
+      "ci95": [
+        0.7225,
+        1.0
+      ]
+    },
+    "lookup": {
+      "n": 14,
+      "passed": 14,
+      "rate": 1.0,
+      "ci95": [
+        0.7847,
+        1.0
+      ]
+    },
+    "lookup_then_cancel_approve": {
+      "n": 4,
+      "passed": 4,
+      "rate": 1.0,
+      "ci95": [
+        0.5101,
+        1.0
+      ]
+    },
+    "lookup_then_refund_deny": {
+      "n": 6,
+      "passed": 4,
+      "rate": 0.6667,
+      "ci95": [
+        0.3,
+        0.9032
+      ]
+    },
+    "multi_cancel_approve": {
+      "n": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "ci95": [
+        0.3424,
+        1.0
+      ]
+    },
+    "multi_reroute_approve": {
+      "n": 4,
+      "passed": 4,
+      "rate": 1.0,
+      "ci95": [
+        0.5101,
+        1.0
+      ]
+    },
+    "multi_reroute_deny": {
+      "n": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "ci95": [
+        0.2065,
+        1.0
+      ]
+    },
+    "not_found": {
+      "n": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "ci95": [
+        0.3424,
+        1.0
+      ]
+    },
+    "refund_approve": {
+      "n": 12,
+      "passed": 6,
+      "rate": 0.5,
+      "ci95": [
+        0.2538,
+        0.7462
+      ]
+    },
+    "refund_deny": {
+      "n": 14,
+      "passed": 12,
+      "rate": 0.8571,
+      "ci95": [
+        0.6006,
+        0.9599
+      ]
+    },
+    "reroute_approve": {
+      "n": 24,
+      "passed": 24,
+      "rate": 1.0,
+      "ci95": [
+        0.862,
+        1.0
+      ]
+    },
+    "reroute_blocked": {
+      "n": 8,
+      "passed": 8,
+      "rate": 1.0,
+      "ci95": [
+        0.6756,
+        1.0
+      ]
+    },
+    "reroute_deny": {
+      "n": 22,
+      "passed": 22,
+      "rate": 1.0,
+      "ci95": [
+        0.8513,
+        1.0
+      ]
+    },
+    "smalltalk": {
+      "n": 4,
+      "passed": 4,
+      "rate": 1.0,
+      "ci95": [
+        0.5101,
+        1.0
+      ]
+    },
+    "track": {
+      "n": 12,
+      "passed": 12,
+      "rate": 1.0,
+      "ci95": [
+        0.7575,
+        1.0
+      ]
+    },
+    "track_eta": {
+      "n": 12,
+      "passed": 1,
+      "rate": 0.0833,
+      "ci95": [
+        0.0149,
+        0.3539
+      ]
+    }
+  },
+  "by_source": {
+    "generated": {
+      "n": 96,
+      "passed": 87,
+      "rate": 0.9062,
+      "ci95": [
+        0.8313,
+        0.9499
+      ]
+    },
+    "paraphrase": {
+      "n": 89,
+      "passed": 77,
+      "rate": 0.8652,
+      "ci95": [
+        0.779,
+        0.9212
+      ]
+    }
+  },
+  "failed_scorers": {
+    "path": 21,
+    "tool_calls": 10,
+    "answer_match": 3
+  },
+  "tool_split": {
+    "write tool not called": 9,
+    "none called": 1
+  },
+  "tool_split_by_pack": {
+    "ecommerce": {
+      "write tool not called": 9,
+      "none called": 1
+    },
+    "logistics": {}
+  },
+  "decode_tok_s": null,
+  "mean_s": 3.617,
+  "median_s": 3.569,
+  "p95_s": 6.267
+}

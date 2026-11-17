@@ -17,7 +17,8 @@ dev-mode CORS.
 | `POST /v1/turns/{turn_id}/cancel` | Stop a running or paused turn | P2 |
 | `GET /v1/sessions/{session_id}/turns` | Turn list for chat history | P2 |
 | `POST /v1/approvals/{approval_id}` | Decide a pending approval | P1 |
-| `GET /v1/diagram` | The diagram with implementation flags | P1 |
+| `GET /v1/diagram` | The diagram with implementation flags; `?pack=` dims the pack's profile | P1, `pack` 0.2.0 |
+| `GET /v1/profiles` | The harness profiles (the ladder) and what each switches off | 0.2.0 |
 | `GET /v1/nodes/{node_id}` | What an inspector shows | P1 |
 | `GET /v1/nodes/{node_id}/source` | Code peek | P2 |
 | `GET /v1/capabilities` | What this build can do | P2 |
@@ -87,7 +88,7 @@ Request:
 | `step` | no | Boolean. Start with a breakpoint on every node (section 8 of `harness.md`) |
 | `provider` | no | Dev mode only: run this turn on one provider (`fake`, `ollama`, `anthropic`, `openai_compatible`). It must be `configured` in `/v1/capabilities` |
 | `fixture` | no | Dev mode only: the `fake` provider's fixture for this turn. Implies `provider: fake` |
-| `disable` | no | Node ids with `can_disable`, disabled for this turn, the same as the CLI `--disable`. Dev and private only |
+| `disable` | no | Node ids with `can_disable`, disabled for this turn, the same as the CLI `--disable`. Dev and private only. 0.2.0: merged with what the pack's profile switches off (`harness.md` section 10) |
 | `options.step_mode` | no | P1 spelling of `step`; either one turns step mode on |
 | `options.dataset` | no | Dataset pack for this session; fixed after the first turn |
 | `options.disabled_nodes` | no | P1 spelling of `disable`; the two lists are merged |
@@ -299,10 +300,12 @@ Response `200`: the `diagram.json` document with these additions per node:
 |---|---|
 | `implemented` | `true` when a working component is registered under this id |
 | `stub` | Optional. `true` when the id is registered by a placeholder that only reports `skipped`; such a node has `implemented: false` |
-| `disabled` | `true` when the node is disabled for the caller's session |
+| `disabled` | `true` when the node is switched off: with `?pack=<id>` (0.2.0), by that pack's profile in this mode; without it, `false` |
 
 Query `?view=simple|expert` filters nodes and edges by `view` (expert includes simple). Default
-returns everything.
+returns everything. Every node is served whatever the profile: a switched-off node is dimmed,
+never hidden. With `?pack=<id>` the document also carries `profile: { id, rung, off, title,
+pack }`; an unknown pack is `422 invalid_request`.
 
 ## `GET /v1/nodes/{node_id}`
 
@@ -608,8 +611,8 @@ Additive. Every existing endpoint keeps its shape; new fields are listed where t
 | Field | Required | Meaning |
 |---|---|---|
 | `pack` | yes | The loaded dataset pack; another pack is `422 invalid_request` |
-| `suite` | yes | `golden` (every case on the `fake` provider with its fixture; deterministic scorers) or `judge` (judged scorers) |
-| `model` | no | `judge` only: a model alias from `config/models.yaml` whose provider is configured, used to answer the cases. Without it the cases answer from their fixtures and only the scoring is judged. On `golden` it must be absent or a `fake` alias |
+| `suite` | yes | `golden` (every case on the `fake` provider with its fixture; deterministic scorers), `judge` (judged scorers) or `model` (every case answered by `model`, pinned for every call; deterministic scorers, no judge; `evaluator.md`, "Model suite and the scorecard") |
+| `model` | `model` suite: yes | `judge` and `model`: a model alias from `config/models.yaml` whose provider is configured, used to answer the cases. On `judge` it is optional: without it the cases answer from their fixtures and only the scoring is judged; with it every call is pinned to it. On `golden` it must be absent or a `fake` alias. On `model` it is required (`400 invalid_request` without it) and a `fake` alias answers from the case fixtures |
 | `cases` | no | Case ids to run; default every case. An unknown id is `400 invalid_request` |
 
 `202` `{ "run_id": "run_0003", "events_url": "/v1/evals/runs/run_0003/events" }`. A `judge` run
@@ -634,7 +637,8 @@ at most 200). Each run summary:
 
 `status` is `running`, `done` or `error` (the run could not finish; `error` carries
 `{code, message}`). `release_id`, `working_set` and `artifacts_hash` say what was under test.
-`cost` is the judge's spend plus the hosted answers' spend (0 on `golden`). `totals.failed`
+`cost` is the judge's spend plus the hosted answers' spend (0 on `golden`; on `model`, the
+answers' spend). `totals.failed`
 counts `failed` and `error` cases.
 
 `GET /v1/evals/runs/{run_id}` returns the summary plus:
@@ -653,11 +657,14 @@ expected list), `schema` (the reply validates against the case's `output_schema`
 exact or regex, when the case gives one), `faithfulness` and `relevance` (judge, 0 to 1, pass
 at `evals.judge.threshold`, default 0.7). A scorer is applicable when the case gives what it
 checks (`pii_leak` always applies). `golden` applies `path`, `citations`, `tool_calls`,
-`schema`, `pii_leak`, `answer_match`; `judge` applies `schema`, `pii_leak`, `faithfulness`,
-`relevance`, so deterministic and judged results stay apart (`evaluator.md`). A case passes
+`schema`, `pii_leak`, `answer_match` (and `checks`); `model` applies the same deterministic
+ones under model grading (`evaluator.md`, "Grading modes": ordered tool calls with read calls
+allowed, normalized answer matching); `judge` applies `schema`, `pii_leak`, `faithfulness`, `relevance`, so deterministic and
+judged results stay apart (`evaluator.md`). A case passes
 when every applicable scorer passes; a case with no fixture is `skipped` on `golden`.
 `regression` is true when the case is `failed` or `error` now and was `passed` in
-`previous_run_id` (the last finished run of the same tenant, pack and suite).
+`previous_run_id` (the last finished run of the same tenant, pack and suite, and on `model`
+of the same model).
 
 Case turns run on the harness like any turn (`turn_start.summary.channel: eval`,
 `summary.eval_run_id`), each in its own session, in a scratch tenant per run
@@ -1179,3 +1186,68 @@ status, duration_ms}`. `tenant` is the first 12 hex of the tenant id's SHA-256, 
 route template (never the path's ids or the query), `request_id` the caller's `X-Request-Id`
 when it is a plain token, else a new one, and echoed in the `X-Request-Id` response header (every
 mode). No line ever holds a message, a header or a key. uvicorn's access log is off then.
+
+## 0.2.0 additions: harness profiles
+
+Additive (`harness.md` section 10). Every existing endpoint keeps its shape.
+
+### `GET /v1/profiles`
+
+Every mode, tenant-free like the diagram. The profiles in `config/profiles/`, by rung:
+
+```json
+{ "default": "operated", "override": null,
+  "profiles": [ { "id": "minimal", "title": "Minimal", "summary": "...", "rung": 1,
+                  "disable": ["approval", "audit", "..."], "off": ["approval", "audit", "..."],
+                  "stores": ["procedural", "session"],
+                  "overrides": { "context.compaction.summarize": false } } ] }
+```
+
+| Field | Meaning |
+|---|---|
+| `default` | The profile a pack without one runs with |
+| `override` | The server-wide profile (`HARNESSWALK_PROFILE`, `--profile`, `--set profile=`) that replaces every pack's, or `null` |
+| `disable` | What the profile file switches off |
+| `off` | What this server switches off for it: `disable` in dev and private; in public mode without the controls public mode keeps on (`input_guardrails`, `output_guardrails`, `policy`, `approval`, `audit`) |
+
+### Elsewhere
+
+- `GET /v1/packs` items and `GET /v1/packs/{id}` gain `profile`, the id of the profile the
+  server runs the pack with (the override when there is one, else the card's `profile`, else
+  `operated`; `null` for a card naming a profile that does not load).
+- `turn_start.summary.profile` is `{ id, rung, off }` (`events.md` section 6), and the turn
+  summaries are unchanged: `GET /v1/turns/{id}` still reports the request's `disabled`.
+- `disable` accepts every node with `can_disable`, now 13 of them; the mode checks are the same.
+- A release whose pack's profile switches `release` off records `gate: { status: "skipped",
+  reason: "profile" }`.
+- `GET /v1/lessons` items and `GET /v1/lessons/{slug}` gain `requires`: the node ids a chapter
+  needs switched on. The Guide greys a chapter whose node is off under the current pack's
+  profile, with the lowest rung that has them all.
+
+
+## 0.2.0 additions: tuning
+
+Additive (`contracts/tuning.md`, `contracts/artifacts.md`, `events.md` section 14). Every `POST`
+is dev and private only (`403 forbidden_in_mode` in public mode). In public mode every `GET`
+below answers from the recorded run in `tune.replay_fixture` with `replay: true`, and the SSE
+routes replay its stored events; nothing is computed.
+
+| Method and path | Purpose |
+|---|---|
+| `GET /v1/tune` | Trainers (`alias`, `kind`, `implemented`, `note`), students, default teacher, gate numbers, the canary (as `GET /v1/tune/canary`), the control arm's text, what is running |
+| `GET /v1/tune/artifacts?kind=` | Latest version of every `dataset`, `adapter`, `model` artifact: `{kind, name, version, hash, updated_at, updated_by, note, summary}` |
+| `GET /v1/tune/artifacts/{kind}/{name}?version=` | One version: its `manifest`, `history`, `diff_from_previous` |
+| `GET /v1/tune/verify` | `{ok, versions, problems}`: every reference between the manifests resolves with its hash |
+| `POST /v1/tune/datasets` | Curate. Body `{name, packs, teacher?, variants?, seed?, val_fraction?, teacher_prompt_arm?, golden?}`. `202 {id, kind: curation, status, url, events_url}` |
+| `GET /v1/tune/curations`, `/{id}`, `/{id}/events` | Curations; one (`request`, `status`, `scenarios`, `counts`, `dataset`, `error`); its stream (`curate:<id>`, ends at `eval_run_finished`) |
+| `POST /v1/tune/runs` | Train. Body `{dataset: "<name>[@v<n>]", trainer, student, name?, config?}`. `202 {id, kind: run, ...}`; `422 trainer_unavailable` for a stub trainer |
+| `GET /v1/tune/runs`, `/{id}`, `/{id}/events` | Runs; one (`request`, `status`, `steps`, `last_step`, `adapter`, `model`, `metrics`, `error`); its stream (`tune:<id>`, ends at `tune_run_finished`) |
+| `POST /v1/tune/comparisons` | The model gate. Body `{candidate: "model/<name>[@v<n>]", against, packs, canary_packs, samples?, prompt_arm?}`. `202 {id, kind: comparison, ...}` |
+| `GET /v1/tune/comparisons`, `/{id}` | Comparisons; one with `cells` (`{arm: {pack: {passed, min, max, scored, tool_split, cases, run_ids}}}`) and `verdict` (`status`, `reason`, `gain`, `canary_drop`, `table`, `prompt_arm`) |
+| `POST /v1/tune/promote` | Body `{candidate, stage: canary \| full, fraction?, packs?, against?, force?}`. `200 {models_version, releases, setting, canary}`. `409 gate_failed` (no passed gate, with `gate`), `409 canary_failed` (with `canary`), `409 gate_failed` from a pack's golden gate |
+| `POST /v1/tune/rollback` | Body `{}`. The canary's fraction to 0, the packs released. `409 no_canary` |
+| `GET /v1/tune/canary` | `{rule, last, arms: {base, candidate: {turns, failed, bad_feedback, failure_rate}}, gate: {passed, reason}, history}`, counted for the caller's tenant |
+
+One curation, run or comparison at a time per harness: `409 tune_running`. A comparison runs its
+`model`-suite runs as the caller's eval runs (`purpose: tune_gate`), so `GET /v1/evals/runs`
+lists them and `409 eval_running` applies while another of the tenant's runs is going.

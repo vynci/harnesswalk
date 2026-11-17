@@ -3,6 +3,14 @@
 Precedence, lowest first: `config/*.yaml`, the profile (`HARNESSWALK_PROFILE`), environment
 variables, explicit arguments, dotted overrides. Lists replace, mappings merge.
 
+0.2.0 (harness profiles, spec/harness.md section 10): `HARNESSWALK_PROFILE` and `--profile`
+take either a config overlay (a conformance profile, as before) or a harness profile, by name
+(`config/profiles/<name>.yaml`) or by path; a file with a `rung` is a harness profile. The
+harness profile of the loaded pack is, first found: the dotted override `profile`, a harness
+profile named by `HARNESSWALK_PROFILE` or `--profile`, the pack's `pack.yaml` `profile`, then
+`operated`. It lands on `Settings.profile`; its `overrides` are set on top of the files (a
+dotted override of the same key still wins), and `context.stores` keeps only its `stores`.
+
 P6 (public mode): `HARNESSWALK_SECRET` lands on `Settings.secret`, never in `data` (the
 settings are shown by the inspectors); `HARNESSWALK_PUBLIC_BUDGET_USD`, `HARNESSWALK_TRUST_PROXY`
 and `HARNESSWALK_LOG_FORMAT` override `public.hosted_budget_usd_per_day`, `gateway.trust_proxy`
@@ -28,6 +36,7 @@ from typing import Any
 
 import yaml
 
+from harnesswalk import profiles as profiles_mod
 from harnesswalk.ops import release
 from harnesswalk.paths import PACKAGE_ROOT, default_data_dir
 from harnesswalk.types import ConfigError
@@ -71,6 +80,11 @@ class Settings:
     served: Any = None  # ops.release.Served the settings were built from, or None (the files)
     # HARNESSWALK_SECRET (P6): signs the public tenant cookie. Kept off `data` and out of repr.
     secret: str | None = field(default=None, repr=False)
+    # 0.2.0: the harness profile the pack runs with, and the server-wide choice that replaced
+    # every pack's own (`HARNESSWALK_PROFILE`, `--profile`, `--set profile=...`), or None.
+    profile: Any = None
+    profile_override: str | None = None
+    configured_stores: list[str] | None = None  # `context.stores` before the profile kept its
 
     def reload(self, served: Any) -> Settings:
         """The same settings built again on another served artifact set."""
@@ -182,6 +196,7 @@ def _normalize_profile(profile: dict) -> dict:
         "evals",
         "release",
         "packs",
+        "tune",
     ):
         if key in profile:
             out[key] = profile[key]
@@ -231,12 +246,21 @@ def load_settings(
     data["policy"] = policy
     data.update(_read_yaml(root, "config/context.yaml", versions, artifacts))
     data["models"] = _read_yaml(root, "config/models.yaml", versions, artifacts)
+    if (root / "config/trainers.yaml").is_file():  # 0.2.0: process config, not an artifact
+        trainers = _read_yaml(root, "config/trainers.yaml", versions)
+        tune = data.setdefault("tune", {})
+        tune["trainers"] = trainers.get("trainers") or {}
+        tune["students"] = trainers.get("students") or {}
 
     profile = profile or env.get("HARNESSWALK_PROFILE")
+    harness_profile: str | None = None  # a harness profile named by env or argument
     if profile:
-        path = Path(profile)
-        rel = path.relative_to(root) if path.is_absolute() else path
-        data = deep_merge(data, _normalize_profile(_read_yaml(root, str(rel), versions)))
+        if _names_harness_profile(root, profile):
+            harness_profile = str(profile)
+        else:
+            path = Path(profile)
+            rel = path.relative_to(root) if path.is_absolute() else path
+            data = deep_merge(data, _normalize_profile(_read_yaml(root, str(rel), versions)))
 
     mode = mode or env.get("HARNESSWALK_MODE") or data.get("mode", "dev")
     provider = provider or env.get("HARNESSWALK_PROVIDER") or None
@@ -246,8 +270,12 @@ def load_settings(
         data["dataset"] = env["HARNESSWALK_DATASET"]
     if env.get("HARNESSWALK_VECTORS"):
         set_dotted(data, "storage.vectors", env["HARNESSWALK_VECTORS"])
-    if env.get("HARNESSWALK_OLLAMA_URL"):
-        set_dotted(data, "models.providers.ollama.base_url", env["HARNESSWALK_OLLAMA_URL"])
+    # `models.providers.ollama.base_url_env` (default HARNESSWALK_OLLAMA_URL): the variable,
+    # when set and not empty, wins over `base_url`, so a remote Ollama needs no `--set`.
+    ollama = ((data.get("models") or {}).get("providers") or {}).get("ollama") or {}
+    ollama_env = ollama.get("base_url_env") or "HARNESSWALK_OLLAMA_URL"
+    if env.get(ollama_env):
+        set_dotted(data, "models.providers.ollama.base_url", env[ollama_env])
     if fixture:
         set_dotted(data, "models.providers.fake.fixture", fixture)
     elif mode == "public" and (data.get("public") or {}).get("fake_fixture"):
@@ -265,8 +293,12 @@ def load_settings(
     if env.get("HARNESSWALK_LOG_FORMAT"):
         set_dotted(data, "logging.format", env["HARNESSWALK_LOG_FORMAT"].strip().lower())
     for dotted, value in (overrides or {}).items():
-        set_dotted(data, dotted, value)
+        if dotted != "profile":
+            set_dotted(data, dotted, value)
     _fill_public_rule(data)
+    chosen = (overrides or {}).get("profile") or harness_profile
+    if chosen is not None and not isinstance(chosen, str):
+        raise ConfigError("profile must be a profile name or a path")
 
     data_dir = Path(data_dir or env.get("HARNESSWALK_DATA_DIR") or default_data_dir(root))
     settings = Settings(
@@ -278,9 +310,55 @@ def load_settings(
         load_args=load_args,
         served=artifacts,
         secret=env.get("HARNESSWALK_SECRET") or None,
+        profile_override=chosen,
     )
+    apply_profile(settings, set(overrides or {}))
     validate(settings)
     return settings
+
+
+def _names_harness_profile(root: Path, ref: str | Path) -> bool:
+    """A bare name, or a path to a file with a `rung` (a config overlay has none)."""
+    ref_s = str(ref)
+    if profiles_mod.PROFILE_ID.match(ref_s):
+        return True
+    path = Path(ref_s) if Path(ref_s).is_absolute() else root / ref_s
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return False
+    return profiles_mod.is_profile_file(data)
+
+
+def pack_profile_name(settings: Settings, pack: str) -> str:
+    """The profile `pack` names in its `pack.yaml`, else the default (`operated`)."""
+    from harnesswalk import packs as packs_mod
+
+    info = packs_mod.find(settings, pack)
+    named = info.meta.get("profile") if info is not None else None
+    return named if isinstance(named, str) and named else profiles_mod.DEFAULT_PROFILE
+
+
+def profile_for(settings: Settings, pack: str) -> Any:
+    """The harness profile `pack` runs with on these settings' server (section 10)."""
+    ref = settings.profile_override or pack_profile_name(settings, pack)
+    return profiles_mod.load(settings.root, ref)
+
+
+def apply_profile(settings: Settings, explicit: set[str]) -> None:
+    """Resolve the loaded pack's harness profile, set its overrides (keys the caller set
+    explicitly win) and keep only its stores in `context.stores`."""
+    profile = profile_for(settings, settings.get("dataset", "_starter"))
+    settings.profile = profile
+    data = settings.data
+    data["profile"] = profile.id
+    for dotted, value in profile.overrides.items():
+        if dotted not in explicit:
+            set_dotted(data, dotted, copy.deepcopy(value))
+    context = data.setdefault("context", {})
+    stores = list(context.get("stores", ["procedural", "session"]))
+    settings.configured_stores = stores
+    context["stores"] = [s for s in stores if s in profile.stores]
 
 
 def _fill_public_rule(data: dict[str, Any]) -> None:
@@ -325,6 +403,23 @@ def validate_public(settings: Settings) -> None:
         raise ConfigError("public.cookie_secure must be auto, always or never")
 
 
+def validate_split(rule: dict[str, Any], models: dict[str, Any]) -> None:
+    """A canary rule: `split` instead of `use`, both aliases known, a fraction in [0, 1]."""
+    rid = rule.get("id")
+    split = rule.get("split")
+    if "use" in rule:
+        raise ConfigError(f"router rule {rid} has both `use` and `split`")
+    if not isinstance(split, dict):
+        raise ConfigError(f"router rule {rid}: `split` must be a mapping")
+    for key in ("base_alias", "candidate_alias"):
+        if split.get(key) not in models:
+            raise ConfigError(f"router rule {rid}: split.{key} names unknown model {split[key]!r}")
+    fraction = split.get("fraction", 0)
+    number = isinstance(fraction, (int, float)) and not isinstance(fraction, bool)
+    if not number or not 0 <= fraction <= 1:
+        raise ConfigError(f"router rule {rid}: split.fraction must be a number from 0 to 1")
+
+
 def validate(settings: Settings) -> None:
     """Refuse to start on a configuration the spec forbids. Mode rules live in policy.py."""
     if settings.mode not in MODES:
@@ -338,11 +433,19 @@ def validate(settings: Settings) -> None:
         raise ConfigError("router.rules must end with a default rule whose `when` is empty")
     models = settings.get("models.models", {})
     for rule in rules:
+        if rule.get("split") is not None:  # 0.2.0: the canary rule (router.md)
+            validate_split(rule, models)
+            continue
         if not isinstance(rule.get("use", []), list):
             raise ConfigError(f"router rule {rule.get('id')} needs a list in `use`")
         for alias in rule.get("use", []):
             if alias not in models:
                 raise ConfigError(f"router rule {rule.get('id')} uses unknown model {alias}")
+    canary = settings.get("models.router.canary", None)
+    if canary is not None:  # 0.2.0: the canary rule the tuning loop manages (router.md)
+        if not isinstance(canary, dict) or canary.get("split") is None:
+            raise ConfigError("router.canary must be a rule with `split`")
+        validate_split(canary, models)
     for rule in settings.get("policy.rules", []):
         if rule.get("decision") not in ("allow", "deny", "needs_approval"):
             raise ConfigError(f"policy rule {rule.get('id')} has an invalid decision")

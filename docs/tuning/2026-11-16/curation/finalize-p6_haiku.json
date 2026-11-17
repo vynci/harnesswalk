@@ -1,0 +1,272 @@
+{
+  "p6_haiku_200": {
+    "ref": {
+      "name": "p6_haiku_200",
+      "version": 1,
+      "hash": "28c933a6a10afaaa90826b33f276b1fdf6bf6f8f3410142f0db84de2813d30a7"
+    },
+    "counts": {
+      "train": 200,
+      "val": 100,
+      "shards": 246,
+      "cases": 11422,
+      "kept_cases": 10861,
+      "dropped": {
+        "excluded_prompt": 9,
+        "duplicate": 182,
+        "per_prompt_cap": 456
+      },
+      "by_pack": {
+        "ecommerce": 98,
+        "logistics": 102
+      },
+      "by_kind": {
+        "lookup_then_cancel_approve": 4,
+        "not_found": 6,
+        "reroute_blocked": 11,
+        "kb": 9,
+        "reroute_deny": 18,
+        "reroute_approve": 21,
+        "track_eta": 4,
+        "cancel_approve": 21,
+        "lookup_then_refund_deny": 5,
+        "hub": 7,
+        "multi_reroute_deny": 8,
+        "conditional_no_cancel": 4,
+        "refund_deny": 8,
+        "multi_cancel_approve": 5,
+        "cancel_deny": 9,
+        "refund_approve": 13,
+        "lookup": 12,
+        "track": 17,
+        "eta": 10,
+        "multi_reroute_approve": 4,
+        "multi_cancel_deny": 3,
+        "smalltalk": 1
+      },
+      "by_source": {
+        "paraphrase": 99,
+        "generated": 101
+      },
+      "by_teacher": {
+        "hosted-haiku": 200
+      }
+    }
+  },
+  "p6_haiku_1000": {
+    "ref": {
+      "name": "p6_haiku_1000",
+      "version": 1,
+      "hash": "16bf4a2796adac18344c90838fd2c5f0910a41dd1d17aa0cfb9e67ac31353b7e"
+    },
+    "counts": {
+      "train": 1000,
+      "val": 100,
+      "shards": 246,
+      "cases": 11422,
+      "kept_cases": 10861,
+      "dropped": {
+        "excluded_prompt": 9,
+        "duplicate": 182,
+        "per_prompt_cap": 456
+      },
+      "by_pack": {
+        "ecommerce": 502,
+        "logistics": 498
+      },
+      "by_kind": {
+        "lookup_then_cancel_approve": 30,
+        "not_found": 31,
+        "reroute_blocked": 70,
+        "kb": 47,
+        "reroute_deny": 97,
+        "reroute_approve": 108,
+        "track_eta": 42,
+        "cancel_approve": 89,
+        "lookup_then_refund_deny": 28,
+        "hub": 17,
+        "multi_reroute_deny": 24,
+        "conditional_no_cancel": 30,
+        "refund_deny": 55,
+        "multi_cancel_approve": 12,
+        "cancel_deny": 52,
+        "refund_approve": 59,
+        "lookup": 48,
+        "track": 73,
+        "eta": 43,
+        "multi_reroute_approve": 16,
+        "multi_cancel_deny": 13,
+        "smalltalk": 16
+      },
+      "by_source": {
+        "paraphrase": 462,
+        "generated": 538
+      },
+      "by_teacher": {
+        "hosted-haiku": 1000
+      }
+    }
+  },
+  "p6_haiku_5000": {
+    "ref": {
+      "name": "p6_haiku_5000",
+      "version": 1,
+      "hash": "b8d2681d781501710bb3e6d8d4b419b36565f0f1e45848a12a5935befdab387f"
+    },
+    "counts": {
+      "train": 5000,
+      "val": 100,
+      "shards": 246,
+      "cases": 11422,
+      "kept_cases": 10861,
+      "dropped": {
+        "excluded_prompt": 9,
+        "duplicate": 182,
+        "per_prompt_cap": 456
+      },
+      "by_pack": {
+        "ecommerce": 2486,
+        "logistics": 2514
+      },
+      "by_kind": {
+        "lookup_then_cancel_approve": 136,
+        "not_found": 174,
+        "reroute_blocked": 300,
+        "kb": 197,
+        "reroute_deny": 476,
+        "reroute_approve": 574,
+        "track_eta": 243,
+        "cancel_approve": 414,
+        "lookup_then_refund_deny": 136,
+        "hub": 64,
+        "multi_reroute_deny": 103,
+        "conditional_no_cancel": 148,
+        "refund_deny": 262,
+        "multi_cancel_approve": 81,
+        "cancel_deny": 267,
+        "refund_approve": 281,
+        "lookup": 281,
+        "track": 423,
+        "eta": 194,
+        "multi_reroute_approve": 114,
+        "multi_cancel_deny": 53,
+        "smalltalk": 79
+      },
+      "by_source": {
+        "paraphrase": 2339,
+        "generated": 2661
+      },
+      "by_teacher": {
+        "hosted-haiku": 5000
+      }
+    }
+  },
+  "p6_haiku_10000": {
+    "ref": {
+      "name": "p6_haiku_10000",
+      "version": 1,
+      "hash": "888a426bb44cb671cf429a5ffc5e73e37c49d8e3c3b9ee6c3ed4225665b310e5"
+    },
+    "counts": {
+      "train": 10000,
+      "val": 100,
+      "shards": 246,
+      "cases": 11422,
+      "kept_cases": 10861,
+      "dropped": {
+        "excluded_prompt": 9,
+        "duplicate": 182,
+        "per_prompt_cap": 456
+      },
+      "by_pack": {
+        "ecommerce": 4911,
+        "logistics": 5089
+      },
+      "by_kind": {
+        "lookup_then_cancel_approve": 269,
+        "not_found": 352,
+        "reroute_blocked": 605,
+        "kb": 338,
+        "reroute_deny": 1006,
+        "reroute_approve": 1180,
+        "track_eta": 530,
+        "cancel_approve": 837,
+        "lookup_then_refund_deny": 260,
+        "hub": 109,
+        "multi_reroute_deny": 206,
+        "conditional_no_cancel": 289,
+        "refund_deny": 502,
+        "multi_cancel_approve": 156,
+        "cancel_deny": 543,
+        "refund_approve": 535,
+        "lookup": 572,
+        "track": 858,
+        "eta": 397,
+        "multi_reroute_approve": 225,
+        "multi_cancel_deny": 107,
+        "smalltalk": 124
+      },
+      "by_source": {
+        "paraphrase": 4733,
+        "generated": 5267
+      },
+      "by_teacher": {
+        "hosted-haiku": 10000
+      }
+    }
+  },
+  "p6_haiku": {
+    "ref": {
+      "name": "p6_haiku",
+      "version": 1,
+      "hash": "ac2570cd4718f4b549e7282a6b1c08f625631cfe64924f7236523c06565aead5"
+    },
+    "counts": {
+      "train": 10482,
+      "val": 100,
+      "shards": 246,
+      "cases": 11422,
+      "kept_cases": 10861,
+      "dropped": {
+        "excluded_prompt": 9,
+        "duplicate": 182,
+        "per_prompt_cap": 456
+      },
+      "by_pack": {
+        "ecommerce": 5163,
+        "logistics": 5319
+      },
+      "by_kind": {
+        "lookup_then_cancel_approve": 289,
+        "not_found": 368,
+        "reroute_blocked": 635,
+        "kb": 348,
+        "reroute_deny": 1047,
+        "reroute_approve": 1239,
+        "track_eta": 559,
+        "cancel_approve": 881,
+        "lookup_then_refund_deny": 267,
+        "hub": 112,
+        "multi_reroute_deny": 212,
+        "conditional_no_cancel": 305,
+        "refund_deny": 538,
+        "multi_cancel_approve": 164,
+        "cancel_deny": 568,
+        "refund_approve": 566,
+        "lookup": 599,
+        "track": 895,
+        "eta": 411,
+        "multi_reroute_approve": 237,
+        "multi_cancel_deny": 113,
+        "smalltalk": 129
+      },
+      "by_source": {
+        "paraphrase": 4975,
+        "generated": 5507
+      },
+      "by_teacher": {
+        "hosted-haiku": 10482
+      }
+    }
+  }
+}

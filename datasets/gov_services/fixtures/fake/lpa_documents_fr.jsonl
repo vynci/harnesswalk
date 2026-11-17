@@ -1,0 +1,1 @@
+{"responses": [{"text": "Il faut une pi\u00e8ce d'identit\u00e9 avec photo qui indique la date de naissance et une preuve de r\u00e9sidence; la photo du laissez-passer est prise au bureau du centre-ville, au bureau du Port ou par l'unit\u00e9 mobile [1].", "usage": {"input_tokens": 420, "output_tokens": 67}, "expect": {"last_message_role": "user"}}]}

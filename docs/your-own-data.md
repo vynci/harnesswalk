@@ -527,6 +527,60 @@ faithfulness and relevance against the case's `rubric`:
 `uv run harnesswalk eval my_support --suite judge --model hosted-haiku`. It calls a hosted
 model, so it costs money and never runs in CI.
 
+Between the two, the `model` suite answers each case on a real model and keeps the
+deterministic scorers, with no judge: `uv run harnesswalk eval my_support --suite model --model
+local-4b` tells you whether that model calls the tools your cases expect, cites what they
+expect and keeps to policy. It grades behaviour, not the fixture's wording: the expected tool
+calls must come in order, but extra calls to read tools (a skill, a lookup) are allowed, and
+`answer_match` compares normalized text, so `$6` matches "6 dollars" and "October 14, 2026"
+matches "2026-10-14". Set `"tool_calls_mode": "exact"` in a case's `expect` when a model run
+must call exactly the listed tools. A different wording of the facts still fails, so read a
+reply that fails only `answer_match` before you call it wrong. `harnesswalk scorecard
+--packs my_support --models fake-small,local-4b,local-9b --out my_scorecard.md` runs that for a
+row of models at once ([scorecard.md](scorecard.md) is the one for the shipped packs).
+
+## Tune a local model on your pack
+
+When the `model` suite shows a local model failing your pack the same way every time (it asks
+for approval in prose instead of calling your write tool, or calls a tool when none is needed),
+the tuning loop can teach it from a stronger model's passing turns, on your pack only
+([spec/contracts/tuning.md](../spec/contracts/tuning.md), [tuning.md](tuning.md)):
+
+```bash
+uv run harnesswalk tune curate --pack my_support --teacher local-27b --out dataset/my_support
+uv run harnesswalk tune run --dataset my_support --trainer homelab-trl --student local-4b
+uv run harnesswalk tune compare --candidate model/my_support_local4b --against local-4b \
+  --packs my_support --canary-packs _starter
+```
+
+Curation reads nothing but your pack: the teacher answers your golden prompts and rewrites of
+them in scratch tenants, and only the turns every deterministic scorer passed are kept. Your
+golden cases are therefore also in the training data, so keep a few cases out of the golden set
+(or rewrite them) if you want an honest held-out number. The comparison always runs a
+prompt-only control arm beside the tuned model: when your skill text alone fixes the failure,
+it is the cheaper lever. `trainers.yaml` says where training runs; nothing is ever trained on a
+public server.
+
+## Your own agent
+
+A pack runs inside this harness. When it should run on its own, generate a harness around it:
+
+```bash
+uv run harnesswalk init --pack datasets/my_support --profile governed --out ../larkspur-agent
+cd ../larkspur-agent && make setup && make eval && make conformance
+```
+
+`--pack` takes a pack id or a path to a pack directory. The output is a repository you own,
+with no runtime dependency on Harnesswalk: the system prompt in `prompts/`, the skills in
+`skills/`, `tools.yaml` and any code tool (`support_tools.py`) in `tools/`, the policy rules in
+`policy/`, the documents, seeds, golden set and fixtures in `packs/my_support/`, and one file
+per node in `harness/core/`. Pick the profile from the nodes your golden set needs: a pack whose
+cases pause for approval needs `governed`; one that only cites documents runs on `grounded`.
+`make eval` runs your golden cases against the generated harness, so the same cases that guard
+the pack here guard your agent there, in its own CI. GENERATION_NOTES.md in the output lists
+anything the generator could not carry over. [generator.md](generator.md) has the details,
+the web app hookup and `harnesswalk upgrade`.
+
 ## What is coming in the app
 
 The pack menu in the header (and in the empty chat) ends with **Add your own dataset**. It is

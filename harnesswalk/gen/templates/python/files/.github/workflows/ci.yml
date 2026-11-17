@@ -1,0 +1,20 @@
+# The gate this repo was generated with: the golden set and the conformance suite, offline
+# (fake provider). A red run blocks a merge.
+name: ci
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[test]"
+      - run: python -m evals.run_golden
+      - run: python -m tests.conformance.runner --profile @@profile@@
+      - run: python -m pytest -q tests/test_owned.py

@@ -1,6 +1,7 @@
 ---
 node: memory
 covers: [procedural, session, semantic, episodic, knowledge]
+requires: [semantic, episodic, knowledge]
 try:
   pack: _starter
   fixture: trailhead_return

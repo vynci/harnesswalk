@@ -1,0 +1,584 @@
+{
+ "stages": [
+  {
+   "stage": "idle_baseline",
+   "start": "2026-11-15T19:48:55.217Z",
+   "end": "2026-11-15T19:49:05.045Z",
+   "seconds": 9.8,
+   "note": "both GPUs idle, before any stage",
+   "gpus": {
+    "0": {
+     "rows": 10,
+     "util_mean_pct": 0.0,
+     "util_p95_pct": 0.0,
+     "mem_peak_mib": 208.0,
+     "power_mean_w": 24.5,
+     "power_peak_w": 28.39,
+     "temp_peak_c": 36.0,
+     "energy_wh": 0.1
+    },
+    "1": {
+     "rows": 10,
+     "util_mean_pct": 0.1,
+     "util_p95_pct": 1.0,
+     "mem_peak_mib": 15.0,
+     "power_mean_w": 10.3,
+     "power_peak_w": 15.05,
+     "temp_peak_c": 28.0,
+     "energy_wh": 0.0
+    }
+   }
+  },
+  {
+   "stage": "train_repro_seed7",
+   "start": "2026-11-15T19:49:10.943Z",
+   "end": "2026-11-15T20:13:27.834Z",
+   "seconds": 1456.9,
+   "note": "tune run approvals_4b_r1 on dataset/approvals@v1, seed 7, GPU 1 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 1457,
+     "util_mean_pct": 77.9,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 21466.0,
+     "power_mean_w": 246.9,
+     "power_peak_w": 349.46,
+     "temp_peak_c": 82.0,
+     "energy_wh": 99.9
+    },
+    "1": {
+     "rows": 1457,
+     "util_mean_pct": 94.4,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 22729.0,
+     "power_mean_w": 332.0,
+     "power_peak_w": 350.51,
+     "temp_peak_c": 76.0,
+     "energy_wh": 134.4
+    }
+   }
+  },
+  {
+   "stage": "curate_v2_27b",
+   "start": "2026-11-15T19:53:01.804Z",
+   "end": "2026-11-15T21:14:38.575Z",
+   "seconds": 4896.8,
+   "note": "tune curate approvals_v2: ecommerce+logistics+device_fleet, qwen3.5:27b teacher on GPU 0, rewrites only (--no-golden) exit 0",
+   "gpus": {
+    "0": {
+     "rows": 4896,
+     "util_mean_pct": 93.4,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 21466.0,
+     "power_mean_w": 307.7,
+     "power_peak_w": 352.05,
+     "temp_peak_c": 83.0,
+     "energy_wh": 418.5
+    },
+    "1": {
+     "rows": 4896,
+     "util_mean_pct": 51.8,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 22729.0,
+     "power_mean_w": 186.7,
+     "power_peak_w": 350.89,
+     "temp_peak_c": 76.0,
+     "energy_wh": 254.0
+    }
+   }
+  },
+  {
+   "stage": "train_repro_seed11",
+   "start": "2026-11-15T20:13:46.520Z",
+   "end": "2026-11-15T20:38:00.013Z",
+   "seconds": 1453.5,
+   "note": "tune run approvals_4b_r2 on dataset/approvals@v1, seed 11, GPU 1 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 1454,
+     "util_mean_pct": 92.6,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 21466.0,
+     "power_mean_w": 294.1,
+     "power_peak_w": 351.18,
+     "temp_peak_c": 83.0,
+     "energy_wh": 118.8
+    },
+    "1": {
+     "rows": 1454,
+     "util_mean_pct": 94.9,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 22707.0,
+     "power_mean_w": 333.0,
+     "power_peak_w": 350.89,
+     "temp_peak_c": 76.0,
+     "energy_wh": 134.4
+    }
+   }
+  },
+  {
+   "stage": "train_v2",
+   "start": "2026-11-15T21:14:58.243Z",
+   "end": "2026-11-15T21:39:05.040Z",
+   "seconds": 1446.8,
+   "note": "tune run approvals_v2_4b on dataset/approvals_v2@v1 (ecommerce+logistics+device_fleet rewrites), seed 7, GPU 1 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 1447,
+     "util_mean_pct": 78.5,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 22550.0,
+     "power_mean_w": 318.9,
+     "power_peak_w": 350.63,
+     "temp_peak_c": 87.0,
+     "energy_wh": 128.2
+    },
+    "1": {
+     "rows": 1447,
+     "util_mean_pct": 94.2,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 23287.0,
+     "power_mean_w": 331.0,
+     "power_peak_w": 350.59,
+     "temp_peak_c": 76.0,
+     "energy_wh": 133.0
+    }
+   }
+  },
+  {
+   "stage": "d_local_4b",
+   "start": "2026-11-15T21:14:58.763Z",
+   "end": "2026-11-15T21:20:48.980Z",
+   "seconds": 350.2,
+   "note": "scorecard local-4b on ecommerce,logistics,device_fleet,_starter, 3 samples, Ollama GPU 0 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 351,
+     "util_mean_pct": 78.0,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 22550.0,
+     "power_mean_w": 315.6,
+     "power_peak_w": 347.88,
+     "temp_peak_c": 87.0,
+     "energy_wh": 30.7
+    },
+    "1": {
+     "rows": 351,
+     "util_mean_pct": 96.4,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 23167.0,
+     "power_mean_w": 335.5,
+     "power_peak_w": 350.59,
+     "temp_peak_c": 76.0,
+     "energy_wh": 32.6
+    }
+   }
+  },
+  {
+   "stage": "d_tuned_approvals_4b",
+   "start": "2026-11-15T21:20:49.161Z",
+   "end": "2026-11-15T21:26:55.064Z",
+   "seconds": 365.9,
+   "note": "scorecard tuned-approvals-4b on ecommerce,logistics,device_fleet,_starter, 3 samples, Ollama GPU 0 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 366,
+     "util_mean_pct": 78.3,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 21736.0,
+     "power_mean_w": 319.1,
+     "power_peak_w": 346.88,
+     "temp_peak_c": 85.0,
+     "energy_wh": 32.4
+    },
+    "1": {
+     "rows": 366,
+     "util_mean_pct": 99.4,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 23287.0,
+     "power_mean_w": 347.1,
+     "power_peak_w": 350.44,
+     "temp_peak_c": 75.0,
+     "energy_wh": 35.3
+    }
+   }
+  },
+  {
+   "stage": "d_tuned_approvals_4b_r1",
+   "start": "2026-11-15T21:26:55.236Z",
+   "end": "2026-11-15T21:33:22.132Z",
+   "seconds": 386.9,
+   "note": "scorecard tuned-approvals-4b-r1 on ecommerce,logistics,device_fleet,_starter, 3 samples, Ollama GPU 0 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 387,
+     "util_mean_pct": 78.2,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 21736.0,
+     "power_mean_w": 319.9,
+     "power_peak_w": 350.63,
+     "temp_peak_c": 86.0,
+     "energy_wh": 34.4
+    },
+    "1": {
+     "rows": 387,
+     "util_mean_pct": 99.0,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 23287.0,
+     "power_mean_w": 347.1,
+     "power_peak_w": 350.15,
+     "temp_peak_c": 76.0,
+     "energy_wh": 37.3
+    }
+   }
+  },
+  {
+   "stage": "d_tuned_approvals_4b_r2",
+   "start": "2026-11-15T21:33:22.313Z",
+   "end": "2026-11-15T21:39:54.221Z",
+   "seconds": 391.9,
+   "note": "scorecard tuned-approvals-4b-r2 on ecommerce,logistics,device_fleet,_starter, 3 samples, Ollama GPU 0 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 392,
+     "util_mean_pct": 78.9,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 21736.0,
+     "power_mean_w": 320.0,
+     "power_peak_w": 345.95,
+     "temp_peak_c": 86.0,
+     "energy_wh": 34.8
+    },
+    "1": {
+     "rows": 392,
+     "util_mean_pct": 70.7,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 23287.0,
+     "power_mean_w": 256.8,
+     "power_peak_w": 350.46,
+     "temp_peak_c": 76.0,
+     "energy_wh": 28.0
+    }
+   }
+  },
+  {
+   "stage": "d_local_9b",
+   "start": "2026-11-15T21:39:54.416Z",
+   "end": "2026-11-15T21:47:36.993Z",
+   "seconds": 462.6,
+   "note": "scorecard local-9b on ecommerce,logistics,device_fleet,_starter, 3 samples, Ollama GPU 0 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 463,
+     "util_mean_pct": 84.0,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 10774.0,
+     "power_mean_w": 315.0,
+     "power_peak_w": 346.82,
+     "temp_peak_c": 82.0,
+     "energy_wh": 40.5
+    },
+    "1": {
+     "rows": 463,
+     "util_mean_pct": 53.6,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 24125.0,
+     "power_mean_w": 194.6,
+     "power_peak_w": 350.22,
+     "temp_peak_c": 77.0,
+     "energy_wh": 25.0
+    }
+   }
+  },
+  {
+   "stage": "train_v2_long",
+   "start": "2026-11-15T21:39:58.195Z",
+   "end": "2026-11-15T21:44:42.943Z",
+   "seconds": 284.7,
+   "note": "tune run approvals_v2l_4b on dataset/approvals_v2@v1, max_seq_len 6144 (no example dropped), seed 7, GPU 1 exit 1",
+   "gpus": {
+    "0": {
+     "rows": 285,
+     "util_mean_pct": 80.5,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 10774.0,
+     "power_mean_w": 312.5,
+     "power_peak_w": 346.82,
+     "temp_peak_c": 82.0,
+     "energy_wh": 24.7
+    },
+    "1": {
+     "rows": 285,
+     "util_mean_pct": 87.1,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 24125.0,
+     "power_mean_w": 309.9,
+     "power_peak_w": 350.22,
+     "temp_peak_c": 77.0,
+     "energy_wh": 24.5
+    }
+   }
+  },
+  {
+   "stage": "e_local_4b",
+   "start": "2026-11-15T21:47:37.177Z",
+   "end": "2026-11-15T21:59:49.502Z",
+   "seconds": 732.3,
+   "note": "scorecard local-4b on all, 2 samples, Ollama GPU 0 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 733,
+     "util_mean_pct": 77.3,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 4790.0,
+     "power_mean_w": 310.7,
+     "power_peak_w": 345.33,
+     "temp_peak_c": 85.0,
+     "energy_wh": 63.2
+    },
+    "1": {
+     "rows": 733,
+     "util_mean_pct": 82.5,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 18697.0,
+     "power_mean_w": 291.6,
+     "power_peak_w": 349.98,
+     "temp_peak_c": 77.0,
+     "energy_wh": 59.3
+    }
+   }
+  },
+  {
+   "stage": "train_v2_long2",
+   "start": "2026-11-15T21:49:36.975Z",
+   "end": "2026-11-15T22:19:36.261Z",
+   "seconds": 1799.3,
+   "note": "tune run approvals_v2l_4b on dataset/approvals_v2@v1, max_seq_len 6144, tail_logits, seed 7, GPU 1 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 1799,
+     "util_mean_pct": 77.0,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 7386.0,
+     "power_mean_w": 312.0,
+     "power_peak_w": 349.28,
+     "temp_peak_c": 85.0,
+     "energy_wh": 155.9
+    },
+    "1": {
+     "rows": 1799,
+     "util_mean_pct": 95.4,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 17169.0,
+     "power_mean_w": 336.4,
+     "power_peak_w": 350.52,
+     "temp_peak_c": 77.0,
+     "energy_wh": 168.1
+    }
+   }
+  },
+  {
+   "stage": "e_tuned_approvals_4b",
+   "start": "2026-11-15T21:59:49.677Z",
+   "end": "2026-11-15T22:11:09.769Z",
+   "seconds": 680.1,
+   "note": "scorecard tuned-approvals-4b on all, 2 samples, Ollama GPU 0 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 680,
+     "util_mean_pct": 75.2,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 3976.0,
+     "power_mean_w": 310.7,
+     "power_peak_w": 349.28,
+     "temp_peak_c": 85.0,
+     "energy_wh": 58.7
+    },
+    "1": {
+     "rows": 680,
+     "util_mean_pct": 99.3,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 11989.0,
+     "power_mean_w": 348.1,
+     "power_peak_w": 350.52,
+     "temp_peak_c": 76.0,
+     "energy_wh": 65.8
+    }
+   }
+  },
+  {
+   "stage": "d_tuned_approvals_v2_4b",
+   "start": "2026-11-15T22:11:10.202Z",
+   "end": "2026-11-15T22:17:40.817Z",
+   "seconds": 390.6,
+   "note": "scorecard tuned-approvals-v2-4b on ecommerce,logistics,device_fleet,_starter, 3 samples, Ollama GPU 0 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 391,
+     "util_mean_pct": 75.5,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 3974.0,
+     "power_mean_w": 315.1,
+     "power_peak_w": 347.02,
+     "temp_peak_c": 85.0,
+     "energy_wh": 34.2
+    },
+    "1": {
+     "rows": 391,
+     "util_mean_pct": 99.5,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 11989.0,
+     "power_mean_w": 348.3,
+     "power_peak_w": 349.84,
+     "temp_peak_c": 76.0,
+     "energy_wh": 37.8
+    }
+   }
+  },
+  {
+   "stage": "e_tuned_approvals_v2_4b",
+   "start": "2026-11-15T22:17:41.012Z",
+   "end": "2026-11-15T22:30:01.156Z",
+   "seconds": 740.1,
+   "note": "scorecard tuned-approvals-v2-4b on all, 2 samples, Ollama GPU 0 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 740,
+     "util_mean_pct": 76.7,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 7386.0,
+     "power_mean_w": 312.6,
+     "power_peak_w": 344.75,
+     "temp_peak_c": 85.0,
+     "energy_wh": 64.3
+    },
+    "1": {
+     "rows": 740,
+     "util_mean_pct": 7.8,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 17169.0,
+     "power_mean_w": 39.5,
+     "power_peak_w": 349.36,
+     "temp_peak_c": 76.0,
+     "energy_wh": 8.1
+    }
+   }
+  },
+  {
+   "stage": "d_tuned_approvals_v2l_4b",
+   "start": "2026-11-15T22:30:08.874Z",
+   "end": "2026-11-15T22:36:08.763Z",
+   "seconds": 359.9,
+   "note": "scorecard tuned-approvals-v2l-4b on ecommerce,logistics,device_fleet,_starter, 3 samples, Ollama GPU 0 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 360,
+     "util_mean_pct": 75.5,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 3974.0,
+     "power_mean_w": 305.4,
+     "power_peak_w": 333.92,
+     "temp_peak_c": 79.0,
+     "energy_wh": 30.5
+    },
+    "1": {
+     "rows": 360,
+     "util_mean_pct": 0.0,
+     "util_p95_pct": 0.0,
+     "mem_peak_mib": 15.0,
+     "power_mean_w": 10.1,
+     "power_peak_w": 10.56,
+     "temp_peak_c": 30.0,
+     "energy_wh": 1.0
+    }
+   }
+  },
+  {
+   "stage": "e_tuned_approvals_v2l_4b",
+   "start": "2026-11-15T22:36:08.951Z",
+   "end": "2026-11-15T22:48:57.778Z",
+   "seconds": 768.8,
+   "note": "scorecard tuned-approvals-v2l-4b on all, 2 samples, Ollama GPU 0 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 769,
+     "util_mean_pct": 75.9,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 3976.0,
+     "power_mean_w": 308.4,
+     "power_peak_w": 345.89,
+     "temp_peak_c": 79.0,
+     "energy_wh": 65.9
+    },
+    "1": {
+     "rows": 769,
+     "util_mean_pct": 0.0,
+     "util_p95_pct": 0.0,
+     "mem_peak_mib": 15.0,
+     "power_mean_w": 10.1,
+     "power_peak_w": 10.57,
+     "temp_peak_c": 29.0,
+     "energy_wh": 2.2
+    }
+   }
+  },
+  {
+   "stage": "e_local_9b",
+   "start": "2026-11-15T22:49:06.590Z",
+   "end": "2026-11-15T23:04:06.370Z",
+   "seconds": 899.8,
+   "note": "scorecard local-9b on all, 2 samples, Ollama GPU 0 exit 0",
+   "gpus": {
+    "0": {
+     "rows": 900,
+     "util_mean_pct": 82.1,
+     "util_p95_pct": 100.0,
+     "mem_peak_mib": 7362.0,
+     "power_mean_w": 312.1,
+     "power_peak_w": 346.5,
+     "temp_peak_c": 78.0,
+     "energy_wh": 78.0
+    },
+    "1": {
+     "rows": 900,
+     "util_mean_pct": 0.0,
+     "util_p95_pct": 0.0,
+     "mem_peak_mib": 15.0,
+     "power_mean_w": 9.9,
+     "power_peak_w": 10.38,
+     "temp_peak_c": 28.0,
+     "energy_wh": 2.5
+    }
+   }
+  },
+  {
+   "stage": "idle_end",
+   "start": "2026-11-15T23:04:12.836Z",
+   "end": "2026-11-15T23:05:12.972Z",
+   "seconds": 60.1,
+   "note": "both GPUs idle after every stage (Ollama models unloaded)",
+   "gpus": {
+    "0": {
+     "rows": 61,
+     "util_mean_pct": 0.0,
+     "util_p95_pct": 0.0,
+     "mem_peak_mib": 208.0,
+     "power_mean_w": 29.5,
+     "power_peak_w": 84.05,
+     "temp_peak_c": 65.0,
+     "energy_wh": 0.5
+    },
+    "1": {
+     "rows": 61,
+     "util_mean_pct": 0.0,
+     "util_p95_pct": 0.0,
+     "mem_peak_mib": 15.0,
+     "power_mean_w": 9.4,
+     "power_peak_w": 9.68,
+     "temp_peak_c": 28.0,
+     "energy_wh": 0.2
+    }
+   }
+  }
+ ]
+}

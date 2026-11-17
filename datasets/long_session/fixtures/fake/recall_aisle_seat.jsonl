@@ -1,0 +1,1 @@
+{"responses": [{"text": "You asked for an aisle seat on trains.", "usage": {"input_tokens": 420, "output_tokens": 27}, "expect": {"last_message_role": "user"}}]}

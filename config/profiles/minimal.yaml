@@ -1,0 +1,14 @@
+# Rung 1 of the ladder (spec/harness.md section 10). The smallest harness that still has a
+# diagram: the gateway, the context builder with the system prompt and the session, the loop,
+# the model layer and its router, the tools, and the trace. Everything else is dimmed.
+id: minimal
+title: Minimal
+summary: >-
+  The loop, the model and the tools, with the system prompt and the session in context and a
+  trace of every step. No guardrails, no knowledge, no memory writes, no governance, no ops.
+rung: 1
+disable: [input_guardrails, output_guardrails, knowledge, memory_writer, semantic, episodic,
+          policy, approval, audit, eval, online_eval, diagnose, release]
+stores: [procedural, session]
+overrides:
+  context.compaction.summarize: false   # an old session is truncated, never summarised by a model

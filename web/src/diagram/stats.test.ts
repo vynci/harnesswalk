@@ -48,6 +48,8 @@ describe('nodeStat', () => {
     const run = (lastSummary: Record<string, unknown>) => ({ state: 'done' as const, enters: 1, totalDurationMs: 5, lastDurationMs: 5, lastSummary })
     expect(nodeStat(run({ decision: 'allow', tool: 'lookup_order', rule: 'dev.read.allow' }))).toBe('allow · lookup_order')
     expect(nodeStat(run({ rule: 'default', model: 'fake-small' }))).toBe('default · fake-small')
+    // 0.2.0: a call the canary split routed names its arm (router.md, "0.2.0: the canary rule").
+    expect(nodeStat(run({ rule: 'canary', model: 'tuned-approvals-fake', alternatives: ['fake-student'], arm: 'candidate', bucket: 0.4649 }))).toBe('canary · candidate arm')
     expect(nodeStat(run({ provider: 'fake', model: 'fake-small', attempt: 1 }))).toBe('fake · fake-small')
     expect(nodeStat(run({ tool: 'lookup_order', executed: true, outcome: 'ok' }))).toBe('lookup_order · ok')
     expect(nodeStat(run({ phase: 'reply', reply_chars: 70 }))).toBe('reply · 70 chars')

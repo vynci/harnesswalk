@@ -61,6 +61,7 @@ async def test_ollama() -> None:
         50,
         7,
     )
+    assert (r.usage.gen_ms, r.usage.prompt_ms) == (0.0, 0.0)  # no durations in this reply
 
 
 @pytest.mark.anyio
@@ -157,6 +158,57 @@ async def test_errors_never_carry_the_key(monkeypatch) -> None:
 
 
 @pytest.mark.anyio
+async def test_an_error_status_carries_the_apis_own_message(monkeypatch) -> None:
+    """A bare "returned HTTP 400" hid why hosted-haiku failed every call (2026-11-09)."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-site-key-123456")
+    reply = {
+        "type": "error",
+        "error": {
+            "type": "invalid_request_error",
+            "message": "temperature is deprecated for this model",
+        },
+    }
+    p = AnthropicProvider("https://api.example.test", transport=transport([], reply, 400))
+    with pytest.raises(ProviderError) as exc:
+        await p.complete(ProviderRequest("claude-haiku-5-5", HISTORY, []))
+    assert exc.value.message == (
+        "https://api.example.test/v1/messages returned HTTP 400:"
+        " temperature is deprecated for this model"
+    )
+    assert exc.value.client_error is True
+
+    # The key never comes back, even when the body echoes it; long reasons are capped.
+    echo = {"error": {"message": "bad key sk-ant-site-key-123456 " + "x" * 500}}
+    p = AnthropicProvider("https://api.example.test", transport=transport([], echo, 401))
+    with pytest.raises(ProviderError) as exc:
+        await p.complete(ProviderRequest("m", HISTORY, []))
+    assert "site-key" not in exc.value.message and "[redacted]" in exc.value.message
+    assert exc.value.message.endswith("...") and len(exc.value.message) < 300
+
+    # Ollama's shape is a plain string; OpenAI-compatible servers use error.message.
+    p = OllamaProvider("http://ollama:11434", transport=transport([], {"error": "no model"}, 404))
+    with pytest.raises(ProviderError) as exc:
+        await p.complete(ProviderRequest("m", HISTORY, []))
+    assert exc.value.message.endswith("returned HTTP 404: no model")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-abcdef")
+    p = OpenAICompatibleProvider(
+        "http://compat/v1",
+        transport=transport([], {"error": {"message": "overloaded, key sk-openai-abcdef"}}, 503),
+    )
+    with pytest.raises(ProviderError) as exc:
+        await p.complete(ProviderRequest("m", HISTORY, []))
+    assert exc.value.message.endswith("HTTP 503: overloaded, key [redacted]")
+    assert exc.value.retryable and not exc.value.client_error
+    p = OllamaProvider(
+        "http://ollama:11434",
+        transport=httpx.MockTransport(lambda r: httpx.Response(500, text="<html>oops</html>")),
+    )
+    with pytest.raises(ProviderError) as exc:
+        await p.complete(ProviderRequest("m", HISTORY, []))
+    assert exc.value.message.endswith("returned HTTP 500")  # no JSON reason: the status only
+
+
+@pytest.mark.anyio
 async def test_fallback_is_visible(tmp_path) -> None:
     """A retryable failure on the first model falls back to the next allowed one."""
     from harnesswalk.execution.model_layer import ModelLayer, ModelRequest
@@ -196,3 +248,40 @@ async def test_fallback_is_visible(tmp_path) -> None:
         if e.get("node_id") == "providers" and e["type"] in ("node_exit", "error")
     ]
     assert [e["type"] for e in attempts] == ["error", "node_exit"]
+
+
+@pytest.mark.anyio
+async def test_anthropic_prompt_cache_is_opt_in_and_priced() -> None:
+    """P6: `params.prompt_cache` marks the tools and the system prompt for caching, never goes
+    to the API as a field, and the usage counts cached and written tokens inside input_tokens,
+    which the model layer prices with the alias's multipliers."""
+    from harnesswalk.execution.model_layer import price
+
+    seen: list[httpx.Request] = []
+    reply = {
+        "content": [{"type": "text", "text": "Done."}],
+        "stop_reason": "end_turn",
+        "usage": {"input_tokens": 100, "output_tokens": 10, "cache_read_input_tokens": 3000,
+                  "cache_creation_input_tokens": 500},
+    }  # fmt: skip
+    p = AnthropicProvider("https://api.example.test", transport=transport(seen, reply))
+    params = {"prompt_cache": True, "thinking": {"type": "disabled"}}
+    r = await p.complete(ProviderRequest("m", HISTORY, [TOOL], 64, params=params, api_key="k"))
+    body = json.loads(seen[0].content)
+    assert "prompt_cache" not in body and body["thinking"] == {"type": "disabled"}
+    assert body["system"] == [
+        {"type": "text", "text": "You are helpful.", "cache_control": {"type": "ephemeral"}}
+    ]
+    assert body["tools"][-1]["cache_control"] == {"type": "ephemeral"}
+    assert (r.usage.input_tokens, r.usage.cached_tokens, r.usage.cache_write_tokens) == (
+        3600, 3000, 500)  # fmt: skip
+    haiku = {"price_in_per_mtok": 0.10, "price_out_per_mtok": 0.50, "cache_read_multiplier": 0.1}
+    usd, _ = price(haiku, 3600, 10, 3000, 500)
+    assert usd == pytest.approx((100 + 300 + 625) * 0.10 / 1e6 + 10 * 0.50 / 1e6)
+    # without a configured read discount a cached token costs what any input token costs
+    assert price({"price_in_per_mtok": 1, "price_out_per_mtok": 1}, 1000, 0, 1000)[0] == 0.001
+    assert price(haiku, 1000, 0)[0] == pytest.approx(0.0001)  # no cache: unchanged
+    seen.clear()
+    await p.complete(ProviderRequest("m", HISTORY, [TOOL], 64, api_key="k"))
+    body = json.loads(seen[0].content)
+    assert body["system"] == "You are helpful." and "cache_control" not in body["tools"][-1]

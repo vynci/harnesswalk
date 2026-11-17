@@ -180,9 +180,16 @@ class AuditLog:
         return {"ok": True, "records": len(rows)}
 
 
-async def record(ctx: TurnContext, log: AuditLog, entry: AuditEntry) -> AuditRecord:
-    """The `audit` span: append one record and show what was recorded."""
+async def record(ctx: TurnContext, log: AuditLog, entry: AuditEntry) -> AuditRecord | None:
+    """The `audit` span: append one record and show what was recorded.
+
+    When audit is off (a profile or the request, harness.md section 10) the span still opens
+    where the record would be made and exits skipped with `disabled: true`; nothing is written
+    and None is returned."""
     async with node(ctx, "audit") as span:
+        if ctx.is_disabled("audit"):
+            span.skip(disabled=True, action=entry.action, tool=entry.tool, decision=entry.decision)
+            return None
         rec = log.append(ctx, entry)
         span.set(
             record_id=rec.record_id,

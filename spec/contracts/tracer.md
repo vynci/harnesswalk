@@ -126,7 +126,7 @@ whose JSON is longer than the cap come as `arguments: null` with `arguments_text
 | `model_layer` | enter | `step`, `request: Request` |
 | `model_layer` | exit | `step`, `provider`, `model`, `request: Request`, `reply: {...Text, tool_calls: [ToolCall], finish_reason}` |
 | `output_guardrails` | enter | `before: Text` (the loop's answer) |
-| `output_guardrails` | exit | `before: Text`, `after: Text` (the reply that goes on), `action`, `repairs` (the repair kinds: `length`, `citations`, `pii`), `reasons`, `checks: [Verdict]`, `restored` (placeholders put back), `restore_mode`, `disabled` (when skipped) |
+| `output_guardrails` | exit | `before: Text`, `after: Text` (the reply that goes on), `action`, `repairs` (the repair kinds: `schema`, `length`, `citations`, `pii`), `reasons`, `checks: [Verdict]`, `restored` (placeholders put back), `restore_mode`, `schema_extracted: true` (when the JSON reply was taken out of prose or a fence), `disabled` (when skipped) |
 
 ```
 Check    = { check, verdict: "pass" | "redact" | "warn" | "block", looked_at: {stage, chars},
@@ -175,3 +175,12 @@ reply, the answer before the output checks) are stored in public mode with their
 replaced by typed placeholders (`[EMAIL]`), as the output guardrails' PII check would, so a
 payload never shows a reader what those guardrails keep from them.
 Details follow the mode's retention (the public TTL sweeper hard deletes them with the tenant).
+
+## 0.2.0: tuning streams
+
+Two more ops stream patterns (`events.md` section 14): `curate:<curation_id>` (a curation's
+progress, with the eval run event types and `node_id: curate`) and `tune:<run_id>` (a tune run:
+`tune_run_started`, `tune_step`, `tune_run_finished`). They are stored and served like
+`eval:<run_id>`, and `GET /v1/events` follows them with the tenant's other ops streams. The
+canary ledger (`tuning.md`) reads the router span (`arm`), `turn_end` and `feedback_recorded`
+of the turns the `canary` rule routed; it stores counts, never content.

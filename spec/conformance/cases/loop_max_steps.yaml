@@ -2,6 +2,7 @@ id: loop_max_steps
 title: The loop exits on max_steps and answers once with tools disabled
 spec_version: 0.1.0
 fixture: loop_max_steps
+requires: [input_guardrails, output_guardrails, policy]
 config:
   loop.max_steps: 3
   loop.final_call_on_exit: true

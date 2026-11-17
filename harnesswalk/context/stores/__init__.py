@@ -75,7 +75,9 @@ class Memory:
             session = await run_session(ctx, self.session, self.estimator)
             out = Retrieval(procedural, session)
             for kind in RETRIEVING:
-                store = getattr(self, kind)
+                # Off for this turn (a profile or the request): the span still opens and
+                # exits skipped with `disabled: true`, and nothing is retrieved.
+                store = None if ctx.is_disabled(kind) else getattr(self, kind)
                 query = None
                 if store is not None and text:
                     query = Query(
@@ -88,7 +90,11 @@ class Memory:
                     hits = []
                 setattr(out, kind, hits)
             span.set(
-                stores_queried=["procedural", "session", *self.enabled()],
+                stores_queried=[
+                    "procedural",
+                    "session",
+                    *(k for k in self.enabled() if not ctx.is_disabled(k)),
+                ],
                 hits={
                     "procedural": 1 + len(self.procedural.skills),
                     "session": len(session.turns) + (1 if session.summary else 0),

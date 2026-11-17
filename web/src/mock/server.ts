@@ -3,6 +3,7 @@
 // a fetch function and an EventSource class, and plays the recorded spec/examples streams with
 // fresh ids and timestamps. It supports approvals (approve and deny), step mode, cancel,
 // cursor replay with after and follow, and dropped connections for reconnect tests.
+import { parse as parseYaml } from 'yaml'
 import type { EventSourceCtor, EventSourceLike, Transport } from '@/api/client'
 import type {
   Capabilities,
@@ -20,7 +21,11 @@ import { EXAMPLE_MESSAGES, EXAMPLE_NAMES, EXAMPLES, servedDiagram, type ExampleN
 import { MockLessons } from './lessons'
 import { MARKDOWN_PROMPT, MARKDOWN_REPLY } from './markdown'
 import { MockEvalEventSource, MockOps, MockOpsEventSource } from './ops'
-import { allFixtures, DEFAULT_PACK, fixtureInfo, PACK_IDS, packDetail, packFiles, packSummary } from './packs'
+import { MockTune, MockTuneEventSource } from './tune'
+import { allFixtures, DEFAULT_PACK, fixtureInfo, PACK_IDS, packDetail, packFiles, packSummary, profileList } from './packs'
+
+/** The controls a public server never switches off, whatever the profile (harness.md 10.5). */
+const PUBLIC_KEEP = ['input_guardrails', 'output_guardrails', 'policy', 'approval', 'audit']
 import { payloadFor } from './payloads'
 import { repoFile, repoPdfUrl, sourceFor } from './repo'
 
@@ -261,6 +266,8 @@ export class MockServer {
   private turns = new Map<string, MockTurn>()
   private counter = 0
   readonly ops: MockOps
+  /** 0.2.0: the tuning loop (mock/tune.ts). */
+  readonly tune: MockTune
   readonly lessons: MockLessons
   /** P5: every session's pack (fixed at its first turn or by POST /v1/sessions). */
   private sessions = new Map<string, { pack: string; createdAt: string }>()
@@ -287,6 +294,12 @@ export class MockServer {
       anyRunning: () => [...this.turns.values()].some((t) => t.status !== 'done'),
       addFinishedTurn: (example, message, sessionId, reply, pack) => this.addFinishedTurn(example, message, sessionId, reply, pack),
       packOf: (turnId) => this.turns.get(turnId)?.pack ?? DEFAULT_PACK,
+    })
+    // 0.2.0: the tuning loop, seeded from the recorded run the public server serves.
+    this.tune = new MockTune({
+      stepMs: this.opts.stepMs,
+      public: this.opts.public !== null,
+      publish: (type, nodeId, summary, extra) => void this.ops.publishOps(type, nodeId, summary, extra),
     })
     if (this.opts.seed) {
       this.seedHistory()
@@ -412,6 +425,7 @@ export class MockServer {
     if (method === 'GET' && p === '/healthz') return json(200, { status: 'ok', mode: 'dev', provider: 'fake' })
     if (method === 'GET' && p === '/v1/capabilities') return json(200, this.capabilities())
     if (method === 'GET' && p === '/v1/diagram') return json(200, this.diagram)
+    if (method === 'GET' && p === '/v1/profiles') return json(200, profileList(this.opts.public !== null, PUBLIC_KEEP))
     if (method === 'POST' && p === '/v1/turns') {
       this.turnRequests.push(structuredClone(body) as unknown as StartTurnRequest)
       const refused = this.publicRefusal(body as unknown as StartTurnRequest, header(init, 'x-harnesswalk-provider-key'))
@@ -518,6 +532,9 @@ export class MockServer {
       const lesson = this.lessons.get(decodeURIComponent(m[1]!))
       return lesson ? json(200, lesson) : apiError(404, 'lesson_not_found', `No lesson ${m[1]}.`)
     }
+    // 0.2.0: the tuning loop (a recorded replay in public mode).
+    const tuned = this.tune.handle(method, url, body)
+    if (tuned) return tuned
     // P4: evals, artifacts, releases, feedback and the trace query.
     const ops = this.ops.handle(method, url, body)
     if (ops) return await ops
@@ -609,7 +626,7 @@ export class MockServer {
     return {
       mode: 'dev',
       version: '0.2.0-mock',
-      spec_version: '0.1.0',
+      spec_version: '0.2.0',
       providers: [
         { name: 'fake', configured: true, default: true, models: ['fake-small'] },
         { name: 'ollama', configured: false, default: false, models: ['llama3.1:8b'] },
@@ -662,7 +679,7 @@ export class MockServer {
     return {
       mode: 'public',
       version: '0.2.0-mock',
-      spec_version: '0.1.0',
+      spec_version: '0.2.0',
       providers: [
         { name: 'anthropic', configured: true, default: true, models: ['hosted-haiku', 'hosted-sonnet'] },
         { name: 'fake', configured: true, default: false, models: ['fake-small'] },
@@ -831,7 +848,7 @@ export class MockServer {
       const end = turn.queue.find((t) => t.type === 'turn_end')
       const reply = (end?.summary?.reply as string | undefined) ?? ''
       const deltas: Template[] = words(reply).map((delta, index) => ({
-        schema_version: '0.1.0',
+        schema_version: '0.2.0',
         type: 'message_delta',
         node_id: 'gateway',
         status: 'active',
@@ -850,7 +867,7 @@ export class MockServer {
     }
     if (ev.type === 'node_enter' && turn.stepping) {
       turn.stepOver = false
-      this.emit(turn, { schema_version: '0.1.0', type: 'node_paused', node_id: ev.node_id, status: 'waiting', summary: { reason: 'breakpoint' } })
+      this.emit(turn, { schema_version: '0.2.0', type: 'node_paused', node_id: ev.node_id, status: 'waiting', summary: { reason: 'breakpoint' } })
       turn.waiting = { kind: 'breakpoint', nodeId: ev.node_id! }
       turn.status = 'paused'
       return
@@ -887,7 +904,7 @@ export class MockServer {
     turn.stepOver = mode === 'step_over'
     turn.waiting = null
     turn.status = 'running'
-    this.emit(turn, { schema_version: '0.1.0', type: 'node_resumed', node_id: nodeId, status: 'active', summary: { reason: 'breakpoint', mode } })
+    this.emit(turn, { schema_version: '0.2.0', type: 'node_resumed', node_id: nodeId, status: 'active', summary: { reason: 'breakpoint', mode } })
     this.schedule(turn)
     return json(200, { turn_id: turnId, resumed_node_id: nodeId, mode })
   }
@@ -924,7 +941,7 @@ export class MockServer {
     for (let i = open.length - 1; i >= 0; i--) {
       const o = open[i]!
       this.emit(turn, {
-        schema_version: '0.1.0',
+        schema_version: '0.2.0',
         type: 'error',
         node_id: o.nodeId,
         status: 'error',
@@ -938,7 +955,7 @@ export class MockServer {
     )
     const steps = turn.events.filter((e) => e.type === 'node_enter' && e.node_id === 'model_layer').length
     const end = this.emit(turn, {
-      schema_version: '0.1.0',
+      schema_version: '0.2.0',
       type: 'turn_end',
       status: 'done',
       duration_ms: Math.max(0, now - Date.parse(turn.events[0]!.ts)),
@@ -990,7 +1007,10 @@ export class MockServer {
         const art = kind ? this.ops.current(kind, kind, pack) : undefined
         const path = { policy: 'config/policy.yaml', router: 'config/models.yaml', registry: `datasets/${pack}/tools.yaml` }[nodeId as string] ?? null
         const content = art?.body ?? (path ? repoFile(path) : undefined)
-        return { type: 'config', path, version: art ? `${art.name}@${art.version}` : null, format: 'yaml', content: content ?? null, editable: true, artifact: kind ? this.ops.inspectorArtifact(kind, kind, pack) : null }
+        // The router's rules in force (inspectors.py `effective`), with the 0.2.0 canary rule
+        // after `public`, as the real router evaluates it.
+        const effective = nodeId === 'router' ? this.routerEffective(content) : undefined
+        return { type: 'config', path, version: art ? `${art.name}@${art.version}` : null, format: 'yaml', content: content ?? null, editable: true, artifact: kind ? this.ops.inspectorArtifact(kind, kind, pack) : null, ...(effective ? { effective } : {}) }
       }
       case 'prompt': {
         const prompt = this.ops.current('prompt', 'system_prompt', pack)
@@ -1037,6 +1057,23 @@ export class MockServer {
     }
   }
 
+  private routerEffective(yamlText: string | undefined): { rules: unknown[]; providers: string[] } | undefined {
+    if (!yamlText) return undefined
+    let rules: unknown[]
+    try {
+      const doc = parseYaml(yamlText) as { router?: { rules?: unknown[] } } | null
+      rules = Array.isArray(doc?.router?.rules) ? [...doc.router.rules] : []
+    } catch {
+      return undefined
+    }
+    const canary = this.tune.canary().rule
+    if (canary) {
+      const at = rules.findIndex((r) => (r as { id?: string }).id === 'public')
+      rules.splice(at + 1, 0, { id: 'canary', ...canary })
+    }
+    return { rules, providers: ['fake'] }
+  }
+
   private nodeSource(nodeId: string): Response {
     const node = this.diagram.nodes.find((n) => n.id === nodeId)
     if (!node) return apiError(404, 'node_not_found', `No node ${nodeId}.`)
@@ -1076,6 +1113,7 @@ function boundEventSource(server: MockServer): EventSourceCtor {
     constructor(url: string) {
       const path = new URL(url, 'http://mock.local').pathname
       if (path === '/v1/events') return new MockOpsEventSource(server.ops, url)
+      if (MockTuneEventSource.matches(path)) return new MockTuneEventSource(server.tune, url)
       // An eval case's events_url serves its stored turn stream.
       const kase = path.match(/^\/v1\/evals\/runs\/([^/]+)\/cases\/([^/]+)\/events$/)
       if (kase) {

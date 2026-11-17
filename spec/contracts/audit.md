@@ -1,6 +1,6 @@
 # Contract: Audit
 
-Node: `audit` (control plane, kind `store`).
+Node: `audit` (control plane, kind `store`; can be switched off since 0.2.0).
 
 ## Purpose
 
@@ -107,3 +107,11 @@ record VerifyResult { ok: bool, records: int, first_bad_record?: string }
   public-mode TTL sweeper: in one write transaction it drops the delete trigger, deletes every
   record of that tenant, and creates the trigger again. A chain links only its own tenant's
   records, so every other tenant's chain still verifies. Nothing calls it outside the sweeper.
+
+## 0.2.0: audit switched off
+
+When `audit` is off for a turn, every record the turn would make (policy decisions, approval
+decisions, executed tools, memory writes) is sent and not kept: the `audit` span exits
+`skipped` with `disabled: true` and the entry's `action`, `tool` and `decision`, and nothing is
+appended. Records made outside a turn (memory review decisions, forced releases) are still
+kept. A profile switches `audit` off only together with `policy` and `approval`.

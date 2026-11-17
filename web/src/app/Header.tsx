@@ -8,6 +8,7 @@ import { GuideButton } from '@/lessons/GuideButton'
 import { useApp } from '@/state/store'
 import { FixturePicker } from '@/chat/ModelPicker'
 import { PackPicker } from './PackPicker'
+import { ProfileChip } from './ProfileChip'
 import { SessionChip } from './SessionChip'
 import { useDarkTheme } from './useTheme'
 
@@ -71,6 +72,7 @@ export function Header() {
         <div className="flex min-w-0 items-center gap-2">
           <FixturePicker />
           <PackPicker />
+          <ProfileChip />
           <div className="flex shrink-0 items-center gap-1">
             <GuideButton />
             <ThemeButton />

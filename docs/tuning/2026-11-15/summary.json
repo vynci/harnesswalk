@@ -1,0 +1,3656 @@
+{
+ "cells": [
+  {
+   "source": "compare/local-4b.json",
+   "model": "local-4b",
+   "pack": "ecommerce",
+   "ollama_name": "qwen3.5:4b",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    3,
+    4,
+    5
+   ],
+   "mean": 4,
+   "min": 3,
+   "max": 5,
+   "sd": 1.0,
+   "case_runs_timed": 72,
+   "median_s": 1.03,
+   "p95_s": 1.6,
+   "mean_s": 1.05,
+   "decode_tok_s": 159.8,
+   "prefill_tok_s": 17599.6,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    26.2,
+    24.6,
+    24.7
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 1.0,
+    "read tool not called": 2.0,
+    "write tool not called": 10.33
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/local-4b.json",
+   "model": "local-4b",
+   "pack": "logistics",
+   "ollama_name": "qwen3.5:4b",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    4,
+    4,
+    4
+   ],
+   "mean": 4,
+   "min": 4,
+   "max": 4,
+   "sd": 0.0,
+   "case_runs_timed": 72,
+   "median_s": 1.17,
+   "p95_s": 2.03,
+   "mean_s": 1.23,
+   "decode_tok_s": 159.3,
+   "prefill_tok_s": 19177.3,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    30.1,
+    28.3,
+    29.9
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 1.0,
+    "read tool not called": 3.0,
+    "write tool not called": 3.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/local-4b.json",
+   "model": "local-4b",
+   "pack": "device_fleet",
+   "ollama_name": "qwen3.5:4b",
+   "status": "ok",
+   "samples": 3,
+   "scored": 28,
+   "passed": [
+    5,
+    5,
+    5
+   ],
+   "mean": 5,
+   "min": 5,
+   "max": 5,
+   "sd": 0.0,
+   "case_runs_timed": 84,
+   "median_s": 1.57,
+   "p95_s": 2.73,
+   "mean_s": 1.71,
+   "decode_tok_s": 155.6,
+   "prefill_tok_s": 8868.7,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    47.9,
+    47.6,
+    47.9
+   ],
+   "tool_split_per_sample": {
+    "none called": 10.0,
+    "write tool not called": 4.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/local-4b.json",
+   "model": "local-4b",
+   "pack": "_starter",
+   "ollama_name": "qwen3.5:4b",
+   "status": "ok",
+   "samples": 3,
+   "scored": 16,
+   "passed": [
+    7,
+    7,
+    7
+   ],
+   "mean": 7,
+   "min": 7,
+   "max": 7,
+   "sd": 0.0,
+   "case_runs_timed": 48,
+   "median_s": 0.69,
+   "p95_s": 1.44,
+   "mean_s": 0.81,
+   "decode_tok_s": 160.3,
+   "prefill_tok_s": 14944.9,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    12.9,
+    13.5,
+    12.6
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 1.0,
+    "none called": 1.33,
+    "read tool not called": 2.67
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "pack": "ecommerce",
+   "ollama_name": "hw-approvals-4b:tr_2",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    16,
+    16,
+    16
+   ],
+   "mean": 16,
+   "min": 16,
+   "max": 16,
+   "sd": 0.0,
+   "case_runs_timed": 72,
+   "median_s": 1.12,
+   "p95_s": 1.79,
+   "mean_s": 1.21,
+   "decode_tok_s": 157.1,
+   "prefill_tok_s": 19880.7,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    29.8,
+    29.6,
+    28.0
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "pack": "logistics",
+   "ollama_name": "hw-approvals-4b:tr_2",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    8,
+    8,
+    8
+   ],
+   "mean": 8,
+   "min": 8,
+   "max": 8,
+   "sd": 0.0,
+   "case_runs_timed": 72,
+   "median_s": 1.31,
+   "p95_s": 2.68,
+   "mean_s": 1.35,
+   "decode_tok_s": 157.9,
+   "prefill_tok_s": 19201.8,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    33.0,
+    32.9,
+    31.4
+   ],
+   "tool_split_per_sample": {
+    "none called": 1.0,
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "pack": "device_fleet",
+   "ollama_name": "hw-approvals-4b:tr_2",
+   "status": "ok",
+   "samples": 3,
+   "scored": 28,
+   "passed": [
+    6,
+    6,
+    6
+   ],
+   "mean": 6,
+   "min": 6,
+   "max": 6,
+   "sd": 0.0,
+   "case_runs_timed": 84,
+   "median_s": 1.45,
+   "p95_s": 2.82,
+   "mean_s": 1.67,
+   "decode_tok_s": 153.8,
+   "prefill_tok_s": 8173.6,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    47.0,
+    46.7,
+    47.0
+   ],
+   "tool_split_per_sample": {
+    "none called": 12.0,
+    "write tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "pack": "_starter",
+   "ollama_name": "hw-approvals-4b:tr_2",
+   "status": "ok",
+   "samples": 3,
+   "scored": 16,
+   "passed": [
+    8,
+    8,
+    8
+   ],
+   "mean": 8,
+   "min": 8,
+   "max": 8,
+   "sd": 0.0,
+   "case_runs_timed": 48,
+   "median_s": 0.63,
+   "p95_s": 1.51,
+   "mean_s": 0.75,
+   "decode_tok_s": 157.9,
+   "prefill_tok_s": 12810.6,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    12.1,
+    12.0,
+    11.9
+   ],
+   "tool_split_per_sample": {
+    "none called": 3.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-4b-r1.json",
+   "model": "tuned-approvals-4b-r1",
+   "pack": "ecommerce",
+   "ollama_name": "hw-approvals-4b-r1:tr_3",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    13,
+    13,
+    13
+   ],
+   "mean": 13,
+   "min": 13,
+   "max": 13,
+   "sd": 0.0,
+   "case_runs_timed": 72,
+   "median_s": 1.25,
+   "p95_s": 1.83,
+   "mean_s": 1.16,
+   "decode_tok_s": 156.4,
+   "prefill_tok_s": 20033.3,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    28.3,
+    27.5,
+    27.6
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-4b-r1.json",
+   "model": "tuned-approvals-4b-r1",
+   "pack": "logistics",
+   "ollama_name": "hw-approvals-4b-r1:tr_3",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    6,
+    7,
+    6
+   ],
+   "mean": 6.33,
+   "min": 6,
+   "max": 7,
+   "sd": 0.58,
+   "case_runs_timed": 72,
+   "median_s": 1.34,
+   "p95_s": 2.66,
+   "mean_s": 1.46,
+   "decode_tok_s": 157.2,
+   "prefill_tok_s": 19053.9,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    36.4,
+    34.3,
+    34.4
+   ],
+   "tool_split_per_sample": {
+    "none called": 1.0,
+    "read tool not called": 3.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-4b-r1.json",
+   "model": "tuned-approvals-4b-r1",
+   "pack": "device_fleet",
+   "ollama_name": "hw-approvals-4b-r1:tr_3",
+   "status": "ok",
+   "samples": 3,
+   "scored": 28,
+   "passed": [
+    5,
+    5,
+    5
+   ],
+   "mean": 5,
+   "min": 5,
+   "max": 5,
+   "sd": 0.0,
+   "case_runs_timed": 84,
+   "median_s": 1.63,
+   "p95_s": 3.59,
+   "mean_s": 1.89,
+   "decode_tok_s": 153.2,
+   "prefill_tok_s": 9078.0,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    52.8,
+    53.1,
+    53.0
+   ],
+   "tool_split_per_sample": {
+    "none called": 10.0,
+    "read tool not called": 1.0,
+    "write tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-4b-r1.json",
+   "model": "tuned-approvals-4b-r1",
+   "pack": "_starter",
+   "ollama_name": "hw-approvals-4b-r1:tr_3",
+   "status": "ok",
+   "samples": 3,
+   "scored": 16,
+   "passed": [
+    6,
+    6,
+    6
+   ],
+   "mean": 6,
+   "min": 6,
+   "max": 6,
+   "sd": 0.0,
+   "case_runs_timed": 48,
+   "median_s": 0.66,
+   "p95_s": 1.4,
+   "mean_s": 0.74,
+   "decode_tok_s": 158.0,
+   "prefill_tok_s": 13102.1,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    12.4,
+    11.6,
+    11.6
+   ],
+   "tool_split_per_sample": {
+    "none called": 3.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-4b-r2.json",
+   "model": "tuned-approvals-4b-r2",
+   "pack": "ecommerce",
+   "ollama_name": "hw-approvals-4b-r2:tr_4",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    13,
+    13,
+    13
+   ],
+   "mean": 13,
+   "min": 13,
+   "max": 13,
+   "sd": 0.0,
+   "case_runs_timed": 72,
+   "median_s": 1.22,
+   "p95_s": 1.91,
+   "mean_s": 1.23,
+   "decode_tok_s": 156.9,
+   "prefill_tok_s": 21445.7,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    29.8,
+    28.9,
+    30.0
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-4b-r2.json",
+   "model": "tuned-approvals-4b-r2",
+   "pack": "logistics",
+   "ollama_name": "hw-approvals-4b-r2:tr_4",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    6,
+    6,
+    6
+   ],
+   "mean": 6,
+   "min": 6,
+   "max": 6,
+   "sd": 0.0,
+   "case_runs_timed": 72,
+   "median_s": 1.34,
+   "p95_s": 2.81,
+   "mean_s": 1.45,
+   "decode_tok_s": 157.1,
+   "prefill_tok_s": 20852.1,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    35.6,
+    34.0,
+    34.6
+   ],
+   "tool_split_per_sample": {
+    "none called": 1.0,
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-4b-r2.json",
+   "model": "tuned-approvals-4b-r2",
+   "pack": "device_fleet",
+   "ollama_name": "hw-approvals-4b-r2:tr_4",
+   "status": "ok",
+   "samples": 3,
+   "scored": 28,
+   "passed": [
+    7,
+    7,
+    6
+   ],
+   "mean": 6.67,
+   "min": 6,
+   "max": 7,
+   "sd": 0.58,
+   "case_runs_timed": 84,
+   "median_s": 1.59,
+   "p95_s": 3.78,
+   "mean_s": 1.88,
+   "decode_tok_s": 150.7,
+   "prefill_tok_s": 8770.8,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    50.2,
+    51.6,
+    56.0
+   ],
+   "tool_split_per_sample": {
+    "none called": 12.0,
+    "write tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-4b-r2.json",
+   "model": "tuned-approvals-4b-r2",
+   "pack": "_starter",
+   "ollama_name": "hw-approvals-4b-r2:tr_4",
+   "status": "ok",
+   "samples": 3,
+   "scored": 16,
+   "passed": [
+    7,
+    7,
+    8
+   ],
+   "mean": 7.33,
+   "min": 7,
+   "max": 8,
+   "sd": 0.58,
+   "case_runs_timed": 48,
+   "median_s": 0.67,
+   "p95_s": 1.52,
+   "mean_s": 0.76,
+   "decode_tok_s": 158.1,
+   "prefill_tok_s": 11197.3,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    11.7,
+    12.6,
+    12.4
+   ],
+   "tool_split_per_sample": {
+    "none called": 3.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "pack": "ecommerce",
+   "ollama_name": "hw-approvals-v2-4b:tr_5",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    13,
+    14,
+    15
+   ],
+   "mean": 14,
+   "min": 13,
+   "max": 15,
+   "sd": 1.0,
+   "case_runs_timed": 72,
+   "median_s": 1.2,
+   "p95_s": 1.99,
+   "mean_s": 1.24,
+   "decode_tok_s": 156.3,
+   "prefill_tok_s": 21061.8,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    29.3,
+    29.6,
+    30.8
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "pack": "logistics",
+   "ollama_name": "hw-approvals-v2-4b:tr_5",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    6,
+    6,
+    6
+   ],
+   "mean": 6,
+   "min": 6,
+   "max": 6,
+   "sd": 0.0,
+   "case_runs_timed": 72,
+   "median_s": 1.43,
+   "p95_s": 3.28,
+   "mean_s": 1.58,
+   "decode_tok_s": 156.6,
+   "prefill_tok_s": 17387.2,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    38.6,
+    36.4,
+    38.6
+   ],
+   "tool_split_per_sample": {
+    "none called": 1.0,
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "pack": "device_fleet",
+   "ollama_name": "hw-approvals-v2-4b:tr_5",
+   "status": "ok",
+   "samples": 3,
+   "scored": 28,
+   "passed": [
+    6,
+    6,
+    6
+   ],
+   "mean": 6,
+   "min": 6,
+   "max": 6,
+   "sd": 0.0,
+   "case_runs_timed": 84,
+   "median_s": 1.33,
+   "p95_s": 2.33,
+   "mean_s": 1.57,
+   "decode_tok_s": 153.8,
+   "prefill_tok_s": 19299.1,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    44.8,
+    43.6,
+    43.5
+   ],
+   "tool_split_per_sample": {
+    "none called": 9.0,
+    "read tool not called": 1.0,
+    "write tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "pack": "_starter",
+   "ollama_name": "hw-approvals-v2-4b:tr_5",
+   "status": "ok",
+   "samples": 3,
+   "scored": 16,
+   "passed": [
+    8,
+    7,
+    7
+   ],
+   "mean": 7.33,
+   "min": 7,
+   "max": 8,
+   "sd": 0.58,
+   "case_runs_timed": 48,
+   "median_s": 0.74,
+   "p95_s": 1.87,
+   "mean_s": 0.97,
+   "decode_tok_s": 157.3,
+   "prefill_tok_s": 12872.5,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    14.6,
+    16.6,
+    15.7
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 1.0,
+    "none called": 3.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "pack": "ecommerce",
+   "ollama_name": "hw-approvals-v2l-4b:tr_7",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    13,
+    14,
+    14
+   ],
+   "mean": 13.67,
+   "min": 13,
+   "max": 14,
+   "sd": 0.58,
+   "case_runs_timed": 72,
+   "median_s": 1.03,
+   "p95_s": 1.97,
+   "mean_s": 1.21,
+   "decode_tok_s": 158.1,
+   "prefill_tok_s": 21777.6,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    29.6,
+    29.4,
+    28.2
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 2.0,
+    "write tool not called": 0.67
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "pack": "logistics",
+   "ollama_name": "hw-approvals-v2l-4b:tr_7",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    5,
+    6,
+    6
+   ],
+   "mean": 5.67,
+   "min": 5,
+   "max": 6,
+   "sd": 0.58,
+   "case_runs_timed": 72,
+   "median_s": 1.27,
+   "p95_s": 2.76,
+   "mean_s": 1.47,
+   "decode_tok_s": 157.5,
+   "prefill_tok_s": 18811.6,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    36.5,
+    33.7,
+    35.8
+   ],
+   "tool_split_per_sample": {
+    "none called": 1.0,
+    "read tool not called": 3.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "pack": "device_fleet",
+   "ollama_name": "hw-approvals-v2l-4b:tr_7",
+   "status": "ok",
+   "samples": 3,
+   "scored": 28,
+   "passed": [
+    8,
+    7,
+    7
+   ],
+   "mean": 7.33,
+   "min": 7,
+   "max": 8,
+   "sd": 0.58,
+   "case_runs_timed": 84,
+   "median_s": 1.23,
+   "p95_s": 2.35,
+   "mean_s": 1.39,
+   "decode_tok_s": 155.3,
+   "prefill_tok_s": 19379.6,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    39.6,
+    38.8,
+    38.5
+   ],
+   "tool_split_per_sample": {
+    "none called": 4.0,
+    "read tool not called": 3.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "pack": "_starter",
+   "ollama_name": "hw-approvals-v2l-4b:tr_7",
+   "status": "ok",
+   "samples": 3,
+   "scored": 16,
+   "passed": [
+    9,
+    9,
+    9
+   ],
+   "mean": 9,
+   "min": 9,
+   "max": 9,
+   "sd": 0.0,
+   "case_runs_timed": 48,
+   "median_s": 0.69,
+   "p95_s": 1.73,
+   "mean_s": 0.81,
+   "decode_tok_s": 158.1,
+   "prefill_tok_s": 11899.3,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    13.3,
+    12.9,
+    12.8
+   ],
+   "tool_split_per_sample": {
+    "none called": 3.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/local-9b.json",
+   "model": "local-9b",
+   "pack": "ecommerce",
+   "ollama_name": "qwen3.5:9b",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    7,
+    7,
+    7
+   ],
+   "mean": 7,
+   "min": 7,
+   "max": 7,
+   "sd": 0.0,
+   "case_runs_timed": 72,
+   "median_s": 1.36,
+   "p95_s": 2.65,
+   "mean_s": 1.48,
+   "decode_tok_s": 111.9,
+   "prefill_tok_s": 13112.6,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    34.1,
+    34.5,
+    38.2
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 1.0,
+    "read tool not called": 2.0,
+    "write tool not called": 11.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/local-9b.json",
+   "model": "local-9b",
+   "pack": "logistics",
+   "ollama_name": "qwen3.5:9b",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    10,
+    10,
+    9
+   ],
+   "mean": 9.67,
+   "min": 9,
+   "max": 10,
+   "sd": 0.58,
+   "case_runs_timed": 72,
+   "median_s": 1.81,
+   "p95_s": 5.28,
+   "mean_s": 2.25,
+   "decode_tok_s": 109.0,
+   "prefill_tok_s": 11593.5,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    53.3,
+    55.0,
+    54.0
+   ],
+   "tool_split_per_sample": {
+    "none called": 1.0,
+    "read tool not called": 3.67,
+    "write tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/local-9b.json",
+   "model": "local-9b",
+   "pack": "device_fleet",
+   "ollama_name": "qwen3.5:9b",
+   "status": "ok",
+   "samples": 3,
+   "scored": 28,
+   "passed": [
+    6,
+    7,
+    7
+   ],
+   "mean": 6.67,
+   "min": 6,
+   "max": 7,
+   "sd": 0.58,
+   "case_runs_timed": 84,
+   "median_s": 1.46,
+   "p95_s": 3.55,
+   "mean_s": 1.69,
+   "decode_tok_s": 109.1,
+   "prefill_tok_s": 11421.8,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    48.9,
+    46.6,
+    46.3
+   ],
+   "tool_split_per_sample": {
+    "none called": 13.0,
+    "read tool not called": 1.0,
+    "write tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/local-9b.json",
+   "model": "local-9b",
+   "pack": "_starter",
+   "ollama_name": "qwen3.5:9b",
+   "status": "ok",
+   "samples": 3,
+   "scored": 16,
+   "passed": [
+    7,
+    7,
+    7
+   ],
+   "mean": 7,
+   "min": 7,
+   "max": 7,
+   "sd": 0.0,
+   "case_runs_timed": 48,
+   "median_s": 0.84,
+   "p95_s": 1.83,
+   "mean_s": 0.92,
+   "decode_tok_s": 113.6,
+   "prefill_tok_s": 8353.2,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    15.3,
+    14.7,
+    14.1
+   ],
+   "tool_split_per_sample": {
+    "none called": 3.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "pack": "ecommerce",
+   "ollama_name": "claude-haiku-5-5",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    15,
+    15,
+    14
+   ],
+   "mean": 14.67,
+   "min": 14,
+   "max": 15,
+   "sd": 0.58,
+   "case_runs_timed": 72,
+   "median_s": 2.38,
+   "p95_s": 4.88,
+   "mean_s": 2.63,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.0231,
+   "usd_total": 0.0693,
+   "sample_seconds": [
+    63.9,
+    64.3,
+    61.5
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 2.0,
+    "write tool not called": 4.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "pack": "logistics",
+   "ollama_name": "claude-haiku-5-5",
+   "status": "ok",
+   "samples": 3,
+   "scored": 24,
+   "passed": [
+    6,
+    7,
+    8
+   ],
+   "mean": 7,
+   "min": 6,
+   "max": 8,
+   "sd": 1.0,
+   "case_runs_timed": 72,
+   "median_s": 2.6,
+   "p95_s": 5.98,
+   "mean_s": 2.99,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.0269,
+   "usd_total": 0.0806,
+   "sample_seconds": [
+    67.9,
+    71.3,
+    76.5
+   ],
+   "tool_split_per_sample": {
+    "none called": 1.0,
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "pack": "device_fleet",
+   "ollama_name": "claude-haiku-5-5",
+   "status": "ok",
+   "samples": 3,
+   "scored": 28,
+   "passed": [
+    10,
+    9,
+    11
+   ],
+   "mean": 10,
+   "min": 9,
+   "max": 11,
+   "sd": 1.0,
+   "case_runs_timed": 84,
+   "median_s": 3.16,
+   "p95_s": 5.49,
+   "mean_s": 3.37,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.048,
+   "usd_total": 0.144,
+   "sample_seconds": [
+    96.4,
+    90.7,
+    96.3
+   ],
+   "tool_split_per_sample": {
+    "none called": 2.33,
+    "read tool not called": 2.0,
+    "write tool not called": 3.33
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "pack": "_starter",
+   "ollama_name": "claude-haiku-5-5",
+   "status": "ok",
+   "samples": 3,
+   "scored": 16,
+   "passed": [
+    8,
+    9,
+    9
+   ],
+   "mean": 8.67,
+   "min": 8,
+   "max": 9,
+   "sd": 0.58,
+   "case_runs_timed": 48,
+   "median_s": 2.09,
+   "p95_s": 3.47,
+   "mean_s": 2.08,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.0071,
+   "usd_total": 0.0212,
+   "sample_seconds": [
+    34.0,
+    31.1,
+    34.9
+   ],
+   "tool_split_per_sample": {
+    "none called": 2.0,
+    "read tool not called": 1.33
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-4b.json",
+   "model": "local-4b",
+   "pack": "_starter",
+   "ollama_name": "qwen3.5:4b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 16,
+   "passed": [
+    6,
+    6
+   ],
+   "mean": 6,
+   "min": 6,
+   "max": 6,
+   "sd": 0.0,
+   "case_runs_timed": 32,
+   "median_s": 0.66,
+   "p95_s": 1.33,
+   "mean_s": 0.76,
+   "decode_tok_s": 163.1,
+   "prefill_tok_s": 12354.4,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    12.2,
+    12.1
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 1.0,
+    "none called": 2.0,
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-4b.json",
+   "model": "local-4b",
+   "pack": "device_fleet",
+   "ollama_name": "qwen3.5:4b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 28,
+   "passed": [
+    7,
+    5
+   ],
+   "mean": 6,
+   "min": 5,
+   "max": 7,
+   "sd": 1.41,
+   "case_runs_timed": 56,
+   "median_s": 1.28,
+   "p95_s": 2.37,
+   "mean_s": 1.43,
+   "decode_tok_s": 156.4,
+   "prefill_tok_s": 17966.4,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    37.0,
+    43.4
+   ],
+   "tool_split_per_sample": {
+    "none called": 8.5,
+    "read tool not called": 0.5,
+    "write tool not called": 3.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-4b.json",
+   "model": "local-4b",
+   "pack": "ecommerce",
+   "ollama_name": "qwen3.5:4b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 24,
+   "passed": [
+    5,
+    4
+   ],
+   "mean": 4.5,
+   "min": 4,
+   "max": 5,
+   "sd": 0.71,
+   "case_runs_timed": 48,
+   "median_s": 0.96,
+   "p95_s": 1.47,
+   "mean_s": 0.99,
+   "decode_tok_s": 158.1,
+   "prefill_tok_s": 18120.8,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    24.1,
+    23.6
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 1.0,
+    "read tool not called": 2.0,
+    "write tool not called": 9.5
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-4b.json",
+   "model": "local-4b",
+   "pack": "finance",
+   "ollama_name": "qwen3.5:4b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 25,
+   "passed": [
+    7,
+    7
+   ],
+   "mean": 7,
+   "min": 7,
+   "max": 7,
+   "sd": 0.0,
+   "case_runs_timed": 50,
+   "median_s": 0.94,
+   "p95_s": 1.39,
+   "mean_s": 0.95,
+   "decode_tok_s": 161.5,
+   "prefill_tok_s": 19548.8,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    24.5,
+    23.3
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 15.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-4b.json",
+   "model": "local-4b",
+   "pack": "gov_services",
+   "ollama_name": "qwen3.5:4b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 27,
+   "passed": [
+    11,
+    10
+   ],
+   "mean": 10.5,
+   "min": 10,
+   "max": 11,
+   "sd": 0.71,
+   "case_runs_timed": 54,
+   "median_s": 0.87,
+   "p95_s": 3.0,
+   "mean_s": 1.05,
+   "decode_tok_s": 157.7,
+   "prefill_tok_s": 16057.7,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    25.1,
+    31.8
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 3.5
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-4b.json",
+   "model": "local-4b",
+   "pack": "healthcare",
+   "ollama_name": "qwen3.5:4b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 25,
+   "passed": [
+    7,
+    7
+   ],
+   "mean": 7,
+   "min": 7,
+   "max": 7,
+   "sd": 0.0,
+   "case_runs_timed": 50,
+   "median_s": 0.61,
+   "p95_s": 1.13,
+   "mean_s": 0.68,
+   "decode_tok_s": 159.2,
+   "prefill_tok_s": 16860.0,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    17.0,
+    17.2
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 3.0,
+    "none called": 1.0,
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-4b.json",
+   "model": "local-4b",
+   "pack": "helpdesk_lite",
+   "ollama_name": "qwen3.5:4b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 21,
+   "passed": [
+    16,
+    16
+   ],
+   "mean": 16,
+   "min": 16,
+   "max": 16,
+   "sd": 0.0,
+   "case_runs_timed": 42,
+   "median_s": 0.66,
+   "p95_s": 0.94,
+   "mean_s": 0.68,
+   "decode_tok_s": 160.9,
+   "prefill_tok_s": 8789.5,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    14.3,
+    14.3
+   ],
+   "tool_split_per_sample": {},
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-4b.json",
+   "model": "local-4b",
+   "pack": "logistics",
+   "ollama_name": "qwen3.5:4b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 24,
+   "passed": [
+    2,
+    2
+   ],
+   "mean": 2,
+   "min": 2,
+   "max": 2,
+   "sd": 0.0,
+   "case_runs_timed": 48,
+   "median_s": 1.18,
+   "p95_s": 2.22,
+   "mean_s": 1.26,
+   "decode_tok_s": 158.2,
+   "prefill_tok_s": 16911.3,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    31.5,
+    29.3
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 1.0,
+    "read tool not called": 2.5,
+    "write tool not called": 3.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-4b.json",
+   "model": "local-4b",
+   "pack": "long_session",
+   "ollama_name": "qwen3.5:4b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 20,
+   "passed": [
+    9,
+    9
+   ],
+   "mean": 9,
+   "min": 9,
+   "max": 9,
+   "sd": 0.0,
+   "case_runs_timed": 40,
+   "median_s": 1.32,
+   "p95_s": 34.85,
+   "mean_s": 7.48,
+   "decode_tok_s": 153.1,
+   "prefill_tok_s": 11686.4,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    171.3,
+    128.2
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 2.5,
+    "extra or wrong tool": 0.5,
+    "none called": 1.0,
+    "read tool not called": 1.5
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-4b.json",
+   "model": "local-4b",
+   "pack": "sports",
+   "ollama_name": "qwen3.5:4b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 22,
+   "passed": [
+    12,
+    12
+   ],
+   "mean": 12,
+   "min": 12,
+   "max": 12,
+   "sd": 0.0,
+   "case_runs_timed": 44,
+   "median_s": 0.79,
+   "p95_s": 1.32,
+   "mean_s": 0.82,
+   "decode_tok_s": 158.6,
+   "prefill_tok_s": 16061.8,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    18.5,
+    17.8
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 1.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "pack": "_starter",
+   "ollama_name": "hw-approvals-4b:tr_2",
+   "status": "ok",
+   "samples": 2,
+   "scored": 16,
+   "passed": [
+    8,
+    8
+   ],
+   "mean": 8,
+   "min": 8,
+   "max": 8,
+   "sd": 0.0,
+   "case_runs_timed": 32,
+   "median_s": 0.65,
+   "p95_s": 1.51,
+   "mean_s": 0.78,
+   "decode_tok_s": 157.7,
+   "prefill_tok_s": 10917.9,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    12.5,
+    12.5
+   ],
+   "tool_split_per_sample": {
+    "none called": 3.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "pack": "device_fleet",
+   "ollama_name": "hw-approvals-4b:tr_2",
+   "status": "ok",
+   "samples": 2,
+   "scored": 28,
+   "passed": [
+    6,
+    6
+   ],
+   "mean": 6,
+   "min": 6,
+   "max": 6,
+   "sd": 0.0,
+   "case_runs_timed": 56,
+   "median_s": 1.12,
+   "p95_s": 2.06,
+   "mean_s": 1.28,
+   "decode_tok_s": 154.1,
+   "prefill_tok_s": 15903.5,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    36.2,
+    35.6
+   ],
+   "tool_split_per_sample": {
+    "none called": 11.5,
+    "write tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "pack": "ecommerce",
+   "ollama_name": "hw-approvals-4b:tr_2",
+   "status": "ok",
+   "samples": 2,
+   "scored": 24,
+   "passed": [
+    15,
+    15
+   ],
+   "mean": 15,
+   "min": 15,
+   "max": 15,
+   "sd": 0.0,
+   "case_runs_timed": 48,
+   "median_s": 1.03,
+   "p95_s": 1.9,
+   "mean_s": 1.22,
+   "decode_tok_s": 156.4,
+   "prefill_tok_s": 20056.0,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    29.0,
+    29.5
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "pack": "finance",
+   "ollama_name": "hw-approvals-4b:tr_2",
+   "status": "ok",
+   "samples": 2,
+   "scored": 25,
+   "passed": [
+    12,
+    12
+   ],
+   "mean": 12,
+   "min": 12,
+   "max": 12,
+   "sd": 0.0,
+   "case_runs_timed": 50,
+   "median_s": 0.71,
+   "p95_s": 1.33,
+   "mean_s": 0.82,
+   "decode_tok_s": 158.7,
+   "prefill_tok_s": 15320.0,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    21.1,
+    19.9
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 2.0,
+    "none called": 4.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "pack": "gov_services",
+   "ollama_name": "hw-approvals-4b:tr_2",
+   "status": "ok",
+   "samples": 2,
+   "scored": 27,
+   "passed": [
+    15,
+    15
+   ],
+   "mean": 15,
+   "min": 15,
+   "max": 15,
+   "sd": 0.0,
+   "case_runs_timed": 54,
+   "median_s": 0.82,
+   "p95_s": 1.8,
+   "mean_s": 0.89,
+   "decode_tok_s": 155.9,
+   "prefill_tok_s": 14806.4,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    24.9,
+    23.4
+   ],
+   "tool_split_per_sample": {
+    "none called": 1.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "pack": "healthcare",
+   "ollama_name": "hw-approvals-4b:tr_2",
+   "status": "ok",
+   "samples": 2,
+   "scored": 25,
+   "passed": [
+    9,
+    9
+   ],
+   "mean": 9,
+   "min": 9,
+   "max": 9,
+   "sd": 0.0,
+   "case_runs_timed": 50,
+   "median_s": 0.57,
+   "p95_s": 1.22,
+   "mean_s": 0.63,
+   "decode_tok_s": 157.0,
+   "prefill_tok_s": 14607.8,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    15.9,
+    15.6
+   ],
+   "tool_split_per_sample": {
+    "none called": 6.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "pack": "helpdesk_lite",
+   "ollama_name": "hw-approvals-4b:tr_2",
+   "status": "ok",
+   "samples": 2,
+   "scored": 21,
+   "passed": [
+    15,
+    15
+   ],
+   "mean": 15,
+   "min": 15,
+   "max": 15,
+   "sd": 0.0,
+   "case_runs_timed": 42,
+   "median_s": 0.72,
+   "p95_s": 1.18,
+   "mean_s": 0.77,
+   "decode_tok_s": 159.1,
+   "prefill_tok_s": 8414.9,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    16.2,
+    16.1
+   ],
+   "tool_split_per_sample": {
+    "none called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "pack": "logistics",
+   "ollama_name": "hw-approvals-4b:tr_2",
+   "status": "ok",
+   "samples": 2,
+   "scored": 24,
+   "passed": [
+    8,
+    7
+   ],
+   "mean": 7.5,
+   "min": 7,
+   "max": 8,
+   "sd": 0.71,
+   "case_runs_timed": 48,
+   "median_s": 1.46,
+   "p95_s": 2.64,
+   "mean_s": 1.38,
+   "decode_tok_s": 158.1,
+   "prefill_tok_s": 18502.8,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    34.4,
+    32.1
+   ],
+   "tool_split_per_sample": {
+    "none called": 1.0,
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "pack": "long_session",
+   "ollama_name": "hw-approvals-4b:tr_2",
+   "status": "ok",
+   "samples": 2,
+   "scored": 20,
+   "passed": [
+    11,
+    11
+   ],
+   "mean": 11,
+   "min": 11,
+   "max": 11,
+   "sd": 0.0,
+   "case_runs_timed": 40,
+   "median_s": 1.33,
+   "p95_s": 28.13,
+   "mean_s": 6.27,
+   "decode_tok_s": 152.3,
+   "prefill_tok_s": 12213.3,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    114.6,
+    136.3
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 0.5,
+    "none called": 4.0,
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "pack": "sports",
+   "ollama_name": "hw-approvals-4b:tr_2",
+   "status": "ok",
+   "samples": 2,
+   "scored": 22,
+   "passed": [
+    13,
+    13
+   ],
+   "mean": 13,
+   "min": 13,
+   "max": 13,
+   "sd": 0.0,
+   "case_runs_timed": 44,
+   "median_s": 0.83,
+   "p95_s": 1.32,
+   "mean_s": 0.87,
+   "decode_tok_s": 157.7,
+   "prefill_tok_s": 16034.2,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    19.7,
+    18.6
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "pack": "_starter",
+   "ollama_name": "hw-approvals-v2-4b:tr_5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 16,
+   "passed": [
+    8,
+    7
+   ],
+   "mean": 7.5,
+   "min": 7,
+   "max": 8,
+   "sd": 0.71,
+   "case_runs_timed": 32,
+   "median_s": 0.75,
+   "p95_s": 1.76,
+   "mean_s": 0.95,
+   "decode_tok_s": 157.8,
+   "prefill_tok_s": 12108.2,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    14.3,
+    16.1
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 1.0,
+    "none called": 3.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "pack": "device_fleet",
+   "ollama_name": "hw-approvals-v2-4b:tr_5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 28,
+   "passed": [
+    6,
+    6
+   ],
+   "mean": 6,
+   "min": 6,
+   "max": 6,
+   "sd": 0.0,
+   "case_runs_timed": 56,
+   "median_s": 1.22,
+   "p95_s": 3.17,
+   "mean_s": 1.5,
+   "decode_tok_s": 143.9,
+   "prefill_tok_s": 16898.9,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    40.7,
+    43.3
+   ],
+   "tool_split_per_sample": {
+    "extra or wrong tool": 0.5,
+    "none called": 11.5,
+    "read tool not called": 1.0,
+    "write tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "pack": "ecommerce",
+   "ollama_name": "hw-approvals-v2-4b:tr_5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 24,
+   "passed": [
+    13,
+    13
+   ],
+   "mean": 13,
+   "min": 13,
+   "max": 13,
+   "sd": 0.0,
+   "case_runs_timed": 48,
+   "median_s": 1.08,
+   "p95_s": 1.97,
+   "mean_s": 1.18,
+   "decode_tok_s": 156.8,
+   "prefill_tok_s": 20730.6,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    29.1,
+    27.8
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "pack": "finance",
+   "ollama_name": "hw-approvals-v2-4b:tr_5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 25,
+   "passed": [
+    11,
+    11
+   ],
+   "mean": 11,
+   "min": 11,
+   "max": 11,
+   "sd": 0.0,
+   "case_runs_timed": 50,
+   "median_s": 0.72,
+   "p95_s": 1.18,
+   "mean_s": 0.77,
+   "decode_tok_s": 160.6,
+   "prefill_tok_s": 14598.0,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    19.6,
+    19.1
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 2.0,
+    "none called": 4.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "pack": "gov_services",
+   "ollama_name": "hw-approvals-v2-4b:tr_5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 27,
+   "passed": [
+    15,
+    15
+   ],
+   "mean": 15,
+   "min": 15,
+   "max": 15,
+   "sd": 0.0,
+   "case_runs_timed": 54,
+   "median_s": 0.91,
+   "p95_s": 2.01,
+   "mean_s": 0.92,
+   "decode_tok_s": 158.0,
+   "prefill_tok_s": 15072.8,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    25.3,
+    24.6
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 1.0,
+    "none called": 2.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "pack": "healthcare",
+   "ollama_name": "hw-approvals-v2-4b:tr_5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 25,
+   "passed": [
+    11,
+    11
+   ],
+   "mean": 11,
+   "min": 11,
+   "max": 11,
+   "sd": 0.0,
+   "case_runs_timed": 50,
+   "median_s": 0.61,
+   "p95_s": 1.2,
+   "mean_s": 0.68,
+   "decode_tok_s": 157.6,
+   "prefill_tok_s": 14761.5,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    16.9,
+    17.0
+   ],
+   "tool_split_per_sample": {
+    "none called": 6.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "pack": "helpdesk_lite",
+   "ollama_name": "hw-approvals-v2-4b:tr_5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 21,
+   "passed": [
+    16,
+    16
+   ],
+   "mean": 16,
+   "min": 16,
+   "max": 16,
+   "sd": 0.0,
+   "case_runs_timed": 42,
+   "median_s": 0.67,
+   "p95_s": 1.09,
+   "mean_s": 0.73,
+   "decode_tok_s": 160.1,
+   "prefill_tok_s": 8526.0,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    15.9,
+    15.0
+   ],
+   "tool_split_per_sample": {
+    "none called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "pack": "logistics",
+   "ollama_name": "hw-approvals-v2-4b:tr_5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 24,
+   "passed": [
+    6,
+    6
+   ],
+   "mean": 6,
+   "min": 6,
+   "max": 6,
+   "sd": 0.0,
+   "case_runs_timed": 48,
+   "median_s": 1.35,
+   "p95_s": 3.27,
+   "mean_s": 1.55,
+   "decode_tok_s": 158.2,
+   "prefill_tok_s": 19506.0,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    38.3,
+    36.0
+   ],
+   "tool_split_per_sample": {
+    "none called": 1.0,
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "pack": "long_session",
+   "ollama_name": "hw-approvals-v2-4b:tr_5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 20,
+   "passed": [
+    11,
+    12
+   ],
+   "mean": 11.5,
+   "min": 11,
+   "max": 12,
+   "sd": 0.71,
+   "case_runs_timed": 40,
+   "median_s": 1.29,
+   "p95_s": 28.78,
+   "mean_s": 7.03,
+   "decode_tok_s": 155.6,
+   "prefill_tok_s": 15922.7,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    138.0,
+    143.4
+   ],
+   "tool_split_per_sample": {
+    "extra or wrong tool": 3.0,
+    "none called": 3.5,
+    "read tool not called": 0.5
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "pack": "sports",
+   "ollama_name": "hw-approvals-v2-4b:tr_5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 22,
+   "passed": [
+    13,
+    13
+   ],
+   "mean": 13,
+   "min": 13,
+   "max": 13,
+   "sd": 0.0,
+   "case_runs_timed": 44,
+   "median_s": 0.87,
+   "p95_s": 1.4,
+   "mean_s": 0.9,
+   "decode_tok_s": 159.1,
+   "prefill_tok_s": 16637.5,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    20.0,
+    19.7
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "pack": "_starter",
+   "ollama_name": "hw-approvals-v2l-4b:tr_7",
+   "status": "ok",
+   "samples": 2,
+   "scored": 16,
+   "passed": [
+    9,
+    9
+   ],
+   "mean": 9,
+   "min": 9,
+   "max": 9,
+   "sd": 0.0,
+   "case_runs_timed": 32,
+   "median_s": 0.63,
+   "p95_s": 1.7,
+   "mean_s": 0.77,
+   "decode_tok_s": 158.9,
+   "prefill_tok_s": 11555.7,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    12.5,
+    12.2
+   ],
+   "tool_split_per_sample": {
+    "none called": 3.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "pack": "device_fleet",
+   "ollama_name": "hw-approvals-v2l-4b:tr_7",
+   "status": "ok",
+   "samples": 2,
+   "scored": 28,
+   "passed": [
+    10,
+    9
+   ],
+   "mean": 9.5,
+   "min": 9,
+   "max": 10,
+   "sd": 0.71,
+   "case_runs_timed": 56,
+   "median_s": 1.2,
+   "p95_s": 2.6,
+   "mean_s": 1.39,
+   "decode_tok_s": 155.5,
+   "prefill_tok_s": 18651.8,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    39.8,
+    38.1
+   ],
+   "tool_split_per_sample": {
+    "none called": 4.0,
+    "read tool not called": 3.0,
+    "write tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "pack": "ecommerce",
+   "ollama_name": "hw-approvals-v2l-4b:tr_7",
+   "status": "ok",
+   "samples": 2,
+   "scored": 24,
+   "passed": [
+    14,
+    14
+   ],
+   "mean": 14,
+   "min": 14,
+   "max": 14,
+   "sd": 0.0,
+   "case_runs_timed": 48,
+   "median_s": 1.12,
+   "p95_s": 2.01,
+   "mean_s": 1.25,
+   "decode_tok_s": 157.7,
+   "prefill_tok_s": 20773.1,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    29.4,
+    30.7
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 2.0,
+    "write tool not called": 0.5
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "pack": "finance",
+   "ollama_name": "hw-approvals-v2l-4b:tr_7",
+   "status": "ok",
+   "samples": 2,
+   "scored": 25,
+   "passed": [
+    12,
+    12
+   ],
+   "mean": 12,
+   "min": 12,
+   "max": 12,
+   "sd": 0.0,
+   "case_runs_timed": 50,
+   "median_s": 0.72,
+   "p95_s": 1.26,
+   "mean_s": 0.81,
+   "decode_tok_s": 160.2,
+   "prefill_tok_s": 15028.6,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    20.8,
+    20.1
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 1.0,
+    "none called": 4.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "pack": "gov_services",
+   "ollama_name": "hw-approvals-v2l-4b:tr_7",
+   "status": "ok",
+   "samples": 2,
+   "scored": 27,
+   "passed": [
+    16,
+    16
+   ],
+   "mean": 16,
+   "min": 16,
+   "max": 16,
+   "sd": 0.0,
+   "case_runs_timed": 54,
+   "median_s": 0.92,
+   "p95_s": 2.28,
+   "mean_s": 1.0,
+   "decode_tok_s": 157.6,
+   "prefill_tok_s": 15871.9,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    27.7,
+    26.3
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 1.0,
+    "none called": 1.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "pack": "healthcare",
+   "ollama_name": "hw-approvals-v2l-4b:tr_7",
+   "status": "ok",
+   "samples": 2,
+   "scored": 25,
+   "passed": [
+    9,
+    9
+   ],
+   "mean": 9,
+   "min": 9,
+   "max": 9,
+   "sd": 0.0,
+   "case_runs_timed": 50,
+   "median_s": 0.67,
+   "p95_s": 1.02,
+   "mean_s": 0.67,
+   "decode_tok_s": 157.9,
+   "prefill_tok_s": 15107.9,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    17.2,
+    16.3
+   ],
+   "tool_split_per_sample": {
+    "none called": 5.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "pack": "helpdesk_lite",
+   "ollama_name": "hw-approvals-v2l-4b:tr_7",
+   "status": "ok",
+   "samples": 2,
+   "scored": 21,
+   "passed": [
+    15,
+    15
+   ],
+   "mean": 15,
+   "min": 15,
+   "max": 15,
+   "sd": 0.0,
+   "case_runs_timed": 42,
+   "median_s": 0.73,
+   "p95_s": 1.14,
+   "mean_s": 0.73,
+   "decode_tok_s": 160.6,
+   "prefill_tok_s": 8549.7,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    15.5,
+    15.5
+   ],
+   "tool_split_per_sample": {
+    "none called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "pack": "logistics",
+   "ollama_name": "hw-approvals-v2l-4b:tr_7",
+   "status": "ok",
+   "samples": 2,
+   "scored": 24,
+   "passed": [
+    5,
+    8
+   ],
+   "mean": 6.5,
+   "min": 5,
+   "max": 8,
+   "sd": 2.12,
+   "case_runs_timed": 48,
+   "median_s": 1.33,
+   "p95_s": 2.65,
+   "mean_s": 1.47,
+   "decode_tok_s": 158.2,
+   "prefill_tok_s": 18788.8,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    35.8,
+    34.8
+   ],
+   "tool_split_per_sample": {
+    "none called": 1.0,
+    "read tool not called": 3.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "pack": "long_session",
+   "ollama_name": "hw-approvals-v2l-4b:tr_7",
+   "status": "ok",
+   "samples": 2,
+   "scored": 20,
+   "passed": [
+    9,
+    9
+   ],
+   "mean": 9,
+   "min": 9,
+   "max": 9,
+   "sd": 0.0,
+   "case_runs_timed": 40,
+   "median_s": 1.28,
+   "p95_s": 37.92,
+   "mean_s": 7.77,
+   "decode_tok_s": 155.4,
+   "prefill_tok_s": 14748.7,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    157.2,
+    153.7
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 2.0,
+    "extra or wrong tool": 1.5,
+    "none called": 4.0,
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "pack": "sports",
+   "ollama_name": "hw-approvals-v2l-4b:tr_7",
+   "status": "ok",
+   "samples": 2,
+   "scored": 22,
+   "passed": [
+    16,
+    16
+   ],
+   "mean": 16,
+   "min": 16,
+   "max": 16,
+   "sd": 0.0,
+   "case_runs_timed": 44,
+   "median_s": 0.84,
+   "p95_s": 1.45,
+   "mean_s": 0.92,
+   "decode_tok_s": 158.6,
+   "prefill_tok_s": 17030.2,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    20.8,
+    19.6
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-9b.json",
+   "model": "local-9b",
+   "pack": "_starter",
+   "ollama_name": "qwen3.5:9b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 16,
+   "passed": [
+    7,
+    7
+   ],
+   "mean": 7,
+   "min": 7,
+   "max": 7,
+   "sd": 0.0,
+   "case_runs_timed": 32,
+   "median_s": 0.88,
+   "p95_s": 1.82,
+   "mean_s": 0.92,
+   "decode_tok_s": 113.6,
+   "prefill_tok_s": 8099.9,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    15.1,
+    14.4
+   ],
+   "tool_split_per_sample": {
+    "none called": 3.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-9b.json",
+   "model": "local-9b",
+   "pack": "device_fleet",
+   "ollama_name": "qwen3.5:9b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 28,
+   "passed": [
+    5,
+    5
+   ],
+   "mean": 5,
+   "min": 5,
+   "max": 5,
+   "sd": 0.0,
+   "case_runs_timed": 56,
+   "median_s": 1.38,
+   "p95_s": 2.85,
+   "mean_s": 1.65,
+   "decode_tok_s": 110.5,
+   "prefill_tok_s": 11006.4,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    47.3,
+    45.1
+   ],
+   "tool_split_per_sample": {
+    "none called": 13.0,
+    "read tool not called": 1.0,
+    "write tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-9b.json",
+   "model": "local-9b",
+   "pack": "ecommerce",
+   "ollama_name": "qwen3.5:9b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 24,
+   "passed": [
+    7,
+    7
+   ],
+   "mean": 7,
+   "min": 7,
+   "max": 7,
+   "sd": 0.0,
+   "case_runs_timed": 48,
+   "median_s": 1.37,
+   "p95_s": 2.77,
+   "mean_s": 1.52,
+   "decode_tok_s": 112.0,
+   "prefill_tok_s": 13015.9,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    36.5,
+    36.6
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 0.5,
+    "read tool not called": 2.0,
+    "write tool not called": 11.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-9b.json",
+   "model": "local-9b",
+   "pack": "finance",
+   "ollama_name": "qwen3.5:9b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 25,
+   "passed": [
+    14,
+    14
+   ],
+   "mean": 14,
+   "min": 14,
+   "max": 14,
+   "sd": 0.0,
+   "case_runs_timed": 50,
+   "median_s": 0.84,
+   "p95_s": 1.54,
+   "mean_s": 0.9,
+   "decode_tok_s": 114.3,
+   "prefill_tok_s": 9991.8,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    22.7,
+    22.5
+   ],
+   "tool_split_per_sample": {
+    "none called": 4.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-9b.json",
+   "model": "local-9b",
+   "pack": "gov_services",
+   "ollama_name": "qwen3.5:9b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 27,
+   "passed": [
+    14,
+    15
+   ],
+   "mean": 14.5,
+   "min": 14,
+   "max": 15,
+   "sd": 0.71,
+   "case_runs_timed": 54,
+   "median_s": 0.92,
+   "p95_s": 1.95,
+   "mean_s": 1.07,
+   "decode_tok_s": 112.0,
+   "prefill_tok_s": 10371.1,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    29.1,
+    28.5
+   ],
+   "tool_split_per_sample": {
+    "none called": 3.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-9b.json",
+   "model": "local-9b",
+   "pack": "healthcare",
+   "ollama_name": "qwen3.5:9b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 25,
+   "passed": [
+    7,
+    8
+   ],
+   "mean": 7.5,
+   "min": 7,
+   "max": 8,
+   "sd": 0.71,
+   "case_runs_timed": 50,
+   "median_s": 0.72,
+   "p95_s": 1.25,
+   "mean_s": 0.8,
+   "decode_tok_s": 113.1,
+   "prefill_tok_s": 10829.9,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    20.7,
+    19.5
+   ],
+   "tool_split_per_sample": {
+    "none called": 6.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-9b.json",
+   "model": "local-9b",
+   "pack": "helpdesk_lite",
+   "ollama_name": "qwen3.5:9b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 21,
+   "passed": [
+    17,
+    17
+   ],
+   "mean": 17,
+   "min": 17,
+   "max": 17,
+   "sd": 0.0,
+   "case_runs_timed": 42,
+   "median_s": 0.94,
+   "p95_s": 1.5,
+   "mean_s": 0.99,
+   "decode_tok_s": 114.9,
+   "prefill_tok_s": 6369.9,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    20.7,
+    20.8
+   ],
+   "tool_split_per_sample": {
+    "none called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-9b.json",
+   "model": "local-9b",
+   "pack": "logistics",
+   "ollama_name": "qwen3.5:9b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 24,
+   "passed": [
+    9,
+    7
+   ],
+   "mean": 8,
+   "min": 7,
+   "max": 9,
+   "sd": 1.41,
+   "case_runs_timed": 48,
+   "median_s": 1.76,
+   "p95_s": 5.01,
+   "mean_s": 2.2,
+   "decode_tok_s": 111.7,
+   "prefill_tok_s": 12286.2,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    51.5,
+    54.0
+   ],
+   "tool_split_per_sample": {
+    "none called": 1.0,
+    "read tool not called": 4.0,
+    "write tool not called": 0.5
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-9b.json",
+   "model": "local-9b",
+   "pack": "long_session",
+   "ollama_name": "qwen3.5:9b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 20,
+   "passed": [
+    11,
+    10
+   ],
+   "mean": 10.5,
+   "min": 10,
+   "max": 11,
+   "sd": 0.71,
+   "case_runs_timed": 40,
+   "median_s": 1.77,
+   "p95_s": 38.33,
+   "mean_s": 8.54,
+   "decode_tok_s": 110.3,
+   "prefill_tok_s": 8018.6,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    179.5,
+    162.1
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 2.5,
+    "extra or wrong tool": 1.0,
+    "none called": 3.0,
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-9b.json",
+   "model": "local-9b",
+   "pack": "sports",
+   "ollama_name": "qwen3.5:9b",
+   "status": "ok",
+   "samples": 2,
+   "scored": 22,
+   "passed": [
+    12,
+    12
+   ],
+   "mean": 12,
+   "min": 12,
+   "max": 12,
+   "sd": 0.0,
+   "case_runs_timed": 44,
+   "median_s": 1.05,
+   "p95_s": 1.64,
+   "mean_s": 1.02,
+   "decode_tok_s": 113.8,
+   "prefill_tok_s": 11961.9,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "sample_seconds": [
+    23.1,
+    22.0
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "pack": "_starter",
+   "ollama_name": "claude-haiku-5-5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 16,
+   "passed": [
+    10,
+    9
+   ],
+   "mean": 9.5,
+   "min": 9,
+   "max": 10,
+   "sd": 0.71,
+   "case_runs_timed": 32,
+   "median_s": 1.88,
+   "p95_s": 4.13,
+   "mean_s": 2.15,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.0073,
+   "usd_total": 0.0146,
+   "sample_seconds": [
+    35.7,
+    33.2
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 0.5,
+    "none called": 2.0,
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "pack": "device_fleet",
+   "ollama_name": "claude-haiku-5-5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 28,
+   "passed": [
+    11,
+    13
+   ],
+   "mean": 12,
+   "min": 11,
+   "max": 13,
+   "sd": 1.41,
+   "case_runs_timed": 56,
+   "median_s": 3.39,
+   "p95_s": 5.45,
+   "mean_s": 3.33,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.0496,
+   "usd_total": 0.0993,
+   "sample_seconds": [
+    92.8,
+    94.0
+   ],
+   "tool_split_per_sample": {
+    "none called": 1.5,
+    "read tool not called": 3.5,
+    "write tool not called": 2.5
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "pack": "ecommerce",
+   "ollama_name": "claude-haiku-5-5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 24,
+   "passed": [
+    15,
+    14
+   ],
+   "mean": 14.5,
+   "min": 14,
+   "max": 15,
+   "sd": 0.71,
+   "case_runs_timed": 48,
+   "median_s": 2.64,
+   "p95_s": 4.5,
+   "mean_s": 2.65,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.0229,
+   "usd_total": 0.0458,
+   "sample_seconds": [
+    59.5,
+    67.6
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 2.0,
+    "write tool not called": 4.5
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "pack": "finance",
+   "ollama_name": "claude-haiku-5-5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 25,
+   "passed": [
+    17,
+    17
+   ],
+   "mean": 17,
+   "min": 17,
+   "max": 17,
+   "sd": 0.0,
+   "case_runs_timed": 50,
+   "median_s": 1.28,
+   "p95_s": 4.12,
+   "mean_s": 1.8,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.0179,
+   "usd_total": 0.0358,
+   "sample_seconds": [
+    45.5,
+    44.4
+   ],
+   "tool_split_per_sample": {
+    "called when none expected": 1.5,
+    "none called": 1.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "pack": "gov_services",
+   "ollama_name": "claude-haiku-5-5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 27,
+   "passed": [
+    15,
+    16
+   ],
+   "mean": 15.5,
+   "min": 15,
+   "max": 16,
+   "sd": 0.71,
+   "case_runs_timed": 54,
+   "median_s": 1.51,
+   "p95_s": 4.43,
+   "mean_s": 1.88,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.017,
+   "usd_total": 0.034,
+   "sample_seconds": [
+    52.2,
+    49.3
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 0.5
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "pack": "healthcare",
+   "ollama_name": "claude-haiku-5-5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 25,
+   "passed": [
+    10,
+    10
+   ],
+   "mean": 10,
+   "min": 10,
+   "max": 10,
+   "sd": 0.0,
+   "case_runs_timed": 50,
+   "median_s": 1.19,
+   "p95_s": 2.18,
+   "mean_s": 1.38,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.0107,
+   "usd_total": 0.0215,
+   "sample_seconds": [
+    35.4,
+    33.7
+   ],
+   "tool_split_per_sample": {
+    "none called": 6.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "pack": "helpdesk_lite",
+   "ollama_name": "claude-haiku-5-5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 21,
+   "passed": [
+    19,
+    19
+   ],
+   "mean": 19,
+   "min": 19,
+   "max": 19,
+   "sd": 0.0,
+   "case_runs_timed": 42,
+   "median_s": 2.01,
+   "p95_s": 2.99,
+   "mean_s": 2.19,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.0083,
+   "usd_total": 0.0166,
+   "sample_seconds": [
+    45.6,
+    46.7
+   ],
+   "tool_split_per_sample": {
+    "none called": 0.5
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "pack": "logistics",
+   "ollama_name": "claude-haiku-5-5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 24,
+   "passed": [
+    7,
+    7
+   ],
+   "mean": 7,
+   "min": 7,
+   "max": 7,
+   "sd": 0.0,
+   "case_runs_timed": 48,
+   "median_s": 2.6,
+   "p95_s": 5.6,
+   "mean_s": 3.03,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.0273,
+   "usd_total": 0.0546,
+   "sample_seconds": [
+    76.2,
+    69.4
+   ],
+   "tool_split_per_sample": {
+    "none called": 1.0,
+    "read tool not called": 2.0
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "pack": "long_session",
+   "ollama_name": "claude-haiku-5-5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 20,
+   "passed": [
+    13,
+    14
+   ],
+   "mean": 13.5,
+   "min": 13,
+   "max": 14,
+   "sd": 0.71,
+   "case_runs_timed": 40,
+   "median_s": 2.35,
+   "p95_s": 38.04,
+   "mean_s": 8.05,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.0466,
+   "usd_total": 0.0933,
+   "sample_seconds": [
+    169.4,
+    152.6
+   ],
+   "tool_split_per_sample": {
+    "extra or wrong tool": 0.5,
+    "none called": 3.0,
+    "read tool not called": 1.5
+   },
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "pack": "sports",
+   "ollama_name": "claude-haiku-5-5",
+   "status": "ok",
+   "samples": 2,
+   "scored": 22,
+   "passed": [
+    15,
+    15
+   ],
+   "mean": 15,
+   "min": 15,
+   "max": 15,
+   "sd": 0.0,
+   "case_runs_timed": 44,
+   "median_s": 2.05,
+   "p95_s": 2.78,
+   "mean_s": 1.99,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.0141,
+   "usd_total": 0.0283,
+   "sample_seconds": [
+    43.9,
+    43.8
+   ],
+   "tool_split_per_sample": {
+    "read tool not called": 1.0
+   },
+   "error_case_runs": 0
+  }
+ ],
+ "models": [
+  {
+   "source": "compare/local-4b.json",
+   "model": "local-4b",
+   "packs": [
+    "ecommerce",
+    "logistics",
+    "device_fleet",
+    "_starter"
+   ],
+   "samples": 3,
+   "scored": 92,
+   "passed": [
+    19,
+    20,
+    21
+   ],
+   "mean": 20,
+   "min": 19,
+   "max": 21,
+   "sd": 1.0,
+   "case_runs_timed": 276,
+   "median_s": 1.24,
+   "p95_s": 2.07,
+   "mean_s": 1.25,
+   "decode_tok_s": 158.3,
+   "prefill_tok_s": 12708.8,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "packs": [
+    "ecommerce",
+    "logistics",
+    "device_fleet",
+    "_starter"
+   ],
+   "samples": 3,
+   "scored": 92,
+   "passed": [
+    38,
+    38,
+    38
+   ],
+   "mean": 38,
+   "min": 38,
+   "max": 38,
+   "sd": 0.0,
+   "case_runs_timed": 276,
+   "median_s": 1.36,
+   "p95_s": 2.46,
+   "mean_s": 1.31,
+   "decode_tok_s": 156.4,
+   "prefill_tok_s": 12754.6,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-4b-r1.json",
+   "model": "tuned-approvals-4b-r1",
+   "packs": [
+    "ecommerce",
+    "logistics",
+    "device_fleet",
+    "_starter"
+   ],
+   "samples": 3,
+   "scored": 92,
+   "passed": [
+    30,
+    31,
+    30
+   ],
+   "mean": 30.33,
+   "min": 30,
+   "max": 31,
+   "sd": 0.58,
+   "case_runs_timed": 276,
+   "median_s": 1.36,
+   "p95_s": 2.69,
+   "mean_s": 1.39,
+   "decode_tok_s": 155.7,
+   "prefill_tok_s": 13199.5,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-4b-r2.json",
+   "model": "tuned-approvals-4b-r2",
+   "packs": [
+    "ecommerce",
+    "logistics",
+    "device_fleet",
+    "_starter"
+   ],
+   "samples": 3,
+   "scored": 92,
+   "passed": [
+    33,
+    33,
+    33
+   ],
+   "mean": 33,
+   "min": 33,
+   "max": 33,
+   "sd": 0.0,
+   "case_runs_timed": 276,
+   "median_s": 1.35,
+   "p95_s": 2.7,
+   "mean_s": 1.4,
+   "decode_tok_s": 155.1,
+   "prefill_tok_s": 13485.8,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "packs": [
+    "ecommerce",
+    "logistics",
+    "device_fleet",
+    "_starter"
+   ],
+   "samples": 3,
+   "scored": 92,
+   "passed": [
+    33,
+    33,
+    34
+   ],
+   "mean": 33.33,
+   "min": 33,
+   "max": 34,
+   "sd": 0.58,
+   "case_runs_timed": 276,
+   "median_s": 1.2,
+   "p95_s": 2.53,
+   "mean_s": 1.38,
+   "decode_tok_s": 155.7,
+   "prefill_tok_s": 18490.2,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "packs": [
+    "ecommerce",
+    "logistics",
+    "device_fleet",
+    "_starter"
+   ],
+   "samples": 3,
+   "scored": 92,
+   "passed": [
+    35,
+    36,
+    36
+   ],
+   "mean": 35.67,
+   "min": 35,
+   "max": 36,
+   "sd": 0.58,
+   "case_runs_timed": 276,
+   "median_s": 1.18,
+   "p95_s": 2.37,
+   "mean_s": 1.26,
+   "decode_tok_s": 157.0,
+   "prefill_tok_s": 19047.6,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/local-9b.json",
+   "model": "local-9b",
+   "packs": [
+    "ecommerce",
+    "logistics",
+    "device_fleet",
+    "_starter"
+   ],
+   "samples": 3,
+   "scored": 92,
+   "passed": [
+    30,
+    31,
+    30
+   ],
+   "mean": 30.33,
+   "min": 30,
+   "max": 31,
+   "sd": 0.58,
+   "case_runs_timed": 276,
+   "median_s": 1.33,
+   "p95_s": 3.76,
+   "mean_s": 1.65,
+   "decode_tok_s": 110.2,
+   "prefill_tok_s": 11536.0,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "error_case_runs": 0
+  },
+  {
+   "source": "compare/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "packs": [
+    "ecommerce",
+    "logistics",
+    "device_fleet",
+    "_starter"
+   ],
+   "samples": 3,
+   "scored": 92,
+   "passed": [
+    39,
+    40,
+    42
+   ],
+   "mean": 40.33,
+   "min": 39,
+   "max": 42,
+   "sd": 1.53,
+   "case_runs_timed": 276,
+   "median_s": 2.65,
+   "p95_s": 5.24,
+   "mean_s": 2.86,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.1051,
+   "usd_total": 0.3152,
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-4b.json",
+   "model": "local-4b",
+   "packs": [
+    "_starter",
+    "device_fleet",
+    "ecommerce",
+    "finance",
+    "gov_services",
+    "healthcare",
+    "helpdesk_lite",
+    "logistics",
+    "long_session",
+    "sports"
+   ],
+   "samples": 2,
+   "scored": 232,
+   "passed": [
+    82,
+    78
+   ],
+   "mean": 80,
+   "min": 78,
+   "max": 82,
+   "sd": 2.83,
+   "case_runs_timed": 464,
+   "median_s": 0.91,
+   "p95_s": 2.1,
+   "mean_s": 1.54,
+   "decode_tok_s": 156.0,
+   "prefill_tok_s": 14923.0,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-4b.json",
+   "model": "tuned-approvals-4b",
+   "packs": [
+    "_starter",
+    "device_fleet",
+    "ecommerce",
+    "finance",
+    "gov_services",
+    "healthcare",
+    "helpdesk_lite",
+    "logistics",
+    "long_session",
+    "sports"
+   ],
+   "samples": 2,
+   "scored": 232,
+   "passed": [
+    112,
+    111
+   ],
+   "mean": 111.5,
+   "min": 111,
+   "max": 112,
+   "sd": 0.71,
+   "case_runs_timed": 464,
+   "median_s": 0.88,
+   "p95_s": 2.21,
+   "mean_s": 1.43,
+   "decode_tok_s": 155.0,
+   "prefill_tok_s": 14383.5,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2-4b.json",
+   "model": "tuned-approvals-v2-4b",
+   "packs": [
+    "_starter",
+    "device_fleet",
+    "ecommerce",
+    "finance",
+    "gov_services",
+    "healthcare",
+    "helpdesk_lite",
+    "logistics",
+    "long_session",
+    "sports"
+   ],
+   "samples": 2,
+   "scored": 232,
+   "passed": [
+    110,
+    110
+   ],
+   "mean": 110,
+   "min": 110,
+   "max": 110,
+   "sd": 0.0,
+   "case_runs_timed": 464,
+   "median_s": 0.93,
+   "p95_s": 2.21,
+   "mean_s": 1.55,
+   "decode_tok_s": 155.6,
+   "prefill_tok_s": 16042.3,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/tuned-approvals-v2l-4b.json",
+   "model": "tuned-approvals-v2l-4b",
+   "packs": [
+    "_starter",
+    "device_fleet",
+    "ecommerce",
+    "finance",
+    "gov_services",
+    "healthcare",
+    "helpdesk_lite",
+    "logistics",
+    "long_session",
+    "sports"
+   ],
+   "samples": 2,
+   "scored": 232,
+   "passed": [
+    115,
+    117
+   ],
+   "mean": 116,
+   "min": 115,
+   "max": 117,
+   "sd": 1.41,
+   "case_runs_timed": 464,
+   "median_s": 0.94,
+   "p95_s": 2.26,
+   "mean_s": 1.6,
+   "decode_tok_s": 156.8,
+   "prefill_tok_s": 15892.7,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/local-9b.json",
+   "model": "local-9b",
+   "packs": [
+    "_starter",
+    "device_fleet",
+    "ecommerce",
+    "finance",
+    "gov_services",
+    "healthcare",
+    "helpdesk_lite",
+    "logistics",
+    "long_session",
+    "sports"
+   ],
+   "samples": 2,
+   "scored": 232,
+   "passed": [
+    103,
+    102
+   ],
+   "mean": 102.5,
+   "min": 102,
+   "max": 103,
+   "sd": 0.71,
+   "case_runs_timed": 464,
+   "median_s": 1.09,
+   "p95_s": 3.48,
+   "mean_s": 1.88,
+   "decode_tok_s": 111.5,
+   "prefill_tok_s": 9911.5,
+   "usd_per_sample": 0.0,
+   "usd_total": 0.0,
+   "error_case_runs": 0
+  },
+  {
+   "source": "collateral/hosted-haiku.json",
+   "model": "hosted-haiku",
+   "packs": [
+    "_starter",
+    "device_fleet",
+    "ecommerce",
+    "finance",
+    "gov_services",
+    "healthcare",
+    "helpdesk_lite",
+    "logistics",
+    "long_session",
+    "sports"
+   ],
+   "samples": 2,
+   "scored": 232,
+   "passed": [
+    132,
+    134
+   ],
+   "mean": 133,
+   "min": 132,
+   "max": 134,
+   "sd": 1.41,
+   "case_runs_timed": 464,
+   "median_s": 2.03,
+   "p95_s": 5.1,
+   "mean_s": 2.78,
+   "decode_tok_s": null,
+   "prefill_tok_s": null,
+   "usd_per_sample": 0.2218,
+   "usd_total": 0.4436,
+   "error_case_runs": 0
+  }
+ ]
+}

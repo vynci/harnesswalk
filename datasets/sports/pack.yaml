@@ -4,6 +4,7 @@ domain: sports
 summary: A volunteer help desk for an amateur football league, where fixture, table and player lookups
   are routed to the cheapest model for the phrasing step.
 tier: domain
+profile: grounded
 feature: Cheap model routing for lookups
 demonstrates:
   id: router

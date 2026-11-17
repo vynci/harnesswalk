@@ -156,7 +156,7 @@ release:
 |---|---|
 | `passed` | The run finished and its pass rate is at least `min_pass_rate` |
 | `failed` | The run errored, or its pass rate is below `min_pass_rate`, or the working set changed while the gate ran. No release is created: `409 gate_failed` |
-| `skipped` | The gate is off (`reason: disabled`), the pack is not in `packs` (`pack_not_gated`), the golden set has no case to run (`no_cases`), the release was forced (`forced`), or the harness made it at start-up (`startup`) |
+| `skipped` | The gate is off (`reason: disabled`), the pack's profile switches `release` off (`profile`, 0.2.0), the pack is not in `packs` (`pack_not_gated`), the golden set has no case to run (`no_cases`), the release was forced (`forced`), or the harness made it at start-up (`startup`) |
 
 - `gate` is `{status, reason, suite, min_pass_rate, pass_rate, run_ids, failed_cases, forced}`
   (`pass_rate` is `null` when nothing ran; `failed_cases` lists at most 20 case ids). When a
@@ -199,3 +199,19 @@ chain is broken, `activation_broken_at` (the row's position, from 1).
 
 CLI: `harnesswalk release create [--note] [--pack ID] [--no-gate]` prints `created <id>` and the
 gate line, or `gate failed` with the failing cases and exits 1.
+
+## 0.2.0: release switched off
+
+`release` has `can_disable`; `artifacts` does not. Under a profile that switches `release` off,
+releases still version, diff and restore every artifact, and the harness still loads its
+artifacts only through the release store, but the eval gate records `status: skipped`, `reason:
+profile`.
+
+## 0.2.0: tune artifacts
+
+Three artifact kinds, `dataset/<name>`, `adapter/<name>` and `model/<name>`, live in the same
+store with the same append-only versions and hashes, in a scope of their own that is not part
+of any pack's working set or releases (`artifacts.md`). A tuned model reaches turns only
+through a `models/models` edit (promote adds its alias and the router's `canary` rule,
+`tuning.md`), which is an ordinary artifact change released per pack with its gate, and is
+rolled back like any release. `GET /v1/tune/verify` checks the tune artifacts' references.

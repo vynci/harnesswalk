@@ -2,6 +2,7 @@ id: memory_written
 title: A remember tool call ends in memory_written, and the next turn retrieves the fact
 spec_version: 0.1.0
 fixture: memory_written
+requires: [input_guardrails, output_guardrails, policy, audit, memory_writer, semantic]
 config:
   context.stores: [procedural, session, semantic]
 turns:

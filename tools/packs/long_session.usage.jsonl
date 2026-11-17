@@ -1,0 +1,13 @@
+{"stage": "docs[carrow_island_guide,mirelake_town_guide,brannock_highlands_guide,port_ellery_guide]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 10737, "output_tokens": 2650, "usd": 0.0024}
+{"stage": "docs[ferry_fare_rules,luggage_policy,booking_terms,seasonal_calendar]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 10713, "output_tokens": 2426, "usd": 0.0023}
+{"stage": "docs[accessibility_guide,travel_documents_checklist]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 10487, "output_tokens": 1906, "usd": 0.002}
+{"stage": "docs[mirelake_town_guide,brannock_highlands_guide,port_ellery_guide,ferry_fare_rules]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 10828, "output_tokens": 3356, "usd": 0.0028}
+{"stage": "docs[luggage_policy,booking_terms,seasonal_calendar]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 10684, "output_tokens": 2698, "usd": 0.0024}
+{"stage": "notes[lc1]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 808, "output_tokens": 3477, "usd": 0.0018}
+{"stage": "notes[lc2]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 703, "output_tokens": 3729, "usd": 0.0019}
+{"stage": "notes[lc3]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 707, "output_tokens": 3510, "usd": 0.0018}
+{"stage": "notes[lc4]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 852, "output_tokens": 4546, "usd": 0.0024}
+{"stage": "notes[lc1+]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 527, "output_tokens": 1724, "usd": 0.0009}
+{"stage": "notes[lc2+]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 504, "output_tokens": 2033, "usd": 0.0011}
+{"stage": "notes[lc3+]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 503, "output_tokens": 1983, "usd": 0.001}
+{"stage": "notes[lc4+]", "model": "claude-haiku-5-5", "date": "2026-11-08", "input_tokens": 501, "output_tokens": 2181, "usd": 0.0011}

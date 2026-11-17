@@ -9,6 +9,13 @@ as aliases.
 P5 integration: `checks` (router rules and retrieved memory, scored by the `checks` scorer),
 `modes` (the harness modes a case applies in; absent means every mode) and `after` (the
 earlier case whose memory this one reads; cases always run in file order).
+
+P2 (spec 0.2.0, additive): a case may carry `turns: [{user, expect?, checks?}]` instead of a
+`prompt`. The turns run in one session, in order, so memory and compaction are testable;
+`fixture` is one name for every turn (turn `n` reads its line `n`) or a list aligned with the
+turns. `roles` sets the roles of the identity the case runs as (default `["user"]`).
+`checks` gains `compacted` (the context builder folded old turns into the summary) and
+`summary` (a substring the running summary in context holds).
 """
 
 from __future__ import annotations
@@ -29,11 +36,14 @@ EXPECT_KEYS = {
     "answer_contains",
     "answer_exact",
     "answer_regex",
+    "tool_calls_mode",  # exact | ordered: how a `model` run grades tool_calls (evaluator.md)
 }
 
 
 MODES = ("dev", "public", "private")
-CHECK_KEYS = ("router_rules", "retrieved")
+CHECK_KEYS = ("router_rules", "retrieved", "compacted", "summary")
+TURN_KEYS = {"user", "expect", "checks"}
+ROLE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 CHECK_STORES = ("semantic", "episodic", "knowledge")
 
 
@@ -42,11 +52,20 @@ class GoldenError(ValueError):
 
 
 @dataclass
+class GoldenTurn:
+    """One turn of a multi-turn case: what the user says, and what that turn must show."""
+
+    user: str
+    expect: dict[str, Any] = field(default_factory=dict)
+    checks: dict[str, Any] | None = None
+
+
+@dataclass
 class GoldenCase:
     id: str
     title: str
     prompt: str
-    fixture: str | None = None
+    fixture: str | list[str] | None = None  # a list: one per turn (P2)
     expect: dict[str, Any] = field(default_factory=dict)
     rubric: str | None = None
     output_schema: dict[str, Any] | None = None
@@ -56,6 +75,18 @@ class GoldenCase:
     checks: dict[str, Any] | None = None
     modes: list[str] | None = None
     after: str | None = None
+    turns: list[GoldenTurn] = field(default_factory=list)  # empty: a one-prompt case
+    roles: list[str] | None = None
+
+    @property
+    def multi_turn(self) -> bool:
+        return bool(self.turns)
+
+    def fixture_for(self, n: int) -> str | None:
+        """The fixture turn `n` answers from: the one name, or the list's item `n`."""
+        if isinstance(self.fixture, list):
+            return self.fixture[n] if n < len(self.fixture) else None
+        return self.fixture
 
     def to_dict(self) -> dict[str, Any]:
         return dict(self.raw)
@@ -83,19 +114,16 @@ def _checks(raw: Any, where: str, case_id: str) -> dict[str, Any] | None:
         raise GoldenError(
             f"{where}: case {case_id} checks.retrieved maps {list(CHECK_STORES)} to a substring"
         )
+    if "compacted" in raw and not isinstance(raw["compacted"], bool):
+        raise GoldenError(f"{where}: case {case_id} checks.compacted must be true or false")
+    if "summary" in raw and not (isinstance(raw["summary"], str) and raw["summary"]):
+        raise GoldenError(f"{where}: case {case_id} checks.summary must be a substring")
     return dict(raw)
 
 
-def normalize(raw: dict[str, Any], where: str) -> GoldenCase:
-    if not isinstance(raw, dict):
-        raise GoldenError(f"{where}: a case must be a JSON object")
-    case_id = raw.get("id")
-    if not isinstance(case_id, str) or not CASE_ID.match(case_id):
-        raise GoldenError(f"{where}: id must match {CASE_ID.pattern}")
-    prompt = raw.get("prompt", raw.get("input"))
-    if not isinstance(prompt, str) or not prompt.strip():
-        raise GoldenError(f"{where}: case {case_id} needs a prompt")
-    expect = dict(raw.get("expect") or {})
+def _expect(raw: Any, where: str, case_id: str) -> dict[str, Any]:
+    """An `expect` block, with the P0 aliases read and its keys and regex checked."""
+    expect = dict(raw or {})
     if "path_includes" in expect and "path" not in expect:
         expect["path"] = expect.pop("path_includes")
     if expect.pop("must_cite", False) and "citations" not in expect:
@@ -103,6 +131,8 @@ def normalize(raw: dict[str, Any], where: str) -> GoldenCase:
     unknown = set(expect) - EXPECT_KEYS - {"path_excludes", "exit_reason"}
     if unknown:
         raise GoldenError(f"{where}: case {case_id} has unknown expect keys {sorted(unknown)}")
+    if expect.get("tool_calls_mode", "ordered") not in ("exact", "ordered"):
+        raise GoldenError(f"{where}: case {case_id} tool_calls_mode must be exact or ordered")
     for key in ("answer_contains",):
         if key in expect and isinstance(expect[key], str):
             expect[key] = [expect[key]]
@@ -111,6 +141,59 @@ def normalize(raw: dict[str, Any], where: str) -> GoldenCase:
             re.compile(expect["answer_regex"])
         except re.error as exc:
             raise GoldenError(f"{where}: case {case_id} answer_regex: {exc}") from exc
+    return expect
+
+
+def _turns(raw: Any, where: str, case_id: str) -> list[GoldenTurn]:
+    if not isinstance(raw, list) or not raw:
+        raise GoldenError(f"{where}: case {case_id} turns must be a non-empty list")
+    out = []
+    for n, item in enumerate(raw, start=1):
+        at = f"{where} turn {n}"
+        if not isinstance(item, dict) or set(item) - TURN_KEYS:
+            raise GoldenError(f"{at}: a turn may only hold {sorted(TURN_KEYS)}")
+        user = item.get("user")
+        if not isinstance(user, str) or not user.strip():
+            raise GoldenError(f"{at}: case {case_id} turn needs a user message")
+        out.append(
+            GoldenTurn(
+                user=user,
+                expect=_expect(item.get("expect"), at, case_id),
+                checks=_checks(item.get("checks"), at, case_id),
+            )
+        )
+    return out
+
+
+def normalize(raw: dict[str, Any], where: str) -> GoldenCase:
+    if not isinstance(raw, dict):
+        raise GoldenError(f"{where}: a case must be a JSON object")
+    case_id = raw.get("id")
+    if not isinstance(case_id, str) or not CASE_ID.match(case_id):
+        raise GoldenError(f"{where}: id must match {CASE_ID.pattern}")
+    turns: list[GoldenTurn] = []
+    if "turns" in raw:
+        if "prompt" in raw or "input" in raw:
+            raise GoldenError(f"{where}: case {case_id} has both a prompt and turns")
+        turns = _turns(raw["turns"], where, case_id)
+        prompt = turns[0].user
+    else:
+        prompt = raw.get("prompt", raw.get("input"))
+    if not isinstance(prompt, str) or not prompt.strip():
+        raise GoldenError(f"{where}: case {case_id} needs a prompt")
+    fixture = raw.get("fixture")
+    if isinstance(fixture, list) and (
+        not turns or len(fixture) != len(turns) or not all(isinstance(f, str) for f in fixture)
+    ):
+        raise GoldenError(f"{where}: case {case_id} fixture list must name one per turn")
+    roles = raw.get("roles")
+    if roles is not None and (
+        not isinstance(roles, list)
+        or not roles
+        or not all(isinstance(r, str) and ROLE.match(r) for r in roles)
+    ):
+        raise GoldenError(f"{where}: case {case_id} roles must be a list of role names")
+    expect = _expect(raw.get("expect"), where, case_id)
     schema = raw.get("output_schema")
     if schema is not None:
         try:
@@ -133,7 +216,7 @@ def normalize(raw: dict[str, Any], where: str) -> GoldenCase:
         id=case_id,
         title=str(raw.get("title") or case_id),
         prompt=prompt,
-        fixture=raw.get("fixture"),
+        fixture=fixture,
         expect=expect,
         rubric=rubric,
         output_schema=schema,
@@ -143,11 +226,17 @@ def normalize(raw: dict[str, Any], where: str) -> GoldenCase:
         checks=_checks(raw.get("checks"), where, case_id),
         modes=list(modes) if modes is not None else None,
         after=after,
+        turns=turns,
+        roles=list(roles) if roles is not None else None,
     )
 
 
 def golden_path(settings: Any, pack: str) -> Path:
-    """`evals.golden_path` with `{pack}` replaced; by default the pack's own `golden.jsonl`."""
+    """`evals.golden_path` with `{pack}` replaced; by default the pack's own `golden.jsonl`.
+    0.2.0: `evals.golden_paths` (pack id to path) names one pack's set over that."""
+    per_pack = settings.get("evals.golden_paths", None) or {}
+    if pack in per_pack:
+        return settings.resolve(str(per_pack[pack]))
     rel = settings.get("evals.golden_path", None)
     if rel is None:
         from harnesswalk.packs import pack_dir

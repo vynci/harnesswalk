@@ -2,6 +2,7 @@ id: step_over
 title: Step over at memory skips the breakpoints of its expert children; the next pause is loop
 spec_version: 0.1.0
 fixture: step_over
+requires: [input_guardrails, output_guardrails]
 turns:
   - send:
       message: What are your support hours?

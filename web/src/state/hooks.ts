@@ -1,5 +1,7 @@
 import { useMemo } from 'react'
+import type { HarnessProfile } from '@/api/types'
 import { featureState, pickerModels, type FeatureName, type FeatureState, type PickerModel } from './features'
+import { profileOf } from './profiles'
 import { initialTurnState, reduceEvents, type TurnState } from './reducer'
 import { selectDisplayTurnId, useApp } from './store'
 
@@ -31,4 +33,12 @@ export function usePickerModels(): PickerModel[] {
   const capabilities = useApp((s) => s.capabilities)
   const byoKey = useApp((s) => s.byoKey)
   return useMemo(() => pickerModels(capabilities, byoKey), [capabilities, byoKey])
+}
+
+/** 0.2.0: the harness profile the session's pack runs with, or null (an older API). */
+export function useProfile(): HarnessProfile | null {
+  const packs = useApp((s) => s.packs)
+  const profiles = useApp((s) => s.profiles)
+  const pack = useApp((s) => s.pack)
+  return useMemo(() => profileOf(packs, profiles, pack), [packs, profiles, pack])
 }

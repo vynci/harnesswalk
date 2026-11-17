@@ -27,9 +27,16 @@ export function regressionText(n: number, previousRunId: string | null | undefin
   return `${plural(n, 'regression')}: ${what} and passed in ${previousRunId ?? 'the previous run'}`
 }
 
+const SUITE_NAMES: Record<string, string> = { golden: 'Golden', judge: 'Judge', model: 'Model' }
+
+/** "Golden", "Judge" or "Model": the suite's display name (an unknown suite as it is). */
+export function suiteName(suite: string): string {
+  return SUITE_NAMES[suite] ?? suite
+}
+
 /** "golden · fake-small", the short name of a run. */
 export function runName(run: Pick<EvalRunSummary, 'suite' | 'model' | 'pack'>): string {
-  return [run.suite === 'golden' ? 'Golden' : 'Judge', run.pack, run.model].filter(Boolean).join(' · ')
+  return [suiteName(run.suite), run.pack, run.model].filter(Boolean).join(' · ')
 }
 
 export interface ScorerSuite {

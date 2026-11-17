@@ -2,6 +2,7 @@ id: pii_redacted
 title: An email in the prompt is redacted before the model and restored in the reply in dev
 spec_version: 0.1.0
 fixture: pii_redacted
+requires: [input_guardrails, output_guardrails]
 turns:
   - send:
       message: Please email the receipt for order A-1001 to ana.lopez@example.com.

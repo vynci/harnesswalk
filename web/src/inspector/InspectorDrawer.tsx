@@ -27,21 +27,63 @@ import { usePackDetail } from './usePackDetail'
 import { filesForNode } from '@/state/packs'
 import { lessonFocusPending, openNodeChapter, useLessonSource } from '@/lessons/useLessons'
 import { usePanels } from '@/state/panels'
+import { tuneNodeId, tunePart } from './tuneView'
+import { useTuneUi } from './tuneUi'
+import { OpsEvents } from './OpsEvents'
 
 // The LLM Ops panels, each its own chunk, picked by the node's role in the diagram.
 const EvalPanel = lazy(() => import('./EvalPanel').then((m) => ({ default: m.EvalPanel })))
-const ReleasePanel = lazy(() => import('./ReleasePanel').then((m) => ({ default: m.ReleasePanel })))
+const ReleaseArea = lazy(() => import('./ReleasePanel').then((m) => ({ default: m.ReleaseArea })))
 const TracePanel = lazy(() => import('./TracePanel').then((m) => ({ default: m.TracePanel })))
 
 const OPS_TAB: Record<OpsRole, string> = { evals: 'Runs', releases: 'Releases', traces: 'Turns' }
 
+/** The LLM Ops plane: its nodes show the latest ops events heard on the tenant's stream. */
+const OPS_GROUP = 'ops'
+
 /** The inspector's tabs; any other value (a stale pick) falls back to Overview. */
 const TABS = new Set(['overview', 'payload', 'ops', 'details', 'config', 'files', 'code', 'events'])
 
-function OpsPanel({ role }: { role: OpsRole }) {
+/**
+ * 0.2.0: the curate node (it writes datasets, `artifact_hint`) keeps the Eval panel and points to
+ * the Tune tab, where its datasets are, on the node that writes models.
+ */
+function CurateLink() {
+  const diagram = useApp((s) => s.diagram)
+  const setView = useApp((s) => s.setView)
+  const openInspector = useApp((s) => s.openInspector)
+  const setSection = useTuneUi((s) => s.setSection)
+  const target = tuneNodeId(diagram)
+  const label = diagram?.nodes.find((n) => n.id === target)?.label ?? 'Tune'
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs" data-testid="curate-link">
+      <p className="min-w-0 flex-1">
+        This node turns teacher traffic into datasets (<code className="font-mono">dataset/&lt;name&gt;</code>): golden cases and rewrites run through the whole harness as model-suite eval runs, and only the turns that pass are kept. The datasets, the curations and what
+        trains on them are in the Tune tab.
+      </p>
+      {target && (
+        <Button
+          size="xs"
+          variant="outline"
+          onClick={() => {
+            setSection('datasets')
+            setView('expert')
+            openInspector(target, 'ops')
+          }}
+          data-testid="curate-open-tune"
+        >
+          Open the datasets in {label}
+        </Button>
+      )}
+    </div>
+  )
+}
+
+function OpsPanel({ role, nodeId, part }: { role: OpsRole; nodeId: string; part: ReturnType<typeof tunePart> }) {
   return (
     <Suspense fallback={<p className="text-xs text-muted-foreground">Loading…</p>}>
-      {role === 'evals' ? <EvalPanel /> : role === 'releases' ? <ReleasePanel /> : <TracePanel />}
+      {part === 'curates' && <CurateLink />}
+      {role === 'evals' ? <EvalPanel /> : role === 'releases' ? <ReleaseArea key={nodeId} tuneFirst={part === 'trains'} /> : <TracePanel />}
     </Suspense>
   )
 }
@@ -80,7 +122,11 @@ export function InspectorDrawer({ compact = false }: { compact?: boolean }) {
   const closeRef = useRef<HTMLButtonElement>(null)
 
   const node = diagram?.nodes.find((n) => n.id === nodeId)
+  // 0.2.0: a node that writes tune artifacts (its artifact_hint): the Tune tab or the link to it.
+  const part = tunePart(node)
   const childIds = useMemo(() => new Set(diagram?.nodes.filter((n) => n.parent === nodeId).map((n) => n.id) ?? []), [diagram, nodeId])
+  // The node and its children, for the latest ops events (tune runs, curations, gates).
+  const opsIds = useMemo(() => new Set(nodeId ? [nodeId, ...childIds] : []), [nodeId, childIds])
   const events = useMemo(
     () => turn.events.filter((e) => e.node_id === nodeId || (e.node_id && childIds.has(e.node_id))),
     [turn.events, nodeId, childIds],
@@ -197,7 +243,7 @@ export function InspectorDrawer({ compact = false }: { compact?: boolean }) {
               Payload
             </TabsTrigger>
           )}
-          {role && <TabsTrigger value="ops">{OPS_TAB[role]}</TabsTrigger>}
+          {role && <TabsTrigger value="ops">{part === 'trains' ? 'Tune' : OPS_TAB[role]}</TabsTrigger>}
           {detailsLabel && <TabsTrigger value="details">{detailsLabel}</TabsTrigger>}
           {yamlArtifact && <TabsTrigger value="config">Config</TabsTrigger>}
           {packFiles.length > 0 && <TabsTrigger value="files">Files</TabsTrigger>}
@@ -208,6 +254,7 @@ export function InspectorDrawer({ compact = false }: { compact?: boolean }) {
           <ScrollArea className="h-full">
             <div className="p-4">
               <OverviewTab run={turn.nodes[node.id]} info={info.data} />
+              {node.group === OPS_GROUP && <OpsEvents ids={opsIds} />}
               {info.status === 'error' && <p className="mt-3 text-xs text-destructive">Could not load node details: {info.error}</p>}
             </div>
           </ScrollArea>
@@ -234,7 +281,7 @@ export function InspectorDrawer({ compact = false }: { compact?: boolean }) {
           <TabsContent value="ops" className="min-h-0">
             <ScrollArea className="h-full">
               <div className="p-4">
-                <OpsPanel role={role} />
+                <OpsPanel role={role} nodeId={node.id} part={part} />
               </div>
             </ScrollArea>
           </TabsContent>

@@ -1,6 +1,6 @@
 # Contract: Policy
 
-Node: `policy` (control plane, kind `config`, can be disabled in dev and private modes).
+Node: `policy` (control plane, kind `config`, can be disabled in dev and private modes, and switched off by a profile below `governed`).
 
 ## Purpose
 

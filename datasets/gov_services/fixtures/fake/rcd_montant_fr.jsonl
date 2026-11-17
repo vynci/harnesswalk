@@ -1,0 +1,1 @@
+{"responses": [{"text": "La remise est alors de 600 $, puisqu'un membre du m\u00e9nage a 65 ans ou plus; sinon elle est de 450 $ [1].", "usage": {"input_tokens": 420, "output_tokens": 45}, "expect": {"last_message_role": "user"}}]}

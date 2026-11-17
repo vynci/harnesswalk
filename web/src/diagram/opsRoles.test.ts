@@ -16,8 +16,12 @@ describe('ops roles from the diagram', () => {
       online_eval: 'evals',
       offline_eval: 'evals',
       diagnose: 'evals',
+      // 0.2.0: curate (inside eval) and tune (inside release, data edges only) take their
+      // parent's panel; the inspector adds the Tune tab by what they write (tuneView.ts).
+      curate: 'evals',
       release: 'releases',
       artifacts: 'releases',
+      tune: 'releases',
     })
   })
 

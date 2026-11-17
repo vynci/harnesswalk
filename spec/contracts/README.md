@@ -22,6 +22,8 @@ keys. The HTTP surface of the gateway is in `http_api.md`.
 | Tracer | `trace`, `cost` | `tracer.md` |
 | Evaluator | `eval`, `online_eval`, `offline_eval`, `diagnose` | `evaluator.md` |
 | Release | `release`, `artifacts` | `release.md` |
+| Artifacts (kinds, 0.2.0 tune manifests) | `artifacts` | `artifacts.md` |
+| Tuning (0.2.0) | `curate`, `tune` | `tuning.md` |
 | HTTP API | `gateway` | `http_api.md` |
 
 ## Notation
@@ -84,9 +86,10 @@ ActionClass = "read" | "write" | "destructive" | "external" | "memory.write"   /
 - Every method that reads or writes data takes `ctx: TurnContext` first. A missing `tenant_id`
   is a programming error and MUST raise, never default.
 - Components report through `ctx.emit` only. They MUST NOT write to the trace store directly.
-- A component that is disabled (dev and private modes, nodes with `can_disable`) still enters
-  and exits its span, with status `skipped` and `summary.disabled: true`, so the diagram shows
-  that it was bypassed.
+- A component that is disabled (dev and private modes, nodes with `can_disable`) or switched
+  off by the pack's profile (0.2.0, `harness.md` section 10) still enters and exits its span
+  where it would have run, with status `skipped` and `summary.disabled: true`, so the diagram
+  shows that it was bypassed. It reads `ctx.disabled_nodes`, the union of both.
 - Configuration keys are dotted paths. They are loaded only through `release` and live in four
   files: `config/harness.yaml` (gateway, guardrails, loop, trace, eval, release),
   `config/policy.yaml` (policy, approval), `config/context.yaml` (context builder, stores, memory

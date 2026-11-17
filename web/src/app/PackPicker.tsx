@@ -142,7 +142,15 @@ export function PackPicker({ variant = 'header' }: { variant?: 'header' | 'inlin
                   )}
                   {p.default && <span className="shrink-0 text-xs text-muted-foreground">default</span>}
                 </span>
-                <span className="text-xs text-muted-foreground">{p.feature ?? 'a dataset pack'}</span>
+                <span className="text-xs text-muted-foreground">
+                  {p.feature ?? 'a dataset pack'}
+                  {p.profile && (
+                    <span data-testid="pack-profile" data-profile={p.profile}>
+                      {' · '}
+                      {p.profile} profile
+                    </span>
+                  )}
+                </span>
               </span>
             </DropdownMenuRadioItem>
           ))}

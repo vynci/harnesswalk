@@ -9,7 +9,9 @@ import { Kbd } from '@/components/ui/kbd'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
+import { useProfile } from '@/state/hooks'
 import { usePanels } from '@/state/panels'
+import { gapText, profileGap } from '@/state/profiles'
 import { useApp } from '@/state/store'
 import { GuideChapter } from './GuideChapter'
 import { stepEntry, type OutlineEntry } from './outline'
@@ -38,14 +40,22 @@ function ProgressText({ slug, written }: { slug: string; written: boolean }) {
 function Contents({ current, onGo }: { current: string | null; onGo: (entry: OutlineEntry) => void }) {
   const { outline, status } = useOutline()
   const progress = useLessonProgress((s) => s.progress)
-  const walk = outline.filter((e) => !e.group)
+  // 0.2.0: a chapter whose node the pack's profile switches off is greyed, still readable.
+  const profile = useProfile()
+  const profiles = useApp((s) => s.profiles)
+  // The walk's chapters, the expert groups, then the chapters past the walk (generate, P4).
+  const walkCount = useApp((s) => s.diagram?.walk_order.length ?? 15)
+  const walk = outline.filter((e) => !e.group && e.n <= walkCount)
   const inside = outline.filter((e) => e.group)
+  const beyond = outline.filter((e) => !e.group && e.n > walkCount)
   // After the open chapter, else the first written one not read yet.
   const next = current
     ? stepEntry(outline, current, 1)
     : (outline.find((e) => e.written && !progress[e.slug]?.read) ?? outline.find((e) => e.written) ?? null)
 
-  const row = (e: OutlineEntry) => (
+  const row = (e: OutlineEntry) => {
+    const gap = profileGap(profile, profiles, e.requires)
+    return (
     <li key={e.slug}>
       <button
         type="button"
@@ -55,9 +65,11 @@ function Contents({ current, onGo }: { current: string | null; onGo: (entry: Out
         className={cn(
           'flex w-full cursor-pointer flex-col gap-1 rounded-md px-3 py-2.5 text-left transition-colors duration-200 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:opacity-50',
           e.slug === current && 'bg-muted',
+          gap && 'opacity-60',
         )}
         data-testid="lesson-row"
         data-slug={e.slug}
+        data-profile-off={gap ? 'true' : undefined}
       >
         <span className="flex items-baseline gap-2">
           <span className="font-mono text-xs text-muted-foreground tabular-nums">{num(e.n)}</span>
@@ -65,12 +77,18 @@ function Contents({ current, onGo }: { current: string | null; onGo: (entry: Out
           {e.group && <span className="text-xs text-muted-foreground">inside</span>}
         </span>
         {e.hook && <span className="line-clamp-2 pl-7 text-xs text-muted-foreground">{e.hook}</span>}
+        {gap && (
+          <span className="pl-7 text-xs text-muted-foreground" data-testid="lesson-row-profile">
+            {gapText(gap)}
+          </span>
+        )}
         <span className="pl-7">
           <ProgressText slug={e.slug} written={e.written} />
         </span>
       </button>
     </li>
-  )
+    )
+  }
 
   return (
     <>
@@ -85,6 +103,12 @@ function Contents({ current, onGo }: { current: string | null; onGo: (entry: Out
             <>
               <p className="px-3 pt-2 text-xs text-muted-foreground">Inside the expert groups</p>
               <ol className="flex flex-col gap-0.5">{inside.map(row)}</ol>
+            </>
+          )}
+          {beyond.length > 0 && (
+            <>
+              <p className="px-3 pt-2 text-xs text-muted-foreground">Beyond the walk</p>
+              <ol className="flex flex-col gap-0.5">{beyond.map(row)}</ol>
             </>
           )}
         </nav>
@@ -106,20 +130,21 @@ function Contents({ current, onGo }: { current: string | null; onGo: (entry: Out
 /** The node whose chapter the Guide shows, if any. */
 function useGuideNode() {
   const nodeId = usePanels((s) => s.guideNode)
+  const chapter = usePanels((s) => s.guideSlug)
   const node = useApp((s) => s.diagram?.nodes.find((n) => n.id === nodeId))
-  return { node }
+  return { node, chapter }
 }
 
 /** What the Guide shows: a node's chapter, or the chapter list. */
 function GuideBody() {
-  const { node } = useGuideNode()
+  const { node, chapter } = useGuideNode()
   // In the list, the chapter of the node open on the canvas is the current one.
   const current = useApp((s) => lessonRef(s.diagram?.nodes.find((n) => n.id === s.selectedNode)?.lesson_url)?.slug ?? null)
   if (node) {
     return (
       <ScrollArea className="min-h-0 flex-1">
         <div className="p-4">
-          <GuideChapter key={node.id} node={node} />
+          <GuideChapter key={`${node.id}:${chapter ?? ''}`} node={node} chapter={chapter} />
         </div>
       </ScrollArea>
     )

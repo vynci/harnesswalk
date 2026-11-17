@@ -1,0 +1,58 @@
+# Bundled data for the Fernhollow Journeys pack: every table below is fictional.
+# Each table maps a lookup key to the row a tool returns; `missing` is the row for an unknown key.
+- name: trip_lookup
+  description: Look up a trip by reference. Returns the travellers, dates, legs, hotel and booking status.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [trip_ref]
+    properties:
+      trip_ref: { type: string, pattern: "^TR-[0-9]{4}$", description: "Trip reference, for example TR-4471." }
+  table:
+    TR-4471: { trip_ref: TR-4471, travellers: 2, destination: Isle of Carrow, from: "2026-11-14", to: "2026-11-19", legs: [ "ferry MIR-CAR 2026-11-14 at 12:30", "ferry CAR-MIR 2026-11-19 at 16:45" ], hotel: HT-12, status: confirmed }
+    TR-4520: { trip_ref: TR-4520, travellers: 2, destination: Mirelake, from: "2026-11-21", to: "2026-11-24", legs: [ "rail Brannock to Mirelake 2026-11-21 at 09:05" ], hotel: HT-15, status: confirmed }
+    TR-4588: { trip_ref: TR-4588, travellers: 4, destination: Isle of Carrow, from: "2026-12-02", to: "2026-12-06", legs: [ "ferry MIR-CAR 2026-12-02 not yet chosen" ], hotel: HT-12, status: awaiting_ferry_choice }
+    TR-4602: { trip_ref: TR-4602, travellers: 2, destination: Port Ellery, from: "2026-12-09", to: "2026-12-13", legs: [ "rail Mirelake to Port Ellery 2026-12-09 at 10:40" ], hotel: HT-30, status: confirmed }
+    TR-4390: { trip_ref: TR-4390, travellers: 1, destination: Brannock Highlands, from: "2026-09-18", to: "2026-09-22", legs: [ "rail Mirelake to Brannock 2026-09-18 at 07:50" ], hotel: HT-21, status: completed }
+  missing: { error: not_found }
+
+- name: ferry_timetable
+  description: Get the winter timetable of a ferry route (departures, crossing time, fares, which sailing is overnight).
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [route]
+    properties:
+      route: { type: string, pattern: "^[A-Z]{3}-[A-Z]{3}$", description: "Route code, for example MIR-CAR." }
+  table:
+    MIR-CAR: { route: MIR-CAR, from: Mirelake harbour, to: Isle of Carrow, departures: ["08:15", "12:30", "16:45", "23:30"], crossing: "1 h 40 min", overnight: "23:30 (arrives 01:10)", fares: { foot: "18.00", car: "64.00", cabin_night: "30.00 extra" }, runs: "daily except 25 December" }
+    CAR-MIR: { route: CAR-MIR, from: Isle of Carrow, to: Mirelake harbour, departures: ["07:00", "11:15", "16:45", "21:00"], crossing: "1 h 40 min", overnight: none, fares: { foot: "18.00", car: "64.00" }, runs: "daily except 25 December" }
+    ELL-CAR: { route: ELL-CAR, from: Port Ellery, to: Isle of Carrow, departures: ["09:30", "15:00"], crossing: "2 h 55 min", overnight: none, fares: { foot: "26.00", car: "88.00" }, runs: "Friday to Monday only in winter" }
+  missing: { error: not_found }
+
+- name: hotel_info
+  description: Get a partner hotel's check-in time, breakfast options, accessible rooms, parking and cancellation terms.
+  action_class: read
+  timeout_ms: 2000
+  idempotent: true
+  pure: true
+  parameters:
+    type: object
+    additionalProperties: false
+    required: [hotel_id]
+    properties:
+      hotel_id: { type: string, pattern: "^HT-[0-9]{2}$", description: "Hotel id, for example HT-12." }
+  table:
+    HT-12: { hotel_id: HT-12, name: Carrow Harbour Inn, place: Isle of Carrow, check_in: "15:00", breakfast: { included: true, nut_free: on_request, vegetarian: true }, accessible_rooms: 1, parking: none, cancellation: "free until 48 h before arrival, then the first night is charged" }
+    HT-15: { hotel_id: HT-15, name: Mirelake Quay Hotel, place: Mirelake, check_in: "14:00", breakfast: { included: true, nut_free: "yes, separate kitchen area", vegetarian: true }, accessible_rooms: 4, parking: "12.00 per night", cancellation: "free until 24 h before arrival" }
+    HT-21: { hotel_id: HT-21, name: Brannock Lodge, place: Brannock Highlands, check_in: "16:00", breakfast: { included: false, nut_free: no, vegetarian: true }, accessible_rooms: 0, parking: free, cancellation: "non-refundable" }
+    HT-30: { hotel_id: HT-30, name: Ellery Sands Guesthouse, place: Port Ellery, check_in: "15:30", breakfast: { included: true, nut_free: on_request, vegetarian: true }, accessible_rooms: 2, parking: free, cancellation: "free until 72 h before arrival" }
+  missing: { error: not_found }

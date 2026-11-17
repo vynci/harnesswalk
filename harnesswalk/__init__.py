@@ -5,4 +5,4 @@ Walk through an AI harness, one node at a time. The normative description lives 
 """
 
 __version__ = "0.1.1"
-SPEC_VERSION = "0.1.0"
+SPEC_VERSION = "0.2.0"

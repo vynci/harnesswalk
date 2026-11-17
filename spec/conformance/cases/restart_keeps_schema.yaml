@@ -2,6 +2,7 @@ id: restart_keeps_schema
 title: A restart during an approval keeps the turn's output schema and its memory proposal from before the pause
 spec_version: 0.1.0
 fixture: restart_keeps_schema
+requires: [input_guardrails, output_guardrails, policy, approval, audit, memory_writer, semantic]
 two_process: true
 turns:
   - send:

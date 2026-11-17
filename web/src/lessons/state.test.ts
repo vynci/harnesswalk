@@ -76,7 +76,10 @@ describe('outline', () => {
     expect(simple.map((e) => e.nodeId)).toEqual(walk)
     expect(outline.slice(0, walk.length).every((e) => !e.group)).toBe(true)
     const groups = outline.filter((e) => e.group)
-    expect(groups.length).toBe(new Set(diagram.nodes.filter((n) => n.view === 'expert').map((n) => n.parent)).size)
+    // One per expert chapter the diagram names: a group chapter per parent, plus 0.2.0's
+    // chapters of their own (curate, tune), which open their node in the advanced view too.
+    const slugs = new Set(diagram.nodes.filter((n) => n.view === 'expert').map((n) => n.lesson_url?.split('#')[0]))
+    expect(groups.length).toBe(slugs.size)
     for (const g of groups) {
       const target = diagram.nodes.find((n) => n.id === g.nodeId)!
       expect(target.view).toBe('expert')

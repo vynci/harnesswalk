@@ -1,0 +1,1 @@
+{"responses": [{"text": "Send three documents: one proof of residence, your most recent heating bill dated within the last 3 months (or a landlord letter if heating is in your rent), and your 2025 provincial notice of assessment [1].", "usage": {"input_tokens": 420, "output_tokens": 66}, "expect": {"last_message_role": "user"}}]}

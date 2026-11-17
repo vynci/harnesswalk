@@ -2,6 +2,7 @@ id: diagnose_skill_change
 title: A skill edit regresses a golden case; diagnose names the skill as the layer at fault, on its own and when asked, for the case and for a turn with bad feedback
 spec_version: 0.1.0
 fixture: diagnose_skill_change
+requires: [input_guardrails, output_guardrails, diagnose]
 turns:
   - before:
       - method: PUT

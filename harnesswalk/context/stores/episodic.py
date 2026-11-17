@@ -270,7 +270,12 @@ async def run_episodic(
 ) -> list[Hit]:
     async with node(ctx, "episodic") as span:
         if store is None or query is None:
-            span.skip(hits=0, tokens=0, enabled=False)
+            span.skip(
+                hits=0,
+                tokens=0,
+                enabled=False,
+                **({"disabled": True} if ctx.is_disabled("episodic") else {}),
+            )
             return []
         try:
             hits = await asyncio.to_thread(store.retrieve, ctx, query)

@@ -13,6 +13,7 @@ import type {
   HarnessEvent,
   OpsEvent,
   PackSummary,
+  HarnessProfile,
   StartEvalRequest,
   TurnFeedback,
   TurnSummary,
@@ -24,6 +25,7 @@ import { buildEdgeIndex, initialTurnState, reduceEvent, reduceEvents, type EdgeI
 import { packTitle } from './packs'
 import { load, rememberMessage, recallMessages, save } from './persist'
 import { edgePayloadNode, payloadEvent } from '@/inspector/payload'
+import { suiteName } from '@/inspector/opsView'
 
 export interface ChatTurn {
   turnId: string
@@ -39,6 +41,11 @@ export interface ChatTurn {
   /** P5: a diagnosis asked for from this browser, before the summary is read back. */
   diagnosis?: Diagnosis | null
 }
+
+/** How many ops events the store keeps for the inspector (opsLog). */
+const OPS_LOG_CAP = 60
+/** artifacts.md: the tune kinds, outside every pack's working set. */
+const TUNE_ARTIFACT_KINDS: ReadonlySet<string> = new Set(['dataset', 'adapter', 'model'])
 
 /** An eval run this browser started, while its progress stream is open. */
 export interface LiveEval {
@@ -108,6 +115,8 @@ export interface AppState {
   sessionId: string | null
   /** P5: the packs GET /v1/packs lists (null until loaded, or without features.packs). */
   packs: PackSummary[] | null
+  /** 0.2.0: the harness profiles GET /v1/profiles lists (null until loaded, or an older API). */
+  profiles: HarnessProfile[] | null
   /**
    * P5: the session's pack (from the session, its turn summaries or `turn_start`), or the pack
    * the next new session starts on. Every pack-scoped call names it.
@@ -170,6 +179,11 @@ export interface AppState {
   opsRun: OpsRun | null
   /** P4: the node an ops event just touched (eval, release), for a short pulse on the diagram. */
   opsPulse: { nodeId: string; at: number } | null
+  /**
+   * 0.2.0: the latest ops events heard on the tenant's stream (tune runs, curations, gates),
+   * newest last and capped, so an ops node's inspector can show what it did lately.
+   */
+  opsLog: OpsEvent[]
 
   boot: (t: Transport, opts?: { mock?: boolean; validate?: AppState['validate']; seedMessages?: Record<string, string>; sessionId?: string }) => Promise<void>
   send: (text: string) => Promise<void>
@@ -474,11 +488,28 @@ export const useApp = create<AppState>()((set, get) => {
   const onOpsEvent = (ev: OpsEvent) => {
     const summary = ev.summary ?? {}
     const bump = () => set((s) => ({ inspectorVersion: s.inspectorVersion + 1 }))
+    // Keep the latest few, whatever their type (an unknown one included), for the inspector.
+    if (ev.type) set((s) => ({ opsLog: [...s.opsLog, ev].slice(-OPS_LOG_CAP) }))
+    if (ev.type === 'tune_run_started' || ev.type === 'tune_run_finished') {
+      pulse(ev.node_id)
+      bump()
+      return
+    }
+    if (ev.type === 'tune_step') return
+    if (ev.type === 'release_gated' && summary.suite === 'model') {
+      // The model gate (Compare) finished: the Tune panel reads its comparison again.
+      pulse(ev.node_id)
+      bump()
+      return
+    }
     if (ev.type === 'artifact_changed') {
       const kind = String(summary.kind ?? '')
       const name = String(summary.name ?? '')
       const version = Number(summary.version)
-      if (kind && name && Number.isFinite(version) && !otherPack(summary)) addMark(savedMark({ kind, name, version }, afterTurn(), ev.ts))
+      // A tune artifact (dataset, adapter, model) belongs to no pack and changes no turn, so it
+      // gets no chat marker; promote's models/models edit does, like any edit.
+      const tuneKind = TUNE_ARTIFACT_KINDS.has(kind)
+      if (kind && name && Number.isFinite(version) && !otherPack(summary) && !tuneKind) addMark(savedMark({ kind, name, version }, afterTurn(), ev.ts))
       pulse(ev.node_id)
       bump()
       void get().refreshCapabilities()
@@ -597,6 +628,11 @@ export const useApp = create<AppState>()((set, get) => {
     } catch {
       // The picker stays empty; turns run on the configured pack.
     }
+    try {
+      set({ profiles: (await api.profiles()).profiles })
+    } catch {
+      // An API before 0.2.0: no profile chip, nothing dimmed by a profile.
+    }
     const stored = load<{ sessionId: string | null; pack: string } | null>('pack', null)
     let pack = stored && typeof stored.pack === 'string' && (stored.sessionId === sessionId || !stored.sessionId) ? stored.pack : null
     if (sessionId) {
@@ -631,6 +667,7 @@ export const useApp = create<AppState>()((set, get) => {
 
     sessionId: null,
     packs: null,
+    profiles: null,
     pack: null,
     switchingPack: false,
     turns: {},
@@ -661,6 +698,7 @@ export const useApp = create<AppState>()((set, get) => {
     opsLive: false,
     opsRun: null,
     opsPulse: null,
+    opsLog: [],
 
     async boot(t, opts = {}) {
       const api = createApi(t)
@@ -1046,7 +1084,7 @@ export const useApp = create<AppState>()((set, get) => {
           // A failing case is a result, not an error (evaluator.md): an info notice either way.
           get().notify(
             'info',
-            `${run.suite === 'golden' ? 'Golden' : 'Judge'} run finished: ${t.passed} passed, ${t.failed} failed, ${t.skipped} skipped${run.regressions ? `, ${run.regressions} regression${run.regressions === 1 ? '' : 's'}` : ''}.`,
+            `${suiteName(run.suite)} run finished: ${t.passed} passed, ${t.failed} failed, ${t.skipped} skipped${run.regressions ? `, ${run.regressions} regression${run.regressions === 1 ? '' : 's'}` : ''}.`,
           )
         } catch (err) {
           get().notify('error', `Could not read the eval run: ${describe(err)}`, err)

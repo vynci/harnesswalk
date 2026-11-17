@@ -15,6 +15,9 @@ first, `phase: reply` last.
 
 When input guardrails block, the walk is gateway, input_guardrails, gateway, trace.
 
+0.2.0: the pack's harness profile (spec/harness.md section 10) switches nodes off for the turn
+on top of the request's `disable`; `turn_start.summary.profile` says which shape it ran on.
+
 P5: the session's dataset pack picks what the turn runs on. `start_turn` resolves the pack's
 view of the harness (`Harness.view`: the harness itself for the configured pack, a
 `PackRuntime` for another), keeps it on the turn's state, and every per-pack component the walk
@@ -115,6 +118,9 @@ class TurnRequest:
     # fixture in any mode and is not rate-limited. Never set from HTTP.
     internal: bool = False
     eval_run_id: str | None = None
+    # The eval `model` suite: pin every model call of the turn to this alias (no fallback).
+    # Internal turns only; never set from HTTP.
+    pin_model: str | None = None
     # P5: the pack view to run on instead of the session's (the eval gate's candidate). Never
     # set from HTTP.
     runtime: Any = field(default=None, repr=False)
@@ -371,6 +377,7 @@ class Gateway:
                 409, "turn_in_progress", f"Session {session_id} already has a running turn."
             )
 
+        profile = view.settings.profile  # the harness shape this pack runs with
         turn_id = "turn_" + uuid7().replace("-", "")[:24]
         trace_id = new_trace_id()
         capture = bool(self.h.settings.get("trace.capture_content", True))
@@ -398,10 +405,13 @@ class Gateway:
             emit=emitter,
             turn_index=self.h.session.next_turn_index(tenant, session_id),
             identity=req.identity,
-            disabled_nodes=frozenset(req.disabled_nodes),
+            # 0.2.0: the pack's profile switches nodes off too (harness.md section 10).
+            disabled_nodes=frozenset(req.disabled_nodes) | profile.off(self.h.settings.mode),
             providers=turn_providers,
             model_hint=req.model,
-            budget=self.h.budgets.for_turn(tenant),
+            model_pin=req.pin_model if req.internal else None,
+            internal=req.internal,
+            budget=self.h.budgets.for_turn(tenant, internal=req.internal),
             output_schema=req.output_schema,
             byo_key=bool(req.api_key),
         )
@@ -429,6 +439,7 @@ class Gateway:
             start["fixture"] = req.fixture
         if req.disabled_nodes:
             start["disabled"] = list(req.disabled_nodes)
+        start["profile"] = profile.stamp(ctx.mode)
         if req.model is not None:
             start["model_hint"] = req.model
         start["release"] = view.release.stamp()
@@ -500,7 +511,7 @@ class Gateway:
                 result = await h.loop.run(
                     ctx,
                     assembled.messages,
-                    h.tools.schemas(ctx.mode),
+                    h.tools.schemas(ctx.mode, ctx.disabled_nodes),
                     Limits.from_config(h.settings.get("loop", {}), ctx.budget),
                     api_key=req.api_key,
                 )
@@ -758,8 +769,10 @@ class Gateway:
             emit=emitter,
             turn_index=int(summary.get("turn_index") or 0),
             identity=identity,
-            disabled_nodes=frozenset(summary.get("disabled") or []),
+            disabled_nodes=frozenset(summary.get("disabled") or [])
+            | frozenset((summary.get("profile") or {}).get("off") or []),
             model_hint=summary.get("model_hint"),
+            internal=summary.get("channel") == "eval",
         )
         model_exits = [
             e for e in events if e["type"] == "node_exit" and e.get("node_id") == "model_layer"
@@ -794,7 +807,7 @@ class Gateway:
                 fake.resume_turn(  # type: ignore[attr-defined]
                     ctx.tenant_id, ctx.session_id, ctx.turn_id, self._fixture_index(ctx, fixture)
                 )
-        ctx.budget = h.budgets.for_turn(ctx.tenant_id)
+        ctx.budget = h.budgets.for_turn(ctx.tenant_id, internal=ctx.internal)
         user_text = next(
             (m["content"] for m in reversed(checkpoint["messages"]) if m["role"] == "user"), None
         )
@@ -867,7 +880,12 @@ class Gateway:
                 ctx.emit.edge("tools_to_loop")
                 limits = Limits.from_config(h.settings.get("loop", {}), ctx.budget)
                 result = await h.loop.resume(
-                    ctx, loop_span, checkpoint, observation, h.tools.schemas(ctx.mode), limits
+                    ctx,
+                    loop_span,
+                    checkpoint,
+                    observation,
+                    h.tools.schemas(ctx.mode, ctx.disabled_nodes),
+                    limits,
                 )
                 answer, steps = result.answer.text, result.steps
                 state.proposals = list(result.proposals)

@@ -1,6 +1,7 @@
 # Harness event contract
 
-Schema: `spec/events.schema.json` (JSON Schema 2020-12), version **0.1.0**.
+Schema: `spec/events.schema.json` (JSON Schema 2020-12), version **0.2.0**. Since 0.2.0
+`schema_version` is any `0.x.y`, so 0.1.0 streams still validate.
 Examples: `spec/examples/*.jsonl`.
 
 The event stream is the product. Every node reports its work as typed events, and the same
@@ -58,7 +59,7 @@ events correctly and any UI built on Harnesswalk can draw your harness.
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
-| `schema_version` | string | always | `0.1.0` |
+| `schema_version` | string | always | `0.2.0` from this producer; any `0.x.y` validates |
 | `event_id` | string | always | Unique within the trace. SHOULD be UUIDv7 or ULID |
 | `seq` | integer | always | Position in the turn, from 0, gapless |
 | `ts` | string | always | RFC 3339 with offset, SHOULD be UTC `Z` |
@@ -84,7 +85,7 @@ events correctly and any UI built on Harnesswalk can draw your harness.
 | `turn_start` | absent | `active` | Turn accepted. `seq` 0 |
 | `turn_end` | absent | `done` or `error` | Turn finished. Carries total `cost` and the reply |
 | `node_enter` | required | `active` | Node started work |
-| `node_exit` | required | `done` or `skipped` | Node finished. `skipped` means it ran but chose to do nothing (disabled, nothing to retrieve, tool not executed) |
+| `node_exit` | required | `done` or `skipped` | Node finished. `skipped` means it ran but chose to do nothing (disabled by the request or switched off by the profile, with `summary.disabled: true`; nothing to retrieve; tool not executed) |
 | `node_paused` | required | `waiting` | Node waits on a breakpoint or an approval |
 | `node_resumed` | required | `active` | Node continues |
 | `edge` | absent | `done` | Data or control moved along a diagram edge |
@@ -164,7 +165,7 @@ Values are small: counts, ids, enums, short previews. Implementations MAY add ke
 
 | Node | Summary keys |
 |---|---|
-| `turn_start` | `kind` (`chat`, `release`, `eval`, `replay`), `channel`, `mode`, `step_mode`, `message_chars`, `disabled` (node ids, P3, so a restart can restore them), `release` (P4: `{release_id, working_set, artifacts_hash}` the turn runs on), `eval_run_id` (P4, on a case turn), `output_schema` (P4: `true` when the turn asked for a structured reply) |
+| `turn_start` | `kind` (`chat`, `release`, `eval`, `replay`), `channel`, `mode`, `step_mode`, `message_chars`, `disabled` (node ids, P3, so a restart can restore them), `release` (P4: `{release_id, working_set, artifacts_hash}` the turn runs on), `eval_run_id` (P4, on a case turn), `output_schema` (P4: `true` when the turn asked for a structured reply), `profile` (0.2.0: `{id, rung, off}`, the harness profile the turn runs with and the nodes it switches off in this mode, `harness.md` section 10; `disabled` stays the request's own list) |
 | `turn_end` | `exit` (`answered`, `blocked`, `limit`, `error`, `cancelled`), `steps`, `reply`, `citations` (when the reply cites knowledge: `[{n, doc, chunk, citation}]` in first-cited order), `byo_key_dropped` (P4: the turn had a BYO key and resumed after a restart on the configured provider) |
 | `gateway` | `phase` (`receive`, `reply`), `channel`, `authenticated`, `rate_limit_remaining`, `reply_chars` |
 | `input_guardrails` | `action` (`pass`, `redact`, `block`), `checks`, `redactions` (counts by kind), `injection_score`, `injection_signals` (counts by category), `warnings`, `classifier_score`, `reason` |
@@ -179,7 +180,7 @@ Values are small: counts, ids, enums, short previews. Implementations MAY add ke
 | `knowledge` | `hits`, `top_score`, `tokens`, `docs` (document ids of the hits), `embedder`, `reranker`, `enabled` |
 | `memory_writer` | `proposed`, `written`, `rejected`, `pending`, `gate`, `policy_rule`, `rejections` (`[{proposal_id, reason}]`) |
 | `loop` | enter: `max_steps`, `budget_tokens`, `budget_usd`. exit: `steps`, `exit_reason` (`answer`, `max_steps`, `budget_tokens`, `budget_usd`, `budget_tool_calls`, `timeout`, `stuck`, `interrupted`), `tool_calls`, `budget_source` |
-| `model_layer` | enter: `step`. exit: `step`, `provider`, `model`, `finish_reason` (`stop`, `tool_calls`, `length`), `tool_calls`, `fallback`, `tools_enabled`, `cached_tokens`, `cascade` |
+| `model_layer` | enter: `step`. exit: `step`, `provider`, `model`, `finish_reason` (`stop`, `tool_calls`, `length`), `tool_calls`, `fallback`, `tools_enabled`, `cached_tokens`, `cascade`, and (P5, optional) `gen_ms`, `prompt_ms`: the provider's own generation and prompt-processing time in milliseconds, when it reports them (Ollama) |
 | `router` | `rule`, `model`, `alternatives` |
 | `providers` | `provider`, `model`, `attempt` |
 | `tools` | enter: `tool`, `call_id`. exit: `tool`, `call_id`, `outcome` (`ok`, `denied`, `error`, `timeout`), `executed` |
@@ -363,3 +364,35 @@ Shapes, the 32 000-character cap and the public-mode rule are in `contracts/trac
 tenant. A `node_enter` record is the node's input, stored before a breakpoint pauses there.
 The one summary key this adds is `has_payload: true`, on an event whose detail holds a
 payload.
+
+## 14. Tuning (0.2.0)
+
+Additive (`contracts/tuning.md`). Three new ops event types, and the eval run types reused by
+curation. All are ops events (section 10): `turn_id` and `session_id` are `null`, `trace_id` is
+one per run, `seq` counts from 0 per stream. A tune run is not a chat turn: like an eval run it
+lives on a stream of its own, and `turn_start.summary.kind: tune` is reserved for an
+implementation that runs it as a turn.
+
+| Type | Stream | `node_id` | `status` | Summary |
+|---|---|---|---|---|
+| `tune_run_started` | `tune:<run_id>` | `tune` | `active` | `run_id` (required), `trainer`, `trainer_kind`, `student`, `teacher`, `dataset` (`dataset/<name>@v<n>`), `examples` (`{train, val}`), `total_steps`, `config` (a few scalars: `method`, `rank`, `epochs`, `learning_rate`, `max_seq_len`) |
+| `tune_step` | `tune:<run_id>` | `tune` | `active` | `run_id` (required), `step` (required, from 1), `total_steps`, `epoch`, `loss`, `eval_loss`, `learning_rate`, `elapsed_s`, `eta_s`, `phase` (`train`; the worker's later phases `merge`, `convert`, `quantize`, `create` report with `step` equal to `total_steps`) |
+| `tune_run_finished` | `tune:<run_id>` | `tune` | `done` or `error` | `run_id` (required), `status` (`done`, `error`), `adapter` and `model` (`<kind>/<name>@v<n>`, on success), `metrics` (`{steps, train_loss, eval_loss, wall_s}`), `error_code` |
+
+Curation (`curate:<curation_id>`) reuses `eval_run_started`, `eval_case_finished` and
+`eval_run_finished` with `node_id: curate` and these summary differences: `eval_run_started`
+has `run_id` (the curation id), `purpose: curate`, `model` (the teacher), `pack` (the first
+pack) and `packs`, `total` (scenarios); `eval_case_finished` has `case_id` as
+`<pack>/<case id>` or `<pack>/<case id>_p<n>` for the n-th rewrite, `status` the case's eval
+status and `kept` (bool); `eval_run_finished` has `totals`, `kept` and `dataset`
+(`dataset/<name>@v<n>`).
+
+The model gate (Compare) emits one `release_gated` on the tenant's `ops` stream with `suite:
+model`, `pack` the first target pack, and the additional keys `packs`, `canary_packs`,
+`candidate` (`model/<name>@v<n>`), `gain`, `canary_drop` (`{pack: cases}`) and `prompt_arm`
+(`{gain, canary_ok}`). Promote and rollback change `models/models` through the release plane,
+so they emit the usual `artifact_changed`, `release_gated` and `artifact_released`.
+
+Summary shapes for spans (section 6): `curate` and `tune` emit no spans in this version (they
+run outside turns). The `router` span gains `arm` and `bucket` when the `canary` rule routed the
+call (`contracts/router.md`).

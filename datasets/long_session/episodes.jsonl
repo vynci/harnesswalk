@@ -1,0 +1,8 @@
+{"id": "ep-ls-01", "ts": "2026-09-22T17:40:00Z", "kind": "trip", "text": "Trip TR-4390 to the Brannock Highlands ended; the traveller found the Brannock Lodge cold and the breakfast too far away.", "outcome": "completed", "entities": ["TR-4390"]}
+{"id": "ep-ls-02", "ts": "2026-10-03T10:15:00Z", "kind": "booking", "text": "Trip TR-4471 was confirmed after the deposit was paid; ferries chosen for 14 and 19 November.", "outcome": "confirmed", "entities": ["TR-4471"]}
+{"id": "ep-ls-03", "ts": "2026-10-11T14:30:00Z", "kind": "booking", "text": "Trip TR-4520 to Mirelake was confirmed at the Mirelake Quay Hotel.", "outcome": "confirmed", "entities": ["TR-4520"]}
+{"id": "ep-ls-04", "ts": "2026-10-19T09:00:00Z", "kind": "notice", "text": "The Carrow Ferry Company published its winter timetable with the 23:30 overnight sailing from Mirelake.", "outcome": "published"}
+{"id": "ep-ls-05", "ts": "2026-10-24T11:20:00Z", "kind": "booking", "text": "Trip TR-4588 for a family of four was held at the Carrow Harbour Inn while the family chooses a crossing.", "outcome": "pending", "entities": ["TR-4588"]}
+{"id": "ep-ls-06", "ts": "2026-10-27T16:05:00Z", "kind": "booking", "text": "Trip TR-4602 to Port Ellery was confirmed at the Ellery Sands Guesthouse with a sea-view room requested.", "outcome": "confirmed", "entities": ["TR-4602"]}
+{"id": "ep-ls-07", "ts": "2026-10-30T13:45:00Z", "kind": "support", "text": "A traveller asked whether bicycles can go on the Carrow ferry; the desk sent the luggage policy.", "outcome": "resolved"}
+{"id": "ep-ls-08", "ts": "2026-11-02T08:30:00Z", "kind": "notice", "text": "The Port Ellery to Carrow route moved to its winter days, Friday to Monday only.", "outcome": "published"}

@@ -1,0 +1,12 @@
+fixture: schema_extracted
+description: A structured reply after a tool call, written as prose and a fenced JSON block.
+model: fake-small
+turns:
+  - responses:
+      - tool_calls:
+          - { call_id: call_1, name: lookup_order, arguments: { order_id: A-1001 } }
+        usage: { input_tokens: 905, output_tokens: 24 }
+        expect: { last_message_role: user, last_message_contains: A-1001 }
+      - text: "Here is the status of order A-1001 as JSON:\n```json\n{\"order_id\": \"A-1001\", \"status\": \"shipped\"}\n```"
+        usage: { input_tokens: 1012, output_tokens: 30 }
+        expect: { last_message_role: tool, last_message_contains: shipped }
