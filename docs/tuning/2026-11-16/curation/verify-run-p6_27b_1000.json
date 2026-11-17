@@ -1,0 +1,98 @@
+{
+  "folder": "lab-train-27b/runs/tr_1",
+  "cap": 6144,
+  "train": {
+    "examples": 993,
+    "samples": 2899,
+    "dropped_over_cap": 0,
+    "tokens": {
+      "p50": 2745,
+      "p90": 3317,
+      "p99": 3651,
+      "max": 4274,
+      "mean": 2657,
+      "over_4096": 2
+    },
+    "by_pack": {
+      "ecommerce": 483,
+      "logistics": 510
+    },
+    "by_kind": {
+      "refund_deny": 53,
+      "cancel_approve": 72,
+      "track_eta": 48,
+      "conditional_no_cancel": 23,
+      "cancel_deny": 67,
+      "track": 93,
+      "kb": 36,
+      "reroute_blocked": 60,
+      "reroute_approve": 106,
+      "not_found": 34,
+      "lookup_then_refund_deny": 23,
+      "reroute_deny": 99,
+      "eta": 48,
+      "lookup": 49,
+      "multi_reroute_deny": 31,
+      "hub": 10,
+      "lookup_then_cancel_approve": 31,
+      "multi_reroute_approve": 24,
+      "multi_cancel_deny": 10,
+      "multi_cancel_approve": 22,
+      "refund_approve": 47,
+      "smalltalk": 7
+    },
+    "by_source": {
+      "generated": 550,
+      "paraphrase": 443
+    },
+    "by_teacher": {
+      "local-27b": 993
+    }
+  },
+  "val": {
+    "examples": 95,
+    "samples": 276,
+    "dropped_over_cap": 0,
+    "tokens": {
+      "p50": 2778,
+      "p90": 3369,
+      "p99": 3616,
+      "max": 3699,
+      "mean": 2685,
+      "over_4096": 0
+    },
+    "by_pack": {
+      "logistics": 50,
+      "ecommerce": 45
+    },
+    "by_kind": {
+      "reroute_approve": 14,
+      "reroute_blocked": 6,
+      "not_found": 3,
+      "track": 7,
+      "reroute_deny": 7,
+      "conditional_no_cancel": 5,
+      "lookup": 6,
+      "track_eta": 8,
+      "kb": 5,
+      "cancel_deny": 5,
+      "lookup_then_cancel_approve": 5,
+      "multi_cancel_approve": 2,
+      "refund_approve": 6,
+      "smalltalk": 1,
+      "refund_deny": 3,
+      "lookup_then_refund_deny": 2,
+      "cancel_approve": 4,
+      "hub": 1,
+      "eta": 4,
+      "multi_reroute_deny": 1
+    },
+    "by_source": {
+      "generated": 50,
+      "paraphrase": 45
+    },
+    "by_teacher": {
+      "local-27b": 95
+    }
+  }
+}

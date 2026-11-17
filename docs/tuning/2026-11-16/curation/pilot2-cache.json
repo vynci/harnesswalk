@@ -1,0 +1,281 @@
+{
+  "shards": 6,
+  "cases": 278,
+  "usd": 0.2382,
+  "usd_per_case": 0.000857,
+  "examples": 276,
+  "usd_per_example": 0.000863,
+  "all": {
+    "n": 278,
+    "passed": 267,
+    "rate": 0.9604,
+    "ci95": [
+      0.9305,
+      0.9778
+    ]
+  },
+  "by_pack": {
+    "ecommerce": {
+      "n": 141,
+      "passed": 134,
+      "rate": 0.9504,
+      "ci95": [
+        0.9011,
+        0.9757
+      ]
+    },
+    "logistics": {
+      "n": 137,
+      "passed": 133,
+      "rate": 0.9708,
+      "ci95": [
+        0.9273,
+        0.9886
+      ]
+    }
+  },
+  "by_kind": {
+    "cancel_approve": {
+      "n": 20,
+      "passed": 20,
+      "rate": 1.0,
+      "ci95": [
+        0.8389,
+        1.0
+      ]
+    },
+    "cancel_deny": {
+      "n": 18,
+      "passed": 17,
+      "rate": 0.9444,
+      "ci95": [
+        0.7424,
+        0.9901
+      ]
+    },
+    "conditional_no_cancel": {
+      "n": 6,
+      "passed": 6,
+      "rate": 1.0,
+      "ci95": [
+        0.6097,
+        1.0
+      ]
+    },
+    "eta": {
+      "n": 6,
+      "passed": 6,
+      "rate": 1.0,
+      "ci95": [
+        0.6097,
+        1.0
+      ]
+    },
+    "hub": {
+      "n": 4,
+      "passed": 4,
+      "rate": 1.0,
+      "ci95": [
+        0.5101,
+        1.0
+      ]
+    },
+    "kb": {
+      "n": 18,
+      "passed": 16,
+      "rate": 0.8889,
+      "ci95": [
+        0.672,
+        0.969
+      ]
+    },
+    "lookup": {
+      "n": 20,
+      "passed": 20,
+      "rate": 1.0,
+      "ci95": [
+        0.8389,
+        1.0
+      ]
+    },
+    "lookup_then_cancel_approve": {
+      "n": 12,
+      "passed": 12,
+      "rate": 1.0,
+      "ci95": [
+        0.7575,
+        1.0
+      ]
+    },
+    "lookup_then_refund_deny": {
+      "n": 6,
+      "passed": 6,
+      "rate": 1.0,
+      "ci95": [
+        0.6097,
+        1.0
+      ]
+    },
+    "multi_cancel_approve": {
+      "n": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "ci95": [
+        0.3424,
+        1.0
+      ]
+    },
+    "multi_cancel_deny": {
+      "n": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "ci95": [
+        0.2065,
+        1.0
+      ]
+    },
+    "multi_reroute_approve": {
+      "n": 5,
+      "passed": 5,
+      "rate": 1.0,
+      "ci95": [
+        0.5655,
+        1.0
+      ]
+    },
+    "multi_reroute_deny": {
+      "n": 2,
+      "passed": 1,
+      "rate": 0.5,
+      "ci95": [
+        0.0945,
+        0.9055
+      ]
+    },
+    "not_found": {
+      "n": 4,
+      "passed": 4,
+      "rate": 1.0,
+      "ci95": [
+        0.5101,
+        1.0
+      ]
+    },
+    "refund_approve": {
+      "n": 14,
+      "passed": 11,
+      "rate": 0.7857,
+      "ci95": [
+        0.5241,
+        0.9243
+      ]
+    },
+    "refund_deny": {
+      "n": 18,
+      "passed": 16,
+      "rate": 0.8889,
+      "ci95": [
+        0.672,
+        0.969
+      ]
+    },
+    "reroute_approve": {
+      "n": 34,
+      "passed": 34,
+      "rate": 1.0,
+      "ci95": [
+        0.8985,
+        1.0
+      ]
+    },
+    "reroute_blocked": {
+      "n": 10,
+      "passed": 10,
+      "rate": 1.0,
+      "ci95": [
+        0.7225,
+        1.0
+      ]
+    },
+    "reroute_deny": {
+      "n": 38,
+      "passed": 38,
+      "rate": 1.0,
+      "ci95": [
+        0.9082,
+        1.0
+      ]
+    },
+    "smalltalk": {
+      "n": 6,
+      "passed": 6,
+      "rate": 1.0,
+      "ci95": [
+        0.6097,
+        1.0
+      ]
+    },
+    "track": {
+      "n": 16,
+      "passed": 16,
+      "rate": 1.0,
+      "ci95": [
+        0.8064,
+        1.0
+      ]
+    },
+    "track_eta": {
+      "n": 18,
+      "passed": 16,
+      "rate": 0.8889,
+      "ci95": [
+        0.672,
+        0.969
+      ]
+    }
+  },
+  "by_source": {
+    "generated": {
+      "n": 144,
+      "passed": 139,
+      "rate": 0.9653,
+      "ci95": [
+        0.9213,
+        0.9851
+      ]
+    },
+    "paraphrase": {
+      "n": 134,
+      "passed": 128,
+      "rate": 0.9552,
+      "ci95": [
+        0.9058,
+        0.9793
+      ]
+    }
+  },
+  "failed_scorers": {
+    "tool_calls": 9,
+    "path": 6,
+    "answer_match": 6,
+    "turn2.tool_calls": 1,
+    "turn2.answer_match": 1
+  },
+  "tool_split": {
+    "write tool not called": 7,
+    "read tool not called": 2
+  },
+  "tool_split_by_pack": {
+    "ecommerce": {
+      "write tool not called": 6
+    },
+    "logistics": {
+      "write tool not called": 1,
+      "read tool not called": 2
+    }
+  },
+  "decode_tok_s": null,
+  "mean_s": 3.403,
+  "median_s": 3.34,
+  "p95_s": 5.803
+}

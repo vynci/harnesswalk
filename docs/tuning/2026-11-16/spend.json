@@ -1,0 +1,15 @@
+{
+  "note": "Hosted spend of phase 6, computed by the harness from the API's token usage and the prices in config/models.yaml (Haiku 5.5 0.10/0.50 USD per million input/output tokens, cache reads 0.1x, writes 1.25x; Sonnet 5.5 2/10, cache reads 0.05x). Not reconciled with the Anthropic console. Cap 60 USD.",
+  "items": [
+    {"item": "pilot, Haiku teacher, no prompt cache (185 cases)", "usd": 0.2944},
+    {"item": "pilot, Haiku teacher, prompt cache (558 cases)", "usd": 0.4510},
+    {"item": "pilot 2 after the fixes, Haiku teacher, prompt cache (278 cases)", "usd": 0.2382},
+    {"item": "Haiku on the first test set (1,000 cases, superseded by the fixes)", "usd": 0.8087},
+    {"item": "Haiku on the generated test set (1,000 cases)", "usd": 0.7669},
+    {"item": "Haiku re-run of the 29 fixed SMS-clear cases", "usd": 0.0233},
+    {"item": "Sonnet 5.5 sanity pass (153 cases both Haiku and the 27B failed)", "usd": 4.3935},
+    {"item": "Haiku curation (11,422 cases, 10,582 examples in the dataset)", "usd": 7.9117},
+    {"item": "Haiku second sample on the frozen test set (979 cases)", "usd": 0.7540}
+  ],
+  "total_usd": 15.6417
+}

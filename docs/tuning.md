@@ -8,6 +8,9 @@ then canaried through the router. The same loop runs offline on the fake trainer
 measured run. A second round on 2026-11-15 retrained the recipe twice, built a second adapter
 from three governed packs, and set the adapters beside the untuned 9B and Claude Haiku 5.5 with
 GPU traces of every stage: [2026-11-15: the evidence round](#2026-11-15-the-evidence-round).
+A third round on 2026-11-16 scaled the data to 10,582 examples from Claude Haiku 5.5 and tested
+on 979 generated cases with a held-out pack:
+[2026-11-16: the scale-up round](#2026-11-16-the-scale-up-round).
 
 ## The result
 
@@ -336,6 +339,215 @@ each stage by its own card:
   Haiku's API price, and the 4B's hardware is already paid for. Curation and one training run
   cost about 0.4 and 0.15 kWh on the cards.
 
+## 2026-11-16: the scale-up round
+
+The evidence round trained on about 200 examples and tested on 92 golden cases with about two
+cases of noise per pack. This round asks whether more data helps, on a test set large enough to
+tell: a generated test set of 979 cases, a dataset of 10,582 examples curated from Claude Haiku
+5.5, the size curve of qwen3.5 4B (200, 1,000 and 5,000 examples) with seeds, the same 1,000
+recipe on qwen3.5 9B and with qwen3.5 27B as the teacher, and the untuned 4B, 9B, 27B and Haiku
+5.5 on the same cases. Every file is in [tuning/2026-11-16/](tuning/2026-11-16/README.md).
+
+### The test set
+
+The golden sets hold 24 to 28 cases a pack and the packs' tool tables a handful of rows, so the
+test cases are generated (`harnesswalk/ops/tune/scenarios.py`, `tune testset`, seed 61):
+
+- **New entities, constructed expectations.** Orders, shipments and assets get ids from a range
+  that belongs to the test split (training uses another, the golden cases a third). The rows a
+  case's tools return are generated with it and added to the pack's own tool tables for the run,
+  so policy, approval and audit run unchanged. The expected tool calls, the approval decision
+  and the facts the reply must state come from those rows and the pack's policy, never from a
+  model's answer; the node path is the matching golden case's, relaxed so two independent tool
+  calls in one reply pass as well as two replies. A denial or a "not found" is checked with a
+  regex for the meaning, not a fixture's wording.
+- **Disjoint from training, checked in code.** No test prompt is a training prompt or a golden
+  prompt of any pack (separate template lists per split, and a normalized exact-match check), no
+  entity id is shared, and the curation drops any example holding a test prompt or a test id
+  (`check_disjoint`, `finalize`). Hub codes and knowledge facts are shared, because the logistics
+  pack has six hubs and the packs fixed documents; their prompts are not.
+- **A held-out pack.** `device_fleet` is test only: 284 of the 979 cases, approval-gated power
+  offs, SMS clears and purges, role-denied reboots, scans and status questions, with tools no
+  training example shows.
+- **One tenant per case.** Every case runs as an eval run of its own, so it has a scratch
+  tenant and a memory of its own (in the pilot, a paraphrase read the memory its original wrote,
+  and a "power it off" turn found other assets in memory).
+- **Strong-model sanity pass.** Of the 1,000 generated cases, Haiku 5.5 and the 27B both failed
+  153; Claude Sonnet 5.5 passed 127 of those. The 26 that all three failed were reviewed:
+  `power_off_offline` (16 cases, all kinds dropped: declining to power off an offline device is
+  as right as calling the tool and reporting the 409), three knowledge questions (all three
+  models looked the fact up with `read_doc`; dropped), two refunds of lanterns (whether an
+  opened electronic is inside its 14-day window is ambiguous; dropped), and eleven approved SMS
+  clears whose replies gave the count but not the read id (fixed: all 29 cases of the kind now
+  expect the count). The frozen test set is 979 cases (ecommerce 345, logistics 350,
+  device_fleet 284; 589 approval-gated, 65 multi-turn), hash `d48263ccfc3698d6`.
+- **A known inconsistency, not fixed.** In the ecommerce `lookup` kind, a shipped or delivered
+  order carries a tracking id that the shipment table does not hold, so a model that also tracks
+  the shipment gets "not found". It is the same for every model and in the training data too;
+  fixing it would change every scenario hash after the curation had run.
+
+### The datasets
+
+| | Haiku 5.5 teacher | qwen3.5 27B teacher |
+|---|---|---|
+| Scenarios run (generated plus one teacher paraphrase each) | 11,422 | 1,168 |
+| Passed every deterministic scorer | 95.1% | 92.4% |
+| Examples after the filters (train / validation) | 10,482 / 100 | 993 / 95 |
+| Wall time | 2 h 10 min, 6 workers, no GPU | 6.4 h on GPU 0 (shared with evaluations) |
+| Cost | 7.91 USD (0.00075 per example, prompt caching on) | 1.62 kWh on the card |
+
+Both sets cover ecommerce and logistics only, every kind, about half generated and half
+paraphrased prompts. The filters drop an example holding a golden or test prompt (9), duplicates
+(182), and more than three examples per user prompt (456). A kept example is about 2.9 training
+samples (one per model call of the turn), 2,760 tokens at the median and at most 4,665, so none
+is dropped by the 6,144-token cap. The size-curve sets are nested: 200 is the first 200 of 1,000
+in hash order, and all share one validation set. The teacher keeps 95% of its turns because the
+scenarios are within reach of a strong model; what the filter removes is mostly the targeted
+failure, an approval asked for in prose.
+
+### Results on the test set
+
+One sample per model, temperature 0 for the local models, Wilson 95% intervals. Seeds and
+second samples are their own rows.
+
+| Model | All /979 | ecommerce /345 | logistics /350 | device_fleet /284 (held out) | Write tool not called | Mean / p95 s per case | Decode tok/s |
+|---|---|---|---|---|---|---|---|
+| base 4B | 41.4% (38.3-44.5) | 38.0% | 56.9% | 26.4% (21.6-31.8) | 406 | 1.18 / 1.81 | 157 |
+| base 9B | 46.3% (43.2-49.4) | 30.1% | 73.4% | 32.4% (27.2-38.0) | 431 | 2.05 / 4.89 | 108 |
+| 27B (untuned) | 70.0% (67.0-72.8) | 93.9% | 81.4% | 26.8% (21.9-32.2) | 202 | 6.84 / 12.0 | 41 |
+| Haiku 5.5, sample 1 | 79.6% (76.9-82.0) | 87.0% | 98.0% | 47.9% (42.1-53.7) | 164 | 3.63 / 6.25 | |
+| Haiku 5.5, sample 2 | 80.2% (77.6-82.6) | 86.1% | 98.9% | 50.0% (44.2-55.8) | 155 | 5.31 / 13.2 | |
+| 4B, 200 Haiku examples | 88.4% (86.2-90.2) | 93.9% | 98.9% | 68.7% (63.0-73.8) | 23 | 1.88 / 3.20 | 153 |
+| 4B, 1,000, seed 7 | 93.8% (92.1-95.1) | 99.1% | 93.1% | 88.0% (83.7-91.3) | 4 | 1.89 / 3.26 | 155 |
+| 4B, 1,000, seed 11 | 90.1% (88.1-91.8) | 98.0% | 94.3% | 75.3% (70.0-80.0) | 3 | 1.97 / 3.26 | 156 |
+| 4B, 1,000, seed 13 | 90.7% (88.7-92.4) | 99.7% | 92.6% | 77.5% (72.3-81.9) | 1 | 1.86 / 3.21 | 156 |
+| 4B, 5,000, seed 7 | 91.0% (89.1-92.7) | 99.1% | 99.7% | 70.4% (64.9-75.4) | 0 | 1.91 / 3.18 | 157 |
+| 4B, 5,000, seed 11 | 90.8% (88.8-92.5) | 99.1% | 92.9% | 78.2% (73.0-82.6) | 8 | 1.90 / 3.13 | 157 |
+| 4B, 993 27B examples | 86.1% (83.8-88.1) | 94.2% | 99.1% | 60.2% (54.4-65.7) | 14 | 1.90 / 3.40 | 155 |
+| 9B, 1,000 Haiku examples | 94.2% (92.5-95.5) | 98.3% | 96.0% | 87.0% (82.6-90.4) | 3 | 2.65 / 4.40 | 111 |
+
+The untuned 4B and 9B were run twice (the first runs shared GPU 0 with the 27B curation, so
+only their pass rates count): 41.6% and 46.3% again. Timings are seconds per case through the
+whole harness; Haiku's include the network.
+
+### The curve, the seeds, and the teacher
+
+- **More data stops helping at about 1,000 examples.** Three seeds at 1,000 score 90.1, 90.7
+  and 93.8% (mean 91.5%); two at 5,000 score 90.8 and 91.0% (mean 90.9%). On the two trained
+  packs every run from 200 up is at 93 to 99.7%, and "write tool not called" falls from 406 cases
+  on the base to 0 to 8. The 10,000 run was not trained.
+- **The held-out pack carries the spread.** device_fleet is 75.3, 77.5 and 88.0% at 1,000 (mean
+  80.3%) and 70.4 and 78.2% at 5,000 (mean 74.3%). The 88% at 1,000 was a good draw, not the
+  curve. Between seeds the tool calls agree; what moves is whether the reply states the request
+  or purge id (`purge_approve` 18, 3 and 2 of 20; `obd_scan` 12, 3 and 0 of 16).
+- **A reproducible regression.** The multi-turn reroutes ("track it", then "reroute it") pass
+  23 of 27 at 200 and 3, 9 and 2 of 27 at 1,000 (Haiku 27): the tuned model reroutes without
+  checking the alternate hub first. At 5,000 it is 27 and 8 of 27, so it depends on the seed as
+  much as on the size.
+- **The tuned 4B passes more test cases than its teacher.** Every tuned 4B from 200 examples up
+  (86 to 94%) is above Haiku 5.5 (79.6 and 80.2%), and on device_fleet (60 to 88% against 48 and
+  50%). Haiku itself often asks for approval in prose instead of calling the tool (155 to 164
+  cases); the curation kept only its turns that called the tool, so the student learned the
+  behaviour without the teacher's lapses.
+- **The teacher matters.** With the same recipe and seed, 993 examples from the 27B give 86.1%
+  (device_fleet 60.2%) against 93.8% from 1,000 Haiku examples; the 27B's own score is 70.0%.
+- **The 9B** on the same 1,000 examples reaches 94.2% (device_fleet 87.0%), level with the best
+  4B seed, at 40% more time per case.
+
+Per kind on device_fleet and the multi-turn reroutes (passed of cases):
+
+| Kind | 200 | 1,000 s7 | 1,000 s11 | 1,000 s13 | 5,000 s7 | 5,000 s11 | 9B 1,000 | 27B-teacher 1,000 | Haiku 5.5 | base 4B |
+|---|---|---|---|---|---|---|---|---|---|---|
+| clear_sms_approve /29 | 25 | 20 | 17 | 22 | 25 | 28 | 26 | 15 | 4 | 1 |
+| clear_sms_deny /29 | 29 | 29 | 28 | 29 | 29 | 29 | 29 | 13 | 12 | 1 |
+| power_off_approve /39 | 28 | 39 | 34 | 35 | 7 | 23 | 38 | 26 | 15 | 6 |
+| power_off_deny /39 | 22 | 39 | 39 | 39 | 39 | 39 | 39 | 22 | 12 | 3 |
+| multi_power_off_approve /10 | 0 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 0 | 0 |
+| multi_power_off_deny /10 | 1 | 6 | 6 | 5 | 6 | 6 | 7 | 10 | 1 | 0 |
+| purge_approve /20 | 20 | 18 | 3 | 2 | 4 | 10 | 7 | 13 | 14 | 1 |
+| purge_deny /29 | 26 | 29 | 28 | 27 | 29 | 28 | 29 | 23 | 17 | 8 |
+| reboot_admin /24 | 17 | 20 | 13 | 17 | 19 | 12 | 23 | 12 | 12 | 19 |
+| reboot_operator /16 | 16 | 14 | 16 | 16 | 16 | 14 | 16 | 16 | 12 | 13 |
+| obd_scan /16 | 2 | 12 | 3 | 0 | 1 | 7 | 9 | 1 | 14 | 2 |
+| status /23 | 9 | 19 | 22 | 23 | 20 | 21 | 19 | 15 | 23 | 21 |
+| logistics multi_reroute_approve /15 | 14 | 1 | 5 | 1 | 15 | 4 | 7 | 15 | 15 | 1 |
+| logistics multi_reroute_deny /12 | 9 | 2 | 4 | 1 | 12 | 4 | 6 | 12 | 12 | 1 |
+
+### The golden sets beside the test set
+
+The same models on the golden sets, as in the evidence round (`compare/`, `collateral/`):
+
+| Model | Test set /979 | Four packs /92 (3 samples) | golden device_fleet /28 | Ten packs /232 (2 samples) | Seven packs no adapter saw /156 |
+|---|---|---|---|---|---|
+| base 4B | 41.4% | 22.3 | 5.7 | 80 | 67 |
+| base 9B | 46.3% | 28.0 | 6.0 | 103 | 80.5 |
+| 4B, 200 | 88.4% | 32.0 | 6.0 | 111 | 84 |
+| 4B, 1,000 (seeds 7, 11, 13) | 93.8, 90.1, 90.7% | 40.7, 38.0, 37.7 | 7.7, 7.0, 6.0 | 116.5, 114, 115 | 85, 86, 86 |
+| 4B, 5,000 (seeds 7, 11) | 91.0, 90.8% | 40.3, 38.3 | 6.3, 8.3 | 121, 113.5 | 90, 85 |
+| 4B, 27B teacher | 86.1% | 35.3 | 6.0 | 112 | 83.5 |
+| 9B, 1,000 | 94.2% | 41.7 | 10.7 | 118 | 86 |
+| Haiku 5.5 (2026-11-15, carried) | 79.6, 80.2% | 40.3 | 10 | 133 | 99.5 |
+
+The golden sets do not move the way the test set does. On the golden cases the tuned 4B models
+reach Haiku's four-pack score (37.7 to 41 against 40.3) but stay well below it on all ten packs
+(113.5 to 121 against 133) and on the seven packs no adapter saw (84 to 90 against 99.5). On
+golden device_fleet, which holds triage, trip-insight and incident cases the generator does not
+make, every tuned 4B stays at 6 to 8.3 of 28 (Haiku 10; the tuned 9B 10.7). **The generated
+device_fleet slice is much easier than the golden device_fleet cases**: it asks for the commands
+and lookups the tuned models learned on the other packs, in the same phrasing family. The
+headline "a model on my desk beats Haiku" holds for these approval-gated command cases, not for
+the packs' harder questions.
+
+### Training and hardware
+
+LoRA rank 16 on every linear layer, bf16, learning rate 2e-4 cosine, batch 1 with 8
+accumulation steps, 6,144-token cap with `tail_logits`, two epochs at 200 and 1,000 examples, one
+at 5,000. GPU energy is the card's own (`gpulog.py`):
+
+| Run | Card | Samples train / val | Steps | Train time | Energy | Final val loss |
+|---|---|---|---|---|---|---|
+| 4B, 200, seed 7 | 1 | 566 / 304 | 142 | 50 min | 0.29 kWh | 0.265 |
+| 4B, 1,000, seed 7 | 1 | 2,855 / 304 | 714 | 3.1 h | 1.07 kWh | 0.205 |
+| 4B, 1,000, seed 11 | 1 | 2,855 / 304 | 714 | 3.1 h | 1.05 kWh | 0.203 |
+| 4B, 1,000, seed 13 | 0 | 2,855 / 304 | 714 | 3.2 h | 1.06 kWh | 0.203 |
+| 4B, 5,000, seed 7 | 1 | 14,357 / 304 | 1,795 | 7.3 h | 2.55 kWh | 0.172 |
+| 4B, 5,000, seed 11 | 1 | 14,357 / 304 | 1,795 | 7.3 h | 2.54 kWh | 0.170 |
+| 4B, 993 27B examples, seed 7 | 0 | 2,899 / 276 | 726 | 3.1 h | 1.03 kWh | 0.080 |
+| 9B, 1,000, seed 7 | 0 | 2,855 / 304 | 714 | 4.9 h | 1.67 kWh | 0.197 |
+
+- The 4B trains at about 1.9 s per sample pass with a 10.8 GiB peak (torch); the 9B at about 3 s
+  with 21.9 GiB in use on the card, so bf16 LoRA at the 6k cap fits one 3090 unchanged.
+- The worker's merge of the 9B (on the GPU) ran out of memory; it was redone on the CPU
+  (`merge_cpu.py`, the worker's merge with the base on the CPU) and the worker's convert,
+  create, check and clean phases ran as single commands. The served 9B is 5.6 GB (Q4_K_M) and
+  passes the template check. A second 9B training attempt the driver started by mistake was
+  stopped after 2.5 h (0.84 kWh, logged as its own stage).
+- The validation loss of the 27B-teacher run is lower because its replies are shorter and more
+  regular, not because the model is better (it scores lower).
+- Evaluating a 4B on the 979 cases takes about 31 minutes and 0.17 kWh on GPU 0; the 9B 44
+  minutes and 0.23 kWh; the 27B 1.6 hours and 0.51 kWh.
+
+### Spend
+
+Hosted spend of the round: 15.64 USD of the 60 USD cap (`spend.json`): Haiku curation 7.91,
+Sonnet sanity pass 4.39, Haiku on the test set 2.35 (three full runs, one of them on a superseded version, and the re-run of 29 fixed cases),
+pilots 0.98. Prompt caching of the tools and system prompt halved the teacher's cost per case.
+The amounts are the harness's own (token usage times the configured prices), not reconciled
+with the Anthropic console.
+
+### What this round does and does not show
+
+- Measured on 2026-11-15 to 2026-11-17: every number in this section. Haiku's golden-set scores
+  are carried from 2026-11-15.
+- The trained-pack scores (ecommerce, logistics) are in-distribution: the same generator, the
+  same kinds and template families, other entities and other prompts. Only device_fleet is a
+  held-out pack, and its generated cases are easier than its golden ones.
+- One sample per model on the test set. The two untuned runs of the 4B and the 9B agree within
+  4 cases and the two Haiku samples within 6, so the spread between tuned seeds (up to 36 cases,
+  mostly on device_fleet) is the training's, not the evaluation's.
+- The teacher was Claude Haiku 5.5 for every curve run; the 27B-teacher arm is one run of 993
+  examples.
+
 ## Run it yourself
 
 The commands, with the homelab's Ollama at `HARNESSWALK_OLLAMA_URL` and the worker set up
@@ -367,11 +579,16 @@ resumes from its state directory and stops before a spend cap (`harnesswalk/ops/
 ```sh
 uv run harnesswalk tune testset --out data/p6/testset
 uv run harnesswalk tune scale --teacher hosted-haiku --state data/p6/curate/haiku \
-  --scenarios 6000 --variants 1 --workers 4 --max-usd 30 --target-kept 10000 \
-  --testset data/p6/testset --prompt-cache --finalize p6_haiku --sizes 200,1000,5000
-uv run harnesswalk tune testrun --testset data/p6/testset --model local-4b \
+  --scenarios 3200 --variants 1 --workers 6 --max-usd 25 --target-kept 11000 \
+  --testset data/p6/testset --prompt-cache --finalize p6_haiku --sizes 200,1000,5000 --val-max 100
+uv run harnesswalk tune testrun --testset data/p6/testset-frozen --model local-4b \
   --state data/p6/eval/local-4b
-uv run harnesswalk tune testrun --state data/p6/eval/local-4b --report
+uv run harnesswalk tune testrun --testset data/p6/testset-frozen --model tuned-x \
+  --ollama-tag hw-x:tr_1 --like local-4b --state data/p6/eval/tuned-x
+uv run harnesswalk tune testrun --state data/p6/eval/local-4b --testset data/p6/testset-frozen --report
 ```
+
+The full sequence of the 2026-11-16 round, the freeze included, is in
+[tuning/2026-11-16/README.md](tuning/2026-11-16/README.md).
 
 Run the same command again to resume; finished shards are read, not run again.

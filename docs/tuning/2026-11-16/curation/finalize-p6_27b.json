@@ -1,0 +1,54 @@
+{
+  "p6_27b": {
+    "ref": {
+      "name": "p6_27b",
+      "version": 1,
+      "hash": "24993bf8968273aee2e633c6477bfc5e829db8887f20856369d0d1fa46e1d840"
+    },
+    "counts": {
+      "train": 993,
+      "val": 95,
+      "shards": 26,
+      "cases": 1168,
+      "kept_cases": 1079,
+      "dropped": {
+        "duplicate": 36
+      },
+      "by_pack": {
+        "ecommerce": 483,
+        "logistics": 510
+      },
+      "by_kind": {
+        "refund_deny": 53,
+        "cancel_approve": 72,
+        "track_eta": 48,
+        "conditional_no_cancel": 23,
+        "cancel_deny": 67,
+        "track": 93,
+        "kb": 36,
+        "reroute_blocked": 60,
+        "reroute_approve": 106,
+        "not_found": 34,
+        "lookup_then_refund_deny": 23,
+        "reroute_deny": 99,
+        "eta": 48,
+        "lookup": 49,
+        "multi_reroute_deny": 31,
+        "hub": 10,
+        "lookup_then_cancel_approve": 31,
+        "multi_reroute_approve": 24,
+        "multi_cancel_deny": 10,
+        "multi_cancel_approve": 22,
+        "refund_approve": 47,
+        "smalltalk": 7
+      },
+      "by_source": {
+        "generated": 550,
+        "paraphrase": 443
+      },
+      "by_teacher": {
+        "local-27b": 993
+      }
+    }
+  }
+}
